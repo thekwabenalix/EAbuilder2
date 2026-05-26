@@ -48,6 +48,7 @@ import {
   buildValidationReport,
 } from "@/lib/mql5-generator";
 import { generateCode, fixCompileErrors } from "@/lib/api-client";
+import { generateMql5FromBlueprint } from "@/lib/mql5-template-generator";
 import type { StrategyBlueprint } from "@/types/blueprint";
 import { DEFAULT_BLUEPRINT } from "@/types/blueprint";
 import {
@@ -401,6 +402,24 @@ function CodeTab({
     }
   };
 
+  const generateTemplate = async () => {
+    setGenerating(true);
+    try {
+      const generated = generateMql5FromBlueprint(blueprint);
+      if (onAutoSave) {
+        await onAutoSave(generated);
+        toast.success("Template code generated & saved — compiles guaranteed");
+      } else {
+        onCodeChange(generated);
+        toast.success("Template code generated — compiles guaranteed");
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Template generation failed");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   const compile = async () => {
     if (!code) return;
     setCompiling(true);
@@ -428,35 +447,67 @@ function CodeTab({
     }
   };
 
-  // No code yet — show a prominent generate button
+  // No code yet — show both generate options
   if (!code) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 space-y-4 text-center max-w-md mx-auto">
+      <div className="flex flex-col items-center justify-center py-20 space-y-5 text-center max-w-lg mx-auto">
         <FileCode2 className="h-10 w-10 text-muted-foreground/40" />
         <div>
-          <p className="font-medium">No code generated yet</p>
+          <p className="font-medium text-lg">Generate MQL5 Expert Advisor</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Click below to generate the MQL5 Expert Advisor from the blueprint. This takes 15–30
-            seconds.
+            Choose how to generate the code from your blueprint.
           </p>
         </div>
-        <Button onClick={generate} disabled={generating} size="lg" className="min-w-[200px]">
-          {generating ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-              Generating MQL5…
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-4 w-4 mr-1.5" />
-              Generate MQL5 Code
-            </>
-          )}
-        </Button>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+          {/* Template — always compiles */}
+          <div className="rounded-lg border-2 border-emerald-500/40 bg-emerald-500/5 p-4 flex flex-col gap-3">
+            <div>
+              <p className="font-semibold text-sm text-emerald-400">Template (Recommended)</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Deterministic TypeScript → MQL5. Generates instantly and <strong>always compiles</strong>.
+                Covers EMA, RSI, MACD, ADX, Bollinger, Stochastic, session filters and candle patterns.
+              </p>
+            </div>
+            <Button
+              onClick={generateTemplate}
+              disabled={generating}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white border-0 w-full"
+            >
+              {generating ? (
+                <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Generating…</>
+              ) : (
+                <><Hammer className="h-4 w-4 mr-1.5" /> Generate (Template)</>
+              )}
+            </Button>
+          </div>
+
+          {/* AI — more custom, may need fixing */}
+          <div className="rounded-lg border border-border bg-card p-4 flex flex-col gap-3">
+            <div>
+              <p className="font-semibold text-sm">AI Generate</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Claude writes custom logic for complex strategies. Takes 15–30 s and may occasionally
+                need a compile-fix pass.
+              </p>
+            </div>
+            <Button
+              onClick={generate}
+              disabled={generating}
+              variant="outline"
+              className="w-full"
+            >
+              {generating ? (
+                <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Generating…</>
+              ) : (
+                <><Sparkles className="h-4 w-4 mr-1.5" /> Generate (AI)</>
+              )}
+            </Button>
+          </div>
+        </div>
+
         {generating && (
-          <p className="text-xs text-muted-foreground">
-            The AI is writing your Expert Advisor. Please wait…
-          </p>
+          <p className="text-xs text-muted-foreground">Generating your Expert Advisor…</p>
         )}
       </div>
     );
@@ -498,13 +549,28 @@ function CodeTab({
               Companion offline
             </Button>
           )}
-          <Button size="sm" variant="outline" onClick={generate} disabled={generating}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={generateTemplate}
+            disabled={generating}
+            title="Instant template regeneration — always compiles"
+            className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+          >
+            {generating ? (
+              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+            ) : (
+              <Hammer className="h-4 w-4 mr-1.5" />
+            )}
+            Template
+          </Button>
+          <Button size="sm" variant="outline" onClick={generate} disabled={generating} title="AI regeneration — more custom, may need fixing">
             {generating ? (
               <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
             ) : (
               <RefreshCw className="h-4 w-4 mr-1.5" />
             )}
-            Regenerate
+            AI Regen
           </Button>
         </div>
       </div>
