@@ -21,11 +21,74 @@ Output rules (CRITICAL):
 - Never truncate — write the entire file from start to finish
 - Start directly with //+------------------------------------------------------------------+
 
-MQL5-only rules (enforce in the output):
-- NEVER use bare Ask or Bid → SymbolInfoDouble(_Symbol, SYMBOL_ASK) / SYMBOL_BID
-- NEVER use trade.SetMagicNumber() → trade.SetExpertMagicNumber((ulong)InpMagic)
-- NEVER use MarketInfo(), OrderSend(), RefreshRates(), AccountBalance(), AccountEquity()
-- Always use AccountInfoDouble(ACCOUNT_BALANCE/EQUITY), trade.Buy()/Sell()/PositionClose()`;
+MQL5-only syntax — enforce every rule below in the output:
+  PRICES:     ❌ Ask, Bid  →  ✅ SymbolInfoDouble(_Symbol, SYMBOL_ASK/BID)
+  MAGIC:      ❌ trade.SetMagicNumber()  →  ✅ trade.SetExpertMagicNumber((ulong)InpMagic)
+  ACCOUNT:    ❌ AccountBalance(), AccountEquity()  →  ✅ AccountInfoDouble(ACCOUNT_BALANCE/EQUITY)
+  SYMBOL:     ❌ MarketInfo()  →  ✅ SymbolInfoDouble/Integer(_Symbol, ...)
+  ORDERS:     ❌ OrderSend() MQL4-style  →  ✅ trade.Buy() / trade.Sell() / trade.PositionClose()
+  INDICATORS: ❌ reading handle return value  →  ✅ CopyBuffer() or the IndicatorValue() helper
+  LOT SIZE:   ❌ hardcoded lots or equity/stop division without tick math
+              ✅ Use CalcLot() that includes SYMBOL_TRADE_TICK_VALUE / SYMBOL_TRADE_TICK_SIZE
+
+Proven helpers — if the file is missing any of these, ADD them verbatim:
+
+double NormalizeVolume(double volume, string symbol)
+{
+   double minLot=SymbolInfoDouble(symbol,SYMBOL_VOLUME_MIN);
+   double maxLot=SymbolInfoDouble(symbol,SYMBOL_VOLUME_MAX);
+   double lotStep=SymbolInfoDouble(symbol,SYMBOL_VOLUME_STEP);
+   if(lotStep<=0) lotStep=0.01;
+   volume=MathFloor(volume/lotStep)*lotStep;
+   if(volume<minLot) volume=minLot;
+   if(volume>maxLot) volume=maxLot;
+   int digits=0; double step=lotStep;
+   while(step<1.0&&digits<8){step*=10.0;digits++;}
+   return NormalizeDouble(volume,digits);
+}
+
+double CalcLot(double stopDistancePoints, string symbol, double riskPercent)
+{
+   if(stopDistancePoints<=0) return 0.0;
+   double equity=AccountInfoDouble(ACCOUNT_EQUITY);
+   double riskMoney=equity*(riskPercent/100.0);
+   double tickValue=SymbolInfoDouble(symbol,SYMBOL_TRADE_TICK_VALUE);
+   if(tickValue<=0) tickValue=SymbolInfoDouble(symbol,SYMBOL_TRADE_TICK_VALUE_PROFIT);
+   if(tickValue<=0) tickValue=SymbolInfoDouble(symbol,SYMBOL_TRADE_TICK_VALUE_LOSS);
+   double tickSize=SymbolInfoDouble(symbol,SYMBOL_TRADE_TICK_SIZE);
+   double point=SymbolInfoDouble(symbol,SYMBOL_POINT);
+   if(tickValue<=0||tickSize<=0||point<=0) return 0.0;
+   double lossPerLot=(stopDistancePoints*point/tickSize)*tickValue;
+   if(lossPerLot<=0) return 0.0;
+   return NormalizeVolume(riskMoney/lossPerLot,symbol);
+}
+
+bool HasOpenPosition(string symbol,long magic)
+{
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong ticket=PositionGetTicket(i);
+      if(!PositionSelectByTicket(ticket)) continue;
+      if(PositionGetString(POSITION_SYMBOL)==symbol&&
+         PositionGetInteger(POSITION_MAGIC)==magic) return true;
+   }
+   return false;
+}
+
+bool SpreadOk(string symbol,int maxSpreadPoints)
+{
+   if(maxSpreadPoints<=0) return true;
+   return SymbolInfoInteger(symbol,SYMBOL_SPREAD)<=maxSpreadPoints;
+}
+
+double IndicatorValue(int handle,int bufferIndex,int shift)
+{
+   if(handle==INVALID_HANDLE) return 0.0;
+   double buf[];
+   ArraySetAsSeries(buf,true);
+   if(CopyBuffer(handle,bufferIndex,shift,1,buf)!=1) return 0.0;
+   return buf[0];
+}`;
 
 const PREFILL = "//+------------------------------------------------------------------+";
 
@@ -109,7 +172,7 @@ export default async (req: Request): Promise<Response> => {
         let generatedText = "";
 
         const stream = await client.messages.stream({
-          model: "claude-haiku-4-5-20251001",
+          model: "claude-sonnet-4-5-20251022",
           max_tokens: 8192,
           system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
           messages: [
