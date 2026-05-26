@@ -185,9 +185,6 @@ Output format:
 Return ONLY the raw .mq5 file content.
 No markdown. No code fences. No explanation. Start with //+---`;
 
-/** The prefill prefix — forces Claude to start with the MQL5 header immediately. */
-const PREFILL = "//+------------------------------------------------------------------+";
-
 export default async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: CORS });
@@ -233,12 +230,7 @@ export default async (req: Request): Promise<Response> => {
           messages: [
             {
               role: "user",
-              content: `Generate the complete MQL5 Expert Advisor for this StrategyBlueprint:\n\n${JSON.stringify(blueprint, null, 2)}`,
-            },
-            {
-              role: "assistant",
-              // Prefill forces Claude to start with the MQL5 header — no prose or code fences possible.
-              content: PREFILL,
+              content: `Generate the complete MQL5 Expert Advisor for this StrategyBlueprint:\n\n${JSON.stringify(blueprint, null, 2)}\n\nREMINDER: Output ONLY raw .mq5 file content. Start your response with //+------------------------------------------------------------------+ on the very first line. No markdown. No code fences. No explanation.`,
             },
           ],
         });

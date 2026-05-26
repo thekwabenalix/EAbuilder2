@@ -60,9 +60,7 @@ export async function generateCode(
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
-  // The server streams the continuation after the prefill; accumulate with the prefix.
-  const PREFIX = "//+------------------------------------------------------------------+";
-  let accumulated = PREFIX;
+  let accumulated = "";
   let buf = "";
   let finalCode: string | null = null;
 
@@ -99,7 +97,7 @@ export async function generateCode(
         } catch {}
       }
       // If the stream ended but we never saw {done:true}, use whatever was accumulated.
-      if (!finalCode && accumulated.length > PREFIX.length + 50) finalCode = accumulated.trim();
+      if (!finalCode && accumulated.length > 50) finalCode = accumulated.trim();
       break;
     }
     processChunk(decoder.decode(value, { stream: true }));
@@ -171,9 +169,7 @@ export async function applyFix(
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
-  // Server streams the continuation after the prefill; accumulate with the prefix.
-  const APPLY_PREFIX = "//+------------------------------------------------------------------+";
-  let accumulated = APPLY_PREFIX;
+  let accumulated = "";
   let buf = "";
   let finalCode: string | null = null;
 
@@ -209,7 +205,7 @@ export async function applyFix(
         } catch {}
       }
       // Fallback: if stream ended without {done:true}, use whatever was accumulated
-      if (!finalCode && accumulated.length > APPLY_PREFIX.length + 50) finalCode = accumulated.trim();
+      if (!finalCode && accumulated.length > 50) finalCode = accumulated.trim();
       break;
     }
     processChunk(decoder.decode(value, { stream: true }));

@@ -90,8 +90,6 @@ double IndicatorValue(int handle,int bufferIndex,int shift)
    return buf[0];
 }`;
 
-const PREFILL = "//+------------------------------------------------------------------+";
-
 /** Keep only error/warning/result lines — strips verbose information: lines. */
 function trimCompileLog(log: string): string {
   return log
@@ -176,11 +174,9 @@ export default async (req: Request): Promise<Response> => {
           max_tokens: 8192,
           system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
           messages: [
-            { role: "user", content: userContent },
             {
-              role: "assistant",
-              // Prefill forces raw code output — no prose or code fences possible
-              content: PREFILL,
+              role: "user",
+              content: userContent + "\n\nREMINDER: Output ONLY raw .mq5 file content. Start your response with //+------------------------------------------------------------------+ on the very first line. No markdown. No code fences. No explanation.",
             },
           ],
         });
