@@ -145,9 +145,10 @@ export default async (req: Request): Promise<Response> => {
           }
         }
 
-        // Reassemble the full file: prefill header + streamed continuation
-        const code = (PREFILL + generatedText).trim();
-        send({ done: true, code });
+        // Signal completion — client already accumulated all text chunks.
+        // Never send code in the done event: a 30KB JSON payload can get split
+        // across TCP chunks, causing a parse failure on the client.
+        send({ done: true });
       } catch (err) {
         console.error("generate-code error:", err);
         send({ error: err instanceof Error ? err.message : "Stream error" });

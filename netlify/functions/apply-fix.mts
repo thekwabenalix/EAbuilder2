@@ -128,12 +128,14 @@ export default async (req: Request): Promise<Response> => {
             event.delta.type === "text_delta"
           ) {
             generatedText += event.delta.text;
-            // Don't stream chunks to the client — just generate silently and apply at the end
+            // Stream each chunk so the client accumulates the full file incrementally.
+            // Never put the whole code in the done event — a 30KB JSON payload can be
+            // split across TCP chunks, causing a parse failure on the client.
+            send({ text: event.delta.text });
           }
         }
 
-        const code = (PREFILL + generatedText).trim();
-        send({ done: true, code });
+        send({ done: true });
       } catch (err) {
         console.error("apply-fix error:", err);
         send({ error: err instanceof Error ? err.message : "Stream error" });

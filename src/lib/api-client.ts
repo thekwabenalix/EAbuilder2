@@ -78,9 +78,8 @@ export async function generateCode(
           accumulated += parsed.text;
           onChunk?.(accumulated);
         }
-        if (parsed.done) {
-          finalCode = typeof parsed.code === "string" ? parsed.code : accumulated;
-        }
+        // done event has no code payload — use accumulated text directly.
+        if (parsed.done) finalCode = accumulated.trim();
         if (typeof parsed.error === "string") throw new Error(parsed.error);
       } catch (e) {
         if (e instanceof Error && e.message !== "AbortError") throw e;
@@ -95,10 +94,12 @@ export async function generateCode(
       if (buf.trim().startsWith("data: ")) {
         try {
           const parsed = JSON.parse(buf.trim().slice(6)) as Record<string, unknown>;
-          if (parsed.done) finalCode = typeof parsed.code === "string" ? parsed.code : accumulated;
+          if (parsed.done) finalCode = accumulated.trim();
           if (typeof parsed.error === "string") throw new Error(parsed.error);
         } catch {}
       }
+      // If the stream ended but we never saw {done:true}, use whatever was accumulated.
+      if (!finalCode && accumulated.length > PREFIX.length + 50) finalCode = accumulated.trim();
       break;
     }
     processChunk(decoder.decode(value, { stream: true }));
@@ -170,6 +171,9 @@ export async function applyFix(
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
+  // Server streams the continuation after the prefill; accumulate with the prefix.
+  const APPLY_PREFIX = "//+------------------------------------------------------------------+";
+  let accumulated = APPLY_PREFIX;
   let buf = "";
   let finalCode: string | null = null;
 
@@ -181,7 +185,10 @@ export async function applyFix(
       if (!part.startsWith("data: ")) continue;
       try {
         const parsed = JSON.parse(part.slice(6)) as Record<string, unknown>;
-        if (parsed.done && typeof parsed.code === "string") finalCode = parsed.code;
+        // Accumulate streamed text (server now streams chunks for apply-fix too)
+        if (typeof parsed.text === "string") accumulated += parsed.text;
+        // done has no code payload — use accumulated text directly
+        if (parsed.done) finalCode = accumulated.trim();
         if (typeof parsed.error === "string") throw new Error(parsed.error);
       } catch (e) {
         if (e instanceof Error && e.message !== "AbortError") throw e;
@@ -196,10 +203,13 @@ export async function applyFix(
       if (buf.trim().startsWith("data: ")) {
         try {
           const parsed = JSON.parse(buf.trim().slice(6)) as Record<string, unknown>;
-          if (parsed.done && typeof parsed.code === "string") finalCode = parsed.code;
+          if (typeof parsed.text === "string") accumulated += parsed.text;
+          if (parsed.done) finalCode = accumulated.trim();
           if (typeof parsed.error === "string") throw new Error(parsed.error);
         } catch {}
       }
+      // Fallback: if stream ended without {done:true}, use whatever was accumulated
+      if (!finalCode && accumulated.length > APPLY_PREFIX.length + 50) finalCode = accumulated.trim();
       break;
     }
     processChunk(decoder.decode(value, { stream: true }));
