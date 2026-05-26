@@ -198,7 +198,12 @@ async function extractBlueprint(prompt: string): Promise<Record<string, unknown>
     messages: [
       {
         role: "user",
-        content: `Extract a StrategyBlueprint JSON from this forex strategy description. Return ONLY valid JSON. Remember: all string values must be single-line ASCII only.\n\n${prompt}`,
+        content: `Extract a StrategyBlueprint JSON from this forex strategy description.\n\n${prompt}`,
+      },
+      {
+        role: "assistant",
+        // Prefill forces Claude to continue from here — guarantees JSON-only output
+        content: "{",
       },
     ],
   });
@@ -207,25 +212,18 @@ async function extractBlueprint(prompt: string): Promise<Record<string, unknown>
   if (block.type !== "text")
     throw new Error("Unexpected response type from Claude blueprint stage");
 
-  const text = cleanJson(block.text);
+  // Prepend the prefilled "{" back since Claude continues from it
+  const raw = "{" + block.text;
+  const text = cleanJson(raw);
 
   try {
     return JSON.parse(text) as Record<string, unknown>;
   } catch {
-    // Try jsonrepair — fixes unescaped newlines, trailing commas, smart quotes, etc.
+    // jsonrepair handles unescaped newlines, trailing commas, etc.
     try {
       return JSON.parse(jsonrepair(text)) as Record<string, unknown>;
     } catch {
-      // ignore, fall through
-    }
-    // Last resort: extract the JSON object substring and repair it
-    const match = text.match(/\{[\s\S]*\}/);
-    if (match) {
-      try {
-        return JSON.parse(jsonrepair(match[0])) as Record<string, unknown>;
-      } catch {
-        // ignore, fall through to error
-      }
+      // ignore, fall through to error
     }
     throw new Error(`Blueprint extraction returned invalid JSON: ${text.slice(0, 400)}`);
   }
