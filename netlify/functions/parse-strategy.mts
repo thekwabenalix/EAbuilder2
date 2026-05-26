@@ -80,6 +80,14 @@ OUTPUT FORMAT
 ══════════════════════════════════════════════
 
 Return ONLY valid JSON. No prose. No markdown code fences. No explanation.
+
+CRITICAL JSON RULES — the parser is strict:
+- Every string value must be on a single line. NEVER embed a raw newline inside a string value.
+- Use only plain ASCII characters in all string values. No box-drawing characters (═ ─ ║ │), no arrows (→ ←), no special Unicode.
+- Escape backslashes (\\) and double-quotes (\") inside strings.
+- No trailing commas after the last element in an array or object.
+- null is lowercase. true and false are lowercase.
+
 Match this exact TypeScript interface:
 
 {
@@ -155,6 +163,26 @@ session_filter, time_filter,
 spread_filter, news_filter, volatility_filter,
 custom`;
 
+function cleanJson(raw: string): string {
+  // Strip markdown code fences
+  let text = raw.trim();
+  if (text.startsWith("```")) {
+    text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  }
+  text = text.trim();
+
+  // Replace smart/curly quotes with straight ones
+  text = text.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
+
+  // Remove control characters that break JSON (keep tab/newline/CR for structure)
+  text = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+
+  // Remove trailing commas before } or ] (common LLM mistake)
+  text = text.replace(/,(\s*[}\]])/g, "$1");
+
+  return text;
+}
+
 async function extractBlueprint(prompt: string): Promise<Record<string, unknown>> {
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
@@ -169,7 +197,7 @@ async function extractBlueprint(prompt: string): Promise<Record<string, unknown>
     messages: [
       {
         role: "user",
-        content: `Extract a StrategyBlueprint JSON from this forex strategy description. Return ONLY valid JSON.\n\n${prompt}`,
+        content: `Extract a StrategyBlueprint JSON from this forex strategy description. Return ONLY valid JSON. Remember: all string values must be single-line ASCII only.\n\n${prompt}`,
       },
     ],
   });
@@ -178,21 +206,21 @@ async function extractBlueprint(prompt: string): Promise<Record<string, unknown>
   if (block.type !== "text")
     throw new Error("Unexpected response type from Claude blueprint stage");
 
-  let text = block.text.trim();
-  // Strip markdown code fences if Claude adds them despite instruction
-  if (text.startsWith("```")) {
-    text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  }
-  // Strip leading/trailing whitespace again
-  text = text.trim();
+  const text = cleanJson(block.text);
 
   try {
     return JSON.parse(text) as Record<string, unknown>;
   } catch {
-    // Try to extract JSON from the response if there's surrounding text
+    // Try to extract just the JSON object if there is surrounding prose
     const match = text.match(/\{[\s\S]*\}/);
-    if (match) return JSON.parse(match[0]) as Record<string, unknown>;
-    throw new Error(`Blueprint extraction returned invalid JSON: ${text.slice(0, 200)}`);
+    if (match) {
+      try {
+        return JSON.parse(match[0]) as Record<string, unknown>;
+      } catch {
+        // ignore, fall through to error
+      }
+    }
+    throw new Error(`Blueprint extraction returned invalid JSON: ${text.slice(0, 300)}`);
   }
 }
 
