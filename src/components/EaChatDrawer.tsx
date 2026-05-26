@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send, Check, Bot, User } from "lucide-react";
+import { Loader2, Send, Check, Bot, User, Code2 } from "lucide-react";
 import { toast } from "sonner";
 import type { EaChatMessage } from "@/lib/api-client";
 import type { StrategyBlueprint } from "@/types/blueprint";
@@ -11,6 +11,12 @@ const API_BASE =
   typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE_URL
     ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, "")
     : "";
+
+/** Extract the first mql5/mq5/cpp code block from a message string. */
+function extractCode(text: string): string | null {
+  const m = text.match(/```(?:mql5|mq5|cpp)?\r?\n([\s\S]+?)```/i);
+  return m ? m[1].trim() : null;
+}
 
 interface EaChatDrawerProps {
   open: boolean;
@@ -34,13 +40,32 @@ export function EaChatDrawer({
   const [messages, setMessages] = useState<EaChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [pendingCode, setPendingCode] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  /** Process a parsed SSE event object from the stream. */
+  const processEvent = (parsed: Record<string, unknown>) => {
+    if (typeof parsed.text === "string") {
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role !== "assistant") return prev;
+        return [
+          ...prev.slice(0, -1),
+          { role: "assistant" as const, content: last.content + parsed.text },
+        ];
+      });
+    }
+    if (parsed.done) {
+      setLoading(false);
+    }
+    if (typeof parsed.error === "string") {
+      throw new Error(parsed.error);
+    }
+  };
 
   const send = async () => {
     const text = input.trim();
@@ -51,7 +76,6 @@ export function EaChatDrawer({
     setMessages([...nextMessages, { role: "assistant", content: "" }]);
     setInput("");
     setLoading(true);
-    setPendingCode(null);
 
     abortRef.current = new AbortController();
 
@@ -70,57 +94,52 @@ export function EaChatDrawer({
       });
 
       if (!res.ok || !res.body) {
-        throw new Error(`Server returned ${res.status}`);
+        const errText = await res.text().catch(() => "");
+        throw new Error(`Server error ${res.status}${errText ? ": " + errText : ""}`);
       }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buf = "";
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buf += decoder.decode(value, { stream: true });
+      const processChunk = (chunk: string) => {
+        buf += chunk;
         const parts = buf.split("\n\n");
         buf = parts.pop() ?? "";
-
         for (const part of parts) {
           if (!part.startsWith("data: ")) continue;
-          let parsed: Record<string, unknown>;
           try {
-            parsed = JSON.parse(part.slice(6));
-          } catch {
-            continue;
-          }
-
-          if (typeof parsed.text === "string") {
-            setMessages((prev) => {
-              const last = prev[prev.length - 1];
-              if (last?.role !== "assistant") return prev;
-              return [
-                ...prev.slice(0, -1),
-                { role: "assistant" as const, content: last.content + parsed.text },
-              ];
-            });
-          }
-
-          if (parsed.done) {
-            if (typeof parsed.updatedCode === "string") {
-              setPendingCode(parsed.updatedCode);
+            processEvent(JSON.parse(part.slice(6)));
+          } catch (e) {
+            if (e instanceof Error && e.message !== "AbortError") {
+              throw e;
             }
-            setLoading(false);
-          }
-
-          if (typeof parsed.error === "string") {
-            throw new Error(parsed.error);
           }
         }
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          // Flush the TextDecoder and process any remaining buffer
+          processChunk(decoder.decode());
+          // Also process any leftover buf that didn't end with \n\n
+          if (buf.trim()) {
+            const remaining = buf.trim();
+            if (remaining.startsWith("data: ")) {
+              try {
+                processEvent(JSON.parse(remaining.slice(6)));
+              } catch {}
+            }
+          }
+          break;
+        }
+        processChunk(decoder.decode(value, { stream: true }));
       }
     } catch (e: unknown) {
       if (e instanceof Error && e.name === "AbortError") return;
       toast.error(e instanceof Error ? e.message : "Chat failed");
-      // Remove the empty assistant placeholder on error
+      // Remove empty assistant placeholder on error
       setMessages((prev) => {
         const last = prev[prev.length - 1];
         if (last?.role === "assistant" && last.content === "") return prev.slice(0, -1);
@@ -132,10 +151,10 @@ export function EaChatDrawer({
     }
   };
 
-  const applyCode = () => {
-    if (!pendingCode) return;
-    onApplyCode(pendingCode);
-    setPendingCode(null);
+  const handleApply = (msgContent: string) => {
+    const extracted = extractCode(msgContent);
+    if (!extracted) return;
+    onApplyCode(extracted);
     toast.success("Code updated from AI suggestion");
   };
 
@@ -179,52 +198,63 @@ export function EaChatDrawer({
               <p>or ask me to modify a specific part.</p>
             </div>
           )}
-          {messages.map((m, i) => (
-            <div
-              key={i}
-              className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              {m.role === "assistant" && (
-                <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                  {loading && i === messages.length - 1 && m.content === "" ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                  ) : (
-                    <Bot className="h-3.5 w-3.5 text-primary" />
+          {messages.map((m, i) => {
+            const isLast = i === messages.length - 1;
+            const isStreaming = loading && isLast && m.role === "assistant";
+            const hasCode = m.role === "assistant" && !isStreaming && extractCode(m.content) !== null;
+
+            return (
+              <div
+                key={i}
+                className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}
+              >
+                {m.role === "assistant" && (
+                  <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                    {isStreaming && m.content === "" ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                    ) : (
+                      <Bot className="h-3.5 w-3.5 text-primary" />
+                    )}
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-1.5 max-w-[85%]">
+                  <div
+                    className={`rounded-lg px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap break-words ${
+                      m.role === "user"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted/50 border border-border text-foreground"
+                    } ${isStreaming && m.content === "" ? "min-w-[40px] min-h-[28px]" : ""}`}
+                  >
+                    {m.content}
+                    {isStreaming && m.content.length > 0 && (
+                      <span className="inline-block w-1.5 h-3 bg-current ml-0.5 animate-pulse align-middle" />
+                    )}
+                  </div>
+
+                  {/* Inline Apply Code button — shows as soon as streaming finishes with code */}
+                  {hasCode && (
+                    <Button
+                      size="sm"
+                      onClick={() => handleApply(m.content)}
+                      className="h-7 text-xs self-start"
+                    >
+                      <Code2 className="h-3.5 w-3.5 mr-1.5" />
+                      Apply code to editor
+                    </Button>
                   )}
                 </div>
-              )}
-              <div
-                className={`max-w-[85%] rounded-lg px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap break-words ${
-                  m.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted/50 border border-border text-foreground"
-                } ${loading && i === messages.length - 1 && m.content === "" ? "min-w-[40px] min-h-[28px]" : ""}`}
-              >
-                {m.content}
-                {loading && i === messages.length - 1 && m.content.length > 0 && (
-                  <span className="inline-block w-1.5 h-3 bg-current ml-0.5 animate-pulse align-middle" />
+
+                {m.role === "user" && (
+                  <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
+                    <User className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
                 )}
               </div>
-              {m.role === "user" && (
-                <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
-                  <User className="h-3.5 w-3.5 text-muted-foreground" />
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
           <div ref={bottomRef} />
         </div>
-
-        {/* Apply code banner */}
-        {pendingCode && (
-          <div className="px-4 py-2 border-t border-emerald-500/20 bg-emerald-500/5 flex items-center gap-2 shrink-0">
-            <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-            <p className="text-xs text-emerald-300 flex-1">AI returned updated EA code</p>
-            <Button size="sm" onClick={applyCode} className="h-7 text-xs">
-              Apply code
-            </Button>
-          </div>
-        )}
 
         {/* Input */}
         <div className="px-4 py-3 border-t border-border shrink-0 flex gap-2 items-end">
