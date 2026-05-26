@@ -1,4 +1,6 @@
 import type {
+  BacktestJob,
+  BacktestResult,
   CompileRequest,
   CompileResult,
   ConfigureMt5Request,
@@ -7,7 +9,9 @@ import type {
   MT5Status,
   OpenMetaEditorResult,
   RunnerApproval,
+  RunnerJob,
   RunnerJobLog,
+  RunnerJobReport,
 } from "@/types/mt5";
 
 export const LOCAL_RUNNER_URL = "http://127.0.0.1:8765";
@@ -95,13 +99,32 @@ export async function buildRunnerApproval(
     sourceHash,
     approvedAt: new Date().toISOString(),
     scope,
-    message:
-      "User approved local-only compile execution. This does not permit live trading.",
+    message: "User approved local-only execution. This does not permit live trading.",
   };
 }
 
 export async function compileEa(request: CompileRequest): Promise<CompileResult> {
   return postJson<CompileResult>("/compile", request);
+}
+
+export async function submitBacktest(job: BacktestJob): Promise<BacktestResult> {
+  return postJson<BacktestResult>("/backtest", job);
+}
+
+export async function getRunnerJob(jobId: string): Promise<{ job: RunnerJob } & Partial<BacktestResult>> {
+  const res = await fetch(`${LOCAL_RUNNER_URL}/jobs/${encodeURIComponent(jobId)}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error(`Job poll returned ${res.status}`);
+  return res.json();
+}
+
+export async function getRunnerJobReport(jobId: string): Promise<RunnerJobReport> {
+  const res = await fetch(`${LOCAL_RUNNER_URL}/jobs/${encodeURIComponent(jobId)}/report`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error(`Job report returned ${res.status}`);
+  return res.json();
 }
 
 export async function getRunnerJobLog(jobId: string): Promise<RunnerJobLog> {

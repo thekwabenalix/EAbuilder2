@@ -89,3 +89,84 @@ export interface RunnerJobLog {
   jobId: string;
   lines: string[];
 }
+
+// ─── Backtest types ───────────────────────────────────────────────────────────
+
+export interface TesterConfig {
+  expertName: string;
+  symbol: string;
+  period: string;
+  model: Mt5BacktestModel;
+  fromDate: string;
+  toDate: string;
+  deposit: number;
+  currency: string;
+  leverage: string;
+  useLocalAgents: boolean;
+  useRemoteAgents: boolean;
+  useCloudAgents: boolean;
+  visualMode: boolean;
+  optimization: boolean;
+  parameterRanges?: Array<{
+    name: string;
+    enabled: boolean;
+    value: number;
+    start: number;
+    step: number;
+    stop: number;
+  }>;
+  reportName: string;
+}
+
+export interface BacktestJob {
+  strategyId: string;
+  strategyName: string;
+  eaFilename: string;
+  sourceCode: string;
+  approval: RunnerApproval;
+  testerConfig: TesterConfig;
+}
+
+export interface EquityCurvePoint {
+  time: string;
+  label: string;
+  balance: number;
+  equity: number | null;
+  profit: number | null;
+  trades: number;
+}
+
+export interface ReportSummary {
+  netProfit: number | null;
+  grossProfit: number | null;
+  grossLoss: number | null;
+  profitFactor: number | null;
+  expectedPayoff: number | null;
+  absoluteDrawdown: number | null;
+  maximalDrawdown: number | null;
+  totalTrades: number | null;
+  winRate: number | null;
+  initialDeposit: number | null;
+  finalBalance: number | null;
+  currency: string | null;
+  ticks: number | null;
+  bars: number | null;
+  equityCurve: EquityCurvePoint[];
+}
+
+export interface BacktestResult {
+  job: RunnerJob;
+  success: boolean;
+  summary: ReportSummary | null;
+  testerConfig?: TesterConfig | null;
+  reportPath: string | null;
+  reportHtml: string | null;
+  log: string;
+}
+
+export interface RunnerJobReport {
+  jobId: string;
+  summary: ReportSummary | null;
+  html: string | null;
+  path: string | null;
+}

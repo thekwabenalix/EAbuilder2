@@ -1,12 +1,21 @@
 import type { ReactNode } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getStrategy, updateStrategy, deleteStrategy, duplicateStrategy } from "@/lib/strategies";
 import { useAuth } from "@/lib/auth-context";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { StrategySpecForm } from "@/components/StrategySpecForm";
 import { CodeViewer } from "@/components/CodeViewer";
 import { BuilderProgress, BUILDER_STEPS, type BuilderStep } from "@/components/BuilderProgress";
@@ -25,8 +34,10 @@ import {
   RefreshCw,
   Sparkles,
   Hammer,
-  Wifi,
+  BarChart2,
   WifiOff,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -39,10 +50,14 @@ import type { StrategyBlueprint } from "@/types/blueprint";
 import { DEFAULT_BLUEPRINT } from "@/types/blueprint";
 import {
   getLocalRunnerHealth,
+  getMt5Status,
   buildRunnerApproval,
   compileEa,
   openMetaEditor,
+  submitBacktest,
+  getRunnerJob,
 } from "@/lib/local-runner";
+import type { TesterConfig, BacktestResult, ReportSummary } from "@/types/mt5";
 
 export const Route = createFileRoute("/s/$id")({
   component: StrategyPage,
@@ -203,6 +218,7 @@ function StrategyPage() {
           <TabsTrigger value="spec">Spec</TabsTrigger>
           <TabsTrigger value="builder">Builder</TabsTrigger>
           <TabsTrigger value="code">Code</TabsTrigger>
+          <TabsTrigger value="backtest">Backtest</TabsTrigger>
           <TabsTrigger value="validation">Validation</TabsTrigger>
           <TabsTrigger value="export">Export</TabsTrigger>
         </TabsList>
@@ -236,6 +252,15 @@ function StrategyPage() {
               qc.invalidateQueries({ queryKey: ["strategies"] });
               qc.invalidateQueries({ queryKey: ["strategy", id] });
             }}
+          />
+        </TabsContent>
+
+        <TabsContent value="backtest" className="pt-6 pb-10">
+          <BacktestTab
+            strategyId={id}
+            strategyName={name || "Untitled Strategy"}
+            blueprint={blueprint}
+            code={generatedCode}
           />
         </TabsContent>
 
@@ -455,6 +480,396 @@ function CodeTab({
           <pre className="rounded-md border border-border bg-card p-3 text-xs font-mono whitespace-pre-wrap max-h-64 overflow-auto">
             {compileLog}
           </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Backtest helpers ─────────────────────────────────────────────────────────
+
+function todayDot() {
+  return new Date().toISOString().slice(0, 10).replace(/-/g, ".");
+}
+
+function oneYearAgoDot() {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 1);
+  return d.toISOString().slice(0, 10).replace(/-/g, ".");
+}
+
+function fmt(n: number | null | undefined, decimals = 2) {
+  if (n === null || n === undefined) return "—";
+  return n.toFixed(decimals);
+}
+
+function MetricCard({
+  label,
+  value,
+  sub,
+  positive,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  positive?: boolean;
+}) {
+  const color =
+    positive === true
+      ? "text-emerald-400"
+      : positive === false
+        ? "text-destructive"
+        : "text-foreground";
+  return (
+    <div className="rounded-md border border-border bg-card p-3">
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className={`mt-1 text-lg font-semibold ${color}`}>{value}</p>
+      {sub && <p className="text-[11px] text-muted-foreground">{sub}</p>}
+    </div>
+  );
+}
+
+function BacktestTab({
+  strategyId,
+  strategyName,
+  blueprint,
+  code,
+}: {
+  strategyId: string;
+  strategyName: string;
+  blueprint: StrategyBlueprint;
+  code: string;
+}) {
+  const companion = useQuery({
+    queryKey: ["local-runner-health"],
+    queryFn: getLocalRunnerHealth,
+    retry: false,
+    refetchInterval: 10000,
+    staleTime: 8000,
+  });
+  const mt5Status = useQuery({
+    queryKey: ["mt5-status-backtest"],
+    queryFn: getMt5Status,
+    enabled: Boolean(companion.data?.ok),
+    retry: false,
+    refetchInterval: 15000,
+  });
+
+  const companionOnline = Boolean(companion.data?.ok);
+  const mt5Configured = Boolean(mt5Status.data?.configuredTerminalPath);
+
+  const [config, setConfig] = useState<Omit<TesterConfig, "expertName" | "reportName">>({
+    symbol: blueprint.execution.symbol || "EURUSD",
+    period: blueprint.execution.entryTimeframe || "H1",
+    model: "open_prices",
+    fromDate: oneYearAgoDot(),
+    toDate: todayDot(),
+    deposit: 10000,
+    currency: "USD",
+    leverage: "1:100",
+    useLocalAgents: true,
+    useRemoteAgents: false,
+    useCloudAgents: false,
+    visualMode: false,
+    optimization: false,
+  });
+
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [jobStatus, setJobStatus] = useState<string | null>(null);
+  const [jobMessage, setJobMessage] = useState<string | null>(null);
+  const [result, setResult] = useState<BacktestResult | null>(null);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll job until terminal state
+  useEffect(() => {
+    if (!jobId) return;
+    pollRef.current = setInterval(async () => {
+      try {
+        const data = await getRunnerJob(jobId);
+        setJobStatus(data.job.status);
+        setJobMessage(data.job.message);
+        if (data.job.status === "succeeded" || data.job.status === "failed") {
+          clearInterval(pollRef.current!);
+          setRunning(false);
+          setResult(data as BacktestResult);
+        }
+      } catch {
+        // keep polling on transient errors
+      }
+    }, 2500);
+    return () => clearInterval(pollRef.current!);
+  }, [jobId]);
+
+  const runBacktest = async () => {
+    if (!code) return;
+    setError(null);
+    setResult(null);
+    setJobId(null);
+    setJobStatus(null);
+    setRunning(true);
+
+    try {
+      const filename = buildExportFilename(blueprint, "mq5");
+      const approval = await buildRunnerApproval(code, "backtest");
+      const testerConfig: TesterConfig = {
+        ...config,
+        expertName: filename.replace(/\.mq5$/i, ""),
+        reportName: `${strategyId}-backtest`,
+      };
+      const res = await submitBacktest({
+        strategyId,
+        strategyName,
+        eaFilename: filename,
+        sourceCode: code,
+        approval,
+        testerConfig,
+      });
+      setJobId(res.job.id);
+      setJobStatus(res.job.status);
+      setJobMessage(res.job.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to start backtest");
+      setRunning(false);
+    }
+  };
+
+  const set = <K extends keyof typeof config>(k: K, v: (typeof config)[K]) =>
+    setConfig((c) => ({ ...c, [k]: v }));
+
+  // ── Guard states ──
+  if (!code) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3 text-center max-w-sm mx-auto">
+        <BarChart2 className="h-10 w-10 text-muted-foreground/30" />
+        <p className="font-medium">No code yet</p>
+        <p className="text-sm text-muted-foreground">Generate MQL5 code on the Code tab first.</p>
+      </div>
+    );
+  }
+  if (!companionOnline) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3 text-center max-w-sm mx-auto">
+        <WifiOff className="h-10 w-10 text-muted-foreground/30" />
+        <p className="font-medium">Companion offline</p>
+        <p className="text-sm text-muted-foreground">
+          Start the desktop companion and configure MT5 in Settings.
+        </p>
+      </div>
+    );
+  }
+  if (!mt5Configured) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3 text-center max-w-sm mx-auto">
+        <BarChart2 className="h-10 w-10 text-muted-foreground/30" />
+        <p className="font-medium">MT5 not configured</p>
+        <p className="text-sm text-muted-foreground">
+          Select your MT5 terminal in Settings before running a backtest.
+        </p>
+      </div>
+    );
+  }
+
+  const summary: ReportSummary | null = result?.summary ?? null;
+
+  return (
+    <div className="space-y-6 max-w-3xl">
+      {/* Config form */}
+      <div className="rounded-md border border-border bg-card p-4 space-y-4">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">Tester configuration</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Symbol</Label>
+            <Input
+              value={config.symbol}
+              onChange={(e) => set("symbol", e.target.value.toUpperCase())}
+              className="font-mono text-sm"
+              placeholder="EURUSD"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Timeframe</Label>
+            <Select value={config.period} onValueChange={(v) => set("period", v)}>
+              <SelectTrigger className="text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {["M1","M5","M15","M30","H1","H4","D1","W1"].map((p) => (
+                  <SelectItem key={p} value={p}>{p}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Model</Label>
+            <Select value={config.model} onValueChange={(v) => set("model", v as TesterConfig["model"])}>
+              <SelectTrigger className="text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="open_prices">Open prices only</SelectItem>
+                <SelectItem value="one_minute_ohlc">1 min OHLC</SelectItem>
+                <SelectItem value="every_tick">Every tick</SelectItem>
+                <SelectItem value="real_ticks">Real ticks</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">From date</Label>
+            <Input
+              value={config.fromDate}
+              onChange={(e) => set("fromDate", e.target.value)}
+              placeholder="2024.01.01"
+              className="font-mono text-sm"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">To date</Label>
+            <Input
+              value={config.toDate}
+              onChange={(e) => set("toDate", e.target.value)}
+              placeholder="2024.12.31"
+              className="font-mono text-sm"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Deposit</Label>
+            <Input
+              type="number"
+              value={config.deposit}
+              onChange={(e) => set("deposit", Number(e.target.value))}
+              className="font-mono text-sm"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Currency</Label>
+            <Input
+              value={config.currency}
+              onChange={(e) => set("currency", e.target.value.toUpperCase())}
+              className="font-mono text-sm"
+              placeholder="USD"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Leverage</Label>
+            <Select value={config.leverage} onValueChange={(v) => set("leverage", v)}>
+              <SelectTrigger className="text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {["1:50","1:100","1:200","1:500","1:1000"].map((l) => (
+                  <SelectItem key={l} value={l}>{l}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 pt-1 flex-wrap">
+          <Button onClick={runBacktest} disabled={running} className="min-w-[160px]">
+            {running ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                {jobStatus === "running" ? "Tester running…" : "Launching MT5…"}
+              </>
+            ) : (
+              <>
+                <BarChart2 className="h-4 w-4 mr-1.5" />
+                Run Backtest
+              </>
+            )}
+          </Button>
+          {running && (
+            <p className="text-xs text-muted-foreground">
+              MT5 Strategy Tester will open automatically. Keep MT5 closed until it finishes.
+            </p>
+          )}
+        </div>
+        {jobMessage && (
+          <p className="text-xs text-muted-foreground italic">{jobMessage}</p>
+        )}
+        {error && (
+          <div className="flex items-center gap-2 text-xs text-destructive">
+            <AlertTriangle className="h-3.5 w-3.5" /> {error}
+          </div>
+        )}
+      </div>
+
+      {/* Results */}
+      {result && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            {result.success ? (
+              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+            ) : (
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+            )}
+            <p className="text-sm font-medium">
+              {result.success ? "Backtest completed" : "Backtest failed"}
+            </p>
+            <span className="text-xs text-muted-foreground">
+              {config.symbol} · {config.period} · {config.fromDate} → {config.toDate}
+            </span>
+          </div>
+
+          {summary && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <MetricCard
+                label="Net Profit"
+                value={`${summary.currency ?? ""}${fmt(summary.netProfit)}`}
+                positive={summary.netProfit !== null ? summary.netProfit >= 0 : undefined}
+              />
+              <MetricCard
+                label="Profit Factor"
+                value={fmt(summary.profitFactor)}
+                positive={summary.profitFactor !== null ? summary.profitFactor >= 1 : undefined}
+              />
+              <MetricCard
+                label="Max Drawdown"
+                value={fmt(summary.maximalDrawdown)}
+                positive={
+                  summary.maximalDrawdown !== null ? summary.maximalDrawdown < 20 : undefined
+                }
+              />
+              <MetricCard
+                label="Win Rate"
+                value={summary.winRate !== null ? `${fmt(summary.winRate)}%` : "—"}
+                positive={summary.winRate !== null ? summary.winRate >= 50 : undefined}
+              />
+              <MetricCard
+                label="Total Trades"
+                value={fmt(summary.totalTrades, 0)}
+              />
+              <MetricCard
+                label="Initial Deposit"
+                value={`${summary.currency ?? ""}${fmt(summary.initialDeposit, 0)}`}
+              />
+              <MetricCard
+                label="Final Balance"
+                value={`${summary.currency ?? ""}${fmt(summary.finalBalance, 0)}`}
+                positive={
+                  summary.finalBalance !== null && summary.initialDeposit !== null
+                    ? summary.finalBalance >= summary.initialDeposit
+                    : undefined
+                }
+              />
+              <MetricCard
+                label="Expected Payoff"
+                value={fmt(summary.expectedPayoff)}
+                positive={summary.expectedPayoff !== null ? summary.expectedPayoff > 0 : undefined}
+              />
+            </div>
+          )}
+
+          {result.log && (
+            <div className="space-y-1">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Tester log</p>
+              <pre className="rounded-md border border-border bg-card p-3 text-xs font-mono whitespace-pre-wrap max-h-64 overflow-auto">
+                {result.log}
+              </pre>
+            </div>
+          )}
         </div>
       )}
     </div>
