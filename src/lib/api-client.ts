@@ -38,9 +38,74 @@ export interface GenerateCodeResult {
   code: string;
 }
 
-/** Regenerate MQL5 code from a (possibly edited) blueprint. */
-export async function generateCode(blueprint: StrategyBlueprint): Promise<GenerateCodeResult> {
-  return post<GenerateCodeResult>("/api/generate-code", { blueprint });
+/**
+ * Regenerate MQL5 code from a (possibly edited) blueprint.
+ * Streams the response via SSE — calls `onChunk(partialCode)` as lines arrive
+ * so the editor can show live progress, then resolves with the complete code.
+ */
+export async function generateCode(
+  blueprint: StrategyBlueprint,
+  onChunk?: (partial: string) => void,
+): Promise<GenerateCodeResult> {
+  const res = await fetch(`${API_BASE}/api/generate-code`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ blueprint }),
+  });
+
+  if (!res.ok || !res.body) {
+    const msg = await res.text().catch(() => `HTTP ${res.status}`);
+    throw new Error(msg || `HTTP ${res.status}`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  // The server streams the continuation after the prefill; accumulate with the prefix.
+  const PREFIX = "//+------------------------------------------------------------------+";
+  let accumulated = PREFIX;
+  let buf = "";
+  let finalCode: string | null = null;
+
+  const processChunk = (chunk: string) => {
+    buf += chunk;
+    const parts = buf.split("\n\n");
+    buf = parts.pop() ?? "";
+    for (const part of parts) {
+      if (!part.startsWith("data: ")) continue;
+      try {
+        const parsed = JSON.parse(part.slice(6)) as Record<string, unknown>;
+        if (typeof parsed.text === "string") {
+          accumulated += parsed.text;
+          onChunk?.(accumulated);
+        }
+        if (parsed.done) {
+          finalCode = typeof parsed.code === "string" ? parsed.code : accumulated;
+        }
+        if (typeof parsed.error === "string") throw new Error(parsed.error);
+      } catch (e) {
+        if (e instanceof Error && e.message !== "AbortError") throw e;
+      }
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      processChunk(decoder.decode());
+      if (buf.trim().startsWith("data: ")) {
+        try {
+          const parsed = JSON.parse(buf.trim().slice(6)) as Record<string, unknown>;
+          if (parsed.done) finalCode = typeof parsed.code === "string" ? parsed.code : accumulated;
+          if (typeof parsed.error === "string") throw new Error(parsed.error);
+        } catch {}
+      }
+      break;
+    }
+    processChunk(decoder.decode(value, { stream: true }));
+  }
+
+  if (!finalCode) throw new Error("Code generation incomplete — please try again");
+  return { code: finalCode };
 }
 
 export interface EaChatMessage {

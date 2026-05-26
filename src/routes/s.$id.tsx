@@ -381,7 +381,8 @@ function CodeTab({
   const generate = async () => {
     setGenerating(true);
     try {
-      const result = await generateCode(blueprint);
+      // onChunk streams partial code into the editor so the user sees it being written live.
+      const result = await generateCode(blueprint, (partial) => onCodeChange(partial));
       if (onAutoSave) {
         await onAutoSave(result.code);
         toast.success(code ? "Code regenerated & saved" : "MQL5 code generated & saved");

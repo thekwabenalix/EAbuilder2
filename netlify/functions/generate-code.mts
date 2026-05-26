@@ -1,5 +1,5 @@
 // Regenerates MQL5 code from an existing StrategyBlueprint.
-// Called when a user edits their blueprint and wants updated code.
+// Streams the response via SSE to avoid Netlify's 26-second function timeout.
 import Anthropic from "@anthropic-ai/sdk";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -76,6 +76,9 @@ Return ONLY the raw .mq5 file content.
 No markdown. No code fences. No prose. No explanation before or after.
 Start directly with the header comment //+---...`;
 
+/** The prefill prefix — forces Claude to continue the file body, no prose or code fences possible. */
+const PREFILL = "//+------------------------------------------------------------------+";
+
 export default async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: CORS });
@@ -104,46 +107,63 @@ export default async (req: Request): Promise<Response> => {
     return Response.json({ error: "Missing or invalid blueprint" }, { status: 400, headers: CORS });
   }
 
-  try {
-    const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 8192,
-      system: [
-        {
-          type: "text",
-          text: MQL5_SYSTEM,
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      messages: [
-        {
-          role: "user",
-          content: `Generate the complete MQL5 Expert Advisor for this StrategyBlueprint:\n\n${JSON.stringify(blueprint, null, 2)}`,
-        },
-        {
-          role: "assistant",
-          // Prefill forces Claude to start with the MQL5 header — no prose or code fences possible
-          content: "//+------------------------------------------------------------------+",
-        },
-      ],
-    });
+  // Stream the response so Netlify doesn't time out on long code outputs.
+  const readable = new ReadableStream({
+    async start(controller) {
+      const enc = new TextEncoder();
+      const send = (obj: Record<string, unknown>) =>
+        controller.enqueue(enc.encode(`data: ${JSON.stringify(obj)}\n\n`));
 
-    const block = response.content[0];
-    if (block.type !== "text") throw new Error("Unexpected response type from Claude");
+      try {
+        let generatedText = "";
 
-    // Prepend the prefilled header line back
-    const code =
-      "//+------------------------------------------------------------------+" + block.text;
+        const stream = await client.messages.stream({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 8192,
+          system: [{ type: "text", text: MQL5_SYSTEM, cache_control: { type: "ephemeral" } }],
+          messages: [
+            {
+              role: "user",
+              content: `Generate the complete MQL5 Expert Advisor for this StrategyBlueprint:\n\n${JSON.stringify(blueprint, null, 2)}`,
+            },
+            {
+              role: "assistant",
+              // Prefill forces Claude to start with the MQL5 header — no prose or code fences possible.
+              // The streamed deltas are the continuation; we prepend PREFILL at the end.
+              content: PREFILL,
+            },
+          ],
+        });
 
-    return Response.json(
-      { code: code.trim() },
-      { headers: { ...CORS, "Content-Type": "application/json" } },
-    );
-  } catch (err) {
-    console.error("generate-code error:", err);
-    const message = err instanceof Error ? err.message : "Internal server error";
-    return Response.json({ error: message }, { status: 500, headers: CORS });
-  }
+        for await (const event of stream) {
+          if (
+            event.type === "content_block_delta" &&
+            event.delta.type === "text_delta"
+          ) {
+            generatedText += event.delta.text;
+            send({ text: event.delta.text });
+          }
+        }
+
+        // Reassemble the full file: prefill header + streamed continuation
+        const code = (PREFILL + generatedText).trim();
+        send({ done: true, code });
+      } catch (err) {
+        console.error("generate-code error:", err);
+        send({ error: err instanceof Error ? err.message : "Stream error" });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(readable, {
+    headers: {
+      ...CORS,
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+    },
+  });
 };
 
 export const config = {
