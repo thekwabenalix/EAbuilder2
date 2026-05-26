@@ -47,7 +47,7 @@ import {
   buildMockCompileLog,
   buildValidationReport,
 } from "@/lib/mql5-generator";
-import { generateCode } from "@/lib/api-client";
+import { generateCode, fixCompileErrors } from "@/lib/api-client";
 import type { StrategyBlueprint } from "@/types/blueprint";
 import { DEFAULT_BLUEPRINT } from "@/types/blueprint";
 import {
@@ -278,6 +278,7 @@ function StrategyPage() {
             onCompileLog={setCompileLog}
             onBacktestSummary={setBacktestSummary}
             onOpenChat={(msg) => { setChatAutoMessage(msg ?? null); setChatOpen(true); }}
+            onApplyCode={(fixed) => { setGeneratedCode(fixed); setDirty(true); }}
           />
         </TabsContent>
 
@@ -571,6 +572,7 @@ function BacktestTab({
   onCompileLog,
   onBacktestSummary,
   onOpenChat,
+  onApplyCode,
 }: {
   strategyId: string;
   strategyName: string;
@@ -579,6 +581,7 @@ function BacktestTab({
   onCompileLog?: (log: string | null) => void;
   onBacktestSummary?: (summary: ReportSummary | null) => void;
   onOpenChat?: (message?: string) => void;
+  onApplyCode?: (code: string) => void;
 }) {
   const companion = useQuery({
     queryKey: ["local-runner-health"],
@@ -614,6 +617,7 @@ function BacktestTab({
   });
 
   // Compile (async — server returns 202 immediately, job runs in background)
+  const [fixingAi, setFixingAi] = useState(false);
   const [compileJobId, setCompileJobId] = useState<string | null>(null);
   const [compilePolling, setCompilePolling] = useState(false);
   const [compileResult, setCompileResult] = useState<CompileResult | null>(null);
@@ -1011,17 +1015,36 @@ function BacktestTab({
                 {compileResult.errors} compile error{compileResult.errors !== 1 ? "s" : ""} — fix the code before backtesting
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Common causes: MQL4-style globals (Ask/Bid), wrong method names, or type mismatches. The AI can fix these automatically.
+                {fixingAi
+                  ? "AI is rewriting the fixed code — this takes 15–30 seconds…"
+                  : "Click Fix with AI to automatically correct all errors in one step."}
               </p>
             </div>
-            {onOpenChat && (
+            {onApplyCode && (
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => onOpenChat("Fix all the compile errors in this EA.")}
+                disabled={fixingAi}
+                onClick={async () => {
+                  if (!compileResult.log) return;
+                  setFixingAi(true);
+                  try {
+                    const result = await fixCompileErrors(blueprint, code, compileResult.log);
+                    onApplyCode(result.code);
+                    toast.success("AI fixed the code — recompile to verify");
+                  } catch (e: unknown) {
+                    toast.error(e instanceof Error ? e.message : "Fix failed — please try again");
+                  } finally {
+                    setFixingAi(false);
+                  }
+                }}
                 className="shrink-0"
               >
-                <Bot className="h-3.5 w-3.5 mr-1.5" /> Fix with AI
+                {fixingAi ? (
+                  <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Fixing…</>
+                ) : (
+                  <><Bot className="h-3.5 w-3.5 mr-1.5" /> Fix with AI</>
+                )}
               </Button>
             )}
           </div>

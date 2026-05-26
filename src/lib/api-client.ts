@@ -214,3 +214,77 @@ export async function applyFix(
   if (!finalCode) throw new Error("Fix generation incomplete — please try again");
   return { code: finalCode };
 }
+
+export interface FixCompileErrorsResult {
+  code: string;
+}
+
+/**
+ * Fix compile errors directly — no chat loop, no intermediate step.
+ * Streams the complete corrected MQL5 file and resolves when done.
+ * Pass `onChunk` to stream partial output to an editor for live preview.
+ */
+export async function fixCompileErrors(
+  blueprint: StrategyBlueprint,
+  code: string,
+  compileLog: string,
+  onChunk?: (partial: string) => void,
+): Promise<FixCompileErrorsResult> {
+  const res = await fetch(`${API_BASE}/api/fix-compile-errors`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ blueprint, code, compileLog }),
+  });
+
+  if (!res.ok || !res.body) {
+    const msg = await res.text().catch(() => `HTTP ${res.status}`);
+    throw new Error(msg || `HTTP ${res.status}`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let accumulated = "";
+  let buf = "";
+  let finalCode: string | null = null;
+
+  const processChunk = (chunk: string) => {
+    buf += chunk;
+    const parts = buf.split("\n\n");
+    buf = parts.pop() ?? "";
+    for (const part of parts) {
+      if (!part.startsWith("data: ")) continue;
+      try {
+        const parsed = JSON.parse(part.slice(6)) as Record<string, unknown>;
+        if (typeof parsed.text === "string") {
+          accumulated += parsed.text;
+          onChunk?.(accumulated);
+        }
+        if (parsed.done) finalCode = accumulated.trim();
+        if (typeof parsed.error === "string") throw new Error(parsed.error);
+      } catch (e) {
+        if (e instanceof Error && e.message !== "AbortError") throw e;
+      }
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      processChunk(decoder.decode());
+      if (buf.trim().startsWith("data: ")) {
+        try {
+          const parsed = JSON.parse(buf.trim().slice(6)) as Record<string, unknown>;
+          if (typeof parsed.text === "string") accumulated += parsed.text;
+          if (parsed.done) finalCode = accumulated.trim();
+          if (typeof parsed.error === "string") throw new Error(parsed.error);
+        } catch {}
+      }
+      if (!finalCode && accumulated.length > 50) finalCode = accumulated.trim();
+      break;
+    }
+    processChunk(decoder.decode(value, { stream: true }));
+  }
+
+  if (!finalCode) throw new Error("Fix incomplete — please try again");
+  return { code: finalCode };
+}

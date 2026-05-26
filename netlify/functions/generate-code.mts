@@ -225,7 +225,7 @@ export default async (req: Request): Promise<Response> => {
 
         const stream = await client.messages.stream({
           model: "claude-sonnet-4-6",
-          max_tokens: 8192,
+          max_tokens: 16000,
           system: [{ type: "text", text: MQL5_SYSTEM, cache_control: { type: "ephemeral" } }],
           messages: [
             {

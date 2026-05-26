@@ -1,6 +1,6 @@
-// Applies the AI-described fix to the MQL5 code.
-// Called after the user reads the fix summary in the chat and clicks "Apply Fix".
-// The conversation history tells this model exactly what to change; it writes the full corrected file.
+// Direct compile-error fixer — no chat, no intermediate steps.
+// Called when the user clicks "Fix with AI" after a failed compile.
+// Takes the broken code + compile log + blueprint, returns a complete fixed file via SSE.
 import Anthropic from "@anthropic-ai/sdk";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -11,27 +11,37 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const SYSTEM = `You are an expert MQL5 developer applying code fixes described in a conversation.
+const SYSTEM = `You are an expert MQL5 developer. Fix compile errors in an Expert Advisor and return the COMPLETE fixed file.
 
-Your job: read the conversation history, find the described changes, and apply ALL of them to the provided MQL5 code.
+═══════════════════════════════════════
+COMPLETENESS — NON-NEGOTIABLE
+═══════════════════════════════════════
+- Return THE ENTIRE .mq5 file — every single line, first header to last closing brace
+- NEVER truncate — do NOT write "..." or "// rest of code" or stop early
+- Every function must be FULLY implemented — no stubs, no empty bodies
+- OnInit(), OnDeinit(), and OnTick() MUST all be present and complete
+- Every { must have a matching }
+- Every string literal must be properly closed
 
-Output rules (CRITICAL):
-- Return ONLY the raw .mq5 file content — no markdown, no code fences, no explanations
-- Include EVERY line of the original file; only change what was described
-- Never truncate — write the entire file from start to finish
+═══════════════════════════════════════
+OUTPUT FORMAT — CRITICAL
+═══════════════════════════════════════
+- Output ONLY raw .mq5 file content — no markdown, no code fences, no explanations
 - Start directly with //+------------------------------------------------------------------+
+- End with the last closing brace of the file
 
-MQL5-only syntax — enforce every rule below in the output:
-  PRICES:     ❌ Ask, Bid  →  ✅ SymbolInfoDouble(_Symbol, SYMBOL_ASK/BID)
-  MAGIC:      ❌ trade.SetMagicNumber()  →  ✅ trade.SetExpertMagicNumber((ulong)InpMagic)
-  ACCOUNT:    ❌ AccountBalance(), AccountEquity()  →  ✅ AccountInfoDouble(ACCOUNT_BALANCE/EQUITY)
-  SYMBOL:     ❌ MarketInfo()  →  ✅ SymbolInfoDouble/Integer(_Symbol, ...)
-  ORDERS:     ❌ OrderSend() MQL4-style  →  ✅ trade.Buy() / trade.Sell() / trade.PositionClose()
-  INDICATORS: ❌ reading handle return value  →  ✅ CopyBuffer() or the IndicatorValue() helper
-  LOT SIZE:   ❌ hardcoded lots or equity/stop division without tick math
-              ✅ Use CalcLot() that includes SYMBOL_TRADE_TICK_VALUE / SYMBOL_TRADE_TICK_SIZE
+═══════════════════════════════════════
+MQL5-ONLY SYNTAX — ENFORCE THESE
+═══════════════════════════════════════
+  Ask, Bid                → SymbolInfoDouble(_Symbol, SYMBOL_ASK/BID)
+  trade.SetMagicNumber()  → trade.SetExpertMagicNumber((ulong)InpMagic)
+  AccountBalance/Equity() → AccountInfoDouble(ACCOUNT_BALANCE/EQUITY)
+  MarketInfo()            → SymbolInfoDouble/Integer(_Symbol, ...)
+  OrderSend() MQL4-style  → trade.Buy() / trade.Sell() / trade.PositionClose()
 
-Proven helpers — if the file is missing any of these, ADD them verbatim:
+═══════════════════════════════════════
+MANDATORY HELPERS — ADD IF MISSING
+═══════════════════════════════════════
 
 double NormalizeVolume(double volume, string symbol)
 {
@@ -90,7 +100,7 @@ double IndicatorValue(int handle,int bufferIndex,int shift)
    return buf[0];
 }`;
 
-/** Keep only error/warning/result lines — strips verbose information: lines. */
+/** Keep only error/warning/result lines from the compile log. */
 function trimCompileLog(log: string): string {
   return log
     .split("\n")
@@ -100,8 +110,6 @@ function trimCompileLog(log: string): string {
         lower.includes("error") ||
         lower.includes("warning") ||
         lower.includes("result:") ||
-        lower.includes("compile job") ||
-        lower.includes("metaeditor exit") ||
         (l.trim().length > 0 && !lower.includes(": information:"))
       );
     })
@@ -124,42 +132,34 @@ export default async (req: Request): Promise<Response> => {
     return Response.json({ error: "Invalid JSON" }, { status: 400, headers: CORS });
   }
 
-  const messages = body.messages as { role: "user" | "assistant"; content: string }[];
   const blueprint = body.blueprint;
   const code = typeof body.code === "string" ? body.code : "";
-  const rawLog = typeof body.compileLog === "string" ? body.compileLog : null;
-  const compileLog = rawLog ? trimCompileLog(rawLog) : null;
-  const backtestSummary = body.backtestSummary ?? null;
+  const rawLog = typeof body.compileLog === "string" ? body.compileLog : "";
+  const compileLog = trimCompileLog(rawLog);
 
-  if (!messages?.length || !code) {
-    return Response.json({ error: "messages and code are required" }, { status: 400, headers: CORS });
+  if (!code || !compileLog) {
+    return Response.json(
+      { error: "code and compileLog are required" },
+      { status: 400, headers: CORS },
+    );
   }
-
-  // Build the prompt: full context + conversation history (so the model knows what to fix)
-  const conversationHistory = messages
-    .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
-    .join("\n\n");
 
   const userContent = [
     "=== STRATEGY BLUEPRINT ===",
     JSON.stringify(blueprint, null, 2),
     "",
-    "=== MQL5 CODE TO FIX ===",
+    "=== BROKEN MQL5 CODE ===",
     code,
-    compileLog ? `\n=== COMPILE ERRORS ===\n${compileLog}` : "",
-    backtestSummary
-      ? `\n=== BACKTEST SUMMARY ===\n${JSON.stringify(backtestSummary, null, 2)}`
-      : "",
     "",
-    "=== CONVERSATION (describes what to fix) ===",
-    conversationHistory,
+    "=== COMPILE ERRORS TO FIX ===",
+    compileLog,
     "",
-    "Apply ALL the described fixes and return the COMPLETE corrected .mq5 file:",
-  ]
-    .filter(Boolean)
-    .join("\n");
+    "Fix ALL the compile errors listed above.",
+    "Return the COMPLETE corrected .mq5 file — every line, all functions fully implemented.",
+    "Start with //+------------------------------------------------------------------+ on the very first line.",
+    "Output ONLY the raw .mq5 code. No markdown. No explanation.",
+  ].join("\n");
 
-  // Stream the fixed code so Netlify doesn't time out
   const readable = new ReadableStream({
     async start(controller) {
       const enc = new TextEncoder();
@@ -167,36 +167,22 @@ export default async (req: Request): Promise<Response> => {
         controller.enqueue(enc.encode(`data: ${JSON.stringify(obj)}\n\n`));
 
       try {
-        let generatedText = "";
-
         const stream = await client.messages.stream({
           model: "claude-sonnet-4-6",
           max_tokens: 16000,
           system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
-          messages: [
-            {
-              role: "user",
-              content: userContent + "\n\nREMINDER: Output ONLY raw .mq5 file content. Start your response with //+------------------------------------------------------------------+ on the very first line. No markdown. No code fences. No explanation.",
-            },
-          ],
+          messages: [{ role: "user", content: userContent }],
         });
 
         for await (const event of stream) {
-          if (
-            event.type === "content_block_delta" &&
-            event.delta.type === "text_delta"
-          ) {
-            generatedText += event.delta.text;
-            // Stream each chunk so the client accumulates the full file incrementally.
-            // Never put the whole code in the done event — a 30KB JSON payload can be
-            // split across TCP chunks, causing a parse failure on the client.
+          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
             send({ text: event.delta.text });
           }
         }
 
         send({ done: true });
       } catch (err) {
-        console.error("apply-fix error:", err);
+        console.error("fix-compile-errors error:", err);
         send({ error: err instanceof Error ? err.message : "Stream error" });
       } finally {
         controller.close();
@@ -214,6 +200,6 @@ export default async (req: Request): Promise<Response> => {
 };
 
 export const config = {
-  path: "/api/apply-fix",
+  path: "/api/fix-compile-errors",
   timeout: 26,
 };
