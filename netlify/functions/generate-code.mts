@@ -44,6 +44,33 @@ Strict rules:
 - Run OnTick logic at most once per new bar (bar-open execution).
 - All inputs must have a sensible comment/label.
 
+══════════════════════════════════════════════
+CRITICAL: MQL5-ONLY SYNTAX — NEVER USE MQL4
+══════════════════════════════════════════════
+These cause compile errors if violated:
+
+PRICES — never use bare MQL4 globals:
+  ❌ Ask, Bid
+  ✅ SymbolInfoDouble(_Symbol, SYMBOL_ASK), SymbolInfoDouble(_Symbol, SYMBOL_BID)
+
+CTRADE MAGIC NUMBER:
+  ❌ trade.SetMagicNumber(InpMagic)
+  ✅ trade.SetExpertMagicNumber((ulong)InpMagic)
+
+SYMBOL INFO — all use ENUM_SYMBOL_INFO_DOUBLE:
+  ✅ SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN)
+  ✅ SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MAX)
+  ✅ SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP)
+  ❌ MarketInfo() — MQL4 only, does not exist in MQL5
+
+ACCOUNT INFO:
+  ✅ AccountInfoDouble(ACCOUNT_BALANCE), AccountInfoDouble(ACCOUNT_EQUITY)
+  ❌ AccountBalance(), AccountEquity() — MQL4 only
+
+ORDER MANAGEMENT:
+  ✅ trade.Buy(), trade.Sell(), trade.PositionClose()
+  ❌ OrderSend(), RefreshRates() — MQL4 only
+
 Output format:
 Return ONLY the raw .mq5 file content.
 No markdown. No code fences. No prose. No explanation before or after.
