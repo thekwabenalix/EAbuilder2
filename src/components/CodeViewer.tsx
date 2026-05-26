@@ -46,9 +46,20 @@ export function CodeViewer({
           </Button>
         </div>
       </div>
-      <pre className="overflow-auto max-h-[70vh] p-4 text-xs leading-relaxed font-mono text-foreground/90">
-        <code>{code || "// No code generated yet."}</code>
-      </pre>
+      <div className="overflow-auto max-h-[70vh]">
+        <table className="w-full border-collapse text-xs leading-relaxed font-mono">
+          <tbody>
+            {(code || "// No code generated yet.").split("\n").map((line, i) => (
+              <tr key={i} className="hover:bg-muted/10">
+                <td className="select-none text-right text-muted-foreground/40 pr-3 pl-4 py-0 w-10 shrink-0 border-r border-border/30">
+                  {i + 1}
+                </td>
+                <td className="pl-3 pr-4 py-0 text-foreground/90 whitespace-pre">{line}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

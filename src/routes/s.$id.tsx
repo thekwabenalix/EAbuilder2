@@ -214,6 +214,17 @@ function StrategyPage() {
               setGeneratedCode(code);
               setDirty(true);
             }}
+            onAutoSave={async (code) => {
+              await updateStrategy(id, {
+                name: name || "Untitled Strategy",
+                blueprint,
+                generatedCode: code,
+              });
+              setGeneratedCode(code);
+              setDirty(false);
+              qc.invalidateQueries({ queryKey: ["strategies"] });
+              qc.invalidateQueries({ queryKey: ["strategy", id] });
+            }}
           />
         </TabsContent>
 
@@ -277,10 +288,12 @@ function CodeTab({
   blueprint,
   code,
   onCodeChange,
+  onAutoSave,
 }: {
   blueprint: StrategyBlueprint;
   code: string;
   onCodeChange: (code: string) => void;
+  onAutoSave?: (code: string) => Promise<void>;
 }) {
   const [generating, setGenerating] = useState(false);
 
@@ -288,8 +301,13 @@ function CodeTab({
     setGenerating(true);
     try {
       const result = await generateCode(blueprint);
-      onCodeChange(result.code);
-      toast.success(code ? "Code regenerated" : "MQL5 code generated");
+      if (onAutoSave) {
+        await onAutoSave(result.code);
+        toast.success(code ? "Code regenerated & saved" : "MQL5 code generated & saved");
+      } else {
+        onCodeChange(result.code);
+        toast.success(code ? "Code regenerated" : "MQL5 code generated");
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to generate code");
     } finally {
