@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { jsonrepair } from "jsonrepair";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -211,16 +212,22 @@ async function extractBlueprint(prompt: string): Promise<Record<string, unknown>
   try {
     return JSON.parse(text) as Record<string, unknown>;
   } catch {
-    // Try to extract just the JSON object if there is surrounding prose
+    // Try jsonrepair — fixes unescaped newlines, trailing commas, smart quotes, etc.
+    try {
+      return JSON.parse(jsonrepair(text)) as Record<string, unknown>;
+    } catch {
+      // ignore, fall through
+    }
+    // Last resort: extract the JSON object substring and repair it
     const match = text.match(/\{[\s\S]*\}/);
     if (match) {
       try {
-        return JSON.parse(match[0]) as Record<string, unknown>;
+        return JSON.parse(jsonrepair(match[0])) as Record<string, unknown>;
       } catch {
         // ignore, fall through to error
       }
     }
-    throw new Error(`Blueprint extraction returned invalid JSON: ${text.slice(0, 300)}`);
+    throw new Error(`Blueprint extraction returned invalid JSON: ${text.slice(0, 400)}`);
   }
 }
 
