@@ -115,7 +115,7 @@ export interface EaChatMessage {
 
 export interface EaChatResult {
   reply: string;
-  updatedCode: string | null;
+  fixReady: boolean;
 }
 
 /** EA assistant — Claude with full strategy context injected. */
@@ -133,4 +133,78 @@ export async function eaChat(
     compileLog: compileLog ?? null,
     backtestSummary: backtestSummary ?? null,
   });
+}
+
+export interface ApplyFixResult {
+  code: string;
+}
+
+/**
+ * Apply the fix described in the chat conversation.
+ * Generates the complete corrected MQL5 file and resolves with it.
+ * Calls `onDone(code)` when the code is ready (no streaming to the UI — silent generation).
+ */
+export async function applyFix(
+  messages: EaChatMessage[],
+  blueprint: StrategyBlueprint,
+  code: string,
+  compileLog?: string | null,
+  backtestSummary?: unknown,
+): Promise<ApplyFixResult> {
+  const res = await fetch(`${API_BASE}/api/apply-fix`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messages,
+      blueprint,
+      code,
+      compileLog: compileLog ?? null,
+      backtestSummary: backtestSummary ?? null,
+    }),
+  });
+
+  if (!res.ok || !res.body) {
+    const msg = await res.text().catch(() => `HTTP ${res.status}`);
+    throw new Error(msg || `HTTP ${res.status}`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let finalCode: string | null = null;
+
+  const processChunk = (chunk: string) => {
+    buf += chunk;
+    const parts = buf.split("\n\n");
+    buf = parts.pop() ?? "";
+    for (const part of parts) {
+      if (!part.startsWith("data: ")) continue;
+      try {
+        const parsed = JSON.parse(part.slice(6)) as Record<string, unknown>;
+        if (parsed.done && typeof parsed.code === "string") finalCode = parsed.code;
+        if (typeof parsed.error === "string") throw new Error(parsed.error);
+      } catch (e) {
+        if (e instanceof Error && e.message !== "AbortError") throw e;
+      }
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      processChunk(decoder.decode());
+      if (buf.trim().startsWith("data: ")) {
+        try {
+          const parsed = JSON.parse(buf.trim().slice(6)) as Record<string, unknown>;
+          if (parsed.done && typeof parsed.code === "string") finalCode = parsed.code;
+          if (typeof parsed.error === "string") throw new Error(parsed.error);
+        } catch {}
+      }
+      break;
+    }
+    processChunk(decoder.decode(value, { stream: true }));
+  }
+
+  if (!finalCode) throw new Error("Fix generation incomplete — please try again");
+  return { code: finalCode };
 }

@@ -47,18 +47,27 @@ WHAT YOU CAN DO
 - Interpret backtest results and explain what they mean
 
 ══════════════════════════════════════════════
-WHEN MODIFYING CODE
+WHEN MODIFYING OR FIXING CODE
 ══════════════════════════════════════════════
-1. Briefly explain what you changed and why (2-4 sentences max)
-2. Return the COMPLETE updated .mq5 file — never truncate:
-\`\`\`mql5
-// full updated file here — every single line
-\`\`\`
-3. The file must compile without errors in MetaEditor 5
-4. Preserve all existing inputs, comments, and structure unless asked to change them
-5. If the file is long, write it all — do not use "// ... rest of file unchanged ..."
+NEVER write code in your response. Instead:
+1. List the specific changes you will make (2–4 bullet points, be precise about line/function)
+2. One sentence per bullet explaining WHY it fixes the problem
+3. YOUR RESPONSE MUST END WITH THIS EXACT LINE (nothing after it): [FIX_READY]
 
-Keep responses concise and actionable. When not modifying code, do not include code blocks.`;
+Example response when fixing compile errors:
+• Replace \`Ask\` with \`SymbolInfoDouble(_Symbol, SYMBOL_ASK)\` — \`Ask\` is an MQL4 global not available in MQL5
+• Replace \`trade.SetMagicNumber(InpMagic)\` with \`trade.SetExpertMagicNumber((ulong)InpMagic)\` — correct MQL5 method name
+• Remove \`RefreshRates()\` call in OnTick — this function does not exist in MQL5
+[FIX_READY]
+
+The user will click "Apply Fix" and the corrected code will be generated automatically.
+Keep the summary to 3–6 lines maximum. No code snippets, no code blocks — ever.
+
+══════════════════════════════════════════════
+WHEN EXPLAINING (not modifying code)
+══════════════════════════════════════════════
+Answer normally. Do NOT include [FIX_READY] or any code blocks.
+Keep responses concise and actionable.`;
 
 /** Keep only error/warning/result lines from a compile log — strips verbose "information:" lines. */
 function trimCompileLog(log: string): string {
@@ -150,11 +159,9 @@ export default async (req: Request): Promise<Response> => {
           }
         }
 
-        // Extract updated code block from complete response
-        const codeMatch = fullText.match(/```(?:mql5|mq5|cpp)?\n([\s\S]+?)```/i);
-        const updatedCode = codeMatch ? codeMatch[1].trim() : null;
-
-        send({ done: true, updatedCode });
+        // Signal whether the AI described a fix (client shows the Apply Fix button)
+        const fixReady = fullText.includes("[FIX_READY]");
+        send({ done: true, fixReady });
       } catch (err) {
         send({ error: err instanceof Error ? err.message : "Stream error" });
       } finally {

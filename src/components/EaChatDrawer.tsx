@@ -2,8 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send, Bot, User, Code2 } from "lucide-react";
+import { Loader2, Send, Bot, User, Wrench } from "lucide-react";
 import { toast } from "sonner";
+import { applyFix } from "@/lib/api-client";
 import type { EaChatMessage } from "@/lib/api-client";
 import type { StrategyBlueprint } from "@/types/blueprint";
 
@@ -12,21 +13,9 @@ const API_BASE =
     ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, "")
     : "";
 
-/** Extract MQL5 code from any assistant message — handles complete blocks, unclosed blocks, and bare code. */
-function extractCode(text: string): string | null {
-  // Complete fenced block: ```mql5 ... ```
-  const complete = text.match(/```(?:mql5|mq5|cpp)?\r?\n([\s\S]+?)```/i);
-  if (complete) return complete[1].trim();
-
-  // Unclosed fence (response hit max_tokens before closing ```)
-  const open = text.match(/```(?:mql5|mq5|cpp)?\r?\n([\s\S]+)/i);
-  if (open && open[1].trim().length > 100) return open[1].trim();
-
-  // Bare code — no fences at all, starts with MQL5 header or #property
-  const bare = text.match(/(\/\/\+[-]{5,}[\s\S]+|#property\s[\s\S]+)/);
-  if (bare && bare[1].trim().length > 100) return bare[1].trim();
-
-  return null;
+/** Strip the [FIX_READY] marker from displayed message content. */
+function stripMarker(text: string): string {
+  return text.replace(/\[FIX_READY\]\s*$/m, "").trimEnd();
 }
 
 interface EaChatDrawerProps {
@@ -51,23 +40,16 @@ export function EaChatDrawer({
   const [messages, setMessages] = useState<EaChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  /** Code extracted from the latest AI response that contained a code block. */
-  const [pendingCode, setPendingCode] = useState<string | null>(null);
+  /** True when the last AI response contained [FIX_READY] — shows the Apply Fix banner. */
+  const [fixReady, setFixReady] = useState(false);
+  /** True while /api/apply-fix is running — shows spinner in banner. */
+  const [applyLoading, setApplyLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
-
-  // After streaming stops, scan the last assistant message for code and surface it.
-  useEffect(() => {
-    if (loading) return;
-    const lastAI = [...messages].reverse().find((m) => m.role === "assistant");
-    if (!lastAI) return;
-    const extracted = extractCode(lastAI.content);
-    if (extracted) setPendingCode(extracted);
-  }, [loading, messages]);
 
   const processEvent = (parsed: Record<string, unknown>) => {
     if (typeof parsed.text === "string") {
@@ -80,7 +62,11 @@ export function EaChatDrawer({
         ];
       });
     }
-    if (parsed.done) setLoading(false);
+    if (parsed.done) {
+      setLoading(false);
+      // Server signals whether the AI described a fix
+      if (parsed.fixReady === true) setFixReady(true);
+    }
     if (typeof parsed.error === "string") throw new Error(parsed.error);
   };
 
@@ -93,7 +79,7 @@ export function EaChatDrawer({
     setMessages([...nextMessages, { role: "assistant", content: "" }]);
     setInput("");
     setLoading(true);
-    setPendingCode(null);
+    setFixReady(false);
 
     abortRef.current = new AbortController();
 
@@ -136,7 +122,6 @@ export function EaChatDrawer({
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
-          // Flush decoder and drain any remaining buffer
           processChunk(decoder.decode());
           if (buf.trim().startsWith("data: ")) {
             try { processEvent(JSON.parse(buf.trim().slice(6))); } catch {}
@@ -159,12 +144,19 @@ export function EaChatDrawer({
     }
   };
 
-  const applyCode = () => {
-    if (!pendingCode) return;
-    onApplyCode(pendingCode);
-    setPendingCode(null);
-    onOpenChange(false);
-    toast.success("Code applied — remember to save and recompile");
+  const handleApplyFix = async () => {
+    setApplyLoading(true);
+    try {
+      const result = await applyFix(messages, blueprint, code, compileLog, backtestSummary);
+      onApplyCode(result.code);
+      setFixReady(false);
+      onOpenChange(false);
+      toast.success("Fix applied — remember to save and recompile");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Fix failed — please try again");
+    } finally {
+      setApplyLoading(false);
+    }
   };
 
   const contextTags = [
@@ -205,13 +197,15 @@ export function EaChatDrawer({
               <Bot className="h-8 w-8 mx-auto text-muted-foreground/30 mb-3" />
               <p className="font-medium text-foreground/60">Ask me anything about your EA</p>
               <p>Explain code, debug errors, suggest improvements,</p>
-              <p>or ask me to modify a specific part.</p>
+              <p>or ask me to fix a specific problem.</p>
             </div>
           )}
 
           {messages.map((m, i) => {
             const isLast = i === messages.length - 1;
             const isStreaming = loading && isLast && m.role === "assistant";
+            // Strip [FIX_READY] marker from display
+            const displayContent = m.role === "assistant" ? stripMarker(m.content) : m.content;
 
             return (
               <div
@@ -234,7 +228,7 @@ export function EaChatDrawer({
                       : "bg-muted/50 border border-border text-foreground"
                   } ${isStreaming && m.content === "" ? "min-w-[40px] min-h-[28px]" : ""}`}
                 >
-                  {m.content}
+                  {displayContent}
                   {isStreaming && m.content.length > 0 && (
                     <span className="inline-block w-1.5 h-3 bg-current ml-0.5 animate-pulse align-middle" />
                   )}
@@ -250,20 +244,31 @@ export function EaChatDrawer({
           <div ref={bottomRef} />
         </div>
 
-        {/* ── APPLY CODE BANNER — always visible above input when code is ready ── */}
-        {pendingCode && !loading && (
+        {/* ── APPLY FIX BANNER — visible when AI has a fix ready or is generating ── */}
+        {(fixReady || applyLoading) && !loading && (
           <div className="shrink-0 px-4 py-3 border-t border-emerald-500/30 bg-emerald-500/10 flex items-center gap-3">
-            <Code2 className="h-4 w-4 text-emerald-400 shrink-0" />
-            <p className="text-xs text-emerald-300 flex-1 font-medium">
-              AI has updated code ready to apply
-            </p>
-            <Button
-              size="sm"
-              onClick={applyCode}
-              className="shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white border-0"
-            >
-              Apply code
-            </Button>
+            {applyLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 text-emerald-400 shrink-0 animate-spin" />
+                <p className="text-xs text-emerald-300 flex-1 font-medium">
+                  Generating fixed code…
+                </p>
+              </>
+            ) : (
+              <>
+                <Wrench className="h-4 w-4 text-emerald-400 shrink-0" />
+                <p className="text-xs text-emerald-300 flex-1 font-medium">
+                  Fix is ready — click Apply to generate the corrected code
+                </p>
+                <Button
+                  size="sm"
+                  onClick={handleApplyFix}
+                  className="shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white border-0"
+                >
+                  Apply fix
+                </Button>
+              </>
+            )}
           </div>
         )}
 
@@ -280,9 +285,14 @@ export function EaChatDrawer({
             }}
             placeholder="Ask about your EA… (Enter to send, Shift+Enter for newline)"
             className="min-h-[60px] max-h-32 resize-none text-xs flex-1"
-            disabled={loading}
+            disabled={loading || applyLoading}
           />
-          <Button size="sm" onClick={send} disabled={loading || !input.trim()} className="self-end shrink-0">
+          <Button
+            size="sm"
+            onClick={send}
+            disabled={loading || applyLoading || !input.trim()}
+            className="self-end shrink-0"
+          >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </div>
