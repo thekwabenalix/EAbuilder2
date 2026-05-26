@@ -91,6 +91,8 @@ function StrategyPage() {
   const [name, setName] = useState("");
   const [dirty, setDirty] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  /** When set, the drawer auto-sends this message the moment it opens. */
+  const [chatAutoMessage, setChatAutoMessage] = useState<string | null>(null);
   const [compileLog, setCompileLog] = useState<string | null>(null);
   const [backtestSummary, setBacktestSummary] = useState<ReportSummary | null>(null);
 
@@ -275,7 +277,7 @@ function StrategyPage() {
             code={generatedCode}
             onCompileLog={setCompileLog}
             onBacktestSummary={setBacktestSummary}
-            onOpenChat={() => setChatOpen(true)}
+            onOpenChat={(msg) => { setChatAutoMessage(msg ?? null); setChatOpen(true); }}
           />
         </TabsContent>
 
@@ -290,7 +292,8 @@ function StrategyPage() {
 
       <EaChatDrawer
         open={chatOpen}
-        onOpenChange={setChatOpen}
+        onOpenChange={(open) => { setChatOpen(open); if (!open) setChatAutoMessage(null); }}
+        autoMessage={chatAutoMessage ?? undefined}
         blueprint={blueprint}
         code={generatedCode}
         compileLog={compileLog}
@@ -575,7 +578,7 @@ function BacktestTab({
   code: string;
   onCompileLog?: (log: string | null) => void;
   onBacktestSummary?: (summary: ReportSummary | null) => void;
-  onOpenChat?: () => void;
+  onOpenChat?: (message?: string) => void;
 }) {
   const companion = useQuery({
     queryKey: ["local-runner-health"],
@@ -1012,7 +1015,12 @@ function BacktestTab({
               </p>
             </div>
             {onOpenChat && (
-              <Button size="sm" variant="outline" onClick={onOpenChat} className="shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onOpenChat("Fix all the compile errors in this EA.")}
+                className="shrink-0"
+              >
                 <Bot className="h-3.5 w-3.5 mr-1.5" /> Fix with AI
               </Button>
             )}

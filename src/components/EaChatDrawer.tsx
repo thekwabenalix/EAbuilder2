@@ -21,6 +21,8 @@ function stripMarker(text: string): string {
 interface EaChatDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** When set, the drawer sends this message automatically the moment it opens. */
+  autoMessage?: string;
   blueprint: StrategyBlueprint;
   code: string;
   compileLog?: string | null;
@@ -31,6 +33,7 @@ interface EaChatDrawerProps {
 export function EaChatDrawer({
   open,
   onOpenChange,
+  autoMessage,
   blueprint,
   code,
   compileLog,
@@ -70,8 +73,17 @@ export function EaChatDrawer({
     if (typeof parsed.error === "string") throw new Error(parsed.error);
   };
 
-  const send = async () => {
-    const text = input.trim();
+  // Auto-send autoMessage the moment the drawer opens (only if no conversation exists).
+  useEffect(() => {
+    if (!open || !autoMessage || messages.length > 0 || loading) return;
+    const id = setTimeout(() => send(autoMessage), 50);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]); // intentionally only re-runs when open changes
+
+  /** Send a message. Pass `textArg` to bypass the input field (used for auto-send). */
+  const send = async (textArg?: string) => {
+    const text = (textArg ?? input).trim();
     if (!text || loading) return;
 
     const userMsg: EaChatMessage = { role: "user", content: text };
@@ -138,7 +150,8 @@ export function EaChatDrawer({
         if (last?.role === "assistant" && last.content === "") return prev.slice(0, -1);
         return prev;
       });
-      setInput(text);
+      // Only restore input when the user typed manually (not during auto-send)
+      if (!textArg) setInput(text);
     } finally {
       setLoading(false);
     }
@@ -289,7 +302,7 @@ export function EaChatDrawer({
           />
           <Button
             size="sm"
-            onClick={send}
+            onClick={() => send()}
             disabled={loading || applyLoading || !input.trim()}
             className="self-end shrink-0"
           >
