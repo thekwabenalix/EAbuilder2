@@ -79,7 +79,7 @@ export default async (req: Request): Promise<Response> => {
 
   try {
     const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 8192,
       system: [
         {
@@ -93,16 +93,20 @@ export default async (req: Request): Promise<Response> => {
           role: "user",
           content: `Generate the complete MQL5 Expert Advisor for this StrategyBlueprint:\n\n${JSON.stringify(blueprint, null, 2)}`,
         },
+        {
+          role: "assistant",
+          // Prefill forces Claude to start with the MQL5 header — no prose or code fences possible
+          content: "//+------------------------------------------------------------------+",
+        },
       ],
     });
 
     const block = response.content[0];
     if (block.type !== "text") throw new Error("Unexpected response type from Claude");
 
-    let code = block.text.trim();
-    if (code.startsWith("```")) {
-      code = code.replace(/^```(?:mql5|cpp|c\+\+)?\s*/i, "").replace(/\s*```$/, "");
-    }
+    // Prepend the prefilled header line back
+    const code =
+      "//+------------------------------------------------------------------+" + block.text;
 
     return Response.json(
       { code: code.trim() },
