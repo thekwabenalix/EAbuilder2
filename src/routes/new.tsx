@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Sparkles, Loader2, Wand2, AlertTriangle } from "lucide-react";
 import { EXAMPLE_PROMPT } from "@/types/strategy";
-import { parseStrategy } from "@/lib/api-client";
+import { parseStrategy, generateCode } from "@/lib/api-client";
 import { createStrategy } from "@/lib/strategies";
 import { toast } from "sonner";
 
@@ -36,15 +36,18 @@ function NewStrategy() {
 
     try {
       setStage("Extracting rules & blueprint…");
-      const result = await parseStrategy(prompt);
+      const { blueprint } = await parseStrategy(prompt);
+
+      setStage("Generating MQL5 code…");
+      const { code: generatedCode } = await generateCode(blueprint);
 
       setStage("Saving to library…");
       const row = await createStrategy({
         userId: user.id,
-        name: result.blueprint.name || "Untitled Strategy",
+        name: blueprint.name || "Untitled Strategy",
         prompt,
-        blueprint: result.blueprint,
-        generatedCode: result.generatedCode,
+        blueprint,
+        generatedCode,
       });
 
       toast.success("Strategy built with AI");

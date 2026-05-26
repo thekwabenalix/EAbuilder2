@@ -26,11 +26,10 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 
 export interface ParseStrategyResult {
   blueprint: StrategyBlueprint;
-  generatedCode: string;
   source: "ai";
 }
 
-/** Stage 1-5: parse a plain-English strategy description into a blueprint + MQL5 code. */
+/** Stage 1-4: extract a StrategyBlueprint from a plain-English strategy description. */
 export async function parseStrategy(prompt: string): Promise<ParseStrategyResult> {
   return post<ParseStrategyResult>("/api/parse-strategy", { prompt });
 }

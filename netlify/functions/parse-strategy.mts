@@ -155,46 +155,6 @@ session_filter, time_filter,
 spread_filter, news_filter, volatility_filter,
 custom`;
 
-// ─── Stage 5: MQL5 code generation prompt ─────────────────────────────────────
-const MQL5_SYSTEM = `You are a senior MQL5 developer with 15+ years of MetaTrader 5 Expert Advisor development.
-
-Given a StrategyBlueprint JSON, generate a COMPLETE, COMPILABLE MQL5 Expert Advisor (.mq5 file).
-
-══════════════════════════════════════════════
-CODE REQUIREMENTS
-══════════════════════════════════════════════
-
-Structure (in order):
-1. Header comment block (strategy name, description, disclaimer)
-2. #property strict / version / copyright
-3. #include <Trade/Trade.mqh>  → CTrade trade;
-4. Input parameters (all tunable values as input variables, grouped and commented)
-5. Global variables (handles, state tracking)
-6. OnInit() — create all indicator handles, validate parameters, return INIT_FAILED on error
-7. OnDeinit() — release all indicator handles
-8. Helper functions (one per logical concept)
-9. OnTick() — run logic once per closed bar using iTime() comparison
-10. TryEntry() / TryBuy() / TrySell() — entry logic, one open position check, spread check
-11. CalcLot() — equity-percent risk sizing
-
-Strict rules:
-- ONLY implement what is in blueprint.rules. Never add extra logic.
-- For each rule where compilable=false: add a clear TODO comment block explaining
-  what the trader must implement manually.
-- All indicator handles: check for INVALID_HANDLE in OnInit, return INIT_FAILED.
-- CopyBuffer() return value must be checked before use.
-- Use InpMagic to tag all trades.
-- Prevent duplicate entries: HasOpenPosition() checks symbol + magic.
-- Spread guard: skip entry if spread > InpMaxSpreadPoints.
-- Lot sizing: use account equity * riskPercent / stopDistance, clamped to min/max/step.
-- Run OnTick logic at most once per new bar (bar-open execution).
-- All inputs must have a sensible comment/label.
-
-Output format:
-Return ONLY the raw .mq5 file content.
-No markdown. No code fences. No prose. No explanation before or after.
-Start directly with the header comment //+---...`;
-
 async function extractBlueprint(prompt: string): Promise<Record<string, unknown>> {
   const response = await client.messages.create({
     model: "claude-sonnet-4-6",
@@ -215,7 +175,8 @@ async function extractBlueprint(prompt: string): Promise<Record<string, unknown>
   });
 
   const block = response.content[0];
-  if (block.type !== "text") throw new Error("Unexpected response type from Claude blueprint stage");
+  if (block.type !== "text")
+    throw new Error("Unexpected response type from Claude blueprint stage");
 
   let text = block.text.trim();
   // Strip markdown code fences if Claude adds them despite instruction
@@ -233,36 +194,6 @@ async function extractBlueprint(prompt: string): Promise<Record<string, unknown>
     if (match) return JSON.parse(match[0]) as Record<string, unknown>;
     throw new Error(`Blueprint extraction returned invalid JSON: ${text.slice(0, 200)}`);
   }
-}
-
-async function generateMql5(blueprint: Record<string, unknown>): Promise<string> {
-  const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 8192,
-    system: [
-      {
-        type: "text",
-        text: MQL5_SYSTEM,
-        cache_control: { type: "ephemeral" },
-      },
-    ],
-    messages: [
-      {
-        role: "user",
-        content: `Generate the complete MQL5 Expert Advisor for this StrategyBlueprint:\n\n${JSON.stringify(blueprint, null, 2)}`,
-      },
-    ],
-  });
-
-  const block = response.content[0];
-  if (block.type !== "text") throw new Error("Unexpected response type from Claude code stage");
-
-  let code = block.text.trim();
-  // Strip markdown fences if present
-  if (code.startsWith("```")) {
-    code = code.replace(/^```(?:mql5|cpp|c\+\+)?\s*/i, "").replace(/\s*```$/, "");
-  }
-  return code.trim();
 }
 
 export default async (req: Request): Promise<Response> => {
@@ -298,14 +229,9 @@ export default async (req: Request): Promise<Response> => {
   }
 
   try {
-    // Stage 1-4: Extract strategy blueprint
     const blueprint = await extractBlueprint(prompt);
-
-    // Stage 5: Generate MQL5 code from blueprint
-    const generatedCode = await generateMql5(blueprint);
-
     return Response.json(
-      { blueprint, generatedCode, source: "ai" },
+      { blueprint, source: "ai" },
       { headers: { ...CORS, "Content-Type": "application/json" } },
     );
   } catch (err) {
@@ -317,4 +243,5 @@ export default async (req: Request): Promise<Response> => {
 
 export const config = {
   path: "/api/parse-strategy",
+  timeout: 26,
 };
