@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send, Check, Bot, User, Code2 } from "lucide-react";
+import { Loader2, Send, Bot, User, Code2 } from "lucide-react";
 import { toast } from "sonner";
 import type { EaChatMessage } from "@/lib/api-client";
 import type { StrategyBlueprint } from "@/types/blueprint";
@@ -12,10 +12,27 @@ const API_BASE =
     ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, "")
     : "";
 
-/** Extract the first mql5/mq5/cpp code block from a message string. */
+/**
+ * Extract MQL5 code from a message.
+ * Handles three cases:
+ *   1. Complete code fence: ```mql5 ... ``` (ideal)
+ *   2. Unclosed code fence: ```mql5 ... <EOF> (truncated response)
+ *   3. Bare code (no fences): starts with //+--- or #property (no fence at all)
+ */
 function extractCode(text: string): string | null {
-  const m = text.match(/```(?:mql5|mq5|cpp)?\r?\n([\s\S]+?)```/i);
-  return m ? m[1].trim() : null;
+  // Case 1 — complete fenced block
+  const complete = text.match(/```(?:mql5|mq5|cpp)?\r?\n([\s\S]+?)```/i);
+  if (complete) return complete[1].trim();
+
+  // Case 2 — unclosed fence (response truncated before closing ```)
+  const open = text.match(/```(?:mql5|mq5|cpp)?\r?\n([\s\S]+)/i);
+  if (open && open[1].trim().length > 100) return open[1].trim();
+
+  // Case 3 — bare MQL5 (no fences at all, starts with header comment or #property)
+  const bare = text.match(/(\/\/\+[-]+\+[\s\S]+|#property\s[\s\S]+)/);
+  if (bare && bare[1].trim().length > 100) return bare[1].trim();
+
+  return null;
 }
 
 interface EaChatDrawerProps {
