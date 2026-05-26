@@ -12,6 +12,7 @@ import type {
   RunnerJob,
   RunnerJobLog,
   RunnerJobReport,
+  RunnerJobResult,
 } from "@/types/mt5";
 
 export const LOCAL_RUNNER_URL = "http://127.0.0.1:8765";
@@ -111,7 +112,7 @@ export async function submitBacktest(job: BacktestJob): Promise<BacktestResult> 
   return postJson<BacktestResult>("/backtest", job);
 }
 
-export async function getRunnerJob(jobId: string): Promise<{ job: RunnerJob } & Partial<BacktestResult>> {
+export async function getRunnerJob(jobId: string): Promise<RunnerJobResult> {
   const res = await fetch(`${LOCAL_RUNNER_URL}/jobs/${encodeURIComponent(jobId)}`, {
     headers: authHeaders(),
   });

@@ -59,7 +59,7 @@ import {
   submitBacktest,
   getRunnerJob,
 } from "@/lib/local-runner";
-import type { TesterConfig, BacktestResult, ReportSummary } from "@/types/mt5";
+import type { TesterConfig, BacktestResult, CompileResult, ReportSummary } from "@/types/mt5";
 
 export const Route = createFileRoute("/s/$id")({
   component: StrategyPage,
@@ -606,7 +606,17 @@ function BacktestTab({
     useCloudAgents: false,
   });
 
-  // Compile
+  // Compile (async — server returns 202 immediately, job runs in background)
+  const [compileJobId, setCompileJobId] = useState<string | null>(null);
+  const [compilePolling, setCompilePolling] = useState(false);
+  const [compileResult, setCompileResult] = useState<CompileResult | null>(null);
+  const [backtestJobId, setBacktestJobId] = useState<string | null>(null);
+  const [visualJobId, setVisualJobId] = useState<string | null>(null);
+  const [backtestPolling, setBacktestPolling] = useState(false);
+  const [visualPolling, setVisualPolling] = useState(false);
+  const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null);
+  const processedJobIds = useRef(new Set<string>());
+
   const compileMut = useMutation({
     mutationFn: async () => {
       const filename = buildExportFilename(blueprint, "mq5");
@@ -614,25 +624,39 @@ function BacktestTab({
       return compileEa({ strategyId, strategyName, eaFilename: filename, sourceCode: code, approval });
     },
     onSuccess: (result) => {
-      onCompileLog?.(result.log);
-      if (result.success) {
-        toast.success(`Compiled — ${result.errors} errors, ${result.warnings} warnings`);
-      } else {
-        toast.error(`Compile failed — ${result.errors} error(s). See compile log.`);
-      }
+      setCompileResult(null);
+      setCompileJobId(result.job.id);
+      setCompilePolling(true);
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Compile failed"),
   });
 
-  const compileSucceeded = compileMut.data?.success === true;
+  const compileJobQuery = useQuery({
+    queryKey: ["runner-job", compileJobId],
+    queryFn: () => getRunnerJob(compileJobId!),
+    enabled: Boolean(compileJobId) && compilePolling,
+    refetchInterval: compilePolling ? 1500 : false,
+  });
 
-  // Backtest polling
-  const [backtestJobId, setBacktestJobId] = useState<string | null>(null);
-  const [visualJobId, setVisualJobId] = useState<string | null>(null);
-  const [backtestPolling, setBacktestPolling] = useState(false);
-  const [visualPolling, setVisualPolling] = useState(false);
-  const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null);
-  const processedJobIds = useRef(new Set<string>());
+  useEffect(() => {
+    const data = compileJobQuery.data;
+    if (!data?.job) return;
+    const { status, id } = data.job;
+    if ((status === "succeeded" || status === "failed") && !processedJobIds.current.has(id)) {
+      processedJobIds.current.add(id);
+      setCompilePolling(false);
+      const result = data as unknown as CompileResult;
+      setCompileResult(result);
+      onCompileLog?.(result.log ?? null);
+      if (status === "succeeded" && result.success) {
+        toast.success(`Compiled — ${result.errors ?? 0}E ${result.warnings ?? 0}W`);
+      } else {
+        toast.error(`Compile failed — ${result.errors ?? "?"}E. See compile log.`);
+      }
+    }
+  }, [compileJobQuery.data, onCompileLog]);
+
+  const compileSucceeded = compileResult?.success === true;
 
   const backtestJobQuery = useQuery({
     queryKey: ["runner-job", backtestJobId],
@@ -754,9 +778,10 @@ function BacktestTab({
     );
   }
 
+  const compileRunning = compileMut.isPending || compilePolling;
   const backtestRunning = backtestMut.isPending || backtestPolling;
   const visualRunning = visualMut.isPending || visualPolling;
-  const anyRunning = compileMut.isPending || backtestRunning || visualRunning;
+  const anyRunning = compileRunning || backtestRunning || visualRunning;
   const summary: ReportSummary | null = backtestResult?.summary ?? null;
 
   const backtestJobStatus = backtestJobQuery.data?.job?.status ?? null;
@@ -793,19 +818,23 @@ function BacktestTab({
         <div className="rounded-md border border-border bg-background/50 p-3">
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Compile</p>
           <div className="mt-1.5 flex items-center gap-1.5">
-            {compileMut.data?.success === true ? (
+            {compileRunning ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+            ) : compileResult?.success === true ? (
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-            ) : compileMut.data?.success === false ? (
+            ) : compileResult?.success === false ? (
               <XCircle className="h-3.5 w-3.5 text-destructive" />
             ) : (
               <div className="h-3.5 w-3.5 rounded-full border-2 border-border" />
             )}
             <span className="text-sm font-medium">
-              {compileMut.data?.success === true
-                ? `OK · ${compileMut.data.warnings}w`
-                : compileMut.data?.success === false
-                  ? `${compileMut.data.errors}E ${compileMut.data.warnings}W`
-                  : "Not compiled"}
+              {compileRunning
+                ? "Running…"
+                : compileResult?.success === true
+                  ? `OK · ${compileResult.warnings}w`
+                  : compileResult?.success === false
+                    ? `${compileResult.errors}E ${compileResult.warnings}W`
+                    : "Not compiled"}
             </span>
           </div>
         </div>
@@ -925,7 +954,7 @@ function BacktestTab({
             disabled={anyRunning || !localApproval}
             className="min-w-[120px]"
           >
-            {compileMut.isPending ? (
+            {compileRunning ? (
               <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Compiling…</>
             ) : (
               <><Hammer className="h-4 w-4 mr-1.5" /> Compile EA</>
@@ -986,11 +1015,11 @@ function BacktestTab({
       </div>
 
       {/* Compile log */}
-      {compileMut.data?.log && (
+      {compileResult?.log && (
         <div className="space-y-1">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Compile log</p>
           <pre className="rounded-md border border-border bg-card p-3 text-xs font-mono whitespace-pre-wrap max-h-52 overflow-auto">
-            {compileMut.data.log}
+            {compileResult.log}
           </pre>
         </div>
       )}

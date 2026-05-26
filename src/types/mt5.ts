@@ -90,6 +90,20 @@ export interface RunnerJobLog {
   lines: string[];
 }
 
+/** Shape returned by GET /jobs/:id — covers both compile and backtest jobs. */
+export interface RunnerJobResult {
+  job: RunnerJob;
+  success?: boolean;
+  errors?: number;
+  warnings?: number;
+  log?: string;
+  summary?: ReportSummary | null;
+  reportPath?: string | null;
+  reportHtml?: string | null;
+  artifactPath?: string | null;
+  executablePath?: string | null;
+}
+
 // ─── Backtest types ───────────────────────────────────────────────────────────
 
 export interface TesterConfig {
