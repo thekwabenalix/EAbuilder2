@@ -35,7 +35,6 @@ ORDER MANAGEMENT:
 
 ACCOUNT INFO:
 - AccountInfoDouble(ACCOUNT_BALANCE) — correct
-- AccountInfoDouble(ACCOUNT_EQUITY) — correct
 - Never use AccountBalance() or AccountEquity() (MQL4 functions)
 
 ══════════════════════════════════════════════
@@ -61,6 +60,23 @@ WHEN MODIFYING CODE
 
 Keep responses concise and actionable. When not modifying code, do not include code blocks.`;
 
+/** Keep only error/warning/result lines from a compile log — strips verbose "information:" lines. */
+function trimCompileLog(log: string): string {
+  const lines = log.split("\n");
+  const keep = lines.filter((l) => {
+    const lower = l.toLowerCase();
+    return (
+      lower.includes("error") ||
+      lower.includes("warning") ||
+      lower.includes("result:") ||
+      lower.includes("compile job") ||
+      lower.includes("metaeditor exit") ||
+      (l.trim().length > 0 && !lower.includes(": information:"))
+    );
+  });
+  return keep.join("\n").trim();
+}
+
 export default async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   if (req.method !== "POST")
@@ -80,20 +96,21 @@ export default async (req: Request): Promise<Response> => {
   const blueprint = body.blueprint;
   const code = typeof body.code === "string" ? body.code : "";
   const backtestSummary = body.backtestSummary ?? null;
-  const compileLog = typeof body.compileLog === "string" ? body.compileLog : null;
+  const rawLog = typeof body.compileLog === "string" ? body.compileLog : null;
+  const compileLog = rawLog ? trimCompileLog(rawLog) : null;
 
   if (!messages?.length) {
     return Response.json({ error: "messages required" }, { status: 400, headers: CORS });
   }
 
-  // Inject full context into the first user message
+  // Inject full context into the first user message only
   const contextBlock = [
     "=== STRATEGY BLUEPRINT ===",
     JSON.stringify(blueprint, null, 2),
     "",
     "=== GENERATED MQL5 CODE ===",
     code || "(no code generated yet)",
-    compileLog ? `\n=== LAST COMPILE LOG ===\n${compileLog}` : "",
+    compileLog ? `\n=== LAST COMPILE ERRORS ===\n${compileLog}` : "",
     backtestSummary
       ? `\n=== LAST BACKTEST SUMMARY ===\n${JSON.stringify(backtestSummary, null, 2)}`
       : "",
@@ -105,31 +122,54 @@ export default async (req: Request): Promise<Response> => {
     i === 0 ? { ...m, content: `${contextBlock}\n\n=== USER MESSAGE ===\n${m.content}` } : m,
   );
 
-  try {
-    const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 8192,
-      system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
-      messages: enrichedMessages,
-    });
+  // Stream the response so Netlify doesn't time out on long code outputs
+  const readable = new ReadableStream({
+    async start(controller) {
+      const enc = new TextEncoder();
 
-    const block = response.content[0];
-    if (block.type !== "text") throw new Error("Unexpected response type");
+      const send = (obj: Record<string, unknown>) =>
+        controller.enqueue(enc.encode(`data: ${JSON.stringify(obj)}\n\n`));
 
-    const reply = block.text;
+      try {
+        let fullText = "";
 
-    // Extract updated code if present
-    const codeMatch = reply.match(/```(?:mql5|mq5|cpp)?\n([\s\S]+?)```/i);
-    const updatedCode = codeMatch ? codeMatch[1].trim() : null;
+        const stream = await client.messages.stream({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 8192,
+          system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
+          messages: enrichedMessages,
+        });
 
-    return Response.json({ reply, updatedCode }, { headers: { ...CORS, "Content-Type": "application/json" } });
-  } catch (err) {
-    console.error("ea-chat error:", err);
-    return Response.json(
-      { error: err instanceof Error ? err.message : "Internal error" },
-      { status: 500, headers: CORS },
-    );
-  }
+        for await (const event of stream) {
+          if (
+            event.type === "content_block_delta" &&
+            event.delta.type === "text_delta"
+          ) {
+            fullText += event.delta.text;
+            send({ text: event.delta.text });
+          }
+        }
+
+        // Extract updated code block from complete response
+        const codeMatch = fullText.match(/```(?:mql5|mq5|cpp)?\n([\s\S]+?)```/i);
+        const updatedCode = codeMatch ? codeMatch[1].trim() : null;
+
+        send({ done: true, updatedCode });
+      } catch (err) {
+        send({ error: err instanceof Error ? err.message : "Stream error" });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(readable, {
+    headers: {
+      ...CORS,
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+    },
+  });
 };
 
 export const config = {

@@ -4,8 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Send, Check, Bot, User } from "lucide-react";
 import { toast } from "sonner";
-import { eaChat, type EaChatMessage } from "@/lib/api-client";
+import type { EaChatMessage } from "@/lib/api-client";
 import type { StrategyBlueprint } from "@/types/blueprint";
+
+const API_BASE =
+  typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE_URL
+    ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, "")
+    : "";
 
 interface EaChatDrawerProps {
   open: boolean;
@@ -31,6 +36,7 @@ export function EaChatDrawer({
   const [loading, setLoading] = useState(false);
   const [pendingCode, setPendingCode] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -39,18 +45,87 @@ export function EaChatDrawer({
   const send = async () => {
     const text = input.trim();
     if (!text || loading) return;
-    const next: EaChatMessage[] = [...messages, { role: "user", content: text }];
-    setMessages(next);
+
+    const userMsg: EaChatMessage = { role: "user", content: text };
+    const nextMessages: EaChatMessage[] = [...messages, userMsg];
+    setMessages([...nextMessages, { role: "assistant", content: "" }]);
     setInput("");
     setLoading(true);
     setPendingCode(null);
+
+    abortRef.current = new AbortController();
+
     try {
-      const result = await eaChat(next, blueprint, code, compileLog, backtestSummary);
-      setMessages((m) => [...m, { role: "assistant", content: result.reply }]);
-      if (result.updatedCode) setPendingCode(result.updatedCode);
+      const res = await fetch(`${API_BASE}/api/ea-chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: abortRef.current.signal,
+        body: JSON.stringify({
+          messages: nextMessages,
+          blueprint,
+          code,
+          compileLog: compileLog ?? null,
+          backtestSummary: backtestSummary ?? null,
+        }),
+      });
+
+      if (!res.ok || !res.body) {
+        throw new Error(`Server returned ${res.status}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop() ?? "";
+
+        for (const part of parts) {
+          if (!part.startsWith("data: ")) continue;
+          let parsed: Record<string, unknown>;
+          try {
+            parsed = JSON.parse(part.slice(6));
+          } catch {
+            continue;
+          }
+
+          if (typeof parsed.text === "string") {
+            setMessages((prev) => {
+              const last = prev[prev.length - 1];
+              if (last?.role !== "assistant") return prev;
+              return [
+                ...prev.slice(0, -1),
+                { role: "assistant" as const, content: last.content + parsed.text },
+              ];
+            });
+          }
+
+          if (parsed.done) {
+            if (typeof parsed.updatedCode === "string") {
+              setPendingCode(parsed.updatedCode);
+            }
+            setLoading(false);
+          }
+
+          if (typeof parsed.error === "string") {
+            throw new Error(parsed.error);
+          }
+        }
+      }
     } catch (e: unknown) {
+      if (e instanceof Error && e.name === "AbortError") return;
       toast.error(e instanceof Error ? e.message : "Chat failed");
-      setMessages((m) => m.slice(0, -1));
+      // Remove the empty assistant placeholder on error
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "assistant" && last.content === "") return prev.slice(0, -1);
+        return prev;
+      });
       setInput(text);
     } finally {
       setLoading(false);
@@ -111,7 +186,11 @@ export function EaChatDrawer({
             >
               {m.role === "assistant" && (
                 <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                  <Bot className="h-3.5 w-3.5 text-primary" />
+                  {loading && i === messages.length - 1 && m.content === "" ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                  ) : (
+                    <Bot className="h-3.5 w-3.5 text-primary" />
+                  )}
                 </div>
               )}
               <div
@@ -119,9 +198,12 @@ export function EaChatDrawer({
                   m.role === "user"
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted/50 border border-border text-foreground"
-                }`}
+                } ${loading && i === messages.length - 1 && m.content === "" ? "min-w-[40px] min-h-[28px]" : ""}`}
               >
                 {m.content}
+                {loading && i === messages.length - 1 && m.content.length > 0 && (
+                  <span className="inline-block w-1.5 h-3 bg-current ml-0.5 animate-pulse align-middle" />
+                )}
               </div>
               {m.role === "user" && (
                 <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
@@ -130,16 +212,6 @@ export function EaChatDrawer({
               )}
             </div>
           ))}
-          {loading && (
-            <div className="flex gap-2 justify-start">
-              <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                <Bot className="h-3.5 w-3.5 text-primary" />
-              </div>
-              <div className="rounded-lg px-3 py-2 bg-muted/50 border border-border">
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-              </div>
-            </div>
-          )}
           <div ref={bottomRef} />
         </div>
 
