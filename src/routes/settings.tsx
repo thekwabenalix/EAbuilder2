@@ -93,6 +93,13 @@ function RunnerStartCard({ onRefresh }: { onRefresh: () => void }) {
         <li>Select your MT5 terminal from the detected list</li>
       </ol>
 
+      <div className="rounded-md bg-muted/40 border border-border px-3 py-2 text-xs text-muted-foreground">
+        <span className="font-medium text-foreground">Windows SmartScreen warning?</span> Click{" "}
+        <span className="font-mono">"More info"</span> then{" "}
+        <span className="font-mono">"Run anyway"</span>. The exe is unsigned but safe — it only
+        listens on localhost and never touches live trades.
+      </div>
+
       <div className="flex items-center gap-2 pt-1">
         <Button size="sm" variant="outline" onClick={onRefresh}>
           <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Check again
