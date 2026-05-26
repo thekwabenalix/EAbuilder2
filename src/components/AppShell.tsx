@@ -1,6 +1,8 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
+import { useQuery } from "@tanstack/react-query";
+import { getLocalRunnerHealth } from "@/lib/local-runner";
 import {
   LayoutDashboard,
   PlusSquare,
@@ -19,6 +21,14 @@ const NAV = [
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, signOut } = useAuth();
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const health = useQuery({
+    queryKey: ["local-runner-health"],
+    queryFn: getLocalRunnerHealth,
+    retry: false,
+    refetchInterval: 10000,
+    staleTime: 8000,
+  });
+  const companionOnline = Boolean(health.data?.ok);
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-background text-foreground">
@@ -32,6 +42,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {NAV.map((item) => {
             const active = item.to === "/" ? path === "/" : path.startsWith(item.to);
             const Icon = item.icon;
+            const isSettings = item.to === "/settings";
             return (
               <Link
                 key={item.to}
@@ -43,7 +54,13 @@ export function AppShell({ children }: { children: ReactNode }) {
                 }`}
               >
                 <Icon className="h-4 w-4" />
-                <span>{item.label}</span>
+                <span className="flex-1">{item.label}</span>
+                {isSettings && (
+                  <span
+                    title={companionOnline ? "Companion online" : "Companion offline"}
+                    className={`h-2 w-2 rounded-full shrink-0 ${companionOnline ? "bg-emerald-400" : "bg-muted-foreground/30"}`}
+                  />
+                )}
               </Link>
             );
           })}

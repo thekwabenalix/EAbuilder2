@@ -24,6 +24,9 @@ import {
   CheckCircle2,
   RefreshCw,
   Sparkles,
+  Hammer,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -34,6 +37,12 @@ import {
 import { generateCode } from "@/lib/api-client";
 import type { StrategyBlueprint } from "@/types/blueprint";
 import { DEFAULT_BLUEPRINT } from "@/types/blueprint";
+import {
+  getLocalRunnerHealth,
+  buildRunnerApproval,
+  compileEa,
+  openMetaEditor,
+} from "@/lib/local-runner";
 
 export const Route = createFileRoute("/s/$id")({
   component: StrategyPage,
@@ -208,6 +217,8 @@ function StrategyPage() {
 
         <TabsContent value="code" className="pt-6 pb-10">
           <CodeTab
+            strategyId={id}
+            strategyName={name || "Untitled Strategy"}
             blueprint={blueprint}
             code={generatedCode}
             onCodeChange={(code) => {
@@ -285,17 +296,32 @@ function BuilderTab({ blueprint }: { blueprint: StrategyBlueprint }) {
 }
 
 function CodeTab({
+  strategyId,
+  strategyName,
   blueprint,
   code,
   onCodeChange,
   onAutoSave,
 }: {
+  strategyId: string;
+  strategyName: string;
   blueprint: StrategyBlueprint;
   code: string;
   onCodeChange: (code: string) => void;
   onAutoSave?: (code: string) => Promise<void>;
 }) {
   const [generating, setGenerating] = useState(false);
+  const [compiling, setCompiling] = useState(false);
+  const [compileLog, setCompileLog] = useState<string | null>(null);
+
+  const companion = useQuery({
+    queryKey: ["local-runner-health"],
+    queryFn: getLocalRunnerHealth,
+    retry: false,
+    refetchInterval: 10000,
+    staleTime: 8000,
+  });
+  const companionOnline = Boolean(companion.data?.ok);
 
   const generate = async () => {
     setGenerating(true);
@@ -312,6 +338,33 @@ function CodeTab({
       toast.error(e instanceof Error ? e.message : "Failed to generate code");
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const compile = async () => {
+    if (!code) return;
+    setCompiling(true);
+    setCompileLog(null);
+    try {
+      const filename = buildExportFilename(blueprint, "mq5");
+      const approval = await buildRunnerApproval(code, "compile");
+      const result = await compileEa({
+        strategyId,
+        strategyName,
+        eaFilename: filename,
+        sourceCode: code,
+        approval,
+      });
+      setCompileLog(result.log);
+      if (result.success) {
+        toast.success(`Compiled — ${result.errors} errors, ${result.warnings} warnings`);
+      } else {
+        toast.error(`Compile failed — ${result.errors} error(s). See log below.`);
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Compile failed");
+    } finally {
+      setCompiling(false);
     }
   };
 
@@ -351,20 +404,59 @@ function CodeTab({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <p className="text-xs text-muted-foreground">
           AI-generated MQL5 — compile in MetaEditor 5 to verify before using.
         </p>
-        <Button size="sm" variant="outline" onClick={generate} disabled={generating}>
-          {generating ? (
-            <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+        <div className="flex items-center gap-2">
+          {/* Companion compile button */}
+          {companionOnline ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={compile}
+              disabled={compiling}
+              title="Compile with local MetaEditor via Desktop Companion"
+            >
+              {compiling ? (
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+              ) : (
+                <Hammer className="h-4 w-4 mr-1.5" />
+              )}
+              {compiling ? "Compiling…" : "Compile"}
+            </Button>
           ) : (
-            <RefreshCw className="h-4 w-4 mr-1.5" />
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground"
+              onClick={() => openMetaEditor(buildExportFilename(blueprint, "mq5")).catch(() => {})}
+              title="Companion offline — open MetaEditor manually"
+              disabled
+            >
+              <WifiOff className="h-3.5 w-3.5 mr-1.5" />
+              Companion offline
+            </Button>
           )}
-          Regenerate
-        </Button>
+          <Button size="sm" variant="outline" onClick={generate} disabled={generating}>
+            {generating ? (
+              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-1.5" />
+            )}
+            Regenerate
+          </Button>
+        </div>
       </div>
       <CodeViewer code={code} filename={buildExportFilename(blueprint, "mq5")} />
+      {compileLog && (
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">Compile log</p>
+          <pre className="rounded-md border border-border bg-card p-3 text-xs font-mono whitespace-pre-wrap max-h-64 overflow-auto">
+            {compileLog}
+          </pre>
+        </div>
+      )}
     </div>
   );
 }

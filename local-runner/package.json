@@ -1,0 +1,23 @@
+{
+  "name": "mt5-local-runner",
+  "version": "0.6.1",
+  "private": true,
+  "type": "module",
+  "bin": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs",
+    "package:win": "pkg server.mjs --targets node20-win-x64 --output dist/mt5-local-runner.exe"
+  },
+  "pkg": {
+    "scripts": [
+      "server.mjs"
+    ],
+    "targets": [
+      "node20-win-x64"
+    ],
+    "outputPath": "dist"
+  },
+  "devDependencies": {
+    "@yao-pkg/pkg": "^6.5.1"
+  }
+}
