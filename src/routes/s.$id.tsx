@@ -31,14 +31,16 @@ import {
   FileCode2,
   AlertTriangle,
   CheckCircle2,
+  XCircle,
   RefreshCw,
   Sparkles,
   Hammer,
   BarChart2,
   WifiOff,
-  TrendingUp,
-  TrendingDown,
+  Bot,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { EaChatDrawer } from "@/components/EaChatDrawer";
 import { toast } from "sonner";
 import {
   buildExportFilename,
@@ -88,6 +90,9 @@ function StrategyPage() {
   const [generatedCode, setGeneratedCode] = useState<string>("");
   const [name, setName] = useState("");
   const [dirty, setDirty] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [compileLog, setCompileLog] = useState<string | null>(null);
+  const [backtestSummary, setBacktestSummary] = useState<ReportSummary | null>(null);
 
   useEffect(() => {
     if (data) {
@@ -183,6 +188,13 @@ function StrategyPage() {
             <Button
               size="sm"
               variant="outline"
+              onClick={() => setChatOpen(true)}
+            >
+              <Bot className="h-4 w-4 mr-1.5" /> AI Chat
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
               onClick={() => dupMut.mutate()}
               disabled={dupMut.isPending}
             >
@@ -261,6 +273,8 @@ function StrategyPage() {
             strategyName={name || "Untitled Strategy"}
             blueprint={blueprint}
             code={generatedCode}
+            onCompileLog={setCompileLog}
+            onBacktestSummary={setBacktestSummary}
           />
         </TabsContent>
 
@@ -272,6 +286,21 @@ function StrategyPage() {
           <ExportTab blueprint={blueprint} prompt={data.prompt} code={generatedCode} />
         </TabsContent>
       </Tabs>
+
+      <EaChatDrawer
+        open={chatOpen}
+        onOpenChange={setChatOpen}
+        blueprint={blueprint}
+        code={generatedCode}
+        compileLog={compileLog}
+        backtestSummary={backtestSummary}
+        onApplyCode={(code) => {
+          setGeneratedCode(code);
+          setDirty(true);
+          setChatOpen(false);
+          toast.success("AI code applied — remember to save");
+        }}
+      />
     </div>
   );
 }
@@ -534,11 +563,15 @@ function BacktestTab({
   strategyName,
   blueprint,
   code,
+  onCompileLog,
+  onBacktestSummary,
 }: {
   strategyId: string;
   strategyName: string;
   blueprint: StrategyBlueprint;
   code: string;
+  onCompileLog?: (log: string | null) => void;
+  onBacktestSummary?: (summary: ReportSummary | null) => void;
 }) {
   const companion = useQuery({
     queryKey: ["local-runner-health"],
@@ -558,7 +591,8 @@ function BacktestTab({
   const companionOnline = Boolean(companion.data?.ok);
   const mt5Configured = Boolean(mt5Status.data?.configuredTerminalPath);
 
-  const [config, setConfig] = useState<Omit<TesterConfig, "expertName" | "reportName">>({
+  const [localApproval, setLocalApproval] = useState(false);
+  const [config, setConfig] = useState<Omit<TesterConfig, "expertName" | "reportName" | "visualMode" | "optimization">>({
     symbol: blueprint.execution.symbol || "EURUSD",
     period: blueprint.execution.entryTimeframe || "H1",
     model: "open_prices",
@@ -570,70 +604,119 @@ function BacktestTab({
     useLocalAgents: true,
     useRemoteAgents: false,
     useCloudAgents: false,
-    visualMode: false,
-    optimization: false,
   });
 
-  const [jobId, setJobId] = useState<string | null>(null);
-  const [jobStatus, setJobStatus] = useState<string | null>(null);
-  const [jobMessage, setJobMessage] = useState<string | null>(null);
-  const [result, setResult] = useState<BacktestResult | null>(null);
-  const [running, setRunning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Poll job until terminal state
-  useEffect(() => {
-    if (!jobId) return;
-    pollRef.current = setInterval(async () => {
-      try {
-        const data = await getRunnerJob(jobId);
-        setJobStatus(data.job.status);
-        setJobMessage(data.job.message);
-        if (data.job.status === "succeeded" || data.job.status === "failed") {
-          clearInterval(pollRef.current!);
-          setRunning(false);
-          setResult(data as BacktestResult);
-        }
-      } catch {
-        // keep polling on transient errors
+  // Compile
+  const compileMut = useMutation({
+    mutationFn: async () => {
+      const filename = buildExportFilename(blueprint, "mq5");
+      const approval = await buildRunnerApproval(code, "compile");
+      return compileEa({ strategyId, strategyName, eaFilename: filename, sourceCode: code, approval });
+    },
+    onSuccess: (result) => {
+      onCompileLog?.(result.log);
+      if (result.success) {
+        toast.success(`Compiled — ${result.errors} errors, ${result.warnings} warnings`);
+      } else {
+        toast.error(`Compile failed — ${result.errors} error(s). See compile log.`);
       }
-    }, 2500);
-    return () => clearInterval(pollRef.current!);
-  }, [jobId]);
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Compile failed"),
+  });
 
-  const runBacktest = async () => {
-    if (!code) return;
-    setError(null);
-    setResult(null);
-    setJobId(null);
-    setJobStatus(null);
-    setRunning(true);
+  const compileSucceeded = compileMut.data?.success === true;
 
-    try {
+  // Backtest polling
+  const [backtestJobId, setBacktestJobId] = useState<string | null>(null);
+  const [visualJobId, setVisualJobId] = useState<string | null>(null);
+  const [backtestPolling, setBacktestPolling] = useState(false);
+  const [visualPolling, setVisualPolling] = useState(false);
+  const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null);
+  const processedJobIds = useRef(new Set<string>());
+
+  const backtestJobQuery = useQuery({
+    queryKey: ["runner-job", backtestJobId],
+    queryFn: () => getRunnerJob(backtestJobId!),
+    enabled: Boolean(backtestJobId) && backtestPolling,
+    refetchInterval: backtestPolling ? 1500 : false,
+  });
+
+  const visualJobQuery = useQuery({
+    queryKey: ["runner-job", visualJobId],
+    queryFn: () => getRunnerJob(visualJobId!),
+    enabled: Boolean(visualJobId) && visualPolling,
+    refetchInterval: visualPolling ? 1500 : false,
+  });
+
+  useEffect(() => {
+    const data = backtestJobQuery.data;
+    if (!data?.job) return;
+    const { status, id } = data.job;
+    if ((status === "succeeded" || status === "failed") && !processedJobIds.current.has(id)) {
+      processedJobIds.current.add(id);
+      setBacktestPolling(false);
+      if (status === "succeeded") {
+        const result = data as BacktestResult;
+        setBacktestResult(result);
+        onBacktestSummary?.(result.summary);
+        toast.success("Backtest report ready");
+      } else {
+        toast.error("Backtest failed — " + (data.job.message || "see tester log"));
+      }
+    }
+  }, [backtestJobQuery.data, onBacktestSummary]);
+
+  useEffect(() => {
+    const data = visualJobQuery.data;
+    if (!data?.job) return;
+    const { status, id } = data.job;
+    if ((status === "succeeded" || status === "failed") && !processedJobIds.current.has(id)) {
+      processedJobIds.current.add(id);
+      setVisualPolling(false);
+      if (status === "succeeded") {
+        toast.success("Visual test launched — watch MT5");
+      } else {
+        toast.error("Visual test failed — " + (data.job.message || "see log"));
+      }
+    }
+  }, [visualJobQuery.data]);
+
+  const backtestMut = useMutation({
+    mutationFn: async () => {
       const filename = buildExportFilename(blueprint, "mq5");
       const approval = await buildRunnerApproval(code, "backtest");
       const testerConfig: TesterConfig = {
         ...config,
         expertName: filename.replace(/\.mq5$/i, ""),
-        reportName: `${strategyId}-backtest`,
+        reportName: `${strategyId}-report`,
+        visualMode: false,
+        optimization: false,
       };
-      const res = await submitBacktest({
-        strategyId,
-        strategyName,
-        eaFilename: filename,
-        sourceCode: code,
-        approval,
-        testerConfig,
-      });
-      setJobId(res.job.id);
-      setJobStatus(res.job.status);
-      setJobMessage(res.job.message);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to start backtest");
-      setRunning(false);
-    }
-  };
+      const res = await submitBacktest({ strategyId, strategyName, eaFilename: filename, sourceCode: code, approval, testerConfig });
+      setBacktestResult(null);
+      setBacktestJobId(res.job.id);
+      setBacktestPolling(true);
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed to start backtest"),
+  });
+
+  const visualMut = useMutation({
+    mutationFn: async () => {
+      const filename = buildExportFilename(blueprint, "mq5");
+      const approval = await buildRunnerApproval(code, "backtest");
+      const testerConfig: TesterConfig = {
+        ...config,
+        expertName: filename.replace(/\.mq5$/i, ""),
+        reportName: `${strategyId}-visual`,
+        visualMode: true,
+        optimization: false,
+      };
+      const res = await submitBacktest({ strategyId, strategyName, eaFilename: filename, sourceCode: code, approval, testerConfig });
+      setVisualJobId(res.job.id);
+      setVisualPolling(true);
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed to start visual test"),
+  });
 
   const set = <K extends keyof typeof config>(k: K, v: (typeof config)[K]) =>
     setConfig((c) => ({ ...c, [k]: v }));
@@ -671,19 +754,72 @@ function BacktestTab({
     );
   }
 
-  const summary: ReportSummary | null = result?.summary ?? null;
+  const backtestRunning = backtestMut.isPending || backtestPolling;
+  const visualRunning = visualMut.isPending || visualPolling;
+  const anyRunning = compileMut.isPending || backtestRunning || visualRunning;
+  const summary: ReportSummary | null = backtestResult?.summary ?? null;
+
+  const backtestJobStatus = backtestJobQuery.data?.job?.status ?? null;
+  const visualJobStatus = visualJobQuery.data?.job?.status ?? null;
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      {/* Config form */}
+    <div className="space-y-5 max-w-3xl">
+
+      {/* Status cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="rounded-md border border-border bg-background/50 p-3">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Companion</p>
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+            <span className="text-sm font-medium">v{companion.data?.version ?? "?"}</span>
+          </div>
+        </div>
+        <div className="rounded-md border border-border bg-background/50 p-3">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">MT5</p>
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+            <span className="text-sm font-medium truncate">
+              {mt5Status.data?.configuredTerminalPath?.split(/[\\/]/).at(-2) ?? "Configured"}
+            </span>
+          </div>
+        </div>
+        <div className="rounded-md border border-border bg-background/50 p-3">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">EA source</p>
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+            <span className="text-sm font-medium">{Math.round(code.length / 1024)} KB</span>
+          </div>
+        </div>
+        <div className="rounded-md border border-border bg-background/50 p-3">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Compile</p>
+          <div className="mt-1.5 flex items-center gap-1.5">
+            {compileMut.data?.success === true ? (
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+            ) : compileMut.data?.success === false ? (
+              <XCircle className="h-3.5 w-3.5 text-destructive" />
+            ) : (
+              <div className="h-3.5 w-3.5 rounded-full border-2 border-border" />
+            )}
+            <span className="text-sm font-medium">
+              {compileMut.data?.success === true
+                ? `OK · ${compileMut.data.warnings}w`
+                : compileMut.data?.success === false
+                  ? `${compileMut.data.errors}E ${compileMut.data.warnings}W`
+                  : "Not compiled"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Config + actions */}
       <div className="rounded-md border border-border bg-card p-4 space-y-4">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Tester configuration</p>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="space-y-1">
             <Label className="text-xs">Symbol</Label>
             <Input
               value={config.symbol}
-              onChange={(e) => set("symbol", e.target.value.toUpperCase())}
+              onChange={(e) => set("symbol", e.target.value)}
               className="font-mono text-sm"
               placeholder="EURUSD"
             />
@@ -695,7 +831,7 @@ function BacktestTab({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {["M1","M5","M15","M30","H1","H4","D1","W1"].map((p) => (
+                {["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"].map((p) => (
                   <SelectItem key={p} value={p}>{p}</SelectItem>
                 ))}
               </SelectContent>
@@ -712,6 +848,19 @@ function BacktestTab({
                 <SelectItem value="one_minute_ohlc">1 min OHLC</SelectItem>
                 <SelectItem value="every_tick">Every tick</SelectItem>
                 <SelectItem value="real_ticks">Real ticks</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Leverage</Label>
+            <Select value={config.leverage} onValueChange={(v) => set("leverage", v)}>
+              <SelectTrigger className="text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {["1:50", "1:100", "1:200", "1:500", "1:1000"].map((l) => (
+                  <SelectItem key={l} value={l}>{l}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -746,67 +895,117 @@ function BacktestTab({
             <Label className="text-xs">Currency</Label>
             <Input
               value={config.currency}
-              onChange={(e) => set("currency", e.target.value.toUpperCase())}
+              onChange={(e) => set("currency", e.target.value)}
               className="font-mono text-sm"
               placeholder="USD"
             />
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Leverage</Label>
-            <Select value={config.leverage} onValueChange={(v) => set("leverage", v)}>
-              <SelectTrigger className="text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {["1:50","1:100","1:200","1:500","1:1000"].map((l) => (
-                  <SelectItem key={l} value={l}>{l}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
         </div>
 
-        <div className="flex items-center gap-3 pt-1 flex-wrap">
-          <Button onClick={runBacktest} disabled={running} className="min-w-[160px]">
-            {running ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                {jobStatus === "running" ? "Tester running…" : "Launching MT5…"}
-              </>
+        {/* Approval */}
+        <div className="flex items-start gap-2 pt-1">
+          <Checkbox
+            id="local-approval"
+            checked={localApproval}
+            onCheckedChange={(v) => setLocalApproval(Boolean(v))}
+            className="mt-0.5"
+          />
+          <label htmlFor="local-approval" className="text-xs text-muted-foreground leading-relaxed cursor-pointer select-none">
+            I approve this generated EA source for local compile &amp; testing on this computer only.
+            I understand it does not perform live trading.
+          </label>
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-2 pt-1 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => compileMut.mutate()}
+            disabled={anyRunning || !localApproval}
+            className="min-w-[120px]"
+          >
+            {compileMut.isPending ? (
+              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Compiling…</>
             ) : (
-              <>
-                <BarChart2 className="h-4 w-4 mr-1.5" />
-                Run Backtest
-              </>
+              <><Hammer className="h-4 w-4 mr-1.5" /> Compile EA</>
             )}
           </Button>
-          {running && (
-            <p className="text-xs text-muted-foreground">
-              MT5 Strategy Tester will open automatically. Keep MT5 closed until it finishes.
-            </p>
-          )}
+
+          <div className="h-5 w-px bg-border mx-1 hidden sm:block" />
+
+          <Button
+            size="sm"
+            onClick={() => backtestMut.mutate()}
+            disabled={anyRunning || !compileSucceeded || !localApproval}
+            className="min-w-[160px]"
+            title={!compileSucceeded ? "Compile EA first" : undefined}
+          >
+            {backtestRunning ? (
+              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                {backtestJobStatus === "running" ? "Tester running…" : "Launching…"}</>
+            ) : (
+              <><BarChart2 className="h-4 w-4 mr-1.5" /> Run Report Backtest</>
+            )}
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => visualMut.mutate()}
+            disabled={anyRunning || !compileSucceeded || !localApproval}
+            className="min-w-[140px]"
+            title={!compileSucceeded ? "Compile EA first" : undefined}
+          >
+            {visualRunning ? (
+              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                {visualJobStatus === "running" ? "Visual running…" : "Launching…"}</>
+            ) : (
+              <><Play className="h-4 w-4 mr-1.5" /> Run Visual Test</>
+            )}
+          </Button>
         </div>
-        {jobMessage && (
-          <p className="text-xs text-muted-foreground italic">{jobMessage}</p>
+
+        {!compileSucceeded && localApproval && !compileMut.isPending && (
+          <p className="text-xs text-muted-foreground">
+            Compile the EA first, then choose a backtest mode.
+          </p>
         )}
-        {error && (
-          <div className="flex items-center gap-2 text-xs text-destructive">
-            <AlertTriangle className="h-3.5 w-3.5" /> {error}
-          </div>
+
+        {visualRunning && (
+          <p className="text-xs text-muted-foreground">
+            MT5 visual test is running — watch MetaTrader 5 for the strategy tester window.
+            No report will be generated for visual tests.
+          </p>
+        )}
+        {backtestRunning && (
+          <p className="text-xs text-muted-foreground">
+            MT5 Strategy Tester running in background — report will appear below when complete.
+          </p>
         )}
       </div>
 
-      {/* Results */}
-      {result && (
+      {/* Compile log */}
+      {compileMut.data?.log && (
+        <div className="space-y-1">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Compile log</p>
+          <pre className="rounded-md border border-border bg-card p-3 text-xs font-mono whitespace-pre-wrap max-h-52 overflow-auto">
+            {compileMut.data.log}
+          </pre>
+        </div>
+      )}
+
+      {/* Report results */}
+      {backtestResult && (
         <div className="space-y-4">
           <div className="flex items-center gap-2">
-            {result.success ? (
+            {backtestResult.success ? (
               <CheckCircle2 className="h-4 w-4 text-emerald-400" />
             ) : (
               <AlertTriangle className="h-4 w-4 text-destructive" />
             )}
             <p className="text-sm font-medium">
-              {result.success ? "Backtest completed" : "Backtest failed"}
+              {backtestResult.success ? "Report backtest completed" : "Backtest failed"}
             </p>
             <span className="text-xs text-muted-foreground">
               {config.symbol} · {config.period} · {config.fromDate} → {config.toDate}
@@ -827,20 +1026,15 @@ function BacktestTab({
               />
               <MetricCard
                 label="Max Drawdown"
-                value={fmt(summary.maximalDrawdown)}
-                positive={
-                  summary.maximalDrawdown !== null ? summary.maximalDrawdown < 20 : undefined
-                }
+                value={`${fmt(summary.maximalDrawdown)}%`}
+                positive={summary.maximalDrawdown !== null ? summary.maximalDrawdown < 20 : undefined}
               />
               <MetricCard
                 label="Win Rate"
                 value={summary.winRate !== null ? `${fmt(summary.winRate)}%` : "—"}
                 positive={summary.winRate !== null ? summary.winRate >= 50 : undefined}
               />
-              <MetricCard
-                label="Total Trades"
-                value={fmt(summary.totalTrades, 0)}
-              />
+              <MetricCard label="Total Trades" value={fmt(summary.totalTrades, 0)} />
               <MetricCard
                 label="Initial Deposit"
                 value={`${summary.currency ?? ""}${fmt(summary.initialDeposit, 0)}`}
@@ -862,11 +1056,11 @@ function BacktestTab({
             </div>
           )}
 
-          {result.log && (
+          {backtestResult.log && (
             <div className="space-y-1">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Tester log</p>
               <pre className="rounded-md border border-border bg-card p-3 text-xs font-mono whitespace-pre-wrap max-h-64 overflow-auto">
-                {result.log}
+                {backtestResult.log}
               </pre>
             </div>
           )}

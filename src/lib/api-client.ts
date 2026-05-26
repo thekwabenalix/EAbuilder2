@@ -42,3 +42,30 @@ export interface GenerateCodeResult {
 export async function generateCode(blueprint: StrategyBlueprint): Promise<GenerateCodeResult> {
   return post<GenerateCodeResult>("/api/generate-code", { blueprint });
 }
+
+export interface EaChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface EaChatResult {
+  reply: string;
+  updatedCode: string | null;
+}
+
+/** EA assistant — Claude with full strategy context injected. */
+export async function eaChat(
+  messages: EaChatMessage[],
+  blueprint: StrategyBlueprint,
+  code: string,
+  compileLog?: string | null,
+  backtestSummary?: unknown,
+): Promise<EaChatResult> {
+  return post<EaChatResult>("/api/ea-chat", {
+    messages,
+    blueprint,
+    code,
+    compileLog: compileLog ?? null,
+    backtestSummary: backtestSummary ?? null,
+  });
+}
