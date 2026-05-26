@@ -1,0 +1,25 @@
+[build]
+  command = "bun install && bun run build"
+  publish = ".output/public"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "22"
+  BUN_VERSION = "1.1.0"
+
+# Netlify Functions handle /api/* routes
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+# SPA fallback — all other routes served by the frontend
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[functions]
+  node_bundler = "esbuild"
+  # Allow functions to import from src/types/
+  included_files = ["src/types/**"]
