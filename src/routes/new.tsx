@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { EXAMPLE_PROMPT } from "@/types/strategy";
 import type { StrategyBlueprint } from "@/types/blueprint";
-import { parseStrategy, generateCode } from "@/lib/api-client";
+import { parseStrategy } from "@/lib/api-client";
 import { createStrategy } from "@/lib/strategies";
 import { toast } from "sonner";
 
@@ -65,25 +65,23 @@ function NewStrategy() {
     if (!blueprint || !user) return;
     setError(null);
     setStage("generating");
-    setStageLabel("Generating MQL5 code…");
+    setStageLabel("Saving strategy…");
 
     try {
-      const { code: generatedCode } = await generateCode(blueprint);
-
-      setStageLabel("Saving to library…");
+      // Save blueprint immediately — code is generated on the strategy page
       const row = await createStrategy({
         userId: user.id,
         name: blueprint.name || "Untitled Strategy",
         prompt,
         blueprint,
-        generatedCode,
+        generatedCode: "",
       });
 
-      toast.success("Strategy draft created");
+      toast.success("Strategy draft created — open the Code tab to generate MQL5");
       navigate({ to: "/s/$id", params: { id: row.id } });
     } catch (e: unknown) {
       console.error(e);
-      setError(e instanceof Error ? e.message : "Failed to generate code. Please try again.");
+      setError(e instanceof Error ? e.message : "Failed to save strategy. Please try again.");
       setStage("reviewed");
     } finally {
       setStageLabel(null);
@@ -343,7 +341,7 @@ function InterviewPanel({
         ) : (
           <>
             <Sparkles className="h-4 w-4 mr-1.5" />
-            Create Strategy Draft
+            Save &amp; Open Strategy
           </>
         )}
       </Button>

@@ -23,6 +23,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   RefreshCw,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -188,7 +189,7 @@ function StrategyPage() {
         }
       />
 
-      <Tabs defaultValue="spec" className="px-6 pt-4">
+      <Tabs defaultValue={data.generated_code ? "spec" : "code"} className="px-6 pt-4">
         <TabsList>
           <TabsTrigger value="spec">Spec</TabsTrigger>
           <TabsTrigger value="builder">Builder</TabsTrigger>
@@ -281,20 +282,54 @@ function CodeTab({
   code: string;
   onCodeChange: (code: string) => void;
 }) {
-  const [regenerating, setRegenerating] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
-  const regenerate = async () => {
-    setRegenerating(true);
+  const generate = async () => {
+    setGenerating(true);
     try {
       const result = await generateCode(blueprint);
       onCodeChange(result.code);
-      toast.success("Code regenerated");
+      toast.success(code ? "Code regenerated" : "MQL5 code generated");
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Failed to regenerate code");
+      toast.error(e instanceof Error ? e.message : "Failed to generate code");
     } finally {
-      setRegenerating(false);
+      setGenerating(false);
     }
   };
+
+  // No code yet — show a prominent generate button
+  if (!code) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 space-y-4 text-center max-w-md mx-auto">
+        <FileCode2 className="h-10 w-10 text-muted-foreground/40" />
+        <div>
+          <p className="font-medium">No code generated yet</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Click below to generate the MQL5 Expert Advisor from the blueprint. This takes 15–30
+            seconds.
+          </p>
+        </div>
+        <Button onClick={generate} disabled={generating} size="lg" className="min-w-[200px]">
+          {generating ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+              Generating MQL5…
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-4 w-4 mr-1.5" />
+              Generate MQL5 Code
+            </>
+          )}
+        </Button>
+        {generating && (
+          <p className="text-xs text-muted-foreground">
+            The AI is writing your Expert Advisor. Please wait…
+          </p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -302,8 +337,8 @@ function CodeTab({
         <p className="text-xs text-muted-foreground">
           AI-generated MQL5 — compile in MetaEditor 5 to verify before using.
         </p>
-        <Button size="sm" variant="outline" onClick={regenerate} disabled={regenerating}>
-          {regenerating ? (
+        <Button size="sm" variant="outline" onClick={generate} disabled={generating}>
+          {generating ? (
             <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
           ) : (
             <RefreshCw className="h-4 w-4 mr-1.5" />
