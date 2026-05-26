@@ -16,6 +16,7 @@ import {
 } from "@/lib/local-runner";
 import {
   CheckCircle2,
+  Download,
   ExternalLink,
   KeyRound,
   LogOut,
@@ -51,29 +52,33 @@ function StatusTile({
   );
 }
 
+const COMPANION_DOWNLOAD_URL =
+  "https://github.com/thekwabenalix/EAbuilder2/releases/download/v0.6.1/mt5-local-runner.exe";
+
 function RunnerStartCard({ onRefresh }: { onRefresh: () => void }) {
   return (
-    <div className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+    <div className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/5 p-4 space-y-4">
       <div className="flex items-start gap-2">
         <Monitor className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
         <div>
           <p className="text-sm font-medium text-amber-300">Start the Desktop Companion</p>
           <p className="text-xs text-muted-foreground mt-1">
-            The companion is a small local server that compiles MQL5 code using MetaEditor on your
-            PC. Run it once — it stays in the background.
+            A small Windows app that compiles your generated MQL5 code using MetaEditor on this PC.
+            No install required — just download and run.
           </p>
         </div>
       </div>
-      <ol className="text-xs text-muted-foreground space-y-1 pl-4 list-decimal">
+
+      <a href={COMPANION_DOWNLOAD_URL} download>
+        <Button size="sm" className="w-full sm:w-auto">
+          <Download className="h-3.5 w-3.5 mr-1.5" /> Download mt5-local-runner.exe
+        </Button>
+      </a>
+
+      <ol className="text-xs text-muted-foreground space-y-1.5 pl-4 list-decimal">
+        <li>Download and double-click <span className="font-mono">mt5-local-runner.exe</span></li>
         <li>
-          Open a terminal in the <span className="font-mono">local-runner/</span> folder inside the
-          project
-        </li>
-        <li>
-          Run <span className="font-mono bg-muted px-1 py-0.5 rounded">node server.mjs</span>
-        </li>
-        <li>
-          Open{" "}
+          A terminal window opens — open{" "}
           <a
             href={LOCAL_RUNNER_URL}
             target="_blank"
@@ -82,13 +87,18 @@ function RunnerStartCard({ onRefresh }: { onRefresh: () => void }) {
           >
             {LOCAL_RUNNER_URL}
           </a>{" "}
-          and copy the token shown there
+          in your browser to see your connection token
         </li>
-        <li>Paste the token in the field below and click Save</li>
+        <li>Copy the token and paste it in the field below, then click Save</li>
+        <li>Select your MT5 terminal from the detected list</li>
       </ol>
-      <Button size="sm" variant="outline" onClick={onRefresh}>
-        <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Check again
-      </Button>
+
+      <div className="flex items-center gap-2 pt-1">
+        <Button size="sm" variant="outline" onClick={onRefresh}>
+          <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Check again
+        </Button>
+        <span className="text-xs text-muted-foreground">Windows x64 · No install needed</span>
+      </div>
     </div>
   );
 }
