@@ -275,6 +275,7 @@ function StrategyPage() {
             code={generatedCode}
             onCompileLog={setCompileLog}
             onBacktestSummary={setBacktestSummary}
+            onOpenChat={() => setChatOpen(true)}
           />
         </TabsContent>
 
@@ -565,6 +566,7 @@ function BacktestTab({
   code,
   onCompileLog,
   onBacktestSummary,
+  onOpenChat,
 }: {
   strategyId: string;
   strategyName: string;
@@ -572,6 +574,7 @@ function BacktestTab({
   code: string;
   onCompileLog?: (log: string | null) => void;
   onBacktestSummary?: (summary: ReportSummary | null) => void;
+  onOpenChat?: () => void;
 }) {
   const companion = useQuery({
     queryKey: ["local-runner-health"],
@@ -995,7 +998,28 @@ function BacktestTab({
           </Button>
         </div>
 
-        {!compileSucceeded && localApproval && !compileMut.isPending && (
+        {/* Compile error banner */}
+        {compileResult && !compileResult.success && compileResult.errors > 0 && (
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 flex items-start gap-3">
+            <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-destructive">
+                {compileResult.errors} compile error{compileResult.errors !== 1 ? "s" : ""} — fix the code before backtesting
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Common causes: MQL4-style globals (Ask/Bid), wrong method names, or type mismatches. The AI can fix these automatically.
+              </p>
+            </div>
+            {onOpenChat && (
+              <Button size="sm" variant="outline" onClick={onOpenChat} className="shrink-0">
+                <Bot className="h-3.5 w-3.5 mr-1.5" /> Fix with AI
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Never compiled hint */}
+        {!compileResult && !compileRunning && localApproval && (
           <p className="text-xs text-muted-foreground">
             Compile the EA first, then choose a backtest mode.
           </p>
