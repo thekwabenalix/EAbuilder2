@@ -831,6 +831,7 @@ void FVG_ManageBreakEven()
       long   type = PositionGetInteger(POSITION_TYPE);
       double open = PositionGetDouble(POSITION_PRICE_OPEN);
       double sl   = PositionGetDouble(POSITION_SL);
+      double tp   = PositionGetDouble(POSITION_TP);   // preserve TP when moving SL to BE
       if(open <= 0 || sl <= 0) continue;
 
       double initRisk = MathAbs(open - sl);
@@ -843,13 +844,13 @@ void FVG_ManageBreakEven()
       {
          if(sl >= open - point) continue; // already at or above break-even
          if(bid - open >= initRisk * InpBEAtR)
-            trade.PositionModify(ticket, NormalizeDouble(open, digits), 0);
+            trade.PositionModify(ticket, NormalizeDouble(open, digits), tp);
       }
       else
       {
          if(sl <= open + point) continue; // already at or below break-even
          if(open - ask >= initRisk * InpBEAtR)
-            trade.PositionModify(ticket, NormalizeDouble(open, digits), 0);
+            trade.PositionModify(ticket, NormalizeDouble(open, digits), tp);
       }
    }
 }
