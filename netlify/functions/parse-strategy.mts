@@ -212,6 +212,7 @@ range_boundary_high, range_boundary_low,
 pullback_retracement, continuation_pattern,
 session_filter, time_filter,
 spread_filter, news_filter, volatility_filter,
+fixed_rr_take_profit, max_open_trades_filter,
 custom`;
 
 function cleanJson(raw: string): string {

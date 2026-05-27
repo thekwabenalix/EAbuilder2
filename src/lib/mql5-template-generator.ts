@@ -60,6 +60,9 @@ export const FILTER_RULE_TYPES = new Set([
   "session_filter", "time_filter",
   "spread_filter",
   "atr_trailing", "atr_volatility", "volatility_filter",
+  // Trade-management primitives — govern execution, not signal detection
+  "fixed_rr_take_profit",   // TP = entry ± (risk_dist × reward_ratio)
+  "max_open_trades_filter", // block entries when open positions ≥ max
 ]);
 
 /** Union of all rule types that have any template implementation. */
@@ -259,6 +262,14 @@ interface Ctx {
   stopType: StrategyBlueprint["risk"]["stopType"];
   /** true when execution.symbol === "ANY" — emit #define InpSymbol _Symbol instead of an input */
   useChartSymbol: boolean;
+
+  // Trade-management primitives
+  /** fixed_rr_take_profit: TP = entry ± (risk_dist × rewardRatio) */
+  hasFixedRR: boolean;
+  rrRatio: number;
+  /** max_open_trades_filter: block new entries when open positions ≥ maxOpenTrades */
+  hasMaxTradesFilter: boolean;
+  maxOpenTrades: number;
 }
 
 function analyze(bp: StrategyBlueprint): Ctx {
@@ -285,6 +296,8 @@ function analyze(bp: StrategyBlueprint): Ctx {
   const pinBar   = findRule(r, "pin_bar_bullish", "pin_bar_bearish");
   const insideBar = findRule(r, "inside_bar");
   const hammer   = findRule(r, "hammer", "shooting_star", "doji");
+  const fixedRRRule    = findRule(r, "fixed_rr_take_profit");
+  const maxTradesRule  = findRule(r, "max_open_trades_filter");
 
   // Use ema_alignment period for the filter EMA if no cross rule
   const emaSource = emaRule ?? emaAlign;
@@ -357,6 +370,18 @@ function analyze(bp: StrategyBlueprint): Ctx {
 
     stopType: bp.risk.stopType,
     useChartSymbol: (bp.execution.symbol ?? "").toUpperCase() === "ANY",
+
+    hasFixedRR: Boolean(fixedRRRule),
+    rrRatio: safeFloat(
+      param(fixedRRRule, "reward_ratio", param(fixedRRRule, "rewardRatio", bp.risk.rewardRisk ?? 2.0)),
+      2.0, 0.1, 100,
+    ),
+
+    hasMaxTradesFilter: Boolean(maxTradesRule),
+    maxOpenTrades: safeInt(
+      param(maxTradesRule, "max_open_trades", param(maxTradesRule, "maxOpenTrades", bp.risk.maxOpenTrades ?? 1)),
+      1, 1, 100,
+    ),
   };
 }
 
@@ -480,6 +505,12 @@ function genInputs(bp: StrategyBlueprint, ctx: Ctx): string {
     lines.push(`input int InpFVGExpiry = 50;  // FVG expiry (bars, 0 = never)`);
     lines.push(``);
   }
+  if (ctx.hasMaxTradesFilter) {
+    lines.push(`//--- Trade count limit`);
+    lines.push(`input int InpMaxTrades = ${ctx.maxOpenTrades};  // Max simultaneous open positions (0 = unlimited)`);
+    lines.push(``);
+  }
+
   // FVG always uses break-even (managed by FVG_ManageBreakEven); default is 0.5R.
   // Non-FVG strategies only emit this input when the blueprint enables break-even.
   if (ctx.hasFVG) {
@@ -599,6 +630,21 @@ bool HasOpenPosition(string symbol, long magic)
    return false;
 }
 
+// Count open positions for this EA on the given symbol.
+// Used by max_open_trades_filter to allow more than one simultaneous trade.
+int CountOpenPositions(string symbol, long magic)
+{
+   int count = 0;
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(!PositionSelectByTicket(ticket)) continue;
+      if(PositionGetString(POSITION_SYMBOL) == symbol &&
+         PositionGetInteger(POSITION_MAGIC)  == magic) count++;
+   }
+   return count;
+}
+
 bool SpreadOk(string symbol, int maxPts)
 {
    if(maxPts <= 0) return true;
@@ -619,7 +665,7 @@ double IndVal(int handle, int buf, int shift)
 
 // ─── FVG State Machine generator ─────────────────────────────────────────────
 
-function genFVGStateMachine(): string {
+function genFVGStateMachine(ctx: Ctx): string {
   return `//+------------------------------------------------------------------+
 //| FVG State Machine                                                |
 //| Detects 3-candle imbalances, tracks retest and confirmation,    |
@@ -728,7 +774,9 @@ void FVG_Update()
 // Called at bar open: execute market entries for CONFIRMED zones.
 void FVG_ExecuteEntries()
 {
-   if(HasOpenPosition(InpSymbol, InpMagic)) return;
+   ${ctx.hasMaxTradesFilter
+     ? `if(CountOpenPositions(InpSymbol, InpMagic) >= InpMaxTrades) return;`
+     : `if(HasOpenPosition(InpSymbol, InpMagic)) return;`}
    if(!SpreadOk(InpSymbol, InpMaxSpread)) return;
 
    double point  = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
@@ -952,7 +1000,7 @@ bool IsBearishBOS()
   if (ctx.hasFVG) {
     // Full state machine: FVG_Add, FVG_Detect, FVG_Update,
     // FVG_ExecuteEntries, FVG_ManageBreakEven, FVG_DrawZones, FVG_DeleteAllObjects
-    parts.push(genFVGStateMachine());
+    parts.push(genFVGStateMachine(ctx));
   }
 
   if (ctx.hasOrderBlock) {
@@ -1429,7 +1477,9 @@ function genOnTick(bp: StrategyBlueprint, ctx: Ctx): string {
     `   if(bar == lastBarTime) return;`,
     `   lastBarTime = bar;`,
     ``,
-    `   if(HasOpenPosition(InpSymbol, InpMagic)) return;`,
+    ctx.hasMaxTradesFilter
+      ? `   if(CountOpenPositions(InpSymbol, InpMagic) >= InpMaxTrades) return;`
+      : `   if(HasOpenPosition(InpSymbol, InpMagic)) return;`,
     `   if(!SpreadOk(InpSymbol, InpMaxSpread))   return;`,
     ``,
     `   double slPrice = 0.0;`,
