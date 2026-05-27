@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Sparkles,
   Loader2,
@@ -13,6 +14,7 @@ import {
   CheckCircle2,
   HelpCircle,
   Edit2,
+  RefreshCw,
 } from "lucide-react";
 import { EXAMPLE_PROMPT } from "@/types/strategy";
 import type { StrategyBlueprint } from "@/types/blueprint";
@@ -34,6 +36,8 @@ function NewStrategy() {
   const [stageLabel, setStageLabel] = useState<string | null>(null);
   const [blueprint, setBlueprint] = useState<StrategyBlueprint | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Answers keyed by clarification index */
+  const [clarificationAnswers, setClarificationAnswers] = useState<Record<number, string>>({});
 
   const busy = stage === "interviewing" || stage === "generating";
 
@@ -92,6 +96,45 @@ function NewStrategy() {
     setStage("idle");
     setBlueprint(null);
     setError(null);
+    setClarificationAnswers({});
+  };
+
+  const onRefine = async () => {
+    if (!blueprint) return;
+    const questions = blueprint.pendingClarifications ?? [];
+    const answeredPairs = questions
+      .map((q, i) => {
+        const ans = clarificationAnswers[i]?.trim();
+        return ans ? `Q: ${q}\nA: ${ans}` : null;
+      })
+      .filter(Boolean);
+
+    if (answeredPairs.length === 0) {
+      toast.info("Type at least one answer before refining.");
+      return;
+    }
+
+    const enrichedPrompt =
+      prompt.trim() +
+      "\n\n--- Clarifications ---\n" +
+      answeredPairs.join("\n\n");
+
+    setError(null);
+    setStage("interviewing");
+    setStageLabel("Refining interview…");
+    setClarificationAnswers({});
+
+    try {
+      const { blueprint: bp } = await parseStrategy(enrichedPrompt);
+      // Keep the original user prompt so "Edit prompt" still shows the original
+      setBlueprint(bp as StrategyBlueprint);
+      setStage("reviewed");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Refinement failed. Please try again.");
+      setStage("reviewed");
+    } finally {
+      setStageLabel(null);
+    }
   };
 
   return (
@@ -194,8 +237,13 @@ function NewStrategy() {
           <InterviewPanel
             blueprint={blueprint}
             onCreateDraft={onCreateDraft}
+            onRefine={onRefine}
             busy={busy}
             stageLabel={stageLabel}
+            clarificationAnswers={clarificationAnswers}
+            onAnswerChange={(i, val) =>
+              setClarificationAnswers((prev) => ({ ...prev, [i]: val }))
+            }
           />
         )}
       </div>
@@ -206,13 +254,19 @@ function NewStrategy() {
 function InterviewPanel({
   blueprint,
   onCreateDraft,
+  onRefine,
   busy,
   stageLabel,
+  clarificationAnswers,
+  onAnswerChange,
 }: {
   blueprint: StrategyBlueprint;
   onCreateDraft: () => void;
+  onRefine: () => void;
   busy: boolean;
   stageLabel: string | null;
+  clarificationAnswers: Record<number, string>;
+  onAnswerChange: (index: number, value: string) => void;
 }) {
   const compilableCount = blueprint.compilableRuleIds?.length ?? 0;
   const subjectiveCount = blueprint.subjectiveRuleIds?.length ?? 0;
@@ -317,17 +371,45 @@ function InterviewPanel({
 
       {/* ── Clarifications card ── */}
       {clarifications.length > 0 && (
-        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
-          <p className="text-xs font-medium text-amber-400">
-            Questions to clarify ({clarifications.length})
-          </p>
-          <ul className="space-y-1">
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+          <div>
+            <p className="text-xs font-medium text-amber-400">
+              Questions to clarify ({clarifications.length})
+            </p>
+            <p className="text-[11px] text-amber-300/70 mt-0.5">
+              Answer any you know — then click <strong>Refine Interview</strong> to improve accuracy.
+              You can also skip and save now.
+            </p>
+          </div>
+
+          <div className="space-y-3">
             {clarifications.map((q, i) => (
-              <li key={i} className="text-xs text-amber-300/90">
-                • {q}
-              </li>
+              <div key={i} className="space-y-1">
+                <p className="text-xs text-amber-300/90 leading-relaxed">• {q}</p>
+                <Input
+                  value={clarificationAnswers[i] ?? ""}
+                  onChange={(e) => onAnswerChange(i, e.target.value)}
+                  placeholder="Your answer…"
+                  className="text-xs h-8 bg-background/50 border-amber-500/30 placeholder:text-muted-foreground/50"
+                  disabled={busy}
+                />
+              </div>
             ))}
-          </ul>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRefine}
+            disabled={busy || Object.values(clarificationAnswers).every((v) => !v?.trim())}
+            className="w-full border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+          >
+            {busy && stageLabel?.includes("Refin") ? (
+              <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Refining…</>
+            ) : (
+              <><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refine Interview with Answers</>
+            )}
+          </Button>
         </div>
       )}
 
