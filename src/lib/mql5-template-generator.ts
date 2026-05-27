@@ -748,7 +748,8 @@ void FVG_ExecuteEntries()
          if(dist < (double)stops) { fvgZones[i].state = FVG_INVALID; continue; }
          double lot  = CalcLot(dist, InpSymbol, InpRiskPercent);
          if(lot <= 0) { fvgZones[i].state = FVG_INVALID; continue; }
-         if(trade.Buy(lot, InpSymbol, ask, sl, 0, "FVG Buy"))
+         double tp   = NormalizeDouble(ask + dist * InpRewardRisk * point, digits);
+         if(trade.Buy(lot, InpSymbol, ask, sl, tp, "FVG Buy"))
             fvgZones[i].state = FVG_TRADED;
       }
       else // Bearish: SELL at bar open
@@ -758,7 +759,8 @@ void FVG_ExecuteEntries()
          if(dist < (double)stops) { fvgZones[i].state = FVG_INVALID; continue; }
          double lot  = CalcLot(dist, InpSymbol, InpRiskPercent);
          if(lot <= 0) { fvgZones[i].state = FVG_INVALID; continue; }
-         if(trade.Sell(lot, InpSymbol, bid, sl, 0, "FVG Sell"))
+         double tp   = NormalizeDouble(bid - dist * InpRewardRisk * point, digits);
+         if(trade.Sell(lot, InpSymbol, bid, sl, tp, "FVG Sell"))
             fvgZones[i].state = FVG_TRADED;
       }
       break; // one trade per bar

@@ -1132,48 +1132,78 @@ function BacktestTab({
         </div>
 
         {/* Compile error banner */}
-        {compileResult && !compileResult.success && compileResult.errors > 0 && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 flex items-start gap-3">
-            <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-destructive">
-                {compileResult.errors} compile error{compileResult.errors !== 1 ? "s" : ""} — fix the code before backtesting
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {fixingAi
-                  ? "AI is rewriting the fixed code — this takes 15–30 seconds…"
-                  : "Click Fix with AI to automatically correct all errors in one step."}
-              </p>
+        {compileResult && !compileResult.success && compileResult.errors > 0 && (() => {
+          // Template-generated code should never have compile errors — the right fix is to
+          // regenerate from the template (which is always up-to-date) rather than have an AI
+          // rewrite a file it may get wrong. Detect by the fixed header comment.
+          const isTemplateCode = code.includes("template mode — always compiles");
+          return (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 flex items-start gap-3">
+              <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-destructive">
+                  {compileResult.errors} compile error{compileResult.errors !== 1 ? "s" : ""} — fix the code before backtesting
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {fixingAi
+                    ? "Generating fixed code — this takes 15–30 seconds…"
+                    : isTemplateCode
+                      ? "This is template-generated code. Regenerating from the template is faster and safer than AI rewrite."
+                      : "Click Fix with AI to automatically correct all errors in one step."}
+                </p>
+              </div>
+              {onApplyCode && (
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* For template code: primary action is regen from template */}
+                  {isTemplateCode && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={fixingAi}
+                      className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 shrink-0"
+                      onClick={() => {
+                        try {
+                          onApplyCode(generateMql5FromBlueprint(blueprint));
+                          toast.success("Regenerated from template — recompile to verify");
+                        } catch (e: unknown) {
+                          toast.error(e instanceof Error ? e.message : "Template generation failed");
+                        }
+                      }}
+                    >
+                      <Hammer className="h-3.5 w-3.5 mr-1.5" /> Regen from Template
+                    </Button>
+                  )}
+                  {/* AI fix — always available but secondary for template code */}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={fixingAi}
+                    onClick={async () => {
+                      if (!compileResult.log) return;
+                      setFixingAi(true);
+                      try {
+                        const result = await fixCompileErrors(blueprint, code, compileResult.log);
+                        onApplyCode(result.code);
+                        toast.success("AI fixed the code — recompile to verify");
+                      } catch (e: unknown) {
+                        toast.error(e instanceof Error ? e.message : "Fix failed — please try again");
+                      } finally {
+                        setFixingAi(false);
+                      }
+                    }}
+                    className="shrink-0"
+                  >
+                    {fixingAi ? (
+                      <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Fixing…</>
+                    ) : (
+                      <><Bot className="h-3.5 w-3.5 mr-1.5" /> Fix with AI</>
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
-            {onApplyCode && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={fixingAi}
-                onClick={async () => {
-                  if (!compileResult.log) return;
-                  setFixingAi(true);
-                  try {
-                    const result = await fixCompileErrors(blueprint, code, compileResult.log);
-                    onApplyCode(result.code);
-                    toast.success("AI fixed the code — recompile to verify");
-                  } catch (e: unknown) {
-                    toast.error(e instanceof Error ? e.message : "Fix failed — please try again");
-                  } finally {
-                    setFixingAi(false);
-                  }
-                }}
-                className="shrink-0"
-              >
-                {fixingAi ? (
-                  <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Fixing…</>
-                ) : (
-                  <><Bot className="h-3.5 w-3.5 mr-1.5" /> Fix with AI</>
-                )}
-              </Button>
-            )}
-          </div>
-        )}
+          );
+        })()}
 
         {/* Never compiled hint */}
         {!compileResult && !compileRunning && localApproval && (
