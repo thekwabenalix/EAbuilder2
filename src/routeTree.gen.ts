@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ModulesRouteImport } from './routes/modules'
 import { Route as NewRouteImport } from './routes/new'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SIdRouteImport } from './routes/s.$id'
@@ -17,6 +18,11 @@ import { Route as SIdRouteImport } from './routes/s.$id'
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ModulesRoute = ModulesRouteImport.update({
+  id: '/modules',
+  path: '/modules',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NewRoute = NewRouteImport.update({
@@ -38,12 +44,14 @@ const SIdRoute = SIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/new': typeof NewRoute
+  '/modules': typeof ModulesRoute
   '/settings': typeof SettingsRoute
   '/s/$id': typeof SIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/new': typeof NewRoute
+  '/modules': typeof ModulesRoute
   '/settings': typeof SettingsRoute
   '/s/$id': typeof SIdRoute
 }
@@ -51,20 +59,22 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/new': typeof NewRoute
+  '/modules': typeof ModulesRoute
   '/settings': typeof SettingsRoute
   '/s/$id': typeof SIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/new' | '/settings' | '/s/$id'
+  fullPaths: '/' | '/new' | '/modules' | '/settings' | '/s/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/new' | '/settings' | '/s/$id'
-  id: '__root__' | '/' | '/new' | '/settings' | '/s/$id'
+  to: '/' | '/new' | '/modules' | '/settings' | '/s/$id'
+  id: '__root__' | '/' | '/new' | '/modules' | '/settings' | '/s/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   NewRoute: typeof NewRoute
+  ModulesRoute: typeof ModulesRoute
   SettingsRoute: typeof SettingsRoute
   SIdRoute: typeof SIdRoute
 }
@@ -76,6 +86,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/modules': {
+      id: '/modules'
+      path: '/modules'
+      fullPath: '/modules'
+      preLoaderRoute: typeof ModulesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/new': {
@@ -105,6 +122,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   NewRoute: NewRoute,
+  ModulesRoute: ModulesRoute,
   SettingsRoute: SettingsRoute,
   SIdRoute: SIdRoute,
 }
