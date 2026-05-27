@@ -21,6 +21,8 @@ import type { StrategyBlueprint } from "@/types/blueprint";
 import { parseStrategy } from "@/lib/api-client";
 import { createStrategy } from "@/lib/strategies";
 import { toast } from "sonner";
+import { analyzeBuildability } from "@/lib/mql5-template-generator";
+import type { BuildabilityResult } from "@/lib/mql5-template-generator";
 
 export const Route = createFileRoute("/new")({
   component: NewStrategy,
@@ -369,6 +371,9 @@ function InterviewPanel({
         </div>
       )}
 
+      {/* ── Build Status card ── */}
+      <BuildStatusCard blueprint={blueprint} />
+
       {/* ── Clarifications card ── */}
       {clarifications.length > 0 && (
         <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
@@ -430,6 +435,115 @@ function InterviewPanel({
       <p className="text-[11px] text-muted-foreground text-center">
         Generated EAs are provided for research only. Always test on a demo account.
       </p>
+    </div>
+  );
+}
+
+// ─── Build Status Card ────────────────────────────────────────────────────────
+
+function BuildStatusCard({ blueprint }: { blueprint: StrategyBlueprint }) {
+  const result: BuildabilityResult = analyzeBuildability(blueprint);
+
+  // Coverage pill colour
+  const pillColor =
+    result.coverage === 100
+      ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10"
+      : result.coverage >= 60
+        ? "border-amber-500/40 text-amber-400 bg-amber-500/10"
+        : "border-destructive/40 text-destructive bg-destructive/10";
+
+  // Category badge helper
+  const categoryBadge = (cat: "trigger" | "filter" | "unsupported") => {
+    if (cat === "trigger")
+      return (
+        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-medium uppercase tracking-wide">
+          trigger
+        </span>
+      );
+    if (cat === "filter")
+      return (
+        <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 font-medium uppercase tracking-wide">
+          filter
+        </span>
+      );
+    return (
+      <span className="text-[9px] px-1.5 py-0.5 rounded bg-destructive/15 text-destructive font-medium uppercase tracking-wide">
+        no primitive
+      </span>
+    );
+  };
+
+  return (
+    <div
+      className={`rounded-md border p-4 space-y-3 ${
+        result.buildable && result.unsupportedCount === 0
+          ? "border-emerald-500/30 bg-emerald-500/5"
+          : result.buildable
+            ? "border-amber-500/30 bg-amber-500/5"
+            : "border-destructive/30 bg-destructive/5"
+      }`}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-medium">
+            {result.buildable && result.unsupportedCount === 0
+              ? "Template ready — all rules have implementations"
+              : result.buildable
+                ? "Partially buildable — some rules will be skipped"
+                : "Not buildable yet — no entry trigger has an implementation"}
+          </p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            {result.unsupportedCount === 0
+              ? "Click Save to generate a compilable EA from verified blocks."
+              : `${result.unsupportedCount} rule${result.unsupportedCount > 1 ? "s" : ""} don't map to a primitive. Refine them in the interview or they'll be skipped.`}
+          </p>
+        </div>
+        <span className={`text-xs px-2 py-0.5 rounded-full border font-medium shrink-0 ${pillColor}`}>
+          {result.coverage}% covered
+        </span>
+      </div>
+
+      {/* Per-rule mapping */}
+      <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+        {result.statuses.map(({ rule, category }) => (
+          <div key={rule.id} className="flex items-start gap-2 text-xs">
+            {category === "unsupported" ? (
+              <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
+            ) : (
+              <CheckCircle2
+                className={`h-3.5 w-3.5 shrink-0 mt-0.5 ${
+                  category === "trigger" ? "text-emerald-400" : "text-sky-400"
+                }`}
+              />
+            )}
+            <span
+              className={
+                category === "unsupported" ? "text-destructive/80" : "text-foreground"
+              }
+            >
+              {rule.label}
+            </span>
+            <span className="ml-auto shrink-0">{categoryBadge(category)}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Unsupported guidance */}
+      {result.unsupportedCount > 0 && (
+        <div className="rounded bg-background/60 border border-border p-2.5 text-[11px] text-muted-foreground space-y-1">
+          <p className="font-medium text-foreground">How to fix unsupported rules:</p>
+          <p>
+            1. Click <strong>Edit prompt</strong> and rewrite vague rules as objectively measurable conditions.
+          </p>
+          <p>
+            2. Re-run <strong>Interview Strategy</strong> — the AI will reclassify into a supported type.
+          </p>
+          <p>
+            3. Or accept the skip: the EA will be generated without those rules.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -48,7 +48,7 @@ import {
   buildValidationReport,
 } from "@/lib/mql5-generator";
 import { generateCode, fixCompileErrors } from "@/lib/api-client";
-import { generateMql5FromBlueprint } from "@/lib/mql5-template-generator";
+import { generateMql5FromBlueprint, analyzeBuildability } from "@/lib/mql5-template-generator";
 import type { StrategyBlueprint } from "@/types/blueprint";
 import { DEFAULT_BLUEPRINT } from "@/types/blueprint";
 import {
@@ -447,67 +447,121 @@ function CodeTab({
     }
   };
 
-  // No code yet — show both generate options
+  // No code yet — run buildability check, then surface generate options
   if (!code) {
+    const build = analyzeBuildability(blueprint);
+    const pillColor =
+      build.coverage === 100
+        ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10"
+        : build.coverage >= 60
+          ? "border-amber-500/40 text-amber-400 bg-amber-500/10"
+          : "border-destructive/40 text-destructive bg-destructive/10";
+
     return (
-      <div className="flex flex-col items-center justify-center py-20 space-y-5 text-center max-w-lg mx-auto">
-        <FileCode2 className="h-10 w-10 text-muted-foreground/40" />
-        <div>
-          <p className="font-medium text-lg">Generate MQL5 Expert Advisor</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            Choose how to generate the code from your blueprint.
-          </p>
+      <div className="max-w-xl mx-auto py-10 space-y-5">
+        {/* Status header */}
+        <div className="flex items-start gap-3">
+          <FileCode2 className="h-8 w-8 text-muted-foreground/40 shrink-0 mt-1" />
+          <div>
+            <p className="font-semibold text-base">Generate MQL5 Expert Advisor</p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              The template engine maps your blueprint rules to verified code blocks.
+            </p>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
-          {/* Template — always compiles */}
-          <div className="rounded-lg border-2 border-emerald-500/40 bg-emerald-500/5 p-4 flex flex-col gap-3">
-            <div>
-              <p className="font-semibold text-sm text-emerald-400">Template (Recommended)</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Deterministic TypeScript → MQL5. Generates instantly and <strong>always compiles</strong>.
-                Covers EMA, RSI, MACD, ADX, Bollinger, Stochastic, session filters and candle patterns.
-              </p>
-            </div>
-            <Button
-              onClick={generateTemplate}
-              disabled={generating}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white border-0 w-full"
-            >
-              {generating ? (
-                <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Generating…</>
-              ) : (
-                <><Hammer className="h-4 w-4 mr-1.5" /> Generate (Template)</>
-              )}
-            </Button>
+        {/* Primitive mapping summary */}
+        <div
+          className={`rounded-lg border p-4 space-y-3 ${
+            build.buildable && build.unsupportedCount === 0
+              ? "border-emerald-500/30 bg-emerald-500/5"
+              : build.buildable
+                ? "border-amber-500/30 bg-amber-500/5"
+                : "border-destructive/30 bg-destructive/5"
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium">
+              {build.buildable && build.unsupportedCount === 0
+                ? "All rules mapped — ready to generate"
+                : build.buildable
+                  ? `${build.supportedCount} of ${blueprint.rules.length} rules have primitives`
+                  : "No entry trigger has an implementation yet"}
+            </p>
+            <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${pillColor}`}>
+              {build.coverage}% coverage
+            </span>
           </div>
 
-          {/* AI — more custom, may need fixing */}
-          <div className="rounded-lg border border-border bg-card p-4 flex flex-col gap-3">
-            <div>
-              <p className="font-semibold text-sm">AI Generate</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Claude writes custom logic for complex strategies. Takes 15–30 s and may occasionally
-                need a compile-fix pass.
+          {build.unsupportedCount > 0 && (
+            <div className="space-y-1">
+              {build.statuses.map(({ rule, category }) =>
+                category === "unsupported" ? (
+                  <div key={rule.id} className="flex items-start gap-2 text-xs">
+                    <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
+                    <span className="text-destructive/80">{rule.label}</span>
+                    <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-destructive/15 text-destructive font-medium uppercase">
+                      no primitive
+                    </span>
+                  </div>
+                ) : null,
+              )}
+              <p className="text-[11px] text-muted-foreground pt-1">
+                These rules will be skipped. To include them, go back and refine the interview.
               </p>
             </div>
-            <Button
-              onClick={generate}
-              disabled={generating}
-              variant="outline"
-              className="w-full"
-            >
-              {generating ? (
-                <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Generating…</>
-              ) : (
-                <><Sparkles className="h-4 w-4 mr-1.5" /> Generate (AI)</>
-              )}
-            </Button>
-          </div>
+          )}
+        </div>
+
+        {/* Generate button — always Template */}
+        <div className="space-y-2">
+          <Button
+            onClick={generateTemplate}
+            disabled={generating || !build.buildable}
+            size="lg"
+            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white border-0"
+          >
+            {generating ? (
+              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Generating…</>
+            ) : (
+              <><Hammer className="h-4 w-4 mr-1.5" />
+                {build.unsupportedCount === 0
+                  ? "Generate EA from Template"
+                  : `Generate EA (${build.supportedCount} of ${blueprint.rules.length} rules)`}
+              </>
+            )}
+          </Button>
+
+          {!build.buildable && (
+            <p className="text-xs text-center text-destructive">
+              No supported entry trigger found. Refine your strategy description and re-run the interview.
+            </p>
+          )}
+
+          {/* AI Generate — collapsed, secondary */}
+          <details className="group">
+            <summary className="text-[11px] text-muted-foreground cursor-pointer hover:text-foreground flex items-center gap-1 justify-center select-none">
+              <Sparkles className="h-3 w-3" /> Advanced: AI direct generation (may produce compile errors)
+            </summary>
+            <div className="mt-2 rounded-md border border-border bg-card p-3 space-y-2">
+              <p className="text-xs text-muted-foreground">
+                AI writes custom MQL5 directly from your blueprint. Higher flexibility,
+                but the output is not guaranteed to compile and may invent logic not in your spec.
+                Use only when the template doesn't cover your strategy.
+              </p>
+              <Button onClick={generate} disabled={generating} variant="outline" size="sm" className="w-full">
+                {generating ? (
+                  <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Generating…</>
+                ) : (
+                  <><Sparkles className="h-3.5 w-3.5 mr-1.5" /> AI Generate (experimental)</>
+                )}
+              </Button>
+            </div>
+          </details>
         </div>
 
         {generating && (
-          <p className="text-xs text-muted-foreground">Generating your Expert Advisor…</p>
+          <p className="text-xs text-muted-foreground text-center">Generating your Expert Advisor…</p>
         )}
       </div>
     );

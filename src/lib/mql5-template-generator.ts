@@ -30,6 +30,98 @@
 
 import type { StrategyBlueprint, NormalizedRule } from "@/types/blueprint";
 
+// ─── Primitive registries (single source of truth) ───────────────────────────
+// These are the rule types that have a concrete template implementation.
+// Any rule NOT in one of these sets will be flagged as unsupported in the UI
+// BEFORE code is generated — so users fix their spec, not their MQL5.
+
+/** Rules that generate actual entry conditions (OR'd in CheckEntrySignal). */
+export const TRIGGER_RULE_TYPES = new Set([
+  "ema_cross", "sma_cross", "ema_touch",
+  "rsi_overbought", "rsi_oversold",
+  "macd_cross", "macd_signal", "macd_histogram",
+  "bollinger_touch", "bollinger_breakout", "bollinger_squeeze",
+  "stochastic_cross",
+  "bos", "choch", "mss",
+  "fair_value_gap_bullish", "fair_value_gap_bearish",
+  "order_block_bullish", "order_block_bearish",
+  "liquidity_sweep_high", "liquidity_sweep_low",
+  "demand_zone", "supply_zone",
+  "engulfing_bullish", "engulfing_bearish",
+  "pin_bar_bullish", "pin_bar_bearish",
+  "inside_bar", "doji", "hammer", "shooting_star",
+]);
+
+/** Rules that gate entry (AND'd in CheckEntrySignal). */
+export const FILTER_RULE_TYPES = new Set([
+  "ema_alignment", "ema_band",
+  "rsi_level", "adx_strength", "stochastic_level",
+  "trend_filter_htf", "trend_direction",
+  "session_filter", "time_filter",
+  "spread_filter",
+  "atr_trailing", "atr_volatility", "volatility_filter",
+]);
+
+/** Union of all rule types that have any template implementation. */
+export const SUPPORTED_RULE_TYPES = new Set([
+  ...TRIGGER_RULE_TYPES,
+  ...FILTER_RULE_TYPES,
+]);
+
+// ─── Buildability analysis ────────────────────────────────────────────────────
+
+export interface RuleBuildStatus {
+  rule: NormalizedRule;
+  /** "trigger" = generates entry signal, "filter" = gates entry, "unsupported" = no implementation */
+  category: "trigger" | "filter" | "unsupported";
+}
+
+export interface BuildabilityResult {
+  /** True if the EA will actually trade (at least 1 supported trigger, or FVG state machine). */
+  buildable: boolean;
+  /** 0–100 — what fraction of the blueprint rules have template implementations. */
+  coverage: number;
+  statuses: RuleBuildStatus[];
+  supportedCount: number;
+  unsupportedCount: number;
+  unsupportedRules: NormalizedRule[];
+  /** True when the FVG state machine covers entries (FVG rules always build). */
+  hasFvgMachine: boolean;
+}
+
+/**
+ * Validate every rule in a blueprint against the primitive registry.
+ * Call this BEFORE generating code — surface unsupported rules in the UI
+ * so the user refines their spec rather than getting broken MQL5.
+ */
+export function analyzeBuildability(bp: StrategyBlueprint): BuildabilityResult {
+  const statuses: RuleBuildStatus[] = bp.rules.map((rule) => {
+    if (TRIGGER_RULE_TYPES.has(rule.type)) return { rule, category: "trigger" };
+    if (FILTER_RULE_TYPES.has(rule.type))  return { rule, category: "filter"  };
+    return { rule, category: "unsupported" };
+  });
+
+  const hasFvgMachine = bp.rules.some(
+    (r) => r.type === "fair_value_gap_bullish" || r.type === "fair_value_gap_bearish",
+  );
+  const hasSupportedTrigger = statuses.some((s) => s.category === "trigger");
+  const supportedCount = statuses.filter((s) => s.category !== "unsupported").length;
+  const unsupportedRules = statuses
+    .filter((s) => s.category === "unsupported")
+    .map((s) => s.rule);
+
+  return {
+    buildable: hasFvgMachine || hasSupportedTrigger,
+    coverage:
+      bp.rules.length === 0 ? 100 : Math.round((supportedCount / bp.rules.length) * 100),
+    statuses,
+    supportedCount,
+    unsupportedCount: unsupportedRules.length,
+    unsupportedRules,
+    hasFvgMachine,
+  };
+}
+
 // ─── Small utilities ──────────────────────────────────────────────────────────
 
 function findRule(rules: NormalizedRule[], ...types: string[]): NormalizedRule | undefined {
@@ -344,6 +436,11 @@ function genInputs(bp: StrategyBlueprint, ctx: Ctx): string {
     lines.push(`input int InpLiqLookback = ${ctx.liqLookback};  // Bars to scan for recent highs/lows`);
     lines.push(``);
   }
+  if (ctx.hasFVG) {
+    lines.push(`//--- Fair Value Gap`);
+    lines.push(`input int InpFVGExpiry = 50;  // FVG expiry (bars, 0 = never)`);
+    lines.push(``);
+  }
   if (risk.breakevenEnabled) {
     lines.push(`//--- Break-even`);
     lines.push(`input double InpBEAtR = 1.0;  // Move SL to B/E at this R multiple`);
@@ -373,6 +470,32 @@ function genGlobals(ctx: Ctx): string {
   if (ctx.hasATR)   lines.push(`int hATR   = INVALID_HANDLE;`);
   if (ctx.hasHTF)   lines.push(`int hHTF   = INVALID_HANDLE;`);
   lines.push(``, `static datetime lastBarTime = 0;`, ``);
+  if (ctx.hasFVG) {
+    lines.push(
+      `#define FVG_ACTIVE    0`,
+      `#define FVG_RETESTING 1`,
+      `#define FVG_CONFIRMED 2`,
+      `#define FVG_TRADED    3`,
+      `#define FVG_INVALID   4`,
+      `#define MAX_FVGS     20`,
+      ``,
+      `struct FVGZone`,
+      `{`,
+      `   double   ul;`,
+      `   double   ll;`,
+      `   int      dir;`,
+      `   datetime createdAt;`,
+      `   int      state;`,
+      `   double   retestLow;`,
+      `   double   retestHigh;`,
+      `   int      barsAlive;`,
+      `};`,
+      ``,
+      `FVGZone fvgZones[MAX_FVGS];`,
+      `int     fvgCount = 0;`,
+      ``,
+    );
+  }
   return lines.join("\n") + "\n";
 }
 
@@ -437,6 +560,232 @@ double IndVal(int handle, int buf, int shift)
    ArraySetAsSeries(arr, true);
    if(CopyBuffer(handle, buf, shift, 1, arr) != 1) return 0.0;
    return arr[0];
+}
+
+`;
+}
+
+// ─── FVG State Machine generator ─────────────────────────────────────────────
+
+function genFVGStateMachine(): string {
+  return `//+------------------------------------------------------------------+
+//| FVG State Machine                                                |
+//| Detects 3-candle imbalances, tracks retest and confirmation,    |
+//| enters on the bar AFTER confirmation (bar-open pattern).        |
+//| States: ACTIVE -> RETESTING -> CONFIRMED -> TRADED / INVALID    |
+//+------------------------------------------------------------------+
+
+// Add a new FVG zone if it is not already tracked.
+void FVG_Add(double ul, double ll, int dir)
+{
+   if(fvgCount >= MAX_FVGS) return;
+   double point = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   for(int i = 0; i < fvgCount; i++)
+   {
+      if(fvgZones[i].state >= FVG_TRADED) continue;
+      if(fvgZones[i].dir != dir) continue;
+      if(MathAbs(fvgZones[i].ul - ul) < 5.0 * point &&
+         MathAbs(fvgZones[i].ll - ll) < 5.0 * point) return;
+   }
+   int idx = fvgCount++;
+   fvgZones[idx].ul         = ul;
+   fvgZones[idx].ll         = ll;
+   fvgZones[idx].dir        = dir;
+   fvgZones[idx].createdAt  = TimeCurrent();
+   fvgZones[idx].state      = FVG_ACTIVE;
+   fvgZones[idx].retestLow  = ul;
+   fvgZones[idx].retestHigh = ll;
+   fvgZones[idx].barsAlive  = 0;
+}
+
+// Called on each new bar: detect 3-candle imbalance in the just-closed bars.
+// shift 1 = C3 (newest closed bar), shift 3 = C1 (oldest of the 3).
+void FVG_Detect()
+{
+   double c1Hi = iHigh(InpSymbol, InpEntryTF, 3);
+   double c1Lo = iLow(InpSymbol,  InpEntryTF, 3);
+   double c3Hi = iHigh(InpSymbol, InpEntryTF, 1);
+   double c3Lo = iLow(InpSymbol,  InpEntryTF, 1);
+   if(c1Hi <= 0 || c3Hi <= 0) return;
+
+   if(c3Lo > c1Hi) FVG_Add(c3Lo, c1Hi,  1); // Bullish: C3.Low > C1.High
+   if(c3Hi < c1Lo) FVG_Add(c1Lo, c3Hi, -1); // Bearish: C3.High < C1.Low
+}
+
+// Called on each new bar: update state of all active/retesting zones
+// based on the just-closed bar (shift 1).
+void FVG_Update()
+{
+   double c1Lo  = iLow(InpSymbol,  InpEntryTF, 1);
+   double c1Hi  = iHigh(InpSymbol, InpEntryTF, 1);
+   double c1Cls = iClose(InpSymbol, InpEntryTF, 1);
+
+   for(int i = 0; i < fvgCount; i++)
+   {
+      int st = fvgZones[i].state;
+      if(st == FVG_TRADED || st == FVG_INVALID) continue;
+
+      fvgZones[i].barsAlive++;
+      if(InpFVGExpiry > 0 && fvgZones[i].barsAlive > InpFVGExpiry)
+         { fvgZones[i].state = FVG_INVALID; continue; }
+
+      double ul = fvgZones[i].ul;
+      double ll = fvgZones[i].ll;
+
+      if(fvgZones[i].dir > 0) // Bullish FVG: wait for price to dip back into gap
+      {
+         if(st == FVG_ACTIVE)
+         {
+            if(c1Lo <= ul) // bar entered the gap from above
+            {
+               fvgZones[i].state     = FVG_RETESTING;
+               fvgZones[i].retestLow = c1Lo;
+               if(c1Cls > ul)      fvgZones[i].state = FVG_CONFIRMED; // same-bar bounce
+               else if(c1Cls < ll) fvgZones[i].state = FVG_INVALID;   // closed through gap
+            }
+         }
+         else // FVG_RETESTING
+         {
+            if(c1Lo < fvgZones[i].retestLow) fvgZones[i].retestLow = c1Lo;
+            if(c1Cls > ul)      fvgZones[i].state = FVG_CONFIRMED;
+            else if(c1Cls < ll) fvgZones[i].state = FVG_INVALID;
+         }
+      }
+      else // Bearish FVG: wait for price to rally back into gap
+      {
+         if(st == FVG_ACTIVE)
+         {
+            if(c1Hi >= ll) // bar entered the gap from below
+            {
+               fvgZones[i].state      = FVG_RETESTING;
+               fvgZones[i].retestHigh = c1Hi;
+               if(c1Cls < ll)      fvgZones[i].state = FVG_CONFIRMED; // same-bar rejection
+               else if(c1Cls > ul) fvgZones[i].state = FVG_INVALID;   // closed through gap
+            }
+         }
+         else // FVG_RETESTING
+         {
+            if(c1Hi > fvgZones[i].retestHigh) fvgZones[i].retestHigh = c1Hi;
+            if(c1Cls < ll)      fvgZones[i].state = FVG_CONFIRMED;
+            else if(c1Cls > ul) fvgZones[i].state = FVG_INVALID;
+         }
+      }
+   }
+}
+
+// Called at bar open: execute market entries for CONFIRMED zones.
+void FVG_ExecuteEntries()
+{
+   if(HasOpenPosition(InpSymbol, InpMagic)) return;
+   if(!SpreadOk(InpSymbol, InpMaxSpread)) return;
+
+   double point  = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   double ask    = SymbolInfoDouble(InpSymbol, SYMBOL_ASK);
+   double bid    = SymbolInfoDouble(InpSymbol, SYMBOL_BID);
+   int    digits = (int)SymbolInfoInteger(InpSymbol, SYMBOL_DIGITS);
+   long   stops  = SymbolInfoInteger(InpSymbol, SYMBOL_TRADE_STOPS_LEVEL);
+
+   for(int i = 0; i < fvgCount; i++)
+   {
+      if(fvgZones[i].state != FVG_CONFIRMED) continue;
+
+      if(fvgZones[i].dir > 0) // Bullish: BUY at bar open
+      {
+         double sl   = NormalizeDouble(fvgZones[i].retestLow - InpStopBuffer * point, digits);
+         double dist = MathAbs(ask - sl) / point;
+         if(dist < (double)stops) { fvgZones[i].state = FVG_INVALID; continue; }
+         double lot  = CalcLot(dist, InpSymbol, InpRiskPercent);
+         if(lot <= 0) { fvgZones[i].state = FVG_INVALID; continue; }
+         if(trade.Buy(lot, InpSymbol, ask, sl, 0, "FVG Buy"))
+            fvgZones[i].state = FVG_TRADED;
+      }
+      else // Bearish: SELL at bar open
+      {
+         double sl   = NormalizeDouble(fvgZones[i].retestHigh + InpStopBuffer * point, digits);
+         double dist = MathAbs(sl - bid) / point;
+         if(dist < (double)stops) { fvgZones[i].state = FVG_INVALID; continue; }
+         double lot  = CalcLot(dist, InpSymbol, InpRiskPercent);
+         if(lot <= 0) { fvgZones[i].state = FVG_INVALID; continue; }
+         if(trade.Sell(lot, InpSymbol, bid, sl, 0, "FVG Sell"))
+            fvgZones[i].state = FVG_TRADED;
+      }
+      break; // one trade per bar
+   }
+}
+
+// Called every tick: move SL to break-even when profit >= 0.5 * initial risk.
+void FVG_ManageBreakEven()
+{
+   double point  = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   int    digits = (int)SymbolInfoInteger(InpSymbol, SYMBOL_DIGITS);
+
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(!PositionSelectByTicket(ticket)) continue;
+      if(PositionGetString(POSITION_SYMBOL) != InpSymbol) continue;
+      if(PositionGetInteger(POSITION_MAGIC) != InpMagic)  continue;
+
+      long   type = PositionGetInteger(POSITION_TYPE);
+      double open = PositionGetDouble(POSITION_PRICE_OPEN);
+      double sl   = PositionGetDouble(POSITION_SL);
+      if(open <= 0 || sl <= 0) continue;
+
+      double initRisk = MathAbs(open - sl);
+      if(initRisk < point) continue;
+
+      double bid = SymbolInfoDouble(InpSymbol, SYMBOL_BID);
+      double ask = SymbolInfoDouble(InpSymbol, SYMBOL_ASK);
+
+      if(type == POSITION_TYPE_BUY)
+      {
+         if(sl >= open - point) continue; // already at or above break-even
+         if(bid - open >= initRisk * 0.5)
+            trade.PositionModify(ticket, NormalizeDouble(open, digits), 0);
+      }
+      else
+      {
+         if(sl <= open + point) continue; // already at or below break-even
+         if(open - ask >= initRisk * 0.5)
+            trade.PositionModify(ticket, NormalizeDouble(open, digits), 0);
+      }
+   }
+}
+
+// Update chart rectangles for all non-expired zones.
+void FVG_DrawZones()
+{
+   for(int i = ObjectsTotal(0) - 1; i >= 0; i--)
+   {
+      string nm = ObjectName(0, i);
+      if(StringFind(nm, "FVG_") == 0) ObjectDelete(0, nm);
+   }
+   for(int i = 0; i < fvgCount; i++)
+   {
+      int st = fvgZones[i].state;
+      if(st == FVG_INVALID || st == FVG_TRADED) continue;
+      string nm  = "FVG_" + IntegerToString(i);
+      color  clr = (fvgZones[i].dir > 0)
+                   ? (st == FVG_CONFIRMED ? clrGreen     : clrPaleGreen)
+                   : (st == FVG_CONFIRMED ? clrRed       : clrLightCoral);
+      datetime t1 = fvgZones[i].createdAt;
+      datetime t2 = TimeCurrent() + (datetime)(PeriodSeconds(InpEntryTF) * 20);
+      if(!ObjectCreate(0, nm, OBJ_RECTANGLE, 0, t1, fvgZones[i].ul, t2, fvgZones[i].ll))
+         continue;
+      ObjectSetInteger(0, nm, OBJPROP_COLOR,     clr);
+      ObjectSetInteger(0, nm, OBJPROP_BACK,       true);
+      ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
+   }
+}
+
+// Delete all FVG chart objects — called from OnDeinit.
+void FVG_DeleteAllObjects()
+{
+   for(int i = ObjectsTotal(0) - 1; i >= 0; i--)
+   {
+      string nm = ObjectName(0, i);
+      if(StringFind(nm, "FVG_") == 0) ObjectDelete(0, nm);
+   }
 }
 
 `;
@@ -547,22 +896,9 @@ bool IsBearishBOS()
   }
 
   if (ctx.hasFVG) {
-    parts.push(`// Fair Value Gap (3-candle imbalance)
-// Bullish FVG: candle[3].high < candle[1].low — price skipped over
-bool IsBullishFVG()
-{
-   double c3High = iHigh(InpSymbol, InpEntryTF, 3);
-   double c1Low  = iLow(InpSymbol, InpEntryTF, 1);
-   return c3High > 0 && c1Low > c3High;
-}
-bool IsBearishFVG()
-{
-   double c3Low  = iLow(InpSymbol, InpEntryTF, 3);
-   double c1High = iHigh(InpSymbol, InpEntryTF, 1);
-   return c3Low > 0 && c1High < c3Low;
-}
-
-`);
+    // Full state machine: FVG_Add, FVG_Detect, FVG_Update,
+    // FVG_ExecuteEntries, FVG_ManageBreakEven, FVG_DrawZones, FVG_DeleteAllObjects
+    parts.push(genFVGStateMachine());
   }
 
   if (ctx.hasOrderBlock) {
@@ -797,11 +1133,7 @@ bool IsNearSupplyZone()
     sellTriggers.push(`IsBearishBOS()`);
   }
 
-  // ── TRIGGER: SMC — Fair Value Gap
-  if (ctx.hasFVG) {
-    buyTriggers.push(`IsBullishFVG()`);
-    sellTriggers.push(`IsBearishFVG()`);
-  }
+  // ── FVG entries are handled by FVG_ExecuteEntries() in OnTick — not via CheckEntrySignal
 
   // ── TRIGGER: SMC — Order Block
   if (ctx.hasOrderBlock) {
@@ -860,30 +1192,14 @@ bool IsNearSupplyZone()
     sellFilters.push(`IsSessionActive()`);
   }
 
-  // ── TODO for unsupported types
-  const supported = new Set([
-    "ema_cross","sma_cross","ema_touch","ema_alignment","ema_band",
-    "rsi_level","rsi_overbought","rsi_oversold",
-    "macd_cross","macd_signal","macd_histogram",
-    "adx_strength",
-    "bollinger_touch","bollinger_breakout","bollinger_squeeze",
-    "stochastic_cross","stochastic_level",
-    "atr_trailing","atr_volatility",
-    "trend_filter_htf","trend_direction",
-    "session_filter","time_filter",
-    "engulfing_bullish","engulfing_bearish",
-    "pin_bar_bullish","pin_bar_bearish",
-    "inside_bar","doji","hammer","shooting_star",
-    "bos","choch","mss",
-    "fair_value_gap_bullish","fair_value_gap_bearish",
-    "order_block_bullish","order_block_bearish",
-    "liquidity_sweep_high","liquidity_sweep_low",
-    "demand_zone","supply_zone",
-    "spread_filter",
-  ]);
+  // Note: unsupported rules are surfaced in the interview UI via analyzeBuildability()
+  // BEFORE code generation. Here we just note them as comments so the file is honest.
   for (const rule of bp.rules) {
-    if (!supported.has(rule.type)) {
-      todoLines.push(`   // TODO [${rule.type}]: ${rule.label} — implement this rule manually`);
+    if (!SUPPORTED_RULE_TYPES.has(rule.type)) {
+      todoLines.push(
+        `   // UNSUPPORTED [${rule.type}]: ${rule.label}`,
+        `   //   → Refine this rule in the interview to map it to a supported primitive.`,
+      );
     }
   }
 
@@ -1003,6 +1319,7 @@ function genOnDeinit(ctx: Ctx): string {
   if (ctx.hasStoch) rel.push(`   if(hStoch!=INVALID_HANDLE) IndicatorRelease(hStoch);`);
   if (ctx.hasATR)   rel.push(`   if(hATR  !=INVALID_HANDLE) IndicatorRelease(hATR);`);
   if (ctx.hasHTF)   rel.push(`   if(hHTF  !=INVALID_HANDLE) IndicatorRelease(hHTF);`);
+  if (ctx.hasFVG)   rel.push(`   FVG_DeleteAllObjects();`);
 
   return `void OnDeinit(const int reason)
 {
@@ -1012,7 +1329,27 @@ ${rel.join("\n")}
 `;
 }
 
-function genOnTick(bp: StrategyBlueprint): string {
+function genOnTick(bp: StrategyBlueprint, ctx: Ctx): string {
+  // FVG strategies use a dedicated OnTick that drives the state machine.
+  if (ctx.hasFVG) {
+    return `void OnTick()
+{
+   FVG_ManageBreakEven(); // Move SL to break-even at 0.5R every tick
+
+   // Bar-open pattern: run state machine on first tick of each new bar only
+   datetime bar = iTime(InpSymbol, InpEntryTF, 0);
+   if(bar == lastBarTime) return;
+   lastBarTime = bar;
+
+   FVG_ExecuteEntries(); // Enter market orders on CONFIRMED zones
+   FVG_Update();         // Advance zone states from just-closed bar
+   FVG_Detect();         // Identify new FVGs in the latest 3 bars
+   FVG_DrawZones();      // Refresh chart rectangle objects
+}
+
+`;
+  }
+
   const lines: string[] = [`void OnTick()`, `{`];
 
   if (bp.risk.breakevenEnabled) {
@@ -1106,6 +1443,6 @@ export function generateMql5FromBlueprint(bp: StrategyBlueprint): string {
     genStrategyHelpers(bp, ctx),
     genOnInit(bp, ctx),
     genOnDeinit(ctx),
-    genOnTick(bp),
+    genOnTick(bp, ctx),
   ].join("");
 }
