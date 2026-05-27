@@ -5,6 +5,7 @@ import { Download, CheckCircle2, Clock, FlaskConical } from "lucide-react";
 import { toast } from "sonner";
 import { generateFvgDetector } from "@/lib/smc-modules/fvg-detector";
 import { generateFvgInversionDetector } from "@/lib/smc-modules/fvg-inversion-detector";
+import { generateObDetector } from "@/lib/smc-modules/ob-detector";
 
 export const Route = createFileRoute("/modules")({
   component: ModulesPage,
@@ -87,17 +88,25 @@ const PHASE1_MODULES: ModuleEntry[] = [
     id: "order-block",
     filename: "OB_Detector.mq5",
     name: "Order Block Detector",
-    description: "Identifies the last opposing candle before a significant displacement move.",
+    description: "Detects Order Block zones with full lifecycle management. The last opposing candle before a strong ATR-filtered displacement is marked as an OB and tracked through ACTIVE → MITIGATED → INVALIDATED / EXPIRED.",
     rules: [
-      "Bullish OB: last bearish candle before a bullish displacement",
-      "Bearish OB: last bullish candle before a bearish displacement",
-      "Displacement = move that creates a FVG or BOS",
+      "Bullish OB: last BEARISH candle before a bullish displacement",
+      "Bearish OB: last BULLISH candle before a bearish displacement",
+      "Displacement: candle body ≥ InpDispMult × ATR(InpAtrPeriod)  (default 1.5 × ATR14)",
+      "Scan back up to InpObScanBack=5 bars before displacement for the OB candle",
+      "Mitigation: barLow ≤ OB high (bull) or barHigh ≥ OB low (bear)",
+      "Invalidation: close < OB low (bull) or close > OB high (bear)",
+      "Expiry: zone removed after InpExpiryBars bars (default 100)",
     ],
     output: [
-      "Rectangle spanning the OB candle body",
-      "Journal: OB_CREATED | id | dir | ob_time | body_high | body_low",
+      "ACTIVE → full opacity (InpActiveOpacity, default 70%)",
+      "MITIGATED → faded opacity (InpMitOpacity, default 25%)",
+      "INVALIDATED / EXPIRED → removed or frozen dotted relic",
+      "Journal: OB_CREATED | OB_MITIGATED | OB_INVALIDATED | OB_EXPIRED",
+      "Inputs: atr_period · disp_multiplier · expiry_bars · show_mitigated · remove_invalidated",
     ],
-    status: "pending",
+    status: "ready",
+    generate: generateObDetector,
   },
   {
     id: "breaker-block",
