@@ -1406,10 +1406,10 @@ function genOnTick(bp: StrategyBlueprint, ctx: Ctx): string {
    if(bar == lastBarTime) return;
    lastBarTime = bar;
 
-   FVG_ExecuteEntries(); // Enter market orders on CONFIRMED zones
-   FVG_Update();         // Advance zone states from just-closed bar
-   FVG_Detect();         // Identify new FVGs in the latest 3 bars
-   FVG_DrawZones();      // Refresh chart rectangle objects
+   FVG_Update();         // 1. Confirm/reject zones using the just-closed bar
+   FVG_ExecuteEntries(); // 2. Enter at the new bar's open — zones are already updated
+   FVG_Detect();         // 3. Identify new FVGs in the latest 3 bars
+   FVG_DrawZones();      // 4. Refresh chart rectangle objects
 }
 
 `;
