@@ -70,10 +70,34 @@ export const SUPPORTED_RULE_TYPES = new Set([
 
 // ─── Buildability analysis ────────────────────────────────────────────────────
 
+// Keywords that identify FVG sub-mechanics in rule labels.
+// When the FVG state machine is active these are ALL implemented — they should
+// not appear as "unsupported" even if the interview expanded them into extra rules.
+const FVG_MECHANIC_KEYWORDS = [
+  "retest", "confirm", "invalidat", "expir",
+  "buy at market", "sell at market",
+  "stop loss", "breakeven", "break-even", "break even",
+  "one trade", "per fvg", "candle wick", "candle closes",
+  "upper limit", "lower limit",
+];
+
+function isFvgSubRule(rule: NormalizedRule): boolean {
+  const label = rule.label.toLowerCase();
+  return (
+    rule.type === "custom" &&
+    FVG_MECHANIC_KEYWORDS.some((kw) => label.includes(kw))
+  );
+}
+
 export interface RuleBuildStatus {
   rule: NormalizedRule;
-  /** "trigger" = generates entry signal, "filter" = gates entry, "unsupported" = no implementation */
-  category: "trigger" | "filter" | "unsupported";
+  /**
+   * "trigger"       = generates an entry condition
+   * "filter"        = gates entry (must pass for trade to fire)
+   * "state_machine" = implemented by a higher-level state machine (e.g. FVG)
+   * "unsupported"   = no implementation — needs a primitive or spec refinement
+   */
+  category: "trigger" | "filter" | "state_machine" | "unsupported";
 }
 
 export interface BuildabilityResult {
@@ -95,15 +119,24 @@ export interface BuildabilityResult {
  * so the user refines their spec rather than getting broken MQL5.
  */
 export function analyzeBuildability(bp: StrategyBlueprint): BuildabilityResult {
-  const statuses: RuleBuildStatus[] = bp.rules.map((rule) => {
-    if (TRIGGER_RULE_TYPES.has(rule.type)) return { rule, category: "trigger" };
-    if (FILTER_RULE_TYPES.has(rule.type))  return { rule, category: "filter"  };
-    return { rule, category: "unsupported" };
-  });
-
   const hasFvgMachine = bp.rules.some(
     (r) => r.type === "fair_value_gap_bullish" || r.type === "fair_value_gap_bearish",
   );
+
+  const statuses: RuleBuildStatus[] = bp.rules.map((rule) => {
+    if (TRIGGER_RULE_TYPES.has(rule.type)) return { rule, category: "trigger" };
+    if (FILTER_RULE_TYPES.has(rule.type))  return { rule, category: "filter"  };
+
+    // When the FVG state machine is active, "custom" rules that describe FVG mechanics
+    // (retest, confirmation, invalidation, expiry, entry, SL, BE, one-per-zone) are
+    // already implemented by the state machine — not unsupported.
+    // This also covers the case where the AI interview incorrectly expanded a single
+    // FVG primitive into many sub-rules before the consolidation prompt was deployed.
+    if (hasFvgMachine && isFvgSubRule(rule)) return { rule, category: "state_machine" };
+
+    return { rule, category: "unsupported" };
+  });
+
   const hasSupportedTrigger = statuses.some((s) => s.category === "trigger");
   const supportedCount = statuses.filter((s) => s.category !== "unsupported").length;
   const unsupportedRules = statuses

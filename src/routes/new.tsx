@@ -453,7 +453,7 @@ function BuildStatusCard({ blueprint }: { blueprint: StrategyBlueprint }) {
         : "border-destructive/40 text-destructive bg-destructive/10";
 
   // Category badge helper
-  const categoryBadge = (cat: "trigger" | "filter" | "unsupported") => {
+  const categoryBadge = (cat: "trigger" | "filter" | "state_machine" | "unsupported") => {
     if (cat === "trigger")
       return (
         <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-medium uppercase tracking-wide">
@@ -464,6 +464,12 @@ function BuildStatusCard({ blueprint }: { blueprint: StrategyBlueprint }) {
       return (
         <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 font-medium uppercase tracking-wide">
           filter
+        </span>
+      );
+    if (cat === "state_machine")
+      return (
+        <span className="text-[9px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400 font-medium uppercase tracking-wide">
+          state machine
         </span>
       );
     return (
@@ -513,13 +519,21 @@ function BuildStatusCard({ blueprint }: { blueprint: StrategyBlueprint }) {
             ) : (
               <CheckCircle2
                 className={`h-3.5 w-3.5 shrink-0 mt-0.5 ${
-                  category === "trigger" ? "text-emerald-400" : "text-sky-400"
+                  category === "trigger"
+                    ? "text-emerald-400"
+                    : category === "state_machine"
+                      ? "text-violet-400"
+                      : "text-sky-400"
                 }`}
               />
             )}
             <span
               className={
-                category === "unsupported" ? "text-destructive/80" : "text-foreground"
+                category === "unsupported"
+                  ? "text-destructive/80"
+                  : category === "state_machine"
+                    ? "text-muted-foreground"
+                    : "text-foreground"
               }
             >
               {rule.label}

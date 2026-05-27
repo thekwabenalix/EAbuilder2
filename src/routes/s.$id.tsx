@@ -500,16 +500,21 @@ function CodeTab({
                   <div key={rule.id} className="flex items-start gap-2 text-xs">
                     <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
                     <span className="text-destructive/80">{rule.label}</span>
-                    <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-destructive/15 text-destructive font-medium uppercase">
+                    <span className="ml-auto shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-destructive/15 text-destructive font-medium uppercase">
                       no primitive
                     </span>
                   </div>
                 ) : null,
               )}
               <p className="text-[11px] text-muted-foreground pt-1">
-                These rules will be skipped. To include them, go back and refine the interview.
+                These rules will be skipped. Go to New Strategy and re-interview with a more specific description.
               </p>
             </div>
+          )}
+          {build.hasFvgMachine && (
+            <p className="text-[11px] text-violet-400/80">
+              ⚙ FVG state machine active — retest, confirmation, invalidation, expiry, SL and break-even are all implemented.
+            </p>
           )}
         </div>
 

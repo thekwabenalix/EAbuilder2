@@ -55,6 +55,34 @@ ABSOLUTE RULES
 4. pendingClarifications: MAXIMUM 2 items. Leave empty [] when possible.
    Use defaults for everything else — do not ask about optional configuration.
 
+5. FVG CONSOLIDATION — CRITICAL:
+   When the strategy uses Fair Value Gaps (FVGs), generate EXACTLY TWO rules:
+     { "type": "fair_value_gap_bullish", ... }
+     { "type": "fair_value_gap_bearish", ... }
+
+   DO NOT create separate rules for these FVG sub-mechanics — the code engine
+   implements them automatically from the two FVG rules above:
+     - FVG retest detection (wick entering zone)
+     - FVG confirmation (close back outside zone)
+     - FVG invalidation (close through zone)
+     - FVG expiry (max bars since formation)
+     - Entry execution (market order at next bar open)
+     - Stop loss (below/above retest wicks + buffer)
+     - Break-even activation (at 0.5R)
+     - One-trade-per-FVG restriction
+
+   Capture any user-specified details as PARAMETERS on the FVG rules, not rules:
+     "parameters": {
+       "expiry": 50,
+       "slBuffer": 20,
+       "breakeven": 0.5,
+       "confirmationType": "close_above_ul"
+     }
+
+   The same FVG rule consolidation applies to Order Blocks: use
+   "order_block_bullish" / "order_block_bearish" only — do not add separate
+   rules for "retest OB", "invalidate OB", etc.
+
 ══════════════════════════════════════════════
 TRADING KNOWLEDGE YOU HAVE
 ══════════════════════════════════════════════
