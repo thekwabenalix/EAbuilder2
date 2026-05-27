@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Download, CheckCircle2, Clock, FlaskConical } from "lucide-react";
 import { toast } from "sonner";
 import { generateFvgDetector } from "@/lib/smc-modules/fvg-detector";
+import { generateFvgInversionDetector } from "@/lib/smc-modules/fvg-inversion-detector";
 
 export const Route = createFileRoute("/modules")({
   component: ModulesPage,
@@ -64,16 +65,23 @@ const PHASE1_MODULES: ModuleEntry[] = [
     id: "fvg-inversion",
     filename: "FVG_Inversion_Detector.mq5",
     name: "FVG Inversion Detector",
-    description: "Detects when a bullish FVG flips bearish (or vice versa) after a full close through the gap.",
+    description: "Detects FVG polarity flips. When price closes through an FVG, the zone becomes an Inversion FVG of opposite direction — a former support becomes resistance and vice versa.",
     rules: [
-      "Bullish FVG becomes bearish inversion when price closes below LL",
-      "Bearish FVG becomes bullish inversion when price closes above UL",
+      "Bullish FVG → BEARISH inversion when: Close < LL",
+      "Bearish FVG → BULLISH inversion when: Close > UL",
+      "Inversion zone uses same UL/LL as original FVG",
+      "Original zone frozen at inversion bar (dotted relic)",
+      "Inversion zone itself can be invalidated (Close back through)",
     ],
     output: [
-      "Recoloured zone rectangle on inversion",
-      "Journal: FVG_INVERTED | id | original_dir | inversion_bar | price",
+      "Original FVG: solid fill → dotted relic on inversion",
+      "Inversion zone: dashed fill, distinct colour (green/orchid)",
+      "Journal: FVG_INVERSION_CREATED | orig_id | new_dir | UL | LL | bar",
+      "Journal: INV_INVALIDATED | inv_id | orig_id | dir | UL | LL | bar",
+      "States: ACTIVE_FVG · MITIGATED · INVERTED · INVALIDATED (expired)",
     ],
-    status: "pending",
+    status: "ready",
+    generate: generateFvgInversionDetector,
   },
   {
     id: "order-block",
