@@ -572,6 +572,9 @@ function genGlobals(ctx: Ctx): string {
       `   double   retestLow;`,
       `   double   retestHigh;`,
       `   int      barsAlive;`,
+      `   // Validation & debug — both must be non-zero before a trade is allowed`,
+      `   datetime retestBar;    // time of bar that first entered the FVG gap`,
+      `   datetime confirmBar;   // time of bar that closed back outside the gap`,
       `};`,
       ``,
       `FVGZone fvgZones[MAX_FVGS];`,
@@ -671,6 +674,10 @@ function genFVGStateMachine(ctx: Ctx): string {
 //| Detects 3-candle imbalances, tracks retest and confirmation,    |
 //| enters on the bar AFTER confirmation (bar-open pattern).        |
 //| States: ACTIVE -> RETESTING -> CONFIRMED -> TRADED / INVALID    |
+//|                                                                  |
+//| Validation layer: every trade is blocked unless retestBar and   |
+//| confirmBar were explicitly recorded by FVG_Update. Each trade   |
+//| is logged to the journal and marked on the chart before firing. |
 //+------------------------------------------------------------------+
 
 // Add a new FVG zone if it is not already tracked.
@@ -694,6 +701,8 @@ void FVG_Add(double ul, double ll, int dir)
    fvgZones[idx].retestLow  = ul;
    fvgZones[idx].retestHigh = ll;
    fvgZones[idx].barsAlive  = 0;
+   fvgZones[idx].retestBar  = 0;   // set by FVG_Update when price first enters gap
+   fvgZones[idx].confirmBar = 0;   // set by FVG_Update when price closes back outside
 }
 
 // Called on each new bar: detect 3-candle imbalance in the just-closed bars.
@@ -712,11 +721,13 @@ void FVG_Detect()
 
 // Called on each new bar: update state of all active/retesting zones
 // based on the just-closed bar (shift 1).
+// Records retestBar and confirmBar — required by the validation gate.
 void FVG_Update()
 {
-   double c1Lo  = iLow(InpSymbol,  InpEntryTF, 1);
-   double c1Hi  = iHigh(InpSymbol, InpEntryTF, 1);
-   double c1Cls = iClose(InpSymbol, InpEntryTF, 1);
+   double   c1Lo  = iLow(InpSymbol,   InpEntryTF, 1);
+   double   c1Hi  = iHigh(InpSymbol,  InpEntryTF, 1);
+   double   c1Cls = iClose(InpSymbol, InpEntryTF, 1);
+   datetime c1T   = iTime(InpSymbol,  InpEntryTF, 1); // timestamp of just-closed bar
 
    for(int i = 0; i < fvgCount; i++)
    {
@@ -738,14 +749,23 @@ void FVG_Update()
             {
                fvgZones[i].state     = FVG_RETESTING;
                fvgZones[i].retestLow = c1Lo;
-               if(c1Cls > ul)      fvgZones[i].state = FVG_CONFIRMED; // same-bar bounce
-               else if(c1Cls < ll) fvgZones[i].state = FVG_INVALID;   // closed through gap
+               fvgZones[i].retestBar = c1T;           // record retest candle
+               if(c1Cls > ul)
+               {
+                  fvgZones[i].state      = FVG_CONFIRMED; // same-bar bounce
+                  fvgZones[i].confirmBar = c1T;            // retest + confirm on same bar
+               }
+               else if(c1Cls < ll) fvgZones[i].state = FVG_INVALID; // closed through gap
             }
          }
          else // FVG_RETESTING
          {
             if(c1Lo < fvgZones[i].retestLow) fvgZones[i].retestLow = c1Lo;
-            if(c1Cls > ul)      fvgZones[i].state = FVG_CONFIRMED;
+            if(c1Cls > ul)
+            {
+               fvgZones[i].state      = FVG_CONFIRMED;
+               fvgZones[i].confirmBar = c1T; // record confirmation candle
+            }
             else if(c1Cls < ll) fvgZones[i].state = FVG_INVALID;
          }
       }
@@ -757,21 +777,65 @@ void FVG_Update()
             {
                fvgZones[i].state      = FVG_RETESTING;
                fvgZones[i].retestHigh = c1Hi;
-               if(c1Cls < ll)      fvgZones[i].state = FVG_CONFIRMED; // same-bar rejection
-               else if(c1Cls > ul) fvgZones[i].state = FVG_INVALID;   // closed through gap
+               fvgZones[i].retestBar  = c1T;          // record retest candle
+               if(c1Cls < ll)
+               {
+                  fvgZones[i].state      = FVG_CONFIRMED; // same-bar rejection
+                  fvgZones[i].confirmBar = c1T;            // retest + confirm on same bar
+               }
+               else if(c1Cls > ul) fvgZones[i].state = FVG_INVALID; // closed through gap
             }
          }
          else // FVG_RETESTING
          {
             if(c1Hi > fvgZones[i].retestHigh) fvgZones[i].retestHigh = c1Hi;
-            if(c1Cls < ll)      fvgZones[i].state = FVG_CONFIRMED;
+            if(c1Cls < ll)
+            {
+               fvgZones[i].state      = FVG_CONFIRMED;
+               fvgZones[i].confirmBar = c1T; // record confirmation candle
+            }
             else if(c1Cls > ul) fvgZones[i].state = FVG_INVALID;
          }
       }
    }
 }
 
+// Draw an entry arrow and info label on the chart at the exact bar where
+// the trade fires. Visible in both live trading and backtest visual mode —
+// if you can see this marker you can trace exactly which FVG caused the trade.
+void FVG_DrawTradeMarker(int idx, double price, double sl, double tp, datetime t)
+{
+   string pfx = "FVGENTRY_" + IntegerToString(idx) + "_" + IntegerToString((int)t);
+   int    dir = fvgZones[idx].dir;
+
+   // Built-in buy/sell arrow (always visible, even on small timeframes)
+   string arrowName = pfx + "_arr";
+   ENUM_OBJECT arrowType = dir > 0 ? OBJ_ARROW_BUY : OBJ_ARROW_SELL;
+   if(ObjectCreate(0, arrowName, arrowType, 0, t, price))
+   {
+      ObjectSetInteger(0, arrowName, OBJPROP_COLOR,      dir > 0 ? clrDodgerBlue : clrOrangeRed);
+      ObjectSetInteger(0, arrowName, OBJPROP_WIDTH,      2);
+      ObjectSetInteger(0, arrowName, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, arrowName, OBJPROP_BACK,       false);
+   }
+
+   // Text label: FVG id + direction + SL + TP for instant visual verification
+   string labelName = pfx + "_lbl";
+   string txt = StringFormat("FVG[%d] %s  SL:%.5f  TP:%.5f",
+                             idx, dir > 0 ? "BUY" : "SELL", sl, tp);
+   if(ObjectCreate(0, labelName, OBJ_TEXT, 0, t, price))
+   {
+      ObjectSetString( 0, labelName, OBJPROP_TEXT,      txt);
+      ObjectSetInteger(0, labelName, OBJPROP_COLOR,     dir > 0 ? clrDodgerBlue : clrOrangeRed);
+      ObjectSetInteger(0, labelName, OBJPROP_FONTSIZE,  8);
+      ObjectSetInteger(0, labelName, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, labelName, OBJPROP_BACK,       false);
+   }
+}
+
 // Called at bar open: execute market entries for CONFIRMED zones.
+// Validation gate: trade is blocked if retestBar or confirmBar was never recorded.
+// Full setup is logged to the journal and drawn on the chart before every order.
 void FVG_ExecuteEntries()
 {
    ${ctx.hasMaxTradesFilter
@@ -779,15 +843,35 @@ void FVG_ExecuteEntries()
      : `if(HasOpenPosition(InpSymbol, InpMagic)) return;`}
    if(!SpreadOk(InpSymbol, InpMaxSpread)) return;
 
-   double point  = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
-   double ask    = SymbolInfoDouble(InpSymbol, SYMBOL_ASK);
-   double bid    = SymbolInfoDouble(InpSymbol, SYMBOL_BID);
-   int    digits = (int)SymbolInfoInteger(InpSymbol, SYMBOL_DIGITS);
-   long   stops  = SymbolInfoInteger(InpSymbol, SYMBOL_TRADE_STOPS_LEVEL);
+   double   point    = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   double   ask      = SymbolInfoDouble(InpSymbol, SYMBOL_ASK);
+   double   bid      = SymbolInfoDouble(InpSymbol, SYMBOL_BID);
+   int      digits   = (int)SymbolInfoInteger(InpSymbol, SYMBOL_DIGITS);
+   long     stops    = SymbolInfoInteger(InpSymbol, SYMBOL_TRADE_STOPS_LEVEL);
+   datetime entryBar = iTime(InpSymbol, InpEntryTF, 0);
 
    for(int i = 0; i < fvgCount; i++)
    {
       if(fvgZones[i].state != FVG_CONFIRMED) continue;
+
+      //----------------------------------------------------------------
+      // VALIDATION GATE
+      // FVG_Update must have recorded both retestBar and confirmBar.
+      // If either is still 0 the state machine skipped a required phase
+      // — the zone is incomplete and the trade is unconditionally blocked.
+      //----------------------------------------------------------------
+      if(fvgZones[i].retestBar == 0 || fvgZones[i].confirmBar == 0)
+      {
+         PrintFormat("[FVG BLOCKED] Zone[%d] dir=%s UL=%.5f LL=%.5f | "
+                     "Incomplete setup: retestBar=%s confirmBar=%s — trade blocked.",
+                     i,
+                     fvgZones[i].dir > 0 ? "BUY" : "SELL",
+                     fvgZones[i].ul, fvgZones[i].ll,
+                     fvgZones[i].retestBar  == 0 ? "MISSING" : TimeToString(fvgZones[i].retestBar,  TIME_DATE|TIME_MINUTES),
+                     fvgZones[i].confirmBar == 0 ? "MISSING" : TimeToString(fvgZones[i].confirmBar, TIME_DATE|TIME_MINUTES));
+         fvgZones[i].state = FVG_INVALID;
+         continue;
+      }
 
       if(fvgZones[i].dir > 0) // Bullish: BUY at bar open
       {
@@ -797,6 +881,18 @@ void FVG_ExecuteEntries()
          double lot  = CalcLot(dist, InpSymbol, InpRiskPercent);
          if(lot <= 0) { fvgZones[i].state = FVG_INVALID; continue; }
          double tp   = NormalizeDouble(ask + dist * InpRewardRisk * point, digits);
+
+         PrintFormat("[FVG SETUP] id=%d | dir=BUY | UL=%.5f | LL=%.5f | "
+                     "created=%s | retest=%s | confirmed=%s | entry=%s | "
+                     "SL=%.5f | TP=%.5f | state=CONFIRMED | invalidated=false | traded=false",
+                     i, fvgZones[i].ul, fvgZones[i].ll,
+                     TimeToString(fvgZones[i].createdAt,  TIME_DATE|TIME_MINUTES),
+                     TimeToString(fvgZones[i].retestBar,  TIME_DATE|TIME_MINUTES),
+                     TimeToString(fvgZones[i].confirmBar, TIME_DATE|TIME_MINUTES),
+                     TimeToString(entryBar,               TIME_DATE|TIME_MINUTES),
+                     sl, tp);
+         FVG_DrawTradeMarker(i, ask, sl, tp, entryBar);
+
          if(trade.Buy(lot, InpSymbol, ask, sl, tp, "FVG Buy"))
             fvgZones[i].state = FVG_TRADED;
       }
@@ -808,6 +904,18 @@ void FVG_ExecuteEntries()
          double lot  = CalcLot(dist, InpSymbol, InpRiskPercent);
          if(lot <= 0) { fvgZones[i].state = FVG_INVALID; continue; }
          double tp   = NormalizeDouble(bid - dist * InpRewardRisk * point, digits);
+
+         PrintFormat("[FVG SETUP] id=%d | dir=SELL | UL=%.5f | LL=%.5f | "
+                     "created=%s | retest=%s | confirmed=%s | entry=%s | "
+                     "SL=%.5f | TP=%.5f | state=CONFIRMED | invalidated=false | traded=false",
+                     i, fvgZones[i].ul, fvgZones[i].ll,
+                     TimeToString(fvgZones[i].createdAt,  TIME_DATE|TIME_MINUTES),
+                     TimeToString(fvgZones[i].retestBar,  TIME_DATE|TIME_MINUTES),
+                     TimeToString(fvgZones[i].confirmBar, TIME_DATE|TIME_MINUTES),
+                     TimeToString(entryBar,               TIME_DATE|TIME_MINUTES),
+                     sl, tp);
+         FVG_DrawTradeMarker(i, bid, sl, tp, entryBar);
+
          if(trade.Sell(lot, InpSymbol, bid, sl, tp, "FVG Sell"))
             fvgZones[i].state = FVG_TRADED;
       }
@@ -815,7 +923,7 @@ void FVG_ExecuteEntries()
    }
 }
 
-// Called every tick: move SL to break-even when profit >= 0.5 * initial risk.
+// Called every tick: move SL to break-even when profit >= InpBEAtR * initial risk.
 void FVG_ManageBreakEven()
 {
    double point  = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
@@ -887,7 +995,9 @@ void FVG_DeleteAllObjects()
    for(int i = ObjectsTotal(0) - 1; i >= 0; i--)
    {
       string nm = ObjectName(0, i);
-      if(StringFind(nm, "FVG_") == 0) ObjectDelete(0, nm);
+      // Remove both zone rectangles (FVG_) and trade markers (FVGENTRY_)
+      if(StringFind(nm, "FVG_") == 0 || StringFind(nm, "FVGENTRY_") == 0)
+         ObjectDelete(0, nm);
    }
 }
 
