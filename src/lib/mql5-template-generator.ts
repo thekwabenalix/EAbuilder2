@@ -257,6 +257,8 @@ interface Ctx {
   hasHammer: boolean;
 
   stopType: StrategyBlueprint["risk"]["stopType"];
+  /** true when execution.symbol === "ANY" — emit #define InpSymbol _Symbol instead of an input */
+  useChartSymbol: boolean;
 }
 
 function analyze(bp: StrategyBlueprint): Ctx {
@@ -354,6 +356,7 @@ function analyze(bp: StrategyBlueprint): Ctx {
     hasHammer:    Boolean(hammer),
 
     stopType: bp.risk.stopType,
+    useChartSymbol: (bp.execution.symbol ?? "").toUpperCase() === "ANY",
   };
 }
 
@@ -383,7 +386,10 @@ function genInputs(bp: StrategyBlueprint, ctx: Ctx): string {
   const { risk, execution } = bp;
   const lines: string[] = [
     `//--- General`,
-    `input string  InpSymbol          = "${execution.symbol ?? "EURUSD"}";  // Trading symbol`,
+    // When the user said "ANY", the EA binds to _Symbol via a #define — no string input needed.
+    ...(ctx.useChartSymbol
+      ? []
+      : [`input string  InpSymbol          = "${execution.symbol ?? "EURUSD"}";  // Trading symbol`]),
     `input ENUM_TIMEFRAMES InpSetupTF = ${tfConst(execution.setupTimeframe ?? "H1")};  // Setup timeframe`,
     `input ENUM_TIMEFRAMES InpEntryTF = ${tfConst(execution.entryTimeframe ?? "M5")};  // Entry timeframe`,
     ``,
@@ -474,7 +480,13 @@ function genInputs(bp: StrategyBlueprint, ctx: Ctx): string {
     lines.push(`input int InpFVGExpiry = 50;  // FVG expiry (bars, 0 = never)`);
     lines.push(``);
   }
-  if (risk.breakevenEnabled) {
+  // FVG always uses break-even (managed by FVG_ManageBreakEven); default is 0.5R.
+  // Non-FVG strategies only emit this input when the blueprint enables break-even.
+  if (ctx.hasFVG) {
+    lines.push(`//--- Break-even`);
+    lines.push(`input double InpBEAtR = 0.5;  // Move SL to B/E at this R multiple (FVG default: 0.5)`);
+    lines.push(``);
+  } else if (risk.breakevenEnabled) {
     lines.push(`//--- Break-even`);
     lines.push(`input double InpBEAtR = 1.0;  // Move SL to B/E at this R multiple`);
     lines.push(``);
@@ -486,7 +498,14 @@ function genInputs(bp: StrategyBlueprint, ctx: Ctx): string {
 // ─── Globals ──────────────────────────────────────────────────────────────────
 
 function genGlobals(ctx: Ctx): string {
-  const lines: string[] = [`//--- Indicator handles`];
+  const lines: string[] = [];
+  // When execution.symbol === "ANY" we bind to the chart symbol via a #define so that
+  // every function that uses InpSymbol automatically trades the attached chart's symbol.
+  if (ctx.useChartSymbol) {
+    lines.push(`#define InpSymbol _Symbol  // EA always trades the chart symbol`);
+    lines.push(``);
+  }
+  lines.push(`//--- Indicator handles`);
   if (ctx.hasEMA) {
     lines.push(`int hFastMA = INVALID_HANDLE;`);
     lines.push(`int hSlowMA = INVALID_HANDLE;`);
@@ -773,13 +792,13 @@ void FVG_ManageBreakEven()
       if(type == POSITION_TYPE_BUY)
       {
          if(sl >= open - point) continue; // already at or above break-even
-         if(bid - open >= initRisk * 0.5)
+         if(bid - open >= initRisk * InpBEAtR)
             trade.PositionModify(ticket, NormalizeDouble(open, digits), 0);
       }
       else
       {
          if(sl <= open + point) continue; // already at or below break-even
-         if(open - ask >= initRisk * 0.5)
+         if(open - ask >= initRisk * InpBEAtR)
             trade.PositionModify(ticket, NormalizeDouble(open, digits), 0);
       }
    }
@@ -1026,8 +1045,10 @@ bool IsNearSupplyZone()
   }
 
   // ── Stop-loss calculator ────────────────────────────────────────────────────
-  if (ctx.stopType === "atr_based" && ctx.hasATR) {
-    parts.push(`double CalcSL(int dir, int sh)
+  // FVG mode computes SL inline inside FVG_ExecuteEntries() — CalcSL is unused there.
+  if (!ctx.hasFVG) {
+    if (ctx.stopType === "atr_based" && ctx.hasATR) {
+      parts.push(`double CalcSL(int dir, int sh)
 {
    double atr = IndVal(hATR, 0, sh);
    if(atr <= 0) atr = 50 * SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
@@ -1036,8 +1057,8 @@ bool IsNearSupplyZone()
 }
 
 `);
-  } else {
-    parts.push(`double CalcSL(int dir, int sh)
+    } else {
+      parts.push(`double CalcSL(int dir, int sh)
 {
    double buf = InpStopBuffer * SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
    if(dir > 0) return iLow(InpSymbol, InpEntryTF, sh)  - buf;
@@ -1045,10 +1066,12 @@ bool IsNearSupplyZone()
 }
 
 `);
+    }
   }
 
   // ── Break-even ──────────────────────────────────────────────────────────────
-  if (bp.risk.breakevenEnabled) {
+  // FVG mode uses FVG_ManageBreakEven() — the generic version is unused and skipped.
+  if (!ctx.hasFVG && bp.risk.breakevenEnabled) {
     parts.push(`void ManageBreakEven()
 {
    double point  = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
@@ -1078,6 +1101,9 @@ bool IsNearSupplyZone()
 
 `);
   }
+
+  // FVG strategies drive entries through FVG_ExecuteEntries() — no CheckEntrySignal needed.
+  if (ctx.hasFVG) return parts.join("");
 
   // ── Entry signal ─────────────────────────────────────────────────────────────
   // Collect trigger conditions (OR'd — any can fire)
@@ -1280,10 +1306,16 @@ function genOnInit(bp: StrategyBlueprint, ctx: Ctx): string {
     `   trade.SetExpertMagicNumber((ulong)InpMagic);`,
     `   trade.SetTypeFillingBySymbol(InpSymbol);`,
     ``,
-    `   if(!SymbolSelect(InpSymbol, true))`,
-    `   { PrintFormat("Symbol %s not available", InpSymbol); return INIT_FAILED; }`,
-    ``,
   ];
+  // _Symbol is always available — SymbolSelect would be redundant and generates a warning
+  // on some brokers. Only validate when the user specified an explicit symbol string.
+  if (!ctx.useChartSymbol) {
+    lines.push(
+      `   if(!SymbolSelect(InpSymbol, true))`,
+      `   { PrintFormat("Symbol %s not available", InpSymbol); return INIT_FAILED; }`,
+      ``,
+    );
+  }
 
   if (ctx.hasEMA) {
     lines.push(`   hFastMA = iMA(InpSymbol, InpEntryTF, InpFastMA, 0, MODE_EMA, PRICE_CLOSE);`);
