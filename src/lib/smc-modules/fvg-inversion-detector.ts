@@ -1,7 +1,7 @@
 /**
  * SMC Module Library — Phase 1: FVG Inversion (IFVG) Detector
  *
- * FVG Inversion Detector v2.0.0
+ * FVG Inversion Detector v2.1.0
  * ──────────────────────────────
  * An Inversion FVG (IFVG) is a Fair Value Gap that has been fully traded
  * through.  The zone does NOT disappear — it flips polarity.
@@ -18,10 +18,15 @@
  *   • Left edge = original FVG's C1 time (the zone was always at this price level)
  *   • Right edge extends to the right until the IFVG itself is broken
  *   • Drawn with a DASHED border and distinct colour to separate from regular FVGs
+ *   • Traded-through IFVGs (INV_INVALIDATED) are removed from the chart immediately
  *
- * By default the original FVG zones are hidden (InpShowOriginalFvg = false)
- * so the chart shows ONLY IFVG zones — this module is a dedicated IFVG detector,
- * not a duplicate of the FVG Detector module.
+ * KEY LEVEL HIGHLIGHTING (v2.1):
+ *   Among all active IFVGs of each direction, one is marked as the "key" level:
+ *     Bearish IFVGs → highest UL  = topmost zone in a bearish swing
+ *     Bullish IFVGs → lowest  LL  = bottommost zone in a bullish swing
+ *   The key zone is drawn at full opacity with a thicker border.
+ *   Non-key zones are faded.  InpShowOnlyKey hides non-key zones entirely.
+ *   The key designation transfers automatically as zones are created/invalidated.
  *
  * FVG STATES:
  *   FVG_ACTIVE      (0) → zone untouched
@@ -31,7 +36,7 @@
  *
  * IFVG STATES:
  *   INV_ACTIVE      (0) → IFVG zone live
- *   INV_INVALIDATED (1) → price closed back through IFVG → zone frozen
+ *   INV_INVALIDATED (1) → price closed back through IFVG → zone deleted
  *
  * JOURNAL:
  *   FVG_CREATED           | id | dir | UL | LL | C1 | C3
@@ -43,22 +48,29 @@
  * NO trading logic. Detection and visualisation only.
  */
 
-export const FVG_INVERSION_DETECTOR_VERSION = "2.0.0";
+export const FVG_INVERSION_DETECTOR_VERSION = "2.1.0";
 export const FVG_INVERSION_DETECTOR_MODULE  = "FVG_Inversion_Detector";
 
 /**
- * Returns the complete MQL5 source code for the FVG Inversion Detector (v2).
+ * Returns the complete MQL5 source code for the FVG Inversion Detector (v2.1).
  * Drop the output into MetaEditor, compile, and attach to any chart.
  */
 export function generateFvgInversionDetector(): string {
   return `//+------------------------------------------------------------------+
 //| FVG_Inversion_Detector.mq5                                      |
-//| SMC Module Library v${FVG_INVERSION_DETECTOR_VERSION} — Phase 1: Detection Only        |
+//| SMC Module Library v${FVG_INVERSION_DETECTOR_VERSION} — Phase 1: Detection Only       |
 //|                                                                  |
 //| Detects Inversion FVGs (IFVGs).                                 |
 //|                                                                  |
 //| An IFVG is an FVG that was fully traded through.                |
 //| The zone flips polarity — same UL/LL, opposite direction.       |
+//|                                                                  |
+//| KEY LEVEL LOGIC:                                                 |
+//|   Bearish IFVGs → highest UL = topmost zone (key level)         |
+//|   Bullish IFVGs → lowest  LL = bottommost zone (key level)      |
+//|   Key zone: full opacity, border width 2.                       |
+//|   Non-key zones: faded.  InpShowOnlyKey hides them entirely.    |
+//|   Key designation transfers when zones appear / are invalidated. |
 //|                                                                  |
 //| INVERSION RULES:                                                 |
 //|   Bullish FVG → BEARISH IFVG when:  Close < LL                  |
@@ -69,6 +81,7 @@ export function generateFvgInversionDetector(): string {
 //|   Right edge = extends until IFVG is itself broken              |
 //|   Price      = same UL / LL as original FVG                     |
 //|   Style      = dashed border, distinct colour                   |
+//|   On break   = zone deleted immediately (no relic)              |
 //|                                                                  |
 //| JOURNAL OUTPUT:                                                  |
 //|   FVG_CREATED           | id | dir | UL | LL | C1 | C3          |
@@ -80,7 +93,7 @@ export function generateFvgInversionDetector(): string {
 //| NO trading logic. Detection and visualisation only.             |
 //+------------------------------------------------------------------+
 #property copyright "EA Builder — SMC Module Library"
-#property version   "2.00"
+#property version   "2.10"
 #property strict
 #property indicator_chart_window
 #property indicator_plots 0
@@ -119,10 +132,16 @@ input ENUM_MIT_MODE InpMitMode    = MIT_TOUCH_EDGE; // FVG mitigation trigger
 input int           InpExpiryBars = 50;              // Expire FVG after N bars (0 = off)
 
 //--- Inputs — Visualization
-input int  InpIfvgOpacity      = 70;    // IFVG zone opacity 0-100
-input int  InpFvgOpacity       = 50;    // Original FVG opacity (when visible)
-input int  InpMitOpacity       = 20;    // Mitigated FVG opacity (when visible)
-input bool InpShowOriginalFvg  = false; // Show original FVG zones (false = IFVG-only view)
+input int  InpIfvgOpacity     = 70;    // IFVG zone opacity 0-100 (used when key highlighting is off)
+input int  InpFvgOpacity      = 50;    // Original FVG opacity (when visible)
+input int  InpMitOpacity      = 20;    // Mitigated FVG opacity (when visible)
+input bool InpShowOriginalFvg = false; // Show original FVG zones (false = IFVG-only view)
+
+//--- Inputs — Key-level highlighting
+input bool InpHighlightKeyLevel = true;  // Mark the extreme IFVG per direction as key level
+input bool InpShowOnlyKey       = false; // Hide non-key IFVGs (show ONLY key levels)
+input int  InpKeyIfvgOpacity    = 85;    // Key IFVG zone opacity
+input int  InpNonKeyOpacity     = 25;    // Non-key IFVG zone opacity (when shown)
 
 //--- Inputs — Logging
 input bool InpShowLog = true; // Print lifecycle events to journal
@@ -162,7 +181,6 @@ InvRecord invList[INV_MAX];
 int       fvgTotal    = 0;
 int       invTotal    = 0;
 int       fvgDrawn    = 0;
-int       invDrawn    = 0;
 int       nextFvgId   = 0;
 int       nextInvId   = 0;
 datetime  lastBarTime = 0;
@@ -198,13 +216,14 @@ color FVG_ZoneColor(int idx)
 }
 
 //+------------------------------------------------------------------+
-//| Display colour for an IFVG zone                                  |
+//| Display colour for an IFVG zone.                                 |
+//| isKey = this zone is the current key level for its direction.    |
 //+------------------------------------------------------------------+
-color INV_ZoneColor(int idx)
+color INV_ZoneColor(int idx, bool isKey)
 {
    color base = invList[idx].dir > 0 ? InpBullIfvgClr : InpBearIfvgClr;
-   if(invList[idx].state == INV_INVALIDATED) return BlendWithBg(base, 10);
-   return BlendWithBg(base, InpIfvgOpacity);
+   if(!InpHighlightKeyLevel) return BlendWithBg(base, InpIfvgOpacity);
+   return BlendWithBg(base, isKey ? InpKeyIfvgOpacity : InpNonKeyOpacity);
 }
 
 //+------------------------------------------------------------------+
@@ -362,6 +381,7 @@ bool FVG_CheckInversion(int idx, double barClose, datetime inversionBar)
 
 //+------------------------------------------------------------------+
 //| Check whether an IFVG zone has been broken (closed back through).|
+//| On break: zone deleted immediately from chart.                   |
 //+------------------------------------------------------------------+
 bool INV_CheckInvalidation(int idx, double barClose, datetime freezeAt)
 {
@@ -379,6 +399,98 @@ bool INV_CheckInvalidation(int idx, double barClose, datetime freezeAt)
       invList[idx].invalidTime = freezeAt;
    }
    return hit;
+}
+
+//+------------------------------------------------------------------+
+//| Find the key IFVG index for a given direction.                   |
+//|   Bearish (dir=-1): highest UL = topmost zone in bearish swing   |
+//|   Bullish (dir=+1): lowest  LL = bottommost zone in bullish swing|
+//| Returns the array index of the key zone, or -1 if none active.  |
+//+------------------------------------------------------------------+
+int INV_FindKey(int dir)
+{
+   int    keyIdx = -1;
+   double keyVal = (dir == -1) ? -DBL_MAX : DBL_MAX;
+   for(int i = 0; i < invTotal; i++)
+   {
+      if(invList[i].state != INV_ACTIVE) continue;
+      if(invList[i].dir   != dir)        continue;
+      if(dir == -1 && invList[i].ul > keyVal) { keyVal = invList[i].ul; keyIdx = i; }
+      if(dir == +1 && invList[i].ll < keyVal) { keyVal = invList[i].ll; keyIdx = i; }
+   }
+   return keyIdx;
+}
+
+//+------------------------------------------------------------------+
+//| Create-or-update a single IFVG zone's chart objects.             |
+//| Called every bar so key styling transfers between zones.         |
+//+------------------------------------------------------------------+
+void INV_UpsertZone(int idx, bool isKey)
+{
+   color    clr   = INV_ZoneColor(idx, isKey);
+   int      width = (InpHighlightKeyLevel && isKey) ? 2 : 1;
+   string   pfx   = "SMCIFVG_" + IntegerToString(invList[idx].id);
+   string   rect  = pfx + "_zone";
+   string   lbl   = pfx + "_lbl";
+   datetime t1    = invList[idx].zoneStart; // = original FVG c1Time
+   datetime t2    = INV_RightEdge(idx);
+
+   // Create rectangle if it doesn't exist; update right edge if it does
+   if(!ObjectCreate(0, rect, OBJ_RECTANGLE, 0, t1, invList[idx].ul, t2, invList[idx].ll))
+      ObjectSetInteger(0, rect, OBJPROP_TIME, 1, (long)t2);
+   ObjectSetInteger(0, rect, OBJPROP_COLOR,      clr);
+   ObjectSetInteger(0, rect, OBJPROP_STYLE,      STYLE_DASH);
+   ObjectSetInteger(0, rect, OBJPROP_WIDTH,      width);
+   ObjectSetInteger(0, rect, OBJPROP_BACK,       true);
+   ObjectSetInteger(0, rect, OBJPROP_FILL,       true);
+   ObjectSetInteger(0, rect, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, rect, OBJPROP_HIDDEN,     true);
+
+   string dirStr = invList[idx].dir > 0 ? "Bull" : "Bear";
+   string keyTag = (InpHighlightKeyLevel && isKey) ? "* " : "";
+   string txt    = StringFormat("%s%s IFVG #%d (was FVG #%d)  UL:%.5f  LL:%.5f",
+                                keyTag, dirStr, invList[idx].id, invList[idx].origFvgId,
+                                invList[idx].ul, invList[idx].ll);
+   // Create label if it doesn't exist; always update text/colour
+   ObjectCreate(0, lbl, OBJ_TEXT, 0, t1, invList[idx].ul);
+   ObjectSetString( 0, lbl, OBJPROP_TEXT,       txt);
+   ObjectSetInteger(0, lbl, OBJPROP_COLOR,      clr);
+   ObjectSetInteger(0, lbl, OBJPROP_FONTSIZE,   7);
+   ObjectSetInteger(0, lbl, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, lbl, OBJPROP_HIDDEN,     true);
+   ObjectSetInteger(0, lbl, OBJPROP_BACK,       false);
+}
+
+//+------------------------------------------------------------------+
+//| Refresh every active IFVG zone (create if new, restyle if key   |
+//| designation changed).  Handles InpShowOnlyKey by deleting non-  |
+//| key objects from chart while keeping the InvRecord intact so     |
+//| they can be redrawn if they later become the key zone.           |
+//+------------------------------------------------------------------+
+void INV_RefreshAllZones()
+{
+   int keyBear = InpHighlightKeyLevel ? INV_FindKey(-1) : -1;
+   int keyBull = InpHighlightKeyLevel ? INV_FindKey(+1) : -1;
+
+   for(int i = 0; i < invTotal; i++)
+   {
+      if(invList[i].state == INV_INVALIDATED) continue; // already deleted
+
+      bool isKey = (i == keyBear || i == keyBull);
+
+      if(InpShowOnlyKey && !isKey)
+      {
+         // Remove from chart if present — InvRecord survives so it can be
+         // redrawn if it later becomes the key zone again
+         string pfx = "SMCIFVG_" + IntegerToString(invList[i].id);
+         ObjectDelete(0, pfx + "_zone");
+         ObjectDelete(0, pfx + "_lbl");
+         continue;
+      }
+
+      INV_UpsertZone(i, isKey);
+   }
+   ChartRedraw(0);
 }
 
 //+------------------------------------------------------------------+
@@ -426,53 +538,6 @@ void FVG_DrawZone(int idx)
 }
 
 //+------------------------------------------------------------------+
-//| Draw an IFVG zone rectangle + label                              |
-//|                                                                  |
-//| The IFVG zone starts at the original FVG's C1 time and extends  |
-//| to the right — it IS the original zone, now with opposite        |
-//| polarity.  Dashed border distinguishes it from regular FVGs.    |
-//| Invalidated zones are never drawn — they are deleted on break.  |
-//+------------------------------------------------------------------+
-void INV_DrawZone(int idx)
-{
-   if(invList[idx].state == INV_INVALIDATED) return; // zone was already deleted when broken
-
-   color    clr  = INV_ZoneColor(idx);
-   string   pfx  = "SMCIFVG_" + IntegerToString(invList[idx].id);
-   string   rect = pfx + "_zone";
-   string   lbl  = pfx + "_lbl";
-   datetime t1   = invList[idx].zoneStart; // = original FVG c1Time
-   datetime t2   = INV_RightEdge(idx);
-
-   if(ObjectCreate(0, rect, OBJ_RECTANGLE, 0,
-                   t1, invList[idx].ul,
-                   t2, invList[idx].ll))
-   {
-      ObjectSetInteger(0, rect, OBJPROP_COLOR,      clr);
-      ObjectSetInteger(0, rect, OBJPROP_STYLE,      STYLE_DASH);
-      ObjectSetInteger(0, rect, OBJPROP_WIDTH,      1);
-      ObjectSetInteger(0, rect, OBJPROP_BACK,       true);
-      ObjectSetInteger(0, rect, OBJPROP_FILL,       true);
-      ObjectSetInteger(0, rect, OBJPROP_SELECTABLE, false);
-      ObjectSetInteger(0, rect, OBJPROP_HIDDEN,     true);
-   }
-
-   string dirStr = invList[idx].dir > 0 ? "Bull" : "Bear";
-   string txt = StringFormat("%s IFVG #%d (was FVG #%d)  UL:%.5f  LL:%.5f",
-                             dirStr, invList[idx].id, invList[idx].origFvgId,
-                             invList[idx].ul, invList[idx].ll);
-   if(ObjectCreate(0, lbl, OBJ_TEXT, 0, t1, invList[idx].ul))
-   {
-      ObjectSetString( 0, lbl, OBJPROP_TEXT,       txt);
-      ObjectSetInteger(0, lbl, OBJPROP_COLOR,      clr);
-      ObjectSetInteger(0, lbl, OBJPROP_FONTSIZE,   7);
-      ObjectSetInteger(0, lbl, OBJPROP_SELECTABLE, false);
-      ObjectSetInteger(0, lbl, OBJPROP_HIDDEN,     true);
-      ObjectSetInteger(0, lbl, OBJPROP_BACK,       false);
-   }
-}
-
-//+------------------------------------------------------------------+
 //| Update an original FVG's chart objects on state change (live)    |
 //+------------------------------------------------------------------+
 void FVG_UpdateObjectState(int idx)
@@ -499,21 +564,13 @@ void FVG_UpdateObjectState(int idx)
 }
 
 //+------------------------------------------------------------------+
-//| Update an IFVG zone's chart objects on state change (live)       |
-//| When an IFVG is traded through (INV_INVALIDATED) the zone is     |
-//| deleted from the chart immediately — no relic left behind.       |
+//| Delete an IFVG zone from chart when it is traded through.        |
 //+------------------------------------------------------------------+
-void INV_UpdateObjectState(int idx)
+void INV_DeleteZone(int idx)
 {
-   string pfx  = "SMCIFVG_" + IntegerToString(invList[idx].id);
-   string rect = pfx + "_zone";
-   string lbl  = pfx + "_lbl";
-
-   if(invList[idx].state == INV_INVALIDATED)
-   {
-      ObjectDelete(0, rect);
-      ObjectDelete(0, lbl);
-   }
+   string pfx = "SMCIFVG_" + IntegerToString(invList[idx].id);
+   ObjectDelete(0, pfx + "_zone");
+   ObjectDelete(0, pfx + "_lbl");
 }
 
 //+------------------------------------------------------------------+
@@ -564,7 +621,7 @@ void UpdateAllStates()
 
       // Step 3: Inversion check (fires on same bar as mitigation if price blows through)
       if(FVG_CheckInversion(i, cl, freezeAt))
-         FVG_UpdateObjectState(i); // removes original zone; IFVG queued for INV_DrawNew
+         FVG_UpdateObjectState(i); // removes original zone; new IFVG record queued
    }
 
    // ── Pass 2: IFVG zone invalidation ──────────────────────────────
@@ -573,7 +630,7 @@ void UpdateAllStates()
       if(invList[i].state == INV_INVALIDATED) continue;
       if(INV_CheckInvalidation(i, cl, freezeAt))
       {
-         INV_UpdateObjectState(i);
+         INV_DeleteZone(i); // remove immediately — no relic
          if(InpShowLog)
             PrintFormat("INV_INVALIDATED | inv_id=%d | orig_id=%d | %s | UL=%.5f | LL=%.5f | bar=%s",
                         invList[i].id, invList[i].origFvgId,
@@ -585,24 +642,13 @@ void UpdateAllStates()
 }
 
 //+------------------------------------------------------------------+
-//| Draw FVG zones not yet drawn                                     |
+//| Draw FVG zones not yet drawn (only when InpShowOriginalFvg)      |
 //+------------------------------------------------------------------+
 void FVG_DrawNew()
 {
    for(int i = fvgDrawn; i < fvgTotal; i++)
       FVG_DrawZone(i);
    fvgDrawn = fvgTotal;
-}
-
-//+------------------------------------------------------------------+
-//| Draw IFVG zones not yet drawn                                    |
-//+------------------------------------------------------------------+
-void INV_DrawNew()
-{
-   for(int i = invDrawn; i < invTotal; i++)
-      INV_DrawZone(i);
-   invDrawn = invTotal;
-   ChartRedraw(0);
 }
 
 //+------------------------------------------------------------------+
@@ -676,9 +722,9 @@ int OnInit()
       }
    }
 
-   // ── Step 3: Draw all zones with correct state-aware visuals ─────
-   FVG_DrawNew();  // original FVG zones (if InpShowOriginalFvg = true)
-   INV_DrawNew();  // IFVG zones
+   // ── Step 3: Draw all zones with correct state and key styling ────
+   FVG_DrawNew();           // original FVG zones (only if InpShowOriginalFvg = true)
+   INV_RefreshAllZones();   // IFVG zones — creates all, applies key highlighting
 
    // ── Step 4: Summary ───────────────────────────────────────────────
    int fActive=0, fMit=0, fInv=0, fExpired=0;
@@ -696,8 +742,12 @@ int OnInit()
    for(int i = 0; i < invTotal; i++)
       invList[i].state == INV_ACTIVE ? iActive++ : iInvalid++;
 
-   PrintFormat("IFVG Detector v2 ready | FVG: total=%d active=%d mitigated=%d inverted=%d expired=%d | IFVG zones: active=%d broken=%d | %s %s",
+   int keyBearIdx = INV_FindKey(-1);
+   int keyBullIdx = INV_FindKey(+1);
+   PrintFormat("IFVG Detector v2.1 ready | FVG: total=%d active=%d mitigated=%d inverted=%d expired=%d | IFVG: active=%d broken=%d | key_bear=%s key_bull=%s | %s %s",
                fvgTotal, fActive, fMit, fInv, fExpired, iActive, iInvalid,
+               keyBearIdx >= 0 ? StringFormat("UL=%.5f", invList[keyBearIdx].ul) : "none",
+               keyBullIdx >= 0 ? StringFormat("LL=%.5f", invList[keyBullIdx].ll) : "none",
                _Symbol, EnumToString(InpTF));
    return INIT_SUCCEEDED;
 }
@@ -712,7 +762,7 @@ void OnDeinit(const int reason)
 }
 
 //+------------------------------------------------------------------+
-//| OnCalculate: state updates → draw new IFVGs → detect new FVGs   |
+//| OnCalculate: state updates → refresh IFVG zones → detect new FVGs|
 //+------------------------------------------------------------------+
 int OnCalculate(const int rates_total, const int prev_calculated,
                 const datetime &time[], const double &open[],
@@ -727,8 +777,9 @@ int OnCalculate(const int rates_total, const int prev_calculated,
    // 1. Update all states: expiry → mitigation → inversion → IFVG break
    UpdateAllStates();
 
-   // 2. Draw any IFVG zones created in step 1
-   INV_DrawNew();
+   // 2. Refresh all IFVG zones — creates new ones, re-applies key styling
+   //    (key designation may shift if a zone was invalidated or a new one created)
+   INV_RefreshAllZones();
 
    // 3. Detect new FVGs from the just-closed bar
    FVG_ScanBar(1);
