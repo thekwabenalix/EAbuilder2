@@ -431,23 +431,25 @@ void FVG_DrawZone(int idx)
 //| The IFVG zone starts at the original FVG's C1 time and extends  |
 //| to the right — it IS the original zone, now with opposite        |
 //| polarity.  Dashed border distinguishes it from regular FVGs.    |
+//| Invalidated zones are never drawn — they are deleted on break.  |
 //+------------------------------------------------------------------+
 void INV_DrawZone(int idx)
 {
+   if(invList[idx].state == INV_INVALIDATED) return; // zone was already deleted when broken
+
    color    clr  = INV_ZoneColor(idx);
    string   pfx  = "SMCIFVG_" + IntegerToString(invList[idx].id);
    string   rect = pfx + "_zone";
    string   lbl  = pfx + "_lbl";
    datetime t1   = invList[idx].zoneStart; // = original FVG c1Time
    datetime t2   = INV_RightEdge(idx);
-   bool     dead = (invList[idx].state == INV_INVALIDATED);
 
    if(ObjectCreate(0, rect, OBJ_RECTANGLE, 0,
                    t1, invList[idx].ul,
                    t2, invList[idx].ll))
    {
       ObjectSetInteger(0, rect, OBJPROP_COLOR,      clr);
-      ObjectSetInteger(0, rect, OBJPROP_STYLE,      dead ? STYLE_DOT : STYLE_DASH);
+      ObjectSetInteger(0, rect, OBJPROP_STYLE,      STYLE_DASH);
       ObjectSetInteger(0, rect, OBJPROP_WIDTH,      1);
       ObjectSetInteger(0, rect, OBJPROP_BACK,       true);
       ObjectSetInteger(0, rect, OBJPROP_FILL,       true);
@@ -498,6 +500,8 @@ void FVG_UpdateObjectState(int idx)
 
 //+------------------------------------------------------------------+
 //| Update an IFVG zone's chart objects on state change (live)       |
+//| When an IFVG is traded through (INV_INVALIDATED) the zone is     |
+//| deleted from the chart immediately — no relic left behind.       |
 //+------------------------------------------------------------------+
 void INV_UpdateObjectState(int idx)
 {
@@ -507,11 +511,8 @@ void INV_UpdateObjectState(int idx)
 
    if(invList[idx].state == INV_INVALIDATED)
    {
-      color faded = INV_ZoneColor(idx); // 10% — barely visible relic
-      ObjectSetInteger(0, rect, OBJPROP_TIME,  1, (long)invList[idx].invalidTime);
-      ObjectSetInteger(0, rect, OBJPROP_COLOR,    faded);
-      ObjectSetInteger(0, rect, OBJPROP_STYLE,    STYLE_DOT);
-      ObjectSetInteger(0, lbl,  OBJPROP_COLOR,    faded);
+      ObjectDelete(0, rect);
+      ObjectDelete(0, lbl);
    }
 }
 
