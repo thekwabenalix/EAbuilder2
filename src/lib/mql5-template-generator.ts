@@ -258,16 +258,16 @@ function genInputs(bp: StrategyBlueprint, ctx: Ctx): string {
   const { risk, execution } = bp;
   const lines: string[] = [
     `//--- General`,
-    `input string  InpSymbol          = "${execution.symbol}";         // Trading symbol`,
-    `input ENUM_TIMEFRAMES InpSetupTF = ${tfConst(execution.setupTimeframe)};    // Setup timeframe`,
-    `input ENUM_TIMEFRAMES InpEntryTF = ${tfConst(execution.entryTimeframe)};    // Entry timeframe`,
+    `input string  InpSymbol          = "${execution.symbol ?? "EURUSD"}";  // Trading symbol`,
+    `input ENUM_TIMEFRAMES InpSetupTF = ${tfConst(execution.setupTimeframe ?? "H1")};  // Setup timeframe`,
+    `input ENUM_TIMEFRAMES InpEntryTF = ${tfConst(execution.entryTimeframe ?? "M5")};  // Entry timeframe`,
     ``,
     `//--- Risk management`,
-    `input double  InpRiskPercent     = ${risk.riskPercent};           // Risk per trade (% equity)`,
-    `input double  InpRewardRisk      = ${risk.rewardRisk};            // Reward:risk ratio`,
-    `input int     InpStopBuffer      = ${risk.stopBufferPoints};      // Stop buffer (points)`,
-    `input int     InpMaxSpread       = ${execution.spreadFilterPoints}; // Max spread (0 = off)`,
-    `input long    InpMagic           = ${execution.magicNumber};      // EA magic number`,
+    `input double  InpRiskPercent     = ${risk.riskPercent ?? 1.0};    // Risk per trade (% equity)`,
+    `input double  InpRewardRisk      = ${risk.rewardRisk ?? 2.0};     // Reward:risk ratio`,
+    `input int     InpStopBuffer      = ${risk.stopBufferPoints ?? 20}; // Stop buffer (points)`,
+    `input int     InpMaxSpread       = ${execution.spreadFilterPoints ?? 25}; // Max spread (0 = off)`,
+    `input long    InpMagic           = ${execution.magicNumber ?? 990001}; // EA magic number`,
     ``,
   ];
 
@@ -299,8 +299,8 @@ function genInputs(bp: StrategyBlueprint, ctx: Ctx): string {
   }
   if (ctx.hasBB) {
     lines.push(`//--- Bollinger Bands`);
-    lines.push(`input int    InpBBPeriod = ${ctx.bbPeriod};  // Bollinger period`);
-    lines.push(`input double InpBBDev    = ${ctx.bbDev};     // Bollinger std-dev`);
+    lines.push(`input int    InpBBPeriod = ${ctx.bbPeriod ?? 20};    // Bollinger period`);
+    lines.push(`input double InpBBDev    = ${(ctx.bbDev ?? 2.0).toFixed(1)};  // Bollinger std-dev`);
     lines.push(``);
   }
   if (ctx.hasStoch) {
@@ -315,7 +315,7 @@ function genInputs(bp: StrategyBlueprint, ctx: Ctx): string {
   if (ctx.hasATR) {
     lines.push(`//--- ATR`);
     lines.push(`input int    InpATRPeriod = ${ctx.atrPeriod};  // ATR period`);
-    lines.push(`input double InpATRMult   = ${ctx.atrMult};    // ATR stop multiplier`);
+    lines.push(`input double InpATRMult   = ${(ctx.atrMult ?? 2.0).toFixed(1)};  // ATR stop multiplier`);
     lines.push(``);
   }
   if (ctx.hasHTF) {

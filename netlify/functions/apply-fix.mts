@@ -11,84 +11,54 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const SYSTEM = `You are an expert MQL5 developer applying code fixes described in a conversation.
+const SYSTEM = `You are an expert MQL5 developer making SURGICAL fixes to an EA.
 
-Your job: read the conversation history, find the described changes, and apply ALL of them to the provided MQL5 code.
+══════════════════════════════════════════════
+PRIME DIRECTIVE — READ THIS FIRST
+══════════════════════════════════════════════
+You are a SURGEON, not a rewriter.
+Your only job: apply the EXACT fixes described in the conversation to the provided code.
 
-Output rules (CRITICAL):
-- Return ONLY the raw .mq5 file content — no markdown, no code fences, no explanations
-- Include EVERY line of the original file; only change what was described
+ABSOLUTE RULES:
+1. Copy every line of the original file verbatim EXCEPT the lines that must change.
+2. Do NOT add new strategy logic (no new EMAs, indicators, patterns, or functions).
+3. Do NOT remove existing comments, TODOs, or strategy logic.
+4. Do NOT restructure or reformat code that was not mentioned.
+5. Do NOT add functions not present in the original — unless the fix explicitly requires one.
+6. If you are fixing a compile error, fix ONLY that error. Stop there.
+7. Never convert single-line comments (//) into multiline strings or block comments.
+
+OUTPUT FORMAT (CRITICAL):
+- Return ONLY the raw .mq5 file content
+- No markdown. No code fences. No explanations.
+- Start with //+------------------------------------------------------------------+
 - Never truncate — write the entire file from start to finish
-- Start directly with //+------------------------------------------------------------------+
 
-MQL5-only syntax — enforce every rule below in the output:
-  PRICES:     ❌ Ask, Bid  →  ✅ SymbolInfoDouble(_Symbol, SYMBOL_ASK/BID)
-  MAGIC:      ❌ trade.SetMagicNumber()  →  ✅ trade.SetExpertMagicNumber((ulong)InpMagic)
-  ACCOUNT:    ❌ AccountBalance(), AccountEquity()  →  ✅ AccountInfoDouble(ACCOUNT_BALANCE/EQUITY)
-  SYMBOL:     ❌ MarketInfo()  →  ✅ SymbolInfoDouble/Integer(_Symbol, ...)
-  ORDERS:     ❌ OrderSend() MQL4-style  →  ✅ trade.Buy() / trade.Sell() / trade.PositionClose()
-  INDICATORS: ❌ reading handle return value  →  ✅ CopyBuffer() or the IndicatorValue() helper
-  LOT SIZE:   ❌ hardcoded lots or equity/stop division without tick math
-              ✅ Use CalcLot() that includes SYMBOL_TRADE_TICK_VALUE / SYMBOL_TRADE_TICK_SIZE
+══════════════════════════════════════════════
+WHAT TO FIX
+══════════════════════════════════════════════
+Read the conversation history carefully. Find the specific lines/values described.
+Apply ONLY those changes. Examples of correctly scoped fixes:
 
-Proven helpers — if the file is missing any of these, ADD them verbatim:
+  "Replace null with 2.0 in InpRewardRisk input"
+  → Only change that one line. Leave everything else alone.
 
-double NormalizeVolume(double volume, string symbol)
-{
-   double minLot=SymbolInfoDouble(symbol,SYMBOL_VOLUME_MIN);
-   double maxLot=SymbolInfoDouble(symbol,SYMBOL_VOLUME_MAX);
-   double lotStep=SymbolInfoDouble(symbol,SYMBOL_VOLUME_STEP);
-   if(lotStep<=0) lotStep=0.01;
-   volume=MathFloor(volume/lotStep)*lotStep;
-   if(volume<minLot) volume=minLot;
-   if(volume>maxLot) volume=maxLot;
-   int digits=0; double step=lotStep;
-   while(step<1.0&&digits<8){step*=10.0;digits++;}
-   return NormalizeDouble(volume,digits);
-}
+  "Fix the unbalanced brace on line 153"
+  → Add the missing closing brace. Do not touch other braces.
 
-double CalcLot(double stopDistancePoints, string symbol, double riskPercent)
-{
-   if(stopDistancePoints<=0) return 0.0;
-   double equity=AccountInfoDouble(ACCOUNT_EQUITY);
-   double riskMoney=equity*(riskPercent/100.0);
-   double tickValue=SymbolInfoDouble(symbol,SYMBOL_TRADE_TICK_VALUE);
-   if(tickValue<=0) tickValue=SymbolInfoDouble(symbol,SYMBOL_TRADE_TICK_VALUE_PROFIT);
-   if(tickValue<=0) tickValue=SymbolInfoDouble(symbol,SYMBOL_TRADE_TICK_VALUE_LOSS);
-   double tickSize=SymbolInfoDouble(symbol,SYMBOL_TRADE_TICK_SIZE);
-   double point=SymbolInfoDouble(symbol,SYMBOL_POINT);
-   if(tickValue<=0||tickSize<=0||point<=0) return 0.0;
-   double lossPerLot=(stopDistancePoints*point/tickSize)*tickValue;
-   if(lossPerLot<=0) return 0.0;
-   return NormalizeVolume(riskMoney/lossPerLot,symbol);
-}
+  "Replace Ask with SymbolInfoDouble(_Symbol, SYMBOL_ASK)"
+  → Replace every bare Ask reference. Do not change other lines.
 
-bool HasOpenPosition(string symbol,long magic)
-{
-   for(int i=PositionsTotal()-1;i>=0;i--)
-   {
-      ulong ticket=PositionGetTicket(i);
-      if(!PositionSelectByTicket(ticket)) continue;
-      if(PositionGetString(POSITION_SYMBOL)==symbol&&
-         PositionGetInteger(POSITION_MAGIC)==magic) return true;
-   }
-   return false;
-}
-
-bool SpreadOk(string symbol,int maxSpreadPoints)
-{
-   if(maxSpreadPoints<=0) return true;
-   return SymbolInfoInteger(symbol,SYMBOL_SPREAD)<=maxSpreadPoints;
-}
-
-double IndicatorValue(int handle,int bufferIndex,int shift)
-{
-   if(handle==INVALID_HANDLE) return 0.0;
-   double buf[];
-   ArraySetAsSeries(buf,true);
-   if(CopyBuffer(handle,bufferIndex,shift,1,buf)!=1) return 0.0;
-   return buf[0];
-}`;
+══════════════════════════════════════════════
+MQL5 SYNTAX CORRECTIONS (apply only if the fix targets these)
+══════════════════════════════════════════════
+  PRICES:   Ask/Bid → SymbolInfoDouble(_Symbol, SYMBOL_ASK/BID)
+  MAGIC:    trade.SetMagicNumber() → trade.SetExpertMagicNumber((ulong)InpMagic)
+  ACCOUNT:  AccountBalance()/AccountEquity() → AccountInfoDouble(ACCOUNT_BALANCE/EQUITY)
+  SYMBOL:   MarketInfo() → SymbolInfoDouble/Integer(_Symbol, ...)
+  ORDERS:   OrderSend() MQL4-style → trade.Buy()/trade.Sell()/trade.PositionClose()
+  NULLS:    null in numeric inputs → replace with a valid default (0, 0.0, 2.0, etc.)
+  STRINGS:  unterminated string literals → close the quote on the same line`;
 
 /** Keep only error/warning/result lines — strips verbose information: lines. */
 function trimCompileLog(log: string): string {
