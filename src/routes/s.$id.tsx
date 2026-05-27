@@ -306,6 +306,14 @@ function StrategyPage() {
           setChatOpen(false);
           toast.success("AI code applied — remember to save");
         }}
+        onRegenTemplate={() => {
+          // For template-generated code the chat "Apply fix" button becomes a deterministic
+          // template regeneration — no AI rewrite, no risk of removing working features.
+          const fixed = generateMql5FromBlueprint(blueprint);
+          setGeneratedCode(fixed);
+          setDirty(true);
+          toast.success("Regenerated from template — save and recompile");
+        }}
       />
     </div>
   );

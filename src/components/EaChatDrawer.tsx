@@ -28,6 +28,12 @@ interface EaChatDrawerProps {
   compileLog?: string | null;
   backtestSummary?: unknown;
   onApplyCode: (code: string) => void;
+  /**
+   * When provided AND the current code is template-generated, "Apply fix" becomes
+   * "Regen from Template" — a deterministic regeneration instead of AI rewrite.
+   * Pass a callback that calls generateMql5FromBlueprint and updates state.
+   */
+  onRegenTemplate?: () => void;
 }
 
 export function EaChatDrawer({
@@ -39,6 +45,7 @@ export function EaChatDrawer({
   compileLog,
   backtestSummary,
   onApplyCode,
+  onRegenTemplate,
 }: EaChatDrawerProps) {
   const [messages, setMessages] = useState<EaChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -157,7 +164,25 @@ export function EaChatDrawer({
     }
   };
 
+  // Template-generated code is detected by the fixed header the generator always emits.
+  // For template code, "Apply fix" must regenerate from the template (deterministic, always
+  // correct) — NOT call the AI rewriter which may remove working features or reorder logic.
+  const isTemplateCode = code.includes("template mode — always compiles");
+
   const handleApplyFix = async () => {
+    // Template path: instant deterministic regeneration — no AI involved
+    if (isTemplateCode && onRegenTemplate) {
+      try {
+        onRegenTemplate();
+        setFixReady(false);
+        onOpenChange(false);
+      } catch (e: unknown) {
+        toast.error(e instanceof Error ? e.message : "Template regeneration failed");
+      }
+      return;
+    }
+
+    // AI path: only for AI-generated code that the template engine doesn't cover
     setApplyLoading(true);
     try {
       const result = await applyFix(messages, blueprint, code, compileLog, backtestSummary);
@@ -271,14 +296,16 @@ export function EaChatDrawer({
               <>
                 <Wrench className="h-4 w-4 text-emerald-400 shrink-0" />
                 <p className="text-xs text-emerald-300 flex-1 font-medium">
-                  Fix is ready — click Apply to generate the corrected code
+                  {isTemplateCode && onRegenTemplate
+                    ? "Template code detected — click to regenerate from the latest template (no AI rewrite)"
+                    : "Fix is ready — click Apply to generate the corrected code"}
                 </p>
                 <Button
                   size="sm"
                   onClick={handleApplyFix}
                   className="shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white border-0"
                 >
-                  Apply fix
+                  {isTemplateCode && onRegenTemplate ? "Regen Template" : "Apply fix"}
                 </Button>
               </>
             )}
