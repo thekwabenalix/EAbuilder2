@@ -374,11 +374,11 @@ function InterviewPanel({
         <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
           <div>
             <p className="text-xs font-medium text-amber-400">
-              Questions to clarify ({clarifications.length})
+              Optional clarifications ({clarifications.length})
             </p>
             <p className="text-[11px] text-amber-300/70 mt-0.5">
-              Answer any you know — then click <strong>Refine Interview</strong> to improve accuracy.
-              You can also skip and save now.
+              These are genuinely ambiguous points that affect code structure.
+              Answer any you want, or <strong>skip straight to Save</strong> — the EA will use sensible defaults.
             </p>
           </div>
 
