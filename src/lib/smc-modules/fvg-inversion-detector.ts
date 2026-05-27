@@ -1,52 +1,53 @@
 /**
- * SMC Module Library — Phase 1: FVG Inversion Detector
+ * SMC Module Library — Phase 1: FVG Inversion (IFVG) Detector
  *
- * FVG Inversion Detector v1.0.0
+ * FVG Inversion Detector v2.0.0
  * ──────────────────────────────
- * A Fair Value Gap becomes an Inversion FVG when price fully trades
- * through it — closing beyond its far limit — flipping its polarity.
+ * An Inversion FVG (IFVG) is a Fair Value Gap that has been fully traded
+ * through.  The zone does NOT disappear — it flips polarity.
+ * What was bullish support becomes bearish resistance and vice versa.
  *
- * INVERSION RULES (closed candles only):
- *   Bullish FVG  →  BEARISH inversion when:  Close < LL
- *   Bearish FVG  →  BULLISH inversion when:  Close > UL
+ *   Bullish FVG (UL = C3.Low, LL = C1.High)
+ *     → becomes BEARISH IFVG when a candle CLOSES BELOW LL
  *
- * The original FVG zone is frozen at the inversion bar. A new zone
- * of opposite polarity is drawn from the inversion bar forward,
- * using distinct colours and a dashed border.
+ *   Bearish FVG (UL = C1.Low, LL = C3.High)
+ *     → becomes BULLISH IFVG when a candle CLOSES ABOVE UL
+ *
+ * The IFVG zone:
+ *   • Occupies the EXACT same price range (UL / LL) as the original FVG
+ *   • Left edge = original FVG's C1 time (the zone was always at this price level)
+ *   • Right edge extends to the right until the IFVG itself is broken
+ *   • Drawn with a DASHED border and distinct colour to separate from regular FVGs
+ *
+ * By default the original FVG zones are hidden (InpShowOriginalFvg = false)
+ * so the chart shows ONLY IFVG zones — this module is a dedicated IFVG detector,
+ * not a duplicate of the FVG Detector module.
  *
  * FVG STATES:
- *   ACTIVE_FVG  (0) → zone untouched
- *   MITIGATED   (1) → price entered the zone (Bullish: Low≤UL | Bearish: High≥LL)
- *   INVERTED    (2) → price closed through → inversion zone created
- *   INVALIDATED (3) → zone expired (no inversion created)
+ *   FVG_ACTIVE      (0) → zone untouched
+ *   FVG_MITIGATED   (1) → price entered zone
+ *   FVG_INVERTED    (2) → price closed through → IFVG zone created
+ *   FVG_INVALIDATED (3) → zone expired before inversion (no IFVG created)
  *
- * INVERSION ZONE STATES:
- *   INV_ACTIVE      (0) → inversion zone live
- *   INV_INVALIDATED (1) → inversion zone broken (price closed back through)
+ * IFVG STATES:
+ *   INV_ACTIVE      (0) → IFVG zone live
+ *   INV_INVALIDATED (1) → price closed back through IFVG → zone frozen
  *
- * JOURNAL EVENTS:
+ * JOURNAL:
  *   FVG_CREATED           | id | dir | UL | LL | C1 | C3
  *   FVG_MITIGATED         | id | dir | UL | LL | bar
  *   FVG_INVERSION_CREATED | orig_id | new_dir | UL | LL | bar
  *   FVG_EXPIRED           | id | dir | UL | LL | age_bars
  *   INV_INVALIDATED       | inv_id | orig_id | dir | UL | LL | bar
  *
- * PROCESSING ORDER per new bar:
- *   1. Expiry check on original FVG zones
- *   2. Mitigation check   (ACTIVE → MITIGATED)
- *   3. Inversion check    (ACTIVE | MITIGATED → INVERTED + create INV zone)
- *   4. INV zone checks    (INV_ACTIVE → INV_INVALIDATED)
- *   5. Draw new FVG zones and new INV zones
- *   6. Detect new FVG zones on just-closed bar
- *
  * NO trading logic. Detection and visualisation only.
  */
 
-export const FVG_INVERSION_DETECTOR_VERSION = "1.0.0";
+export const FVG_INVERSION_DETECTOR_VERSION = "2.0.0";
 export const FVG_INVERSION_DETECTOR_MODULE  = "FVG_Inversion_Detector";
 
 /**
- * Returns the complete MQL5 source code for the FVG Inversion Detector.
+ * Returns the complete MQL5 source code for the FVG Inversion Detector (v2).
  * Drop the output into MetaEditor, compile, and attach to any chart.
  */
 export function generateFvgInversionDetector(): string {
@@ -54,21 +55,20 @@ export function generateFvgInversionDetector(): string {
 //| FVG_Inversion_Detector.mq5                                      |
 //| SMC Module Library v${FVG_INVERSION_DETECTOR_VERSION} — Phase 1: Detection Only        |
 //|                                                                  |
-//| Detects FVG polarity inversions when price closes through a zone.|
+//| Detects Inversion FVGs (IFVGs).                                 |
+//|                                                                  |
+//| An IFVG is an FVG that was fully traded through.                |
+//| The zone flips polarity — same UL/LL, opposite direction.       |
 //|                                                                  |
 //| INVERSION RULES:                                                 |
-//|   Bullish FVG → BEARISH inversion when:  Close < LL             |
-//|   Bearish FVG → BULLISH inversion when:  Close > UL             |
+//|   Bullish FVG → BEARISH IFVG when:  Close < LL                  |
+//|   Bearish FVG → BULLISH IFVG when:  Close > UL                  |
 //|                                                                  |
-//| FVG STATES:                                                      |
-//|   ACTIVE_FVG  → zone untouched                                  |
-//|   MITIGATED   → price entered zone                              |
-//|   INVERTED    → price closed through → new inversion zone drawn |
-//|   INVALIDATED → zone expired (no inversion)                     |
-//|                                                                  |
-//| INVERSION ZONE STATES:                                          |
-//|   INV_ACTIVE      → inversion zone live, extending right        |
-//|   INV_INVALIDATED → price closed back through, zone frozen      |
+//| IFVG zone:                                                       |
+//|   Left edge  = original FVG C1 time (same zone, flipped)        |
+//|   Right edge = extends until IFVG is itself broken              |
+//|   Price      = same UL / LL as original FVG                     |
+//|   Style      = dashed border, distinct colour                   |
 //|                                                                  |
 //| JOURNAL OUTPUT:                                                  |
 //|   FVG_CREATED           | id | dir | UL | LL | C1 | C3          |
@@ -80,55 +80,54 @@ export function generateFvgInversionDetector(): string {
 //| NO trading logic. Detection and visualisation only.             |
 //+------------------------------------------------------------------+
 #property copyright "EA Builder — SMC Module Library"
-#property version   "1.00"
+#property version   "2.00"
 #property strict
 #property indicator_chart_window
 #property indicator_plots 0
 
 //--- Original FVG states
-#define FVG_ACTIVE      0   // untouched
+#define FVG_ACTIVE      0   // zone untouched
 #define FVG_MITIGATED   1   // price entered zone
-#define FVG_INVERTED    2   // price closed through → inversion zone created
-#define FVG_INVALIDATED 3   // zone expired, no inversion
+#define FVG_INVERTED    2   // price closed through → IFVG created
+#define FVG_INVALIDATED 3   // zone expired, no IFVG created
 
-//--- Inversion zone states
+//--- IFVG states
 #define INV_ACTIVE      0
 #define INV_INVALIDATED 1
 
-//--- Mitigation mode
+//--- FVG mitigation mode
 enum ENUM_MIT_MODE
 {
    MIT_TOUCH_EDGE     = 0, // Price touches near edge of zone (default)
-   MIT_TOUCH_MIDPOINT = 1, // Price reaches midpoint of zone
+   MIT_TOUCH_MIDPOINT = 1, // Price reaches zone midpoint
 };
 
 //--- Inputs — Detection
 input ENUM_TIMEFRAMES InpTF       = PERIOD_CURRENT; // Timeframe to scan
 input int             InpLookback = 500;             // Historical bars to scan on load
 
-//--- Inputs — Original FVG colours
+//--- Inputs — IFVG colours
+input color InpBullIfvgClr = clrMediumSeaGreen; // Bullish IFVG colour (was bearish FVG)
+input color InpBearIfvgClr = clrCrimson;         // Bearish IFVG colour (was bullish FVG)
+
+//--- Inputs — Original FVG colours (used only when InpShowOriginalFvg = true)
 input color InpBullFvgClr = clrDodgerBlue; // Bullish FVG colour
 input color InpBearFvgClr = clrOrangeRed;  // Bearish FVG colour
-
-//--- Inputs — Inversion zone colours
-input color InpBullInvClr = clrMediumSeaGreen; // Bullish inversion (orig: bearish FVG)
-input color InpBearInvClr = clrOrchid;         // Bearish inversion (orig: bullish FVG)
 
 //--- Inputs — Lifecycle
 input ENUM_MIT_MODE InpMitMode    = MIT_TOUCH_EDGE; // FVG mitigation trigger
 input int           InpExpiryBars = 50;              // Expire FVG after N bars (0 = off)
 
 //--- Inputs — Visualization
-input int  InpFvgOpacity     = 70;   // Active FVG opacity 0-100
-input int  InpMitOpacity     = 25;   // Mitigated FVG opacity 0-100
-input int  InpInvOpacity     = 65;   // Inversion zone opacity 0-100
-input bool InpShowMitigated  = true; // Show mitigated FVG zones
-input bool InpKeepInverted   = true; // Keep original FVG as frozen relic when inverted
+input int  InpIfvgOpacity      = 70;    // IFVG zone opacity 0-100
+input int  InpFvgOpacity       = 50;    // Original FVG opacity (when visible)
+input int  InpMitOpacity       = 20;    // Mitigated FVG opacity (when visible)
+input bool InpShowOriginalFvg  = false; // Show original FVG zones (false = IFVG-only view)
 
 //--- Inputs — Logging
 input bool InpShowLog = true; // Print lifecycle events to journal
 
-//--- Zone storage limits
+//--- Storage limits
 #define FVG_MAX 500
 #define INV_MAX 500
 
@@ -138,22 +137,22 @@ struct FVGRecord
    int      id;
    int      dir;          // +1 bullish  -1 bearish
    int      state;        // FVG_ACTIVE / MITIGATED / INVERTED / INVALIDATED
-   datetime c1Time;
+   datetime c1Time;       // left edge of original zone
    datetime c3Time;
    double   ul;
    double   ll;
-   datetime invalidTime;  // right-edge freeze when zone ends (0 = still live)
+   datetime invalidTime;  // right-edge freeze (0 = still live)
 };
 
-//--- Inversion zone record
+//--- IFVG (Inversion FVG) record
 struct InvRecord
 {
    int      id;
    int      origFvgId;    // ID of the original FVG (for logging)
-   int      dir;          // FLIPPED polarity: +1 = now bullish, -1 = now bearish
+   int      dir;          // FLIPPED: orig bullish → dir=-1, orig bearish → dir=+1
    int      state;        // INV_ACTIVE / INV_INVALIDATED
-   datetime startTime;    // left edge of inversion zone (= inversion bar boundary)
-   double   ul;           // same price range as original FVG
+   datetime zoneStart;    // left edge = original FVG c1Time (same zone, flipped)
+   double   ul;           // same price boundaries as original FVG
    double   ll;
    datetime invalidTime;  // right-edge freeze (0 = still live)
 };
@@ -195,21 +194,21 @@ color FVG_ZoneColor(int idx)
    int   s    = fvgList[idx].state;
    if(s == FVG_INVERTED || s == FVG_INVALIDATED) return BlendWithBg(base, 8);
    if(s == FVG_MITIGATED)                        return BlendWithBg(base, InpMitOpacity);
-   return BlendWithBg(base, InpFvgOpacity); // ACTIVE
+   return BlendWithBg(base, InpFvgOpacity);
 }
 
 //+------------------------------------------------------------------+
-//| Display colour for an inversion zone                             |
+//| Display colour for an IFVG zone                                  |
 //+------------------------------------------------------------------+
 color INV_ZoneColor(int idx)
 {
-   color base = invList[idx].dir > 0 ? InpBullInvClr : InpBearInvClr;
-   if(invList[idx].state == INV_INVALIDATED) return BlendWithBg(base, 8);
-   return BlendWithBg(base, InpInvOpacity);
+   color base = invList[idx].dir > 0 ? InpBullIfvgClr : InpBearIfvgClr;
+   if(invList[idx].state == INV_INVALIDATED) return BlendWithBg(base, 10);
+   return BlendWithBg(base, InpIfvgOpacity);
 }
 
 //+------------------------------------------------------------------+
-//| Right-edge time for an original FVG rectangle                    |
+//| Right-edge time for an original FVG zone                         |
 //+------------------------------------------------------------------+
 datetime FVG_RightEdge(int idx)
 {
@@ -218,7 +217,7 @@ datetime FVG_RightEdge(int idx)
 }
 
 //+------------------------------------------------------------------+
-//| Right-edge time for an inversion zone rectangle                  |
+//| Right-edge time for an IFVG zone                                 |
 //+------------------------------------------------------------------+
 datetime INV_RightEdge(int idx)
 {
@@ -246,7 +245,7 @@ bool FVG_IsDuplicate(int dir, double ul, double ll)
 //+------------------------------------------------------------------+
 void FVG_Add(int dir, datetime c1T, datetime c3T, double ul, double ll)
 {
-   if(fvgTotal >= FVG_MAX) { if(InpShowLog) Print("FVG_Inversion: FVG limit reached"); return; }
+   if(fvgTotal >= FVG_MAX) { if(InpShowLog) Print("IFVG_Detector: FVG limit reached"); return; }
    if(FVG_IsDuplicate(dir, ul, ll)) return;
 
    int idx              = fvgTotal++;
@@ -267,7 +266,7 @@ void FVG_Add(int dir, datetime c1T, datetime c3T, double ul, double ll)
 }
 
 //+------------------------------------------------------------------+
-//| Scan one 3-candle triplet for an FVG (same detection as v3)      |
+//| Scan one 3-candle triplet for an FVG                             |
 //+------------------------------------------------------------------+
 void FVG_ScanBar(int c3Shift)
 {
@@ -279,12 +278,12 @@ void FVG_ScanBar(int c3Shift)
    if(c1Hi <= 0 || c3Hi <= 0) return;
    datetime c1T = iTime(_Symbol, InpTF, c3Shift + 2);
    datetime c3T = iTime(_Symbol, InpTF, c3Shift);
-   if(c3Lo > c1Hi) FVG_Add(+1, c1T, c3T, c3Lo, c1Hi); // Bullish
-   if(c3Hi < c1Lo) FVG_Add(-1, c1T, c3T, c1Lo, c3Hi); // Bearish
+   if(c3Lo > c1Hi) FVG_Add(+1, c1T, c3T, c3Lo, c1Hi); // Bullish FVG
+   if(c3Hi < c1Lo) FVG_Add(-1, c1T, c3T, c1Lo, c3Hi); // Bearish FVG
 }
 
 //+------------------------------------------------------------------+
-//| Check price entry into zone: ACTIVE → MITIGATED                  |
+//| Check price entry into zone: FVG_ACTIVE → FVG_MITIGATED          |
 //+------------------------------------------------------------------+
 bool FVG_CheckMitigation(int idx, double barHigh, double barLow)
 {
@@ -307,21 +306,25 @@ bool FVG_CheckMitigation(int idx, double barHigh, double barLow)
 }
 
 //+------------------------------------------------------------------+
-//| Create an inversion zone record from an inverted FVG             |
+//| Create an IFVG zone from an inverted FVG.                        |
+//|                                                                  |
+//| KEY: zoneStart = original FVG c1Time                            |
+//| The IFVG occupies the SAME zone the original FVG occupied,       |
+//| just with flipped polarity.  Same UL/LL, same left edge.        |
 //+------------------------------------------------------------------+
-void INV_Create(int fvgIdx, datetime startTime)
+void INV_Create(int fvgIdx, datetime inversionBar)
 {
-   if(invTotal >= INV_MAX) { if(InpShowLog) Print("FVG_Inversion: INV limit reached"); return; }
+   if(invTotal >= INV_MAX) { if(InpShowLog) Print("IFVG_Detector: IFVG limit reached"); return; }
 
-   int newDir = -fvgList[fvgIdx].dir; // flip polarity
+   int newDir = -fvgList[fvgIdx].dir; // flip: bullish → bearish, bearish → bullish
 
    int i               = invTotal++;
    invList[i].id           = nextInvId++;
    invList[i].origFvgId    = fvgList[fvgIdx].id;
    invList[i].dir          = newDir;
    invList[i].state        = INV_ACTIVE;
-   invList[i].startTime    = startTime; // left edge of inversion zone
-   invList[i].ul           = fvgList[fvgIdx].ul;
+   invList[i].zoneStart    = fvgList[fvgIdx].c1Time; // ← same left edge as original FVG
+   invList[i].ul           = fvgList[fvgIdx].ul;     // ← same price boundaries
    invList[i].ll           = fvgList[fvgIdx].ll;
    invList[i].invalidTime  = 0;
 
@@ -330,14 +333,14 @@ void INV_Create(int fvgIdx, datetime startTime)
                   fvgList[fvgIdx].id,
                   newDir > 0 ? "BULLISH" : "BEARISH",
                   invList[i].ul, invList[i].ll,
-                  TimeToString(startTime, TIME_DATE|TIME_MINUTES));
+                  TimeToString(inversionBar, TIME_DATE|TIME_MINUTES));
 }
 
 //+------------------------------------------------------------------+
-//| Check close through zone: ACTIVE|MITIGATED → INVERTED            |
-//| Creates an inversion zone on positive detection.                 |
+//| Check close through zone: triggers inversion.                    |
+//| Valid for ACTIVE and MITIGATED zones.                            |
 //+------------------------------------------------------------------+
-bool FVG_CheckInversion(int idx, double barClose, datetime freezeAt)
+bool FVG_CheckInversion(int idx, double barClose, datetime inversionBar)
 {
    int s = fvgList[idx].state;
    if(s == FVG_INVERTED || s == FVG_INVALIDATED) return false;
@@ -351,24 +354,23 @@ bool FVG_CheckInversion(int idx, double barClose, datetime freezeAt)
    if(hit)
    {
       fvgList[idx].state       = FVG_INVERTED;
-      fvgList[idx].invalidTime = freezeAt;
-      INV_Create(idx, freezeAt); // start = boundary between original and inversion zone
+      fvgList[idx].invalidTime = inversionBar; // freeze original zone at inversion bar
+      INV_Create(idx, inversionBar);
    }
    return hit;
 }
 
 //+------------------------------------------------------------------+
-//| Check whether an inversion zone has been broken                  |
-//| Inversion zone broken when price closes back through it.         |
+//| Check whether an IFVG zone has been broken (closed back through).|
 //+------------------------------------------------------------------+
 bool INV_CheckInvalidation(int idx, double barClose, datetime freezeAt)
 {
    if(invList[idx].state == INV_INVALIDATED) return false;
 
    bool hit;
-   if(invList[idx].dir == +1) // Bullish inversion: invalidated when Close < LL
+   if(invList[idx].dir == +1) // Bullish IFVG: invalidated when Close < LL
       hit = (barClose < invList[idx].ll);
-   else                        // Bearish inversion: invalidated when Close > UL
+   else                        // Bearish IFVG: invalidated when Close > UL
       hit = (barClose > invList[idx].ul);
 
    if(hit)
@@ -380,28 +382,28 @@ bool INV_CheckInvalidation(int idx, double barClose, datetime freezeAt)
 }
 
 //+------------------------------------------------------------------+
-//| Draw an original FVG zone rectangle + label                      |
+//| Draw an original FVG zone (only when InpShowOriginalFvg = true)  |
 //+------------------------------------------------------------------+
 void FVG_DrawZone(int idx)
 {
+   if(!InpShowOriginalFvg) return; // hidden in default IFVG-only mode
+
    int state = fvgList[idx].state;
-   // Respect visibility settings
-   if(!InpKeepInverted   && (state == FVG_INVERTED || state == FVG_INVALIDATED)) return;
-   if(!InpShowMitigated  &&  state == FVG_MITIGATED) return;
+   // When inverted, the IFVG zone covers the same area — skip original
+   if(state == FVG_INVERTED || state == FVG_INVALIDATED) return;
 
    color    clr  = FVG_ZoneColor(idx);
    string   pfx  = "SMCFVG_" + IntegerToString(fvgList[idx].id);
    string   rect = pfx + "_zone";
    string   lbl  = pfx + "_lbl";
    datetime t2   = FVG_RightEdge(idx);
-   bool     dead = (state == FVG_INVERTED || state == FVG_INVALIDATED);
 
    if(ObjectCreate(0, rect, OBJ_RECTANGLE, 0,
                    fvgList[idx].c1Time, fvgList[idx].ul,
                    t2,                  fvgList[idx].ll))
    {
       ObjectSetInteger(0, rect, OBJPROP_COLOR,      clr);
-      ObjectSetInteger(0, rect, OBJPROP_STYLE,      dead ? STYLE_DOT : STYLE_SOLID);
+      ObjectSetInteger(0, rect, OBJPROP_STYLE,      STYLE_SOLID);
       ObjectSetInteger(0, rect, OBJPROP_WIDTH,      1);
       ObjectSetInteger(0, rect, OBJPROP_BACK,       true);
       ObjectSetInteger(0, rect, OBJPROP_FILL,       true);
@@ -424,19 +426,22 @@ void FVG_DrawZone(int idx)
 }
 
 //+------------------------------------------------------------------+
-//| Draw an inversion zone rectangle + label                         |
+//| Draw an IFVG zone rectangle + label                              |
+//|                                                                  |
+//| The IFVG zone starts at the original FVG's C1 time and extends  |
+//| to the right — it IS the original zone, now with opposite        |
+//| polarity.  Dashed border distinguishes it from regular FVGs.    |
 //+------------------------------------------------------------------+
 void INV_DrawZone(int idx)
 {
    color    clr  = INV_ZoneColor(idx);
-   string   pfx  = "SMCINV_" + IntegerToString(invList[idx].id);
+   string   pfx  = "SMCIFVG_" + IntegerToString(invList[idx].id);
    string   rect = pfx + "_zone";
    string   lbl  = pfx + "_lbl";
-   datetime t1   = invList[idx].startTime;
+   datetime t1   = invList[idx].zoneStart; // = original FVG c1Time
    datetime t2   = INV_RightEdge(idx);
    bool     dead = (invList[idx].state == INV_INVALIDATED);
 
-   // Dashed border to visually distinguish from original FVG zones
    if(ObjectCreate(0, rect, OBJ_RECTANGLE, 0,
                    t1, invList[idx].ul,
                    t2, invList[idx].ll))
@@ -450,9 +455,8 @@ void INV_DrawZone(int idx)
       ObjectSetInteger(0, rect, OBJPROP_HIDDEN,     true);
    }
 
-   // Label: show original id and new direction
    string dirStr = invList[idx].dir > 0 ? "Bull" : "Bear";
-   string txt = StringFormat("INV %s FVG #%d (was #%d)  UL:%.5f  LL:%.5f",
+   string txt = StringFormat("%s IFVG #%d (was FVG #%d)  UL:%.5f  LL:%.5f",
                              dirStr, invList[idx].id, invList[idx].origFvgId,
                              invList[idx].ul, invList[idx].ll);
    if(ObjectCreate(0, lbl, OBJ_TEXT, 0, t1, invList[idx].ul))
@@ -467,10 +471,11 @@ void INV_DrawZone(int idx)
 }
 
 //+------------------------------------------------------------------+
-//| Update an original FVG zone's chart objects on state change      |
+//| Update an original FVG's chart objects on state change (live)    |
 //+------------------------------------------------------------------+
 void FVG_UpdateObjectState(int idx)
 {
+   if(!InpShowOriginalFvg) return; // nothing to update — zone was never drawn
    string pfx  = "SMCFVG_" + IntegerToString(fvgList[idx].id);
    string rect = pfx + "_zone";
    string lbl  = pfx + "_lbl";
@@ -478,47 +483,31 @@ void FVG_UpdateObjectState(int idx)
 
    if(s == FVG_INVERTED || s == FVG_INVALIDATED)
    {
-      if(!InpKeepInverted)
-      {
-         ObjectDelete(0, rect);
-         ObjectDelete(0, lbl);
-      }
-      else
-      {
-         // Freeze right edge + heavily fade + dotted border
-         color faded = FVG_ZoneColor(idx); // returns 8% opacity for terminal states
-         ObjectSetInteger(0, rect, OBJPROP_TIME,  1, (long)fvgList[idx].invalidTime);
-         ObjectSetInteger(0, rect, OBJPROP_COLOR,    faded);
-         ObjectSetInteger(0, rect, OBJPROP_STYLE,    STYLE_DOT);
-         ObjectSetInteger(0, lbl,  OBJPROP_COLOR,    faded);
-      }
+      // Remove original zone — the IFVG zone now covers the same area
+      ObjectDelete(0, rect);
+      ObjectDelete(0, lbl);
       return;
    }
-
    if(s == FVG_MITIGATED)
    {
-      if(!InpShowMitigated) { ObjectDelete(0, rect); ObjectDelete(0, lbl); }
-      else
-      {
-         color faded = FVG_ZoneColor(idx);
-         ObjectSetInteger(0, rect, OBJPROP_COLOR, faded);
-         ObjectSetInteger(0, lbl,  OBJPROP_COLOR, faded);
-      }
+      color faded = FVG_ZoneColor(idx);
+      ObjectSetInteger(0, rect, OBJPROP_COLOR, faded);
+      ObjectSetInteger(0, lbl,  OBJPROP_COLOR, faded);
    }
 }
 
 //+------------------------------------------------------------------+
-//| Update an inversion zone's chart objects on state change         |
+//| Update an IFVG zone's chart objects on state change (live)       |
 //+------------------------------------------------------------------+
 void INV_UpdateObjectState(int idx)
 {
-   string pfx  = "SMCINV_" + IntegerToString(invList[idx].id);
+   string pfx  = "SMCIFVG_" + IntegerToString(invList[idx].id);
    string rect = pfx + "_zone";
    string lbl  = pfx + "_lbl";
 
    if(invList[idx].state == INV_INVALIDATED)
    {
-      color faded = INV_ZoneColor(idx); // returns 8% for invalidated
+      color faded = INV_ZoneColor(idx); // 10% — barely visible relic
       ObjectSetInteger(0, rect, OBJPROP_TIME,  1, (long)invList[idx].invalidTime);
       ObjectSetInteger(0, rect, OBJPROP_COLOR,    faded);
       ObjectSetInteger(0, rect, OBJPROP_STYLE,    STYLE_DOT);
@@ -527,8 +516,8 @@ void INV_UpdateObjectState(int idx)
 }
 
 //+------------------------------------------------------------------+
-//| Update all zone states on each new bar (live operation)          |
-//| Order: expiry → mitigation → inversion → INV invalidation        |
+//| Update all zone states on each new bar                           |
+//| Order: expiry → mitigation → inversion → IFVG invalidation       |
 //+------------------------------------------------------------------+
 void UpdateAllStates()
 {
@@ -536,15 +525,15 @@ void UpdateAllStates()
    double   lo       = iLow  (_Symbol, InpTF, 1);
    double   cl       = iClose(_Symbol, InpTF, 1);
    datetime barTime  = iTime (_Symbol, InpTF, 1);
-   datetime freezeAt = iTime (_Symbol, InpTF, 0); // new bar open = closed bar end
+   datetime freezeAt = iTime (_Symbol, InpTF, 0);
 
-   // ── Pass 1: Update original FVG zones ───────────────────────────
+   // ── Pass 1: Original FVG zones ──────────────────────────────────
    for(int i = 0; i < fvgTotal; i++)
    {
       int s = fvgList[i].state;
       if(s == FVG_INVERTED || s == FVG_INVALIDATED) continue;
 
-      // Step 1: Expiry
+      // Step 1: Expiry (no IFVG created for expired zones)
       if(InpExpiryBars > 0)
       {
          int age = iBarShift(_Symbol, InpTF, fvgList[i].c3Time, false);
@@ -572,16 +561,15 @@ void UpdateAllStates()
                         TimeToString(barTime, TIME_DATE|TIME_MINUTES));
       }
 
-      // Step 3: Inversion (can fire on same bar as mitigation if price blew through)
+      // Step 3: Inversion check (fires on same bar as mitigation if price blows through)
       if(FVG_CheckInversion(i, cl, freezeAt))
-         FVG_UpdateObjectState(i); // freeze/remove original zone; INV zone queued for drawing
+         FVG_UpdateObjectState(i); // removes original zone; IFVG queued for INV_DrawNew
    }
 
-   // ── Pass 2: Update inversion zones ──────────────────────────────
+   // ── Pass 2: IFVG zone invalidation ──────────────────────────────
    for(int i = 0; i < invTotal; i++)
    {
       if(invList[i].state == INV_INVALIDATED) continue;
-
       if(INV_CheckInvalidation(i, cl, freezeAt))
       {
          INV_UpdateObjectState(i);
@@ -596,7 +584,7 @@ void UpdateAllStates()
 }
 
 //+------------------------------------------------------------------+
-//| Draw all FVG zones added since the last draw call                |
+//| Draw FVG zones not yet drawn                                     |
 //+------------------------------------------------------------------+
 void FVG_DrawNew()
 {
@@ -606,7 +594,7 @@ void FVG_DrawNew()
 }
 
 //+------------------------------------------------------------------+
-//| Draw all inversion zones added since the last draw call          |
+//| Draw IFVG zones not yet drawn                                    |
 //+------------------------------------------------------------------+
 void INV_DrawNew()
 {
@@ -624,18 +612,18 @@ void DeleteAll()
    for(int i = ObjectsTotal(0) - 1; i >= 0; i--)
    {
       string nm = ObjectName(0, i);
-      if(StringFind(nm, "SMCFVG_") == 0 || StringFind(nm, "SMCINV_") == 0)
-         ObjectDelete(0, nm);
+      if(StringFind(nm, "SMCFVG_")  == 0 ||
+         StringFind(nm, "SMCIFVG_") == 0) ObjectDelete(0, nm);
    }
 }
 
 //+------------------------------------------------------------------+
-//| OnInit: detect → historical replay → draw                        |
+//| OnInit: detect → historical lifecycle replay → draw              |
 //+------------------------------------------------------------------+
 int OnInit()
 {
    int available = iBars(_Symbol, InpTF);
-   if(available < 4) { Print("FVG_Inversion: not enough bars."); return INIT_FAILED; }
+   if(available < 4) { Print("IFVG_Detector: not enough bars."); return INIT_FAILED; }
 
    int limit = MathMin(InpLookback, available - 3);
 
@@ -644,8 +632,9 @@ int OnInit()
       FVG_ScanBar(sh);
 
    // ── Step 2: Historical lifecycle replay ──────────────────────────
-   // Re-run the full state machine bar-by-bar so every zone starts in
-   // the correct state when the indicator is first attached.
+   // Replay every bar so zones start with correct state on attach.
+   // Inversion zones created during replay are immediately available
+   // for invalidation checking in subsequent bar iterations.
    for(int sh = limit; sh >= 1; sh--)
    {
       double   hi       = iHigh (_Symbol, InpTF, sh);
@@ -654,14 +643,14 @@ int OnInit()
       datetime barTime  = iTime (_Symbol, InpTF, sh);
       datetime freezeAt = iTime (_Symbol, InpTF, sh - 1);
 
-      // ── FVG pass ──────────────────────────────────────────────────
+      // FVG pass
       for(int i = 0; i < fvgTotal; i++)
       {
-         if(barTime <= fvgList[i].c3Time) continue; // zone not yet created
+         if(barTime <= fvgList[i].c3Time) continue;
          int s = fvgList[i].state;
          if(s == FVG_INVERTED || s == FVG_INVALIDATED) continue;
 
-         // Expiry (time-based approximation for historical replay)
+         // Expiry
          if(InpExpiryBars > 0)
          {
             int age = (int)((barTime - fvgList[i].c3Time) / PeriodSeconds(InpTF));
@@ -673,27 +662,24 @@ int OnInit()
             }
          }
 
-         // Mitigation
          FVG_CheckMitigation(i, hi, lo);
-
-         // Inversion: creates an INV record immediately; will be checked below
-         FVG_CheckInversion(i, cl, freezeAt);
+         FVG_CheckInversion(i, cl, freezeAt); // may create IFVG record
       }
 
-      // ── INV pass: check inversion zones created so far ────────────
+      // IFVG pass: check any inversion zones created so far
       for(int i = 0; i < invTotal; i++)
       {
          if(invList[i].state == INV_INVALIDATED) continue;
-         if(barTime <= invList[i].startTime) continue; // zone didn't exist yet
+         if(barTime <= invList[i].zoneStart) continue; // zone didn't exist yet
          INV_CheckInvalidation(i, cl, freezeAt);
       }
    }
 
    // ── Step 3: Draw all zones with correct state-aware visuals ─────
-   FVG_DrawNew();
-   INV_DrawNew();
+   FVG_DrawNew();  // original FVG zones (if InpShowOriginalFvg = true)
+   INV_DrawNew();  // IFVG zones
 
-   // ── Step 4: Summary log ──────────────────────────────────────────
+   // ── Step 4: Summary ───────────────────────────────────────────────
    int fActive=0, fMit=0, fInv=0, fExpired=0;
    for(int i = 0; i < fvgTotal; i++)
    {
@@ -709,7 +695,7 @@ int OnInit()
    for(int i = 0; i < invTotal; i++)
       invList[i].state == INV_ACTIVE ? iActive++ : iInvalid++;
 
-   PrintFormat("FVG Inversion Detector ready | FVG: total=%d active=%d mitigated=%d inverted=%d expired=%d | INV zones: active=%d invalidated=%d | %s %s",
+   PrintFormat("IFVG Detector v2 ready | FVG: total=%d active=%d mitigated=%d inverted=%d expired=%d | IFVG zones: active=%d broken=%d | %s %s",
                fvgTotal, fActive, fMit, fInv, fExpired, iActive, iInvalid,
                _Symbol, EnumToString(InpTF));
    return INIT_SUCCEEDED;
@@ -725,7 +711,7 @@ void OnDeinit(const int reason)
 }
 
 //+------------------------------------------------------------------+
-//| OnCalculate: state updates → draw new inversion zones → new FVGs |
+//| OnCalculate: state updates → draw new IFVGs → detect new FVGs   |
 //+------------------------------------------------------------------+
 int OnCalculate(const int rates_total, const int prev_calculated,
                 const datetime &time[], const double &open[],
@@ -737,16 +723,16 @@ int OnCalculate(const int rates_total, const int prev_calculated,
    if(currentBar == lastBarTime) return rates_total;
    lastBarTime = currentBar;
 
-   // 1. Expiry → mitigation → inversion → INV invalidation
+   // 1. Update all states: expiry → mitigation → inversion → IFVG break
    UpdateAllStates();
 
-   // 2. Draw any inversion zones created in step 1
+   // 2. Draw any IFVG zones created in step 1
    INV_DrawNew();
 
    // 3. Detect new FVGs from the just-closed bar
    FVG_ScanBar(1);
 
-   // 4. Draw any new FVG zones
+   // 4. Draw any new FVG zones (visible only when InpShowOriginalFvg = true)
    FVG_DrawNew();
 
    return rates_total;
