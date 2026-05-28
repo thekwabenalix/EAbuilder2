@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { generateFvgDetector } from "@/lib/smc-modules/fvg-detector";
 import { generateFvgInversionDetector } from "@/lib/smc-modules/fvg-inversion-detector";
 import { generateObDetector } from "@/lib/smc-modules/ob-detector";
+import { generateBbDetector } from "@/lib/smc-modules/bb-detector";
 
 export const Route = createFileRoute("/modules")({
   component: ModulesPage,
@@ -112,16 +113,25 @@ const PHASE1_MODULES: ModuleEntry[] = [
     id: "breaker-block",
     filename: "BB_Detector.mq5",
     name: "Breaker Block Detector",
-    description: "An order block that failed — price swept through it and reversed, flipping its polarity.",
+    description: "Detects Breaker Blocks — Order Blocks that failed and flipped polarity. When price closes through an OB zone, the zone is recycled as a Breaker of the opposite direction and tracked through its own ACTIVE → MITIGATED → INVALIDATED / EXPIRED lifecycle.",
     rules: [
-      "Bullish OB becomes bearish breaker when price closes below its low",
-      "Bearish OB becomes bullish breaker when price closes above its high",
+      "Bearish OB + close above OB high  →  Bullish Breaker (dir flipped to +1)",
+      "Bullish OB + close below OB low   →  Bearish Breaker (dir flipped to -1)",
+      "Breaker zone = original OB high / low (same price range, dashed border)",
+      "Mitigation: barLow ≤ BB high (bull) or barHigh ≥ BB low (bear)",
+      "Invalidation: close < BB low (bull) or close > BB high (bear)",
+      "Expiry: Breaker removed after InpExpiryBars=100 bars",
+      "A MITIGATED OB can still become a Breaker if price later closes through",
     ],
     output: [
-      "Dashed rectangle with flipped colour",
-      "Journal: BB_CREATED | id | origin_ob_id | flip_bar | dir",
+      "ACTIVE Breaker → full opacity dashed zone (InpBbActiveOpacity, default 70%)",
+      "MITIGATED Breaker → faded dashed zone (InpBbMitOpacity, default 25%)",
+      "INVALIDATED / EXPIRED → removed or frozen dotted relic",
+      "Original OB zones shown via InpShowOriginalOb=false (hidden by default)",
+      "Journal: OB_CREATED | OB_MITIGATED | BREAKER_CREATED | BREAKER_MITIGATED | BREAKER_INVALIDATED | BREAKER_EXPIRED",
     ],
-    status: "pending",
+    status: "ready",
+    generate: generateBbDetector,
   },
   {
     id: "liquidity-sweep",
