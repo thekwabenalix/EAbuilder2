@@ -7,6 +7,7 @@ import { generateFvgDetector } from "@/lib/smc-modules/fvg-detector";
 import { generateFvgInversionDetector } from "@/lib/smc-modules/fvg-inversion-detector";
 import { generateObDetector } from "@/lib/smc-modules/ob-detector";
 import { generateBbDetector } from "@/lib/smc-modules/bb-detector";
+import { generateLiqSweepDetector } from "@/lib/smc-modules/liqsweep-detector";
 
 export const Route = createFileRoute("/modules")({
   component: ModulesPage,
@@ -137,16 +138,27 @@ const PHASE1_MODULES: ModuleEntry[] = [
     id: "liquidity-sweep",
     filename: "LiqSweep_Detector.mq5",
     name: "Liquidity Sweep Detector",
-    description: "Detects candles that pierce a recent swing high/low and close back inside.",
+    description: "Detects liquidity sweeps — candles whose wick pierces a confirmed swing high/low and then close back inside. Sweeps move through PENDING → CONFIRMED / EXPIRED with a configurable confirmation window.",
     rules: [
-      "Bullish sweep: wick below recent swing low, close above it",
-      "Bearish sweep: wick above recent swing high, close below it",
+      "Swing high/low confirmed after N candles close on each side (InpSwingStr=3)",
+      "Bullish sweep: barLow < swingLevel AND close > swingLevel (took out lows, closed back above)",
+      "Bearish sweep: barHigh > swingLevel AND close < swingLevel (took out highs, closed back below)",
+      "Same-bar confirmation: if wick-break AND close-back on the same candle → immediately CONFIRMED",
+      "Multi-bar confirmation: PENDING until close-back occurs within InpMaxWaitBars (default 5)",
+      "PENDING → EXPIRED if no close-back after InpMaxWaitBars bars; swing becomes AVAILABLE again",
+      "Retired swings removed after InpExpiryBars bars (default 100)",
     ],
     output: [
-      "Arrow at the sweep wick tip",
-      "Journal: LIQ_SWEEP | id | dir | sweep_bar | level | close",
+      "Dashed OBJ_TREND line at swing level (swingTime → confirmTime)",
+      "OBJ_ARROW at wick tip (↑ bull sweep code 233 / ↓ bear sweep code 234), width 2",
+      "OBJ_TEXT label at confirm bar: 'Bull Sweep #N' / 'Bear Sweep #N'",
+      "Journal: SWING_CONFIRMED | id | dir | time | level",
+      "Journal: SWEEP_CONFIRMED | id | swing_id | dir | sweep_bar | level | wick_tip | confirm_bar",
+      "Journal: SWEEP_EXPIRED | id | swing_id | dir | sweep_bar | level",
+      "Inputs: swing_strength · max_wait_bars · expiry_bars · show_bull · show_bear · opacity",
     ],
-    status: "pending",
+    status: "ready",
+    generate: generateLiqSweepDetector,
   },
   {
     id: "bos-choch",
