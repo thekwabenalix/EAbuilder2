@@ -26,6 +26,7 @@ import { generateBosDetector } from "@/lib/smc-modules/bos-detector";
 import { generateChochDetector } from "@/lib/smc-modules/choch-detector";
 import { generateClassicSnrDetector } from "@/lib/smc-modules/classic-snr-detector";
 import { generateGapSnrDetector } from "@/lib/smc-modules/gap-snr-detector";
+import { generateBreakoutDetector } from "@/lib/smc-modules/breakout-detector";
 
 export const Route = createFileRoute("/modules")({
   component: ModulesPage,
@@ -378,12 +379,32 @@ const TRADING_MODULES: ModuleCategory[] = [
       },
       {
         id: "breakout",
-        filename: "SNR_Breakout_Detector.mq5",
-        name: "Breakout",
+        filename: "Breakout_Detector.mq5",
+        name: "Breakout Detector",
         description:
-          "Detects clean breakouts above resistance or below support. Configurable " +
-          "body-size and ATR filters to distinguish genuine breaks from fakeouts.",
-        status: "planned",
+          "Detects candle-close breakouts of Classic SNR levels. Embeds Classic SNR " +
+          "detection internally — only Classic S/R levels generate breakouts. " +
+          "Gap SNR ignored. Full ACTIVE → CONFIRMED → RETESTED → INVALIDATED / EXPIRED lifecycle.",
+        rules: [
+          "Bullish BO: candle CLOSE > Classic Resistance level (wick break does NOT count)",
+          "Bearish BO: candle CLOSE < Classic Support level   (wick break does NOT count)",
+          "Classic SNR embedded: Bull→Bear pair = Resistance; Bear→Bull pair = Support (A close = level)",
+          "CONFIRMED: first bar after breakout that does not close back through",
+          "RETESTED: wick returns to level from correct side without closing through",
+          "INVALIDATED: close back through the broken level (failed breakout)",
+          "EXPIRED: InpExpiryBars (default 100) bars elapsed without invalidation",
+          "Filters: InpMinBodyPts (body size) · InpMinBreakDist (points) · InpUseAtrFilt (ATR × mult)",
+        ],
+        output: [
+          "OBJ_TREND line at level — anchored at SNR origin, RAY_RIGHT while active",
+          "OBJ_TEXT label 'Bull BO' / 'Bear BO' at the breakout bar",
+          "OBJ_ARROW ▲/▼ marker (code 233/234) at the breakout bar",
+          "Retested: line turns clrGold  |  Invalidated: dashed clrDimGray or deleted",
+          "Bull: clrDodgerBlue  |  Bear: clrCrimson  |  Retest: clrGold  |  Invalid: clrDimGray",
+          "Journal: BREAKOUT_CREATED | BREAKOUT_CONFIRMED | BREAKOUT_RETESTED | BREAKOUT_INVALIDATED | BREAKOUT_EXPIRED",
+        ],
+        status: "ready",
+        generate: generateBreakoutDetector,
       },
       {
         id: "rbs-sbr",
