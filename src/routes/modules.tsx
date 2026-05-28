@@ -21,7 +21,9 @@ import { generateFvgInversionDetector } from "@/lib/smc-modules/fvg-inversion-de
 import { generateObDetector } from "@/lib/smc-modules/ob-detector";
 import { generateBbDetector } from "@/lib/smc-modules/bb-detector";
 import { generateLiqSweepDetector } from "@/lib/smc-modules/liqsweep-detector";
-import { generateBosChochDetector } from "@/lib/smc-modules/bos-choch-detector";
+import { generateSwingStructureDetector } from "@/lib/smc-modules/swing-structure-detector";
+import { generateBosDetector } from "@/lib/smc-modules/bos-detector";
+import { generateChochDetector } from "@/lib/smc-modules/choch-detector";
 
 export const Route = createFileRoute("/modules")({
   component: ModulesPage,
@@ -209,29 +211,75 @@ const TRADING_MODULES: ModuleCategory[] = [
         generate: generateLiqSweepDetector,
       },
       {
-        id: "bos-choch",
-        filename: "BOS_CHoCH_Detector.mq5",
-        name: "BOS / CHoCH Detector",
+        id: "swing-structure",
+        filename: "Swing_Structure_Detector.mq5",
+        name: "Swing Structure Detector",
         description:
-          "Detects Break of Structure (trend continuation) and Change of Character " +
-          "(potential reversal) using swing-based market structure tracking. " +
-          "Structure bias is maintained across the full lookback window.",
+          "Detects and marks confirmed pivot highs and pivot lows only. " +
+          "No BOS. No CHoCH. No trend classification. " +
+          "Use alongside BOS Detector and CHoCH Detector for the full picture.",
         rules: [
-          "Swing High: high > N left bars AND M right bars",
-          "Bullish BOS  : close > protected swing high  AND bias was BULL",
-          "Bearish BOS  : close < protected swing low   AND bias was BEAR",
-          "Bullish CHoCH: close > protected swing high  AND bias was BEAR / NEUTRAL",
-          "Bearish CHoCH: close < protected swing low   AND bias was BULL / NEUTRAL",
+          "Swing High: high > N left bars AND M right bars (InpSwingLeft / InpSwingRight)",
+          "Swing Low:  low  < N left bars AND M right bars",
+          "A swing at shift s is confirmed when M right-side bars have closed",
+          "Dedup by time — same candle cannot produce duplicate swing records",
         ],
         output: [
-          "Swing markers: ▼ at highs / ▲ at lows (width 1, toggleable)",
-          "BOS: STYLE_SOLID line from swing → break bar (green / red)",
-          "CHoCH: STYLE_DASH line (blue / orange)",
-          "Label 'BOS' or 'CHoCH' anchored at break bar",
-          "Journal: BULLISH_BOS | BEARISH_BOS | BULLISH_CHOCH | BEARISH_CHOCH",
+          "▼ OBJ_ARROW (code 234, width 1) at each swing high price",
+          "▲ OBJ_ARROW (code 233, width 1) at each swing low price",
+          "Toggleable per direction: InpShowHighs / InpShowLows",
+          "Journal: SWING_HIGH_FORMED | SWING_LOW_FORMED | id | price | time",
         ],
         status: "ready",
-        generate: generateBosChochDetector,
+        generate: generateSwingStructureDetector,
+      },
+      {
+        id: "bos",
+        filename: "BOS_Detector.mq5",
+        name: "BOS Detector",
+        description:
+          "Break of Structure — price closes beyond a previous swing in the same " +
+          "direction as the current trend. Trend state: 0 unknown / 1 bullish / -1 bearish. " +
+          "CHoCH events update the trend state internally but are not drawn here.",
+        rules: [
+          "Trend state: 0 = unknown, 1 = bullish, −1 = bearish",
+          "Bullish BOS: close > last swing high  AND trend ≠ −1 (was bull or unknown)",
+          "Bearish BOS: close < last swing low   AND trend ≠ +1 (was bear or unknown)",
+          "Trend is updated on every break (BOS or CHoCH) to stay in sync with CHoCH_Detector",
+          "Confirmation: candle_close (default) or wick_break",
+        ],
+        output: [
+          "STYLE_SOLID horizontal line from broken swing → break bar",
+          "Bullish BOS: green  |  Bearish BOS: red",
+          "Label 'BOS' anchored at break bar (above line for bull, below for bear)",
+          "Journal: BULLISH_BOS | BEARISH_BOS | id | price | time | trend_before",
+        ],
+        status: "ready",
+        generate: generateBosDetector,
+      },
+      {
+        id: "choch",
+        filename: "CHoCH_Detector.mq5",
+        name: "CHoCH Detector",
+        description:
+          "Change of Character — price closes beyond a previous swing AGAINST the " +
+          "current trend, signalling a potential reversal. Shares the same trend " +
+          "state machine as BOS Detector — run both for the complete structure picture.",
+        rules: [
+          "Trend state: 0 = unknown, 1 = bullish, −1 = bearish",
+          "Bullish CHoCH: close > last swing high  AND trend == −1 (was bearish)",
+          "Bearish CHoCH: close < last swing low   AND trend == +1 (was bullish)",
+          "BOS events update trend state internally but are not drawn here",
+          "Confirmation: candle_close (default) or wick_break",
+        ],
+        output: [
+          "STYLE_DASH horizontal line from broken swing → break bar",
+          "Bullish CHoCH: blue  |  Bearish CHoCH: orange",
+          "Label 'CHoCH' anchored at break bar (above line for bull, below for bear)",
+          "Journal: BULLISH_CHOCH | BEARISH_CHOCH | id | price | time | trend_before",
+        ],
+        status: "ready",
+        generate: generateChochDetector,
       },
       {
         id: "mitigation-block",
