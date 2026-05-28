@@ -9,14 +9,14 @@ import {
   Settings,
   LogOut,
   TerminalSquare,
-  Layers,
+  LayoutGrid,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/new", label: "New Strategy", icon: PlusSquare },
-  { to: "/modules", label: "SMC Modules", icon: Layers },
+  { to: "/modules", label: "Trading Modules", icon: LayoutGrid },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
