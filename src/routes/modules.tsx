@@ -8,6 +8,7 @@ import { generateFvgInversionDetector } from "@/lib/smc-modules/fvg-inversion-de
 import { generateObDetector } from "@/lib/smc-modules/ob-detector";
 import { generateBbDetector } from "@/lib/smc-modules/bb-detector";
 import { generateLiqSweepDetector } from "@/lib/smc-modules/liqsweep-detector";
+import { generateBosChochDetector } from "@/lib/smc-modules/bos-choch-detector";
 
 export const Route = createFileRoute("/modules")({
   component: ModulesPage,
@@ -163,16 +164,27 @@ const PHASE1_MODULES: ModuleEntry[] = [
     id: "bos-choch",
     filename: "BOS_CHoCH_Detector.mq5",
     name: "BOS / CHoCH Detector",
-    description: "Identifies Break of Structure (trend continuation) and Change of Character (potential reversal).",
+    description: "Detects Break of Structure (trend continuation) and Change of Character (potential reversal) using swing-based market structure tracking. Structure bias is maintained across the full lookback window — each break is correctly classified as BOS or CHoCH based on the preceding bias.",
     rules: [
-      "BOS: close beyond the most recent confirmed swing in the direction of the trend",
-      "CHoCH: close beyond the most recent confirmed swing against the trend",
+      "Swing High: high > N left bars AND M right bars (InpSwingLeft / InpSwingRight, default 3/3)",
+      "Swing Low:  low  < N left bars AND M right bars",
+      "Bullish BOS  : close > protected swing high  AND structure bias was already BULL",
+      "Bearish BOS  : close < protected swing low   AND structure bias was already BEAR",
+      "Bullish CHoCH: close > protected swing high  AND structure bias was BEAR or NEUTRAL",
+      "Bearish CHoCH: close < protected swing low   AND structure bias was BULL or NEUTRAL",
+      "Confirmation: candle_close (default) or wick_break (InpConfirmMode)",
     ],
     output: [
-      "Horizontal line at broken level",
-      "Journal: BOS | CHoCH | id | dir | break_bar | level",
+      "Swing markers: ▼ at swing highs / ▲ at swing lows (width 1, toggleable)",
+      "BOS line:   STYLE_SOLID from swing candle → break bar (green/red)",
+      "CHoCH line: STYLE_DASH  from swing candle → break bar (blue/orange)",
+      "Label 'BOS' or 'CHoCH' anchored at the break bar",
+      "Journal: SWING_HIGH_CREATED | SWING_LOW_CREATED | id | price | time",
+      "Journal: BULLISH_BOS | BEARISH_BOS | BULLISH_CHOCH | BEARISH_CHOCH | id | price | time | bias_before | bias_after",
+      "Inputs: swing_left · swing_right · confirm_mode · show_bos · show_choch · show_swings",
     ],
-    status: "pending",
+    status: "ready",
+    generate: generateBosChochDetector,
   },
   {
     id: "supply-demand",
