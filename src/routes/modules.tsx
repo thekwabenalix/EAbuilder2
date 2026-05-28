@@ -382,38 +382,31 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "Breakout_Detector.mq5",
         name: "Breakout Detector",
         description:
-          "Detects candle-close breakouts of Classic SNR levels. Embeds Classic SNR " +
-          "detection internally — only Classic S/R levels generate breakouts. " +
-          "Gap SNR ignored. Full ACTIVE → CONFIRMED → RETESTED → INVALIDATED / EXPIRED lifecycle.",
+          "Detects candle-close breakouts of Classic SNR levels. On confirmation, the " +
+          "broken level automatically flips to RBS (Resistance Becomes Support) or SBR " +
+          "(Support Becomes Resistance). Embeds Classic SNR detection internally — " +
+          "Gap SNR is ignored. Lifecycle: Classic SNR → Broken → RBS/SBR Active → Retested → Invalidated/Expired.",
         rules: [
           "Bullish BO: candle CLOSE > Classic Resistance level (wick break does NOT count)",
           "Bearish BO: candle CLOSE < Classic Support level   (wick break does NOT count)",
           "Classic SNR embedded: Bull→Bear pair = Resistance; Bear→Bull pair = Support (A close = level)",
-          "CONFIRMED: first bar after breakout that does not close back through",
+          "CONFIRMED → RBS/SBR: first bar after breakout without closing back through — zone flips",
+          "RBS (Resistance Becomes Support): Bullish BO confirmed → Buy Zone (green, width 2)",
+          "SBR (Support Becomes Resistance): Bearish BO confirmed → Sell Zone (orange-red, width 2)",
           "RETESTED: wick returns to level from correct side without closing through",
-          "INVALIDATED: close back through the broken level (failed breakout)",
+          "INVALIDATED: close back through the broken level (failed flip zone)",
           "EXPIRED: InpExpiryBars (default 100) bars elapsed without invalidation",
           "Filters: InpMinBodyPts (body size) · InpMinBreakDist (points) · InpUseAtrFilt (ATR × mult)",
         ],
         output: [
-          "OBJ_TREND line at level — anchored at SNR origin, RAY_RIGHT while active",
-          "OBJ_TEXT label 'Bull BO' / 'Bear BO' at the breakout bar",
-          "OBJ_ARROW ▲/▼ marker (code 233/234) at the breakout bar",
-          "Retested: line turns clrGold  |  Invalidated: dashed clrDimGray or deleted",
-          "Bull: clrDodgerBlue  |  Bear: clrCrimson  |  Retest: clrGold  |  Invalid: clrDimGray",
-          "Journal: BREAKOUT_CREATED | BREAKOUT_CONFIRMED | BREAKOUT_RETESTED | BREAKOUT_INVALIDATED | BREAKOUT_EXPIRED",
+          "ACTIVE: OBJ_TREND line + 'Bull BO'/'Bear BO' label + ▲/▼ arrow, width 1",
+          "CONFIRMED: label → 'RBS'/'SBR', line width → 2, colour → clrMediumSeaGreen / clrOrangeRed",
+          "RETESTED: line turns clrGold  |  Invalidated: dashed clrDimGray or deleted",
+          "Inputs: show_rbs_sbr · rbs_color · sbr_color · expiry_bars · remove_invalid · max_breakouts",
+          "Journal: BREAKOUT_CREATED | RBS_ACTIVE | SBR_ACTIVE | RBS_RETESTED | SBR_RETESTED | RBS_INVALIDATED | SBR_INVALIDATED | RBS_EXPIRED | SBR_EXPIRED",
         ],
         status: "ready",
         generate: generateBreakoutDetector,
-      },
-      {
-        id: "rbs-sbr",
-        filename: "SNR_RBS_SBR_Detector.mq5",
-        name: "RBS / SBR",
-        description:
-          "Resistance Becomes Support / Support Becomes Resistance — marks polarity " +
-          "flips on confirmed breakouts and tracks subsequent retests.",
-        status: "planned",
       },
       {
         id: "rejection",

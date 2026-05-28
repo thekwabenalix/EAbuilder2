@@ -1,9 +1,10 @@
 /**
  * SNR Module Library — Phase 1: Breakout Detector
  *
- * Breakout_Detector v1.0.0
+ * Breakout_Detector v2.0.0
  * ────────────────────────────────────────────────
- * Detects breakouts of Classic SNR levels (candle CLOSE confirmation only).
+ * Detects breakouts of Classic SNR levels (candle CLOSE confirmation only),
+ * then transitions confirmed breakouts to RBS / SBR flip zones.
  *
  * DEPENDENCY: Embeds Classic SNR detection internally.
  *   Classic SNR is detected from candle-pair direction reversals.
@@ -14,24 +15,39 @@
  *   Bearish BO: candle CLOSE < Classic Support level
  *   Wick breaks do NOT count (close_only default).
  *
+ * RBS / SBR FLIP:
+ *   On CONFIRMED state (first bar after breakout without closing back through):
+ *     Bullish BO → RBS (Resistance Becomes Support) = Buy Zone
+ *     Bearish BO → SBR (Support Becomes Resistance) = Sell Zone
+ *   Label changes from "Bull BO" / "Bear BO" to "RBS" / "SBR".
+ *   Line width widens to 2. Colour switches to InpRbsColor / InpSbrColor.
+ *
  * LIFECYCLE STATES:
  *   ACTIVE     → breakout bar detected
- *   CONFIRMED  → first bar after breakout that does not close back through
+ *   CONFIRMED  → first bar after breakout without closing back → RBS / SBR Active
  *   RETESTED   → price returns to touch the level from the correct side (wick)
  *   INVALIDATED→ price closes back through the broken level
  *   EXPIRED    → InpExpiryBars bars elapsed without invalidation
  *
  * DRAWN ELEMENTS:
- *   OBJ_TREND  line  at level — from SNR origin to breakout bar, extending right
- *   OBJ_TEXT   label at breakout bar ("Bull BO" / "Bear BO")
+ *   OBJ_TREND  line at level — from SNR origin to breakout bar, extending right
+ *   OBJ_TEXT   label at breakout bar:
+ *     ACTIVE:              "Bull BO" / "Bear BO"
+ *     CONFIRMED / RETESTED "RBS"     / "SBR"
  *   OBJ_ARROW  marker at breakout bar (▲ bull / ▼ bear)
  *
  * JOURNAL:
  *   BREAKOUT_CREATED     | id | snr_id | dir | level | time
- *   BREAKOUT_CONFIRMED   | id | snr_id | dir | level | time
- *   BREAKOUT_RETESTED    | id | snr_id | dir | level | time
- *   BREAKOUT_INVALIDATED | id | snr_id | dir | level | time
- *   BREAKOUT_EXPIRED     | id | snr_id | dir | level | time
+ *   RBS_ACTIVE           | id | snr_id | level | time   (bull BO confirmed → RBS)
+ *   SBR_ACTIVE           | id | snr_id | level | time   (bear BO confirmed → SBR)
+ *   RBS_RETESTED         | id | snr_id | level | time
+ *   SBR_RETESTED         | id | snr_id | level | time
+ *   RBS_INVALIDATED      | id | snr_id | level | time
+ *   SBR_INVALIDATED      | id | snr_id | level | time
+ *   RBS_EXPIRED          | id | snr_id | level | time
+ *   SBR_EXPIRED          | id | snr_id | level | time
+ *   BREAKOUT_INVALIDATED | id | snr_id | dir | level | time  (never confirmed — failed before flip)
+ *   BREAKOUT_EXPIRED     | id | snr_id | dir | level | time  (never confirmed — aged before flip)
  *
  * FILTERS (optional):
  *   Body size   — breaking candle body ≥ N points
@@ -41,7 +57,7 @@
  * NO trading logic. Detection and visualisation only.
  */
 
-export const BREAKOUT_DETECTOR_VERSION = "1.0.0";
+export const BREAKOUT_DETECTOR_VERSION = "2.0.0";
 export const BREAKOUT_DETECTOR_MODULE  = "Breakout_Detector";
 
 export function generateBreakoutDetector(): string {
@@ -52,15 +68,18 @@ export function generateBreakoutDetector(): string {
 //| Detects breakouts of Classic SNR levels (close confirmation).  |
 //| Classic SNR: candle-pair direction reversal; level = A close.  |
 //|                                                                  |
-//| Bullish BO: close > Classic Resistance                          |
-//| Bearish BO: close < Classic Support                             |
-//| Wick breaks do NOT count (InpConfirmMode default = close_only) |
+//| Bullish BO: close > Classic Resistance → on CONFIRM → RBS      |
+//| Bearish BO: close < Classic Support    → on CONFIRM → SBR      |
 //|                                                                  |
-//| States: ACTIVE → CONFIRMED → RETESTED → INVALIDATED / EXPIRED  |
+//| RBS = Resistance Becomes Support (Buy Zone)                     |
+//| SBR = Support Becomes Resistance (Sell Zone)                    |
+//|                                                                  |
+//| States: ACTIVE → CONFIRMED (RBS/SBR) → RETESTED                |
+//|         → INVALIDATED / EXPIRED                                 |
 //| NO trading logic. Detection and visualisation only.            |
 //+------------------------------------------------------------------+
 #property copyright "EA Builder — SNR Module Library"
-#property version   "1.00"
+#property version   "2.00"
 #property strict
 #property indicator_chart_window
 #property indicator_plots 0
@@ -110,12 +129,17 @@ input bool InpRemoveInvalid = true;  // Remove invalidated / expired objects
 input int  InpMaxBreakouts  = 100;   // Max active breakouts visible
 
 //--- Inputs — Colours
-input color InpBullColor    = clrDodgerBlue; // Bullish breakout colour
-input color InpBearColor    = clrCrimson;    // Bearish breakout colour
-input color InpRetestColor  = clrGold;       // Retested breakout colour
-input color InpInvalidColor = clrDimGray;    // Invalidated / expired colour
-input int   InpOpacity      = 85;            // Active level opacity 0-100
-input int   InpFadeOpacity  = 35;            // Invalidated level opacity 0-100
+input color InpBullColor    = clrDodgerBlue;     // Bullish breakout (ACTIVE) colour
+input color InpBearColor    = clrCrimson;         // Bearish breakout (ACTIVE) colour
+input color InpRetestColor  = clrGold;            // Retested level colour
+input color InpInvalidColor = clrDimGray;         // Invalidated / expired colour
+input int   InpOpacity      = 85;                 // Active level opacity 0-100
+input int   InpFadeOpacity  = 35;                 // Invalidated level opacity 0-100
+
+//--- Inputs — RBS / SBR
+input bool  InpShowRbsSbr   = true;               // Visualise confirmed zone as RBS / SBR
+input color InpRbsColor     = clrMediumSeaGreen;  // RBS (Resistance Becomes Support) colour
+input color InpSbrColor     = clrOrangeRed;        // SBR (Support Becomes Resistance) colour
 
 //--- Inputs — Logging
 input bool InpShowLog = true; // Print lifecycle events to journal
@@ -159,7 +183,8 @@ int      nextBoId    = 0;
 datetime lastBarTime = 0;
 
 //+------------------------------------------------------------------+
-string DirName(int d) { return d > 0 ? "BULLISH" : "BEARISH"; }
+string DirName (int d) { return d > 0 ? "BULLISH" : "BEARISH"; }
+string ZoneName(int d) { return d > 0 ? "RBS" : "SBR"; }
 
 color BlendWithBg(color base, int opacityPct)
 {
@@ -296,8 +321,8 @@ void CheckBreakout(int sh)
       // Level must have been confirmed (candleBTime) before this bar
       if(snrList[i].candleBTime >= barT) continue;
 
-      double lvl       = snrList[i].price;
-      bool   isResist  = (snrList[i].type == SNR_RESISTANCE);
+      double lvl      = snrList[i].price;
+      bool   isResist = (snrList[i].type == SNR_RESISTANCE);
 
       // Break price depends on confirmation mode
       double breakPrice = (InpConfirmMode == CONFIRM_WICK)
@@ -341,6 +366,10 @@ void CheckBreakout(int sh)
 
 //+------------------------------------------------------------------+
 //| Update lifecycle for all live breakouts at bar sh.             |
+//|                                                                  |
+//| ACTIVE → CONFIRMED flips the zone to RBS / SBR.                |
+//| All events after confirmation use RBS_ / SBR_ log prefixes.    |
+//| If the breakout never confirmed, BREAKOUT_ prefixes are used.  |
 //+------------------------------------------------------------------+
 void UpdateBoLifecycle(int sh)
 {
@@ -352,10 +381,14 @@ void UpdateBoLifecycle(int sh)
    for(int i = 0; i < boTotal; i++)
    {
       if(boList[i].state == BO_INVALIDATED || boList[i].state == BO_EXPIRED) continue;
-      // Only process breakouts confirmed before this bar
+      // Only process breakouts created before this bar
       if(boList[i].breakoutTime >= barT) continue;
 
       boList[i].ageCounter++;
+
+      bool   isBull = (boList[i].dir == +1);
+      bool   wasRbs = (boList[i].state >= BO_CONFIRMED); // already flipped to RBS/SBR
+      double lvl    = boList[i].level;
 
       // ── Expiry ────────────────────────────────────────────────────
       if(InpExpiryBars > 0 && boList[i].ageCounter >= InpExpiryBars)
@@ -363,14 +396,19 @@ void UpdateBoLifecycle(int sh)
          boList[i].state   = BO_EXPIRED;
          boList[i].endTime = barT;
          if(InpShowLog)
-            PrintFormat("BREAKOUT_EXPIRED | id=%d | snr_id=%d | dir=%s | level=%.5f | time=%s",
-               boList[i].id, boList[i].snrId, DirName(boList[i].dir), boList[i].level,
-               TimeToString(barT, TIME_DATE|TIME_MINUTES));
+         {
+            if(wasRbs)
+               PrintFormat("%s_EXPIRED | id=%d | snr_id=%d | level=%.5f | time=%s",
+                  ZoneName(boList[i].dir),
+                  boList[i].id, boList[i].snrId, lvl,
+                  TimeToString(barT, TIME_DATE|TIME_MINUTES));
+            else
+               PrintFormat("BREAKOUT_EXPIRED | id=%d | snr_id=%d | dir=%s | level=%.5f | time=%s",
+                  boList[i].id, boList[i].snrId, DirName(boList[i].dir), lvl,
+                  TimeToString(barT, TIME_DATE|TIME_MINUTES));
+         }
          continue;
       }
-
-      double lvl    = boList[i].level;
-      bool   isBull = (boList[i].dir == +1);
 
       // ── Invalidation: close back through the broken level ─────────
       bool invalidated = isBull ? (barClose < lvl) : (barClose > lvl);
@@ -379,24 +417,33 @@ void UpdateBoLifecycle(int sh)
          boList[i].state   = BO_INVALIDATED;
          boList[i].endTime = barT;
          if(InpShowLog)
-            PrintFormat("BREAKOUT_INVALIDATED | id=%d | snr_id=%d | dir=%s | level=%.5f | time=%s",
-               boList[i].id, boList[i].snrId, DirName(boList[i].dir), lvl,
-               TimeToString(barT, TIME_DATE|TIME_MINUTES));
+         {
+            if(wasRbs)
+               PrintFormat("%s_INVALIDATED | id=%d | snr_id=%d | level=%.5f | time=%s",
+                  ZoneName(boList[i].dir),
+                  boList[i].id, boList[i].snrId, lvl,
+                  TimeToString(barT, TIME_DATE|TIME_MINUTES));
+            else
+               PrintFormat("BREAKOUT_INVALIDATED | id=%d | snr_id=%d | dir=%s | level=%.5f | time=%s",
+                  boList[i].id, boList[i].snrId, DirName(boList[i].dir), lvl,
+                  TimeToString(barT, TIME_DATE|TIME_MINUTES));
+         }
          continue;
       }
 
-      // ── Confirmation: ACTIVE → CONFIRMED on first non-invalidated bar ─
+      // ── Confirmation: ACTIVE → CONFIRMED (= RBS / SBR Active) ────
       if(boList[i].state == BO_ACTIVE)
       {
          boList[i].state = BO_CONFIRMED;
          if(InpShowLog)
-            PrintFormat("BREAKOUT_CONFIRMED | id=%d | snr_id=%d | dir=%s | level=%.5f | time=%s",
-               boList[i].id, boList[i].snrId, DirName(boList[i].dir), lvl,
+            PrintFormat("%s_ACTIVE | id=%d | snr_id=%d | level=%.5f | time=%s",
+               ZoneName(boList[i].dir),
+               boList[i].id, boList[i].snrId, lvl,
                TimeToString(barT, TIME_DATE|TIME_MINUTES));
       }
 
-      // ── Retest: wick returns to level without closing through ─────
-      // Only transitions from CONFIRMED → RETESTED (once)
+      // ── Retest: CONFIRMED → RETESTED (once) ──────────────────────
+      // Wick returns to level from the correct side without closing through
       if(boList[i].state == BO_CONFIRMED)
       {
          bool retested = isBull ? (barLow <= lvl) : (barHigh >= lvl);
@@ -404,8 +451,9 @@ void UpdateBoLifecycle(int sh)
          {
             boList[i].state = BO_RETESTED;
             if(InpShowLog)
-               PrintFormat("BREAKOUT_RETESTED | id=%d | snr_id=%d | dir=%s | level=%.5f | time=%s",
-                  boList[i].id, boList[i].snrId, DirName(boList[i].dir), lvl,
+               PrintFormat("%s_RETESTED | id=%d | snr_id=%d | level=%.5f | time=%s",
+                  ZoneName(boList[i].dir),
+                  boList[i].id, boList[i].snrId, lvl,
                   TimeToString(barT, TIME_DATE|TIME_MINUTES));
          }
       }
@@ -443,13 +491,31 @@ void EnforceMaxBreakouts()
 
 //+------------------------------------------------------------------+
 //| Resolve colour for the current breakout state.                 |
+//|                                                                  |
+//| BO_ACTIVE              → Bull/Bear (pre-confirmation colour)    |
+//| BO_CONFIRMED (RBS/SBR) → InpRbsColor / InpSbrColor             |
+//| BO_RETESTED            → InpRetestColor (gold)                  |
+//| BO_INVALIDATED/EXPIRED → InpInvalidColor (dim gray)             |
 //+------------------------------------------------------------------+
 color GetBoColor(int idx)
 {
-   int st = boList[idx].state;
-   if(st == BO_INVALIDATED || st == BO_EXPIRED) return InpInvalidColor;
-   if(st == BO_RETESTED)                        return InpRetestColor;
-   return boList[idx].dir > 0 ? InpBullColor : InpBearColor;
+   int st  = boList[idx].state;
+   int dir = boList[idx].dir;
+
+   if(st == BO_INVALIDATED || st == BO_EXPIRED)
+      return InpInvalidColor;
+
+   if(st == BO_RETESTED)
+      return InpRetestColor;
+
+   if(st == BO_CONFIRMED)
+   {
+      if(InpShowRbsSbr) return dir > 0 ? InpRbsColor : InpSbrColor;
+      return dir > 0 ? InpBullColor : InpBearColor;
+   }
+
+   // BO_ACTIVE — pre-flip, original breakout colour
+   return dir > 0 ? InpBullColor : InpBearColor;
 }
 
 //+------------------------------------------------------------------+
@@ -470,23 +536,34 @@ void BO_DrawOne(int idx)
 
    bool active = (st <= BO_RETESTED); // ACTIVE / CONFIRMED / RETESTED
 
-   // Remove from chart if inactive and InpRemoveInvalid is set
+   // Remove from chart if terminal state and InpRemoveInvalid is set
    if(!active && InpRemoveInvalid) { boList[idx].drawnState = st; return; }
 
-   int   opacity  = active ? InpOpacity : InpFadeOpacity;
-   color rawClr   = GetBoColor(idx);
-   color clr      = BlendWithBg(rawClr, opacity);
-   int   lstyle   = active ? STYLE_SOLID : STYLE_DASH;
-   bool  ray      = active; // extend right while active
-   datetime tRight = active ? tBO
-                             : (boList[idx].endTime > 0 ? boList[idx].endTime : tBO);
+   int      opacity = active ? InpOpacity : InpFadeOpacity;
+   color    rawClr  = GetBoColor(idx);
+   color    clr     = BlendWithBg(rawClr, opacity);
+   int      lstyle  = active ? STYLE_SOLID : STYLE_DASH;
+   bool     ray     = active; // extend right while active
+   datetime tRight  = active ? tBO
+                              : (boList[idx].endTime > 0 ? boList[idx].endTime : tBO);
+
+   // Line width 2 for confirmed RBS/SBR zones; 1 for ACTIVE or when RBS/SBR display is off
+   bool isFlipZone = (st >= BO_CONFIRMED && InpShowRbsSbr);
+   int  lwidth     = isFlipZone ? 2 : 1;
+
+   // Label: "RBS"/"SBR" once confirmed; "Bull BO"/"Bear BO" while still ACTIVE
+   string lblText;
+   if(isFlipZone)
+      lblText = dir > 0 ? "RBS" : "SBR";
+   else
+      lblText = dir > 0 ? "Bull BO" : "Bear BO";
 
    // ── Horizontal level line ────────────────────────────────────────
    if(ObjectCreate(0, ObjLine(boList[idx].id), OBJ_TREND, 0, tLeft, lvl, tRight, lvl))
    {
       ObjectSetInteger(0, ObjLine(boList[idx].id), OBJPROP_COLOR,      clr);
       ObjectSetInteger(0, ObjLine(boList[idx].id), OBJPROP_STYLE,      lstyle);
-      ObjectSetInteger(0, ObjLine(boList[idx].id), OBJPROP_WIDTH,      1);
+      ObjectSetInteger(0, ObjLine(boList[idx].id), OBJPROP_WIDTH,      lwidth);
       ObjectSetInteger(0, ObjLine(boList[idx].id), OBJPROP_RAY_RIGHT,  ray ? 1 : 0);
       ObjectSetInteger(0, ObjLine(boList[idx].id), OBJPROP_SELECTABLE, false);
       ObjectSetInteger(0, ObjLine(boList[idx].id), OBJPROP_HIDDEN,     true);
@@ -496,8 +573,7 @@ void BO_DrawOne(int idx)
    // ── Text label at breakout bar ───────────────────────────────────
    if(ObjectCreate(0, ObjLbl(boList[idx].id), OBJ_TEXT, 0, tBO, lvl))
    {
-      ObjectSetString( 0, ObjLbl(boList[idx].id), OBJPROP_TEXT,
-         dir > 0 ? "Bull BO" : "Bear BO");
+      ObjectSetString( 0, ObjLbl(boList[idx].id), OBJPROP_TEXT,     lblText);
       ObjectSetInteger(0, ObjLbl(boList[idx].id), OBJPROP_COLOR,    clr);
       ObjectSetInteger(0, ObjLbl(boList[idx].id), OBJPROP_FONTSIZE, 7);
       ObjectSetInteger(0, ObjLbl(boList[idx].id), OBJPROP_ANCHOR,
@@ -559,29 +635,29 @@ int OnInit()
    // then update lifecycle for all existing breakouts at bar sh.
    for(int sh = limit; sh >= 1; sh--)
    {
-      AddSnrLevel(sh + 1, sh);   // Candle A = sh+1, Candle B = sh
-      CheckBreakout(sh);          // Does bar sh break any SNR level?
-      UpdateBoLifecycle(sh);      // Update live breakouts at bar sh
+      AddSnrLevel(sh + 1, sh);  // Candle A = sh+1, Candle B = sh
+      CheckBreakout(sh);         // Does bar sh break any SNR level?
+      UpdateBoLifecycle(sh);     // Update live breakouts at bar sh
    }
 
    EnforceMaxBreakouts();
    BO_DrawAll();
 
    // Summary
-   int nAct=0, nCon=0, nRet=0, nInv=0, nExp=0;
+   int nAct=0, nRbs=0, nRet=0, nInv=0, nExp=0;
    for(int i=0; i<boTotal; i++)
    {
       switch(boList[i].state)
       {
          case BO_ACTIVE:      nAct++; break;
-         case BO_CONFIRMED:   nCon++; break;
+         case BO_CONFIRMED:   nRbs++; break;
          case BO_RETESTED:    nRet++; break;
          case BO_INVALIDATED: nInv++; break;
          case BO_EXPIRED:     nExp++; break;
       }
    }
-   PrintFormat("Breakout_Detector v1 ready | active=%d confirmed=%d retested=%d invalidated=%d expired=%d | %s %s",
-      nAct, nCon, nRet, nInv, nExp, _Symbol, EnumToString(InpTF));
+   PrintFormat("Breakout_Detector v2 ready | active=%d rbs_sbr=%d retested=%d invalidated=%d expired=%d | %s %s",
+      nAct, nRbs, nRet, nInv, nExp, _Symbol, EnumToString(InpTF));
    return INIT_SUCCEEDED;
 }
 
