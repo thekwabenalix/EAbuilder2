@@ -150,7 +150,6 @@ const PHASE1_MODULES: ModuleEntry[] = [
     ],
     output: [
       "Dashed OBJ_TREND line at swing level (swingTime → confirmTime)",
-      "OBJ_ARROW at wick tip (↑ bull sweep code 233 / ↓ bear sweep code 234), width 2",
       "OBJ_TEXT label at confirm bar: 'Bull Sweep #N' / 'Bear Sweep #N'",
       "Journal: SWING_CONFIRMED | id | dir | time | level",
       "Journal: SWEEP_CONFIRMED | id | swing_id | dir | sweep_bar | level | wick_tip | confirm_bar",

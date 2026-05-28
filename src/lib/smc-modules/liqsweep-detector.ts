@@ -36,7 +36,6 @@
  *
  * DRAWN ELEMENTS (CONFIRMED sweeps only):
  *   • Dashed horizontal line from swing candle to confirmation candle
- *   • Arrow (↑ bullish / ↓ bearish) at the wick tip of the sweep candle
  *   • Label: "Bull Sweep #N  Lvl:price" near the confirmation bar
  *
  * NO trading logic. Detection and visualisation only.
@@ -108,9 +107,8 @@ input color InpBearClr = clrOrangeRed;   // Bearish sweep colour
 input int   InpOpacity = 80;             // Sweep marker opacity 0-100
 
 //--- Inputs — Visibility
-input bool InpShowBull  = true; // Show bullish sweeps
-input bool InpShowBear  = true; // Show bearish sweeps
-input bool InpShowArrow = true; // Show wick-tip arrows (false = level line + label only)
+input bool InpShowBull = true; // Show bullish sweeps
+input bool InpShowBear = true; // Show bearish sweeps
 
 //--- Inputs — Logging
 input bool InpShowLog = true; // Print lifecycle events to journal
@@ -426,7 +424,6 @@ void SWEEP_DrawSweep(int idx)
    bool     bullish = (sweepList[idx].dir > 0);
    string   pfx     = "SMCLS_" + IntegerToString(sweepList[idx].id);
    string   objLine = pfx + "_line";
-   string   objArr  = pfx + "_arrow";
    string   objLbl  = pfx + "_lbl";
 
    datetime t1  = sweepList[idx].swingTime;
@@ -445,22 +442,7 @@ void SWEEP_DrawSweep(int idx)
       ObjectSetInteger(0, objLine, OBJPROP_BACK,       true);
    }
 
-   // ── 2. Arrow at the wick extreme of the sweep candle ─────────────
-   // Bullish sweep → ↑ arrow (233) at the wick low = rejection sign
-   // Bearish sweep → ↓ arrow (234) at the wick high
-   // InpShowArrow=false removes arrows entirely (level line + label remain)
-   if(InpShowArrow &&
-      ObjectCreate(0, objArr, OBJ_ARROW, 0,
-                   sweepList[idx].sweepTime, sweepList[idx].wickTip))
-   {
-      ObjectSetInteger(0, objArr, OBJPROP_ARROWCODE,  bullish ? 233 : 234);
-      ObjectSetInteger(0, objArr, OBJPROP_COLOR,      clr);
-      ObjectSetInteger(0, objArr, OBJPROP_WIDTH,      1);
-      ObjectSetInteger(0, objArr, OBJPROP_SELECTABLE, false);
-      ObjectSetInteger(0, objArr, OBJPROP_HIDDEN,     true);
-   }
-
-   // ── 3. Text label at confirmation bar ────────────────────────────
+   // ── 2. Text label at confirmation bar ────────────────────────────
    string txt = StringFormat("%s Sweep #%d  Lvl:%.5f",
                              bullish ? "Bull" : "Bear",
                              sweepList[idx].id,
