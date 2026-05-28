@@ -24,6 +24,8 @@ import { generateLiqSweepDetector } from "@/lib/smc-modules/liqsweep-detector";
 import { generateSwingStructureDetector } from "@/lib/smc-modules/swing-structure-detector";
 import { generateBosDetector } from "@/lib/smc-modules/bos-detector";
 import { generateChochDetector } from "@/lib/smc-modules/choch-detector";
+import { generateClassicSnrDetector } from "@/lib/smc-modules/classic-snr-detector";
+import { generateGapSnrDetector } from "@/lib/smc-modules/gap-snr-detector";
 
 export const Route = createFileRoute("/modules")({
   component: ModulesPage,
@@ -313,8 +315,8 @@ const TRADING_MODULES: ModuleCategory[] = [
     label: "SNR",
     fullName: "Support & Resistance",
     icon: Minus,
-    phaseTag: "Roadmap",
-    phaseActive: false,
+    phaseTag: "Phase 1 Active",
+    phaseActive: true,
     description:
       "Classic and advanced support/resistance concepts. Each module detects, " +
       "visualises, and tracks the lifecycle of a specific S/R behaviour — " +
@@ -322,21 +324,57 @@ const TRADING_MODULES: ModuleCategory[] = [
     modules: [
       {
         id: "classic-snr",
-        filename: "SNR_Classic_Detector.mq5",
-        name: "Classic SNR",
+        filename: "Classic_SNR_Detector.mq5",
+        name: "Classic SNR Detector",
         description:
-          "Detects horizontal S/R levels from swing highs and lows. Tracks zone " +
-          "strength by counting price touches and logs each test.",
-        status: "planned",
+          "Detects Classic S/R levels from candle-pair direction reversals. " +
+          "Candle A close becomes the level; Candle B direction determines type. " +
+          "Full ACTIVE → TOUCHED → BROKEN / EXPIRED lifecycle with configurable expiry.",
+        rules: [
+          "RESISTANCE: Bullish Candle A → Bearish Candle B  (A close = resistance)",
+          "SUPPORT:    Bearish Candle A → Bullish Candle B  (A close = support)",
+          "Doji filter: InpIgnoreDoji=true skips neutral candles (exact or body threshold)",
+          "Touched: wick reaches level (low ≤ level for support / high ≥ level for resistance)",
+          "Broken:  close through level (close < level for support / close > level for resistance)",
+          "Expiry: InpExpiryBars=100 bars — ageCounter increments each bar after confirmation",
+          "Max visible: InpMaxLevels=100 — oldest active level pruned when exceeded",
+        ],
+        output: [
+          "ACTIVE / TOUCHED: solid OBJ_TREND line + 'C-Sup' / 'C-Res' label, RAY_RIGHT=true",
+          "BROKEN / EXPIRED: dashed line stopped at break bar (or deleted if InpRemoveBroken=true)",
+          "Support: clrMediumSeaGreen  |  Resistance: clrTomato  |  Broken: clrDimGray",
+          "Journal: SNR_CREATED | SNR_TOUCHED | SNR_BROKEN | SNR_EXPIRED | id | type | level | time",
+          "Inputs: show_support · show_resistance · expiry_bars · remove_broken · max_levels · ignore_doji",
+        ],
+        status: "ready",
+        generate: generateClassicSnrDetector,
       },
       {
         id: "gap-snr",
-        filename: "SNR_Gap_Detector.mq5",
-        name: "Gap SNR",
+        filename: "Gap_SNR_Detector.mq5",
+        name: "Gap SNR Detector",
         description:
-          "Identifies price gaps (windows) that act as S/R levels. Tracks whether " +
-          "the gap has been filled or is still acting as a magnet.",
-        status: "planned",
+          "Detects Gap S/R levels from candle-pair direction continuation. " +
+          "When two consecutive candles move the same way, Candle A's close " +
+          "marks a momentum level that often acts as future S/R.",
+        rules: [
+          "GAP SUPPORT:    Bullish Candle A → Bullish Candle B  (A close = support)",
+          "GAP RESISTANCE: Bearish Candle A → Bearish Candle B  (A close = resistance)",
+          "Doji filter: InpIgnoreDoji=true skips neutral candles (exact or body threshold)",
+          "Touched: wick reaches level (low ≤ level for support / high ≥ level for resistance)",
+          "Broken:  close through level (close < level for support / close > level for resistance)",
+          "Expiry: InpExpiryBars=100 bars — ageCounter increments each bar after confirmation",
+          "Max visible: InpMaxLevels=100 — oldest active level pruned when exceeded",
+        ],
+        output: [
+          "ACTIVE / TOUCHED: solid OBJ_TREND line + 'G-Sup' / 'G-Res' label, RAY_RIGHT=true",
+          "BROKEN / EXPIRED: dashed line stopped at break bar (or deleted if InpRemoveBroken=true)",
+          "Support: clrDodgerBlue  |  Resistance: clrDarkOrange  |  Broken: clrSlateGray",
+          "Journal: SNR_CREATED | SNR_TOUCHED | SNR_BROKEN | SNR_EXPIRED | id | type | level | time",
+          "Inputs: show_support · show_resistance · expiry_bars · remove_broken · max_levels · ignore_doji",
+        ],
+        status: "ready",
+        generate: generateGapSnrDetector,
       },
       {
         id: "breakout",
