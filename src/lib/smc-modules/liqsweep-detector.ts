@@ -108,8 +108,9 @@ input color InpBearClr = clrOrangeRed;   // Bearish sweep colour
 input int   InpOpacity = 80;             // Sweep marker opacity 0-100
 
 //--- Inputs — Visibility
-input bool InpShowBull = true; // Show bullish sweeps
-input bool InpShowBear = true; // Show bearish sweeps
+input bool InpShowBull  = true; // Show bullish sweeps
+input bool InpShowBear  = true; // Show bearish sweeps
+input bool InpShowArrow = true; // Show wick-tip arrows (false = level line + label only)
 
 //--- Inputs — Logging
 input bool InpShowLog = true; // Print lifecycle events to journal
@@ -447,12 +448,14 @@ void SWEEP_DrawSweep(int idx)
    // ── 2. Arrow at the wick extreme of the sweep candle ─────────────
    // Bullish sweep → ↑ arrow (233) at the wick low = rejection sign
    // Bearish sweep → ↓ arrow (234) at the wick high
-   if(ObjectCreate(0, objArr, OBJ_ARROW, 0,
+   // InpShowArrow=false removes arrows entirely (level line + label remain)
+   if(InpShowArrow &&
+      ObjectCreate(0, objArr, OBJ_ARROW, 0,
                    sweepList[idx].sweepTime, sweepList[idx].wickTip))
    {
       ObjectSetInteger(0, objArr, OBJPROP_ARROWCODE,  bullish ? 233 : 234);
       ObjectSetInteger(0, objArr, OBJPROP_COLOR,      clr);
-      ObjectSetInteger(0, objArr, OBJPROP_WIDTH,      2);
+      ObjectSetInteger(0, objArr, OBJPROP_WIDTH,      1);
       ObjectSetInteger(0, objArr, OBJPROP_SELECTABLE, false);
       ObjectSetInteger(0, objArr, OBJPROP_HIDDEN,     true);
    }
