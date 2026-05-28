@@ -1,34 +1,37 @@
 /**
- * SMC Module Library — Phase 1: BOS Detector
+ * SMC Module Library — Phase 1: BOS Detector v2.0.0
  *
- * BOS_Detector v1.0.0
- * ────────────────────────────────
- * Break of Structure — price closes beyond a previous swing in the
- * SAME direction as the current trend.
+ * Break of Structure — clean, filtered, self-cleaning.
  *
- * TREND STATE:
- *    0 = unknown  |  1 = bullish  |  -1 = bearish
+ * BULLISH BOS: close > valid swing high → solid line from swing → break bar
+ * BEARISH BOS: close < valid swing low  → solid line from swing → break bar
+ *
+ * SELF-CLEANING:
+ *   Active BOS lines are removed when price closes back through them.
+ *   Bullish BOS at X is removed when close < X.
+ *   Bearish BOS at X is removed when close > X.
+ *
+ * PIVOT FILTERS (reduce noise):
+ *   InpPivotLen    — bars required on each side (default 5)
+ *   InpMinSwingPts — new swing must be at least N points from previous
+ *                    swing of same type (0 = off)
+ *   InpUseAtrFilt  — replace point distance with ATR × multiplier
+ *   InpMaxBosLines — oldest active BOS removed when count exceeds limit
  *
  * RULES:
- *   Close > last swing high → if trend != -1 : BULLISH BOS  (trend stays/becomes 1)
- *   Close < last swing low  → if trend != +1 : BEARISH BOS  (trend stays/becomes -1)
- *
- *   In both cases the trend state is updated after the classification.
- *   CHoCH events (when trend DOES flip) are detected but not drawn here;
- *   they are handled by CHoCH_Detector.mq5.
- *
- * DRAWN ELEMENTS:
- *   Solid horizontal line from the broken swing to the break candle.
- *   Label "BOS" anchored at the break bar.
+ *   • A swing can only generate one BOS (consumed flag).
+ *   • Multiple unbroken swings can be tested each bar — filters control quantity.
+ *   • No CHoCH. No trend state. No trade logic.
  *
  * JOURNAL:
- *   BULLISH_BOS | id | price | time | trend_before
- *   BEARISH_BOS | id | price | time | trend_before
+ *   BULLISH_BOS | id | price | time
+ *   BEARISH_BOS | id | price | time
+ *   BOS_INVALIDATED | id | dir | price | time
  *
- * NO trading logic. Detection and visualisation only.
+ * Detection and visualisation only.
  */
 
-export const BOS_DETECTOR_VERSION = "1.0.0";
+export const BOS_DETECTOR_VERSION = "2.0.0";
 export const BOS_DETECTOR_MODULE  = "BOS_Detector";
 
 export function generateBosDetector(): string {
@@ -36,26 +39,25 @@ export function generateBosDetector(): string {
 //| BOS_Detector.mq5                                                |
 //| SMC Module Library v${BOS_DETECTOR_VERSION} — Phase 1: Detection Only       |
 //|                                                                  |
-//| Break of Structure: price closes beyond a previous swing in     |
-//| the same direction as the current trend.                        |
+//| Clean Break of Structure detector.                               |
 //|                                                                  |
-//| Trend: 0=unknown  1=bullish  -1=bearish                         |
-//| Bullish BOS: close > last swing high  AND trend != -1           |
-//| Bearish BOS: close < last swing low   AND trend != +1           |
+//| BULLISH BOS: close > valid swing high                           |
+//| BEARISH BOS: close < valid swing low                            |
 //|                                                                  |
-//| NO trading logic. Detection and visualisation only.             |
+//| BOS lines are REMOVED when price closes back through them.      |
+//| Filters: pivot length · min distance · ATR filter · max lines   |
+//|                                                                  |
+//| NO CHoCH. NO trend state. NO trade logic.                        |
+//| Detection and visualisation only.                               |
 //+------------------------------------------------------------------+
 #property copyright "EA Builder — SMC Module Library"
-#property version   "1.00"
+#property version   "2.00"
 #property strict
 #property indicator_chart_window
 #property indicator_plots 0
 
-#define SWING_HIGH     1
-#define SWING_LOW     -1
-#define TREND_UNKNOWN  0
-#define TREND_BULL     1
-#define TREND_BEAR    -1
+#define SWING_HIGH  1
+#define SWING_LOW  -1
 
 enum ENUM_CONFIRM_MODE
 {
@@ -66,28 +68,36 @@ enum ENUM_CONFIRM_MODE
 //--- Inputs — Detection
 input ENUM_TIMEFRAMES   InpTF          = PERIOD_CURRENT; // Timeframe
 input int               InpLookback    = 500;             // Historical bars to scan on load
-input int               InpSwingLeft   = 3;               // Swing strength: left bars
-input int               InpSwingRight  = 3;               // Swing strength: right bars
-input ENUM_CONFIRM_MODE InpConfirmMode = CONFIRM_CLOSE;  // Break confirmation
+input int               InpPivotLen    = 5;               // Pivot length: bars required each side
+input ENUM_CONFIRM_MODE InpConfirmMode = CONFIRM_CLOSE;  // Break confirmation mode
+
+//--- Inputs — Filters
+input int    InpMinSwingPts = 0;    // Min swing size in points from prev same-type swing (0=off)
+input bool   InpUseAtrFilt  = false; // Use ATR-based distance filter instead of fixed points
+input double InpAtrMult     = 1.0;  // ATR multiplier (active when InpUseAtrFilt=true)
+input int    InpAtrPeriod   = 14;   // ATR period for distance filter
+
+//--- Inputs — Display
+input int InpMaxBosLines = 20; // Max active BOS lines (oldest removed when exceeded)
 
 //--- Inputs — Colours
 input color InpBullColor = clrLimeGreen; // Bullish BOS colour
 input color InpBearColor = clrCrimson;   // Bearish BOS colour
-input int   InpOpacity   = 85;           // Line opacity 0-100
+input int   InpOpacity   = 85;           // Line and label opacity 0-100
 
 //--- Inputs — Logging
 input bool InpShowLog = true; // Print BOS events to journal
 
-#define SWING_MAX 600
-#define BOS_MAX   200
+#define SWING_MAX 800
+#define BOS_MAX   400
 
 struct SwingRecord
 {
    int      id;
-   int      type;   // SWING_HIGH or SWING_LOW
+   int      type;     // SWING_HIGH or SWING_LOW
    double   price;
    datetime time;
-   bool     broken;
+   bool     consumed; // true once it has generated one BOS
 };
 
 struct BosRecord
@@ -97,16 +107,16 @@ struct BosRecord
    double   level;      // the swing price that was broken
    datetime swingTime;  // left edge of the line
    datetime breakTime;  // right edge of the line (break bar)
-   bool     drawn;
+   bool     active;     // false = invalidated, objects deleted
+   bool     drawn;      // true once chart objects have been created
 };
 
 SwingRecord swingList[SWING_MAX];
-BosRecord   bosList  [BOS_MAX];
+BosRecord   bosRecord [BOS_MAX];
 int      swingTotal  = 0;
 int      bosTotal    = 0;
 int      nextSwingId = 0;
 int      nextBosId   = 0;
-int      gTrend      = TREND_UNKNOWN;
 datetime lastBarTime = 0;
 
 //+------------------------------------------------------------------+
@@ -123,97 +133,177 @@ color BlendWithBg(color base, int opacityPct)
    return (color)(r | (g << 8) | (b << 16));
 }
 
-string TrendName(int t)
-{ return t == TREND_BULL ? "BULL" : t == TREND_BEAR ? "BEAR" : "UNKNOWN"; }
+//+------------------------------------------------------------------+
+//| Self-contained ATR: simple mean of True Range over [sh, sh+per) |
+//+------------------------------------------------------------------+
+double CalcATR(int sh, int period)
+{
+   int avail = iBars(_Symbol, InpTF);
+   if(sh + period + 1 >= avail) return 0.0;
+   double sum = 0.0;
+   for(int i = sh; i < sh + period; i++)
+   {
+      double hi = iHigh (_Symbol, InpTF, i);
+      double lo = iLow  (_Symbol, InpTF, i);
+      double pc = iClose(_Symbol, InpTF, i + 1);
+      double tr = MathMax(hi - lo, MathMax(MathAbs(hi - pc), MathAbs(lo - pc)));
+      sum += tr;
+   }
+   return sum / period;
+}
 
+//+------------------------------------------------------------------+
+//| Minimum swing size threshold.                                    |
+//| Returns 0 when both filters are off.                            |
+//+------------------------------------------------------------------+
+double MinSwingDist(int sh)
+{
+   if(InpUseAtrFilt)
+      return InpAtrMult * CalcATR(sh, InpAtrPeriod);
+   if(InpMinSwingPts > 0)
+      return InpMinSwingPts * _Point;
+   return 0.0;
+}
+
+//+------------------------------------------------------------------+
+//| Scan bar sh as a candidate swing high / swing low.              |
+//|                                                                  |
+//| Requires InpPivotLen bars on each side.                         |
+//| Distance filter: new swing must differ from the most recent      |
+//| swing of the same type by at least MinSwingDist.                |
 //+------------------------------------------------------------------+
 void SWING_ScanBar(int sh)
 {
    int avail = iBars(_Symbol, InpTF);
-   if(sh < InpSwingRight + 1 || sh + InpSwingLeft >= avail) return;
+   if(sh < InpPivotLen + 1 || sh + InpPivotLen >= avail) return;
 
    double   hi = iHigh(_Symbol, InpTF, sh);
    double   lo = iLow (_Symbol, InpTF, sh);
    datetime t  = iTime(_Symbol, InpTF, sh);
-   bool isHigh = true, isLow = true;
-   int  maxK   = MathMax(InpSwingLeft, InpSwingRight);
 
-   for(int k = 1; k <= maxK && (isHigh || isLow); k++)
+   bool isHigh = true, isLow = true;
+   for(int k = 1; k <= InpPivotLen && (isHigh || isLow); k++)
    {
-      if(k <= InpSwingLeft)
-      {
-         if(iHigh(_Symbol, InpTF, sh + k) >= hi) isHigh = false;
-         if(iLow (_Symbol, InpTF, sh + k) <= lo) isLow  = false;
-      }
-      if(k <= InpSwingRight)
-      {
-         if(iHigh(_Symbol, InpTF, sh - k) >= hi) isHigh = false;
-         if(iLow (_Symbol, InpTF, sh - k) <= lo) isLow  = false;
-      }
+      if(iHigh(_Symbol, InpTF, sh + k) >= hi) isHigh = false;
+      if(iHigh(_Symbol, InpTF, sh - k) >= hi) isHigh = false;
+      if(iLow (_Symbol, InpTF, sh + k) <= lo) isLow  = false;
+      if(iLow (_Symbol, InpTF, sh - k) <= lo) isLow  = false;
    }
 
+   double minDist = MinSwingDist(sh);
+
+   // ── Swing High ────────────────────────────────────────────────────
    if(isHigh && swingTotal < SWING_MAX)
    {
+      // Dedup by time
       bool dup = false;
       for(int i = 0; i < swingTotal; i++)
          if(swingList[i].type == SWING_HIGH && swingList[i].time == t) { dup=true; break; }
+
       if(!dup)
       {
-         int idx = swingTotal++;
-         swingList[idx].id     = nextSwingId++;
-         swingList[idx].type   = SWING_HIGH;
-         swingList[idx].price  = hi;
-         swingList[idx].time   = t;
-         swingList[idx].broken = false;
+         // Distance filter: check against the most recent swing high
+         bool tooClose = false;
+         if(minDist > 0.0)
+         {
+            datetime bestT = 0; double bestP = 0;
+            for(int i = 0; i < swingTotal; i++)
+               if(swingList[i].type == SWING_HIGH && swingList[i].time > bestT)
+               { bestT = swingList[i].time; bestP = swingList[i].price; }
+            if(bestT > 0 && MathAbs(hi - bestP) < minDist) tooClose = true;
+         }
+
+         if(!tooClose)
+         {
+            int idx = swingTotal++;
+            swingList[idx].id       = nextSwingId++;
+            swingList[idx].type     = SWING_HIGH;
+            swingList[idx].price    = hi;
+            swingList[idx].time     = t;
+            swingList[idx].consumed = false;
+         }
       }
    }
+
+   // ── Swing Low ─────────────────────────────────────────────────────
    if(isLow && swingTotal < SWING_MAX)
    {
       bool dup = false;
       for(int i = 0; i < swingTotal; i++)
          if(swingList[i].type == SWING_LOW && swingList[i].time == t) { dup=true; break; }
+
       if(!dup)
       {
-         int idx = swingTotal++;
-         swingList[idx].id     = nextSwingId++;
-         swingList[idx].type   = SWING_LOW;
-         swingList[idx].price  = lo;
-         swingList[idx].time   = t;
-         swingList[idx].broken = false;
+         bool tooClose = false;
+         if(minDist > 0.0)
+         {
+            datetime bestT = 0; double bestP = 0;
+            for(int i = 0; i < swingTotal; i++)
+               if(swingList[i].type == SWING_LOW && swingList[i].time > bestT)
+               { bestT = swingList[i].time; bestP = swingList[i].price; }
+            if(bestT > 0 && MathAbs(lo - bestP) < minDist) tooClose = true;
+         }
+
+         if(!tooClose)
+         {
+            int idx = swingTotal++;
+            swingList[idx].id       = nextSwingId++;
+            swingList[idx].type     = SWING_LOW;
+            swingList[idx].price    = lo;
+            swingList[idx].time     = t;
+            swingList[idx].consumed = false;
+         }
       }
    }
 }
 
 //+------------------------------------------------------------------+
-int FindProtectedHigh()
+//| Delete chart objects for a BOS record.                          |
+//| Safe to call even if objects do not exist.                       |
+//+------------------------------------------------------------------+
+void BOS_DeleteObjects(int idx)
 {
-   int best=-1; datetime bestT=0;
-   for(int i=0; i<swingTotal; i++)
-   {
-      if(swingList[i].type!=SWING_HIGH || swingList[i].broken) continue;
-      if(swingList[i].time>bestT) { bestT=swingList[i].time; best=i; }
-   }
-   return best;
-}
-
-int FindProtectedLow()
-{
-   int best=-1; datetime bestT=0;
-   for(int i=0; i<swingTotal; i++)
-   {
-      if(swingList[i].type!=SWING_LOW || swingList[i].broken) continue;
-      if(swingList[i].time>bestT) { bestT=swingList[i].time; best=i; }
-   }
-   return best;
+   string pfx = "SMCBOS_" + IntegerToString(bosRecord[idx].id);
+   ObjectDelete(0, pfx + "_line");
+   ObjectDelete(0, pfx + "_lbl");
 }
 
 //+------------------------------------------------------------------+
-//| Check bar sh for a structure break.                             |
+//| Remove oldest active BOS lines until count <= InpMaxBosLines.  |
+//+------------------------------------------------------------------+
+void BOS_EnforceLimit()
+{
+   if(InpMaxBosLines <= 0) return;
+
+   // Count active
+   int activeCount = 0;
+   for(int i = 0; i < bosTotal; i++)
+      if(bosRecord[i].active) activeCount++;
+
+   while(activeCount > InpMaxBosLines)
+   {
+      datetime oldestT = (datetime)LLONG_MAX;
+      int oldestIdx = -1;
+      for(int i = 0; i < bosTotal; i++)
+      {
+         if(!bosRecord[i].active) continue;
+         if(bosRecord[i].breakTime < oldestT)
+         { oldestT = bosRecord[i].breakTime; oldestIdx = i; }
+      }
+      if(oldestIdx < 0) break;
+      BOS_DeleteObjects(oldestIdx);
+      bosRecord[oldestIdx].active = false;
+      activeCount--;
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Check bar sh for new structure breaks.                          |
 //|                                                                  |
-//| Both BOS and CHoCH events update gTrend.                        |
-//| Only BOS events are recorded in bosList for drawing.            |
+//| Tests all unconsumed swings that predate the bar.               |
+//| Each unconsumed swing can produce at most one BOS.              |
 //+------------------------------------------------------------------+
-void CheckStructureBreak(int sh)
+void BOS_CheckBreaks(int sh)
 {
    double   barClose = iClose(_Symbol, InpTF, sh);
    double   barHigh  = iHigh (_Symbol, InpTF, sh);
@@ -223,75 +313,103 @@ void CheckStructureBreak(int sh)
    double breakUp = (InpConfirmMode == CONFIRM_WICK) ? barHigh : barClose;
    double breakDn = (InpConfirmMode == CONFIRM_WICK) ? barLow  : barClose;
 
-   // ── Bullish break ─────────────────────────────────────────────────
-   int hiIdx = FindProtectedHigh();
-   if(hiIdx >= 0 && swingList[hiIdx].time < barT && breakUp > swingList[hiIdx].price)
+   for(int i = 0; i < swingTotal; i++)
    {
-      bool isBos = (gTrend != TREND_BEAR); // BOS when trend was BULL or UNKNOWN
-      int  tBefore = gTrend;
-      swingList[hiIdx].broken = true;
-      gTrend = TREND_BULL;
+      if(swingList[i].consumed)            continue;
+      if(swingList[i].time >= barT)        continue; // swing must predate this bar
+      if(bosTotal >= BOS_MAX)              break;
 
-      if(isBos && bosTotal < BOS_MAX)
+      // ── Bullish BOS ───────────────────────────────────────────────
+      if(swingList[i].type == SWING_HIGH && breakUp > swingList[i].price)
       {
-         int i = bosTotal++;
-         bosList[i].id        = nextBosId++;
-         bosList[i].dir       = +1;
-         bosList[i].level     = swingList[hiIdx].price;
-         bosList[i].swingTime = swingList[hiIdx].time;
-         bosList[i].breakTime = barT;
-         bosList[i].drawn     = false;
+         swingList[i].consumed = true;
+         int j = bosTotal++;
+         bosRecord[j].id        = nextBosId++;
+         bosRecord[j].dir       = +1;
+         bosRecord[j].level     = swingList[i].price;
+         bosRecord[j].swingTime = swingList[i].time;
+         bosRecord[j].breakTime = barT;
+         bosRecord[j].active    = true;
+         bosRecord[j].drawn     = false;
 
          if(InpShowLog)
-            PrintFormat("BULLISH_BOS | id=%d | price=%.5f | time=%s | trend_before=%s",
-               bosList[i].id, bosList[i].level,
-               TimeToString(barT, TIME_DATE|TIME_MINUTES), TrendName(tBefore));
+            PrintFormat("BULLISH_BOS | id=%d | price=%.5f | time=%s",
+               bosRecord[j].id, bosRecord[j].level,
+               TimeToString(barT, TIME_DATE|TIME_MINUTES));
       }
-      // If !isBos this is a CHoCH — gTrend is still updated but BOS_Detector does not draw it.
-   }
-
-   // ── Bearish break ─────────────────────────────────────────────────
-   int loIdx = FindProtectedLow();
-   if(loIdx >= 0 && swingList[loIdx].time < barT && breakDn < swingList[loIdx].price)
-   {
-      bool isBos = (gTrend != TREND_BULL); // BOS when trend was BEAR or UNKNOWN
-      int  tBefore = gTrend;
-      swingList[loIdx].broken = true;
-      gTrend = TREND_BEAR;
-
-      if(isBos && bosTotal < BOS_MAX)
+      // ── Bearish BOS ───────────────────────────────────────────────
+      else if(swingList[i].type == SWING_LOW && breakDn < swingList[i].price)
       {
-         int i = bosTotal++;
-         bosList[i].id        = nextBosId++;
-         bosList[i].dir       = -1;
-         bosList[i].level     = swingList[loIdx].price;
-         bosList[i].swingTime = swingList[loIdx].time;
-         bosList[i].breakTime = barT;
-         bosList[i].drawn     = false;
+         swingList[i].consumed = true;
+         int j = bosTotal++;
+         bosRecord[j].id        = nextBosId++;
+         bosRecord[j].dir       = -1;
+         bosRecord[j].level     = swingList[i].price;
+         bosRecord[j].swingTime = swingList[i].time;
+         bosRecord[j].breakTime = barT;
+         bosRecord[j].active    = true;
+         bosRecord[j].drawn     = false;
 
          if(InpShowLog)
-            PrintFormat("BEARISH_BOS | id=%d | price=%.5f | time=%s | trend_before=%s",
-               bosList[i].id, bosList[i].level,
-               TimeToString(barT, TIME_DATE|TIME_MINUTES), TrendName(tBefore));
+            PrintFormat("BEARISH_BOS | id=%d | price=%.5f | time=%s",
+               bosRecord[j].id, bosRecord[j].level,
+               TimeToString(barT, TIME_DATE|TIME_MINUTES));
       }
    }
 }
 
 //+------------------------------------------------------------------+
-//| Draw one BOS event: solid horizontal line + "BOS" label.        |
+//| Check every active BOS line for invalidation on bar sh.        |
+//|                                                                  |
+//| Bullish BOS at X: invalidated when close < X                    |
+//| Bearish BOS at X: invalidated when close > X                    |
+//+------------------------------------------------------------------+
+void BOS_CheckInvalidations(int sh)
+{
+   double   barClose = iClose(_Symbol, InpTF, sh);
+   datetime barT     = iTime (_Symbol, InpTF, sh);
+
+   for(int i = 0; i < bosTotal; i++)
+   {
+      if(!bosRecord[i].active) continue;
+
+      bool inv = false;
+      if(bosRecord[i].dir > 0 && barClose < bosRecord[i].level) inv = true;
+      if(bosRecord[i].dir < 0 && barClose > bosRecord[i].level) inv = true;
+
+      if(inv)
+      {
+         BOS_DeleteObjects(i);   // removes objects if they exist (silent if not)
+         bosRecord[i].active = false;
+
+         if(InpShowLog)
+            PrintFormat("BOS_INVALIDATED | id=%d | %s | price=%.5f | time=%s",
+               bosRecord[i].id,
+               bosRecord[i].dir > 0 ? "BULLISH" : "BEARISH",
+               bosRecord[i].level,
+               TimeToString(barT, TIME_DATE|TIME_MINUTES));
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Draw one active BOS line and label.                             |
 //+------------------------------------------------------------------+
 void BOS_DrawLine(int idx)
 {
-   color rawClr = (bosList[idx].dir > 0) ? InpBullColor : InpBearColor;
+   if(!bosRecord[idx].active) return;
+
+   color rawClr = (bosRecord[idx].dir > 0) ? InpBullColor : InpBearColor;
    color clr    = BlendWithBg(rawClr, InpOpacity);
 
-   string pfx     = "SMCBOS_" + IntegerToString(bosList[idx].id);
+   string pfx     = "SMCBOS_" + IntegerToString(bosRecord[idx].id);
    string objLine = pfx + "_line";
    string objLbl  = pfx + "_lbl";
+   string lbl     = bosRecord[idx].dir > 0 ? "Bull BOS" : "Bear BOS";
 
    if(ObjectCreate(0, objLine, OBJ_TREND, 0,
-                   bosList[idx].swingTime, bosList[idx].level,
-                   bosList[idx].breakTime, bosList[idx].level))
+                   bosRecord[idx].swingTime, bosRecord[idx].level,
+                   bosRecord[idx].breakTime, bosRecord[idx].level))
    {
       ObjectSetInteger(0, objLine, OBJPROP_COLOR,      clr);
       ObjectSetInteger(0, objLine, OBJPROP_STYLE,      STYLE_SOLID);
@@ -302,27 +420,30 @@ void BOS_DrawLine(int idx)
       ObjectSetInteger(0, objLine, OBJPROP_BACK,       true);
    }
 
-   if(ObjectCreate(0, objLbl, OBJ_TEXT, 0, bosList[idx].breakTime, bosList[idx].level))
+   if(ObjectCreate(0, objLbl, OBJ_TEXT, 0,
+                   bosRecord[idx].breakTime, bosRecord[idx].level))
    {
-      ObjectSetString( 0, objLbl, OBJPROP_TEXT,     "BOS");
+      ObjectSetString( 0, objLbl, OBJPROP_TEXT,     lbl);
       ObjectSetInteger(0, objLbl, OBJPROP_COLOR,    clr);
       ObjectSetInteger(0, objLbl, OBJPROP_FONTSIZE, 7);
       ObjectSetInteger(0, objLbl, OBJPROP_ANCHOR,
-         bosList[idx].dir > 0 ? ANCHOR_LEFT_LOWER : ANCHOR_LEFT_UPPER);
+         bosRecord[idx].dir > 0 ? ANCHOR_LEFT_LOWER : ANCHOR_LEFT_UPPER);
       ObjectSetInteger(0, objLbl, OBJPROP_SELECTABLE, false);
       ObjectSetInteger(0, objLbl, OBJPROP_HIDDEN,   true);
       ObjectSetInteger(0, objLbl, OBJPROP_BACK,     false);
    }
 
-   bosList[idx].drawn = true;
+   bosRecord[idx].drawn = true;
 }
 
+//+------------------------------------------------------------------+
+//| Draw all active BOS records that have not been drawn yet.       |
 //+------------------------------------------------------------------+
 void BOS_DrawNew()
 {
    for(int i = 0; i < bosTotal; i++)
    {
-      if(bosList[i].drawn) continue;
+      if(!bosRecord[i].active || bosRecord[i].drawn) continue;
       BOS_DrawLine(i);
    }
    ChartRedraw(0);
@@ -343,28 +464,40 @@ int OnInit()
 {
    DeleteAll();
    swingTotal=0; bosTotal=0; nextSwingId=0; nextBosId=0;
-   gTrend = TREND_UNKNOWN;
 
    int avail = iBars(_Symbol, InpTF);
-   if(avail < InpSwingLeft + InpSwingRight + 2)
+   if(avail < 2 * InpPivotLen + 2)
    { Print("BOS_Detector: not enough bars."); return INIT_FAILED; }
 
-   int limit = MathMin(InpLookback, avail - InpSwingLeft - 2);
+   int limit = MathMin(InpLookback, avail - InpPivotLen - 2);
 
-   for(int sh = limit; sh >= InpSwingRight + 1; sh--)
+   // ── Step 1: Detect all valid swings ──────────────────────────────
+   for(int sh = limit; sh >= InpPivotLen + 1; sh--)
       SWING_ScanBar(sh);
 
+   // ── Step 2: Historical BOS + invalidation replay ──────────────────
+   // Walk oldest → newest:
+   //   • Check if bar breaks any unconsumed swing → create BOS
+   //   • Check if bar invalidates any active BOS  → deactivate
+   //   • Enforce max line limit
    for(int sh = limit; sh >= 1; sh--)
-      CheckStructureBreak(sh);
+   {
+      BOS_CheckBreaks(sh);
+      BOS_CheckInvalidations(sh);
+      BOS_EnforceLimit();
+   }
 
+   // ── Step 3: Draw surviving active BOS lines ───────────────────────
    BOS_DrawNew();
 
-   int nBull=0, nBear=0;
+   // ── Summary ───────────────────────────────────────────────────────
+   int nActive=0, nBull=0, nBear=0;
    for(int i=0; i<bosTotal; i++)
-      bosList[i].dir>0 ? nBull++ : nBear++;
+      if(bosRecord[i].active) { nActive++; bosRecord[i].dir>0 ? nBull++ : nBear++; }
 
-   PrintFormat("BOS_Detector v1 ready | BOS bull=%d bear=%d | trend=%s | %s %s",
-               nBull, nBear, TrendName(gTrend), _Symbol, EnumToString(InpTF));
+   PrintFormat("BOS_Detector v2 ready | active: bull=%d bear=%d | "
+               "swings=%d | %s %s",
+               nBull, nBear, swingTotal, _Symbol, EnumToString(InpTF));
    return INIT_SUCCEEDED;
 }
 
@@ -382,8 +515,19 @@ int OnCalculate(const int rates_total, const int prev_calculated,
    if(currentBar == lastBarTime) return rates_total;
    lastBarTime = currentBar;
 
-   SWING_ScanBar(InpSwingRight + 1);
-   CheckStructureBreak(1);
+   // 1. Confirm new swing (InpPivotLen right-side bars have now closed)
+   SWING_ScanBar(InpPivotLen + 1);
+
+   // 2. Check if bar 1 breaks any swing → new BOS
+   BOS_CheckBreaks(1);
+
+   // 3. Check if bar 1 invalidates any active BOS → delete objects
+   BOS_CheckInvalidations(1);
+
+   // 4. Enforce max visible line limit
+   BOS_EnforceLimit();
+
+   // 5. Draw any new BOS lines
    BOS_DrawNew();
 
    return rates_total;

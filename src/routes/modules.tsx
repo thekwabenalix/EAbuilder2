@@ -238,21 +238,25 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "BOS_Detector.mq5",
         name: "BOS Detector",
         description:
-          "Break of Structure — price closes beyond a previous swing in the same " +
-          "direction as the current trend. Trend state: 0 unknown / 1 bullish / -1 bearish. " +
-          "CHoCH events update the trend state internally but are not drawn here.",
+          "Clean Break of Structure detector. Bullish BOS when close > swing high, " +
+          "Bearish BOS when close < swing low. BOS lines are automatically removed " +
+          "when price closes back through them. Filters reduce noise.",
         rules: [
-          "Trend state: 0 = unknown, 1 = bullish, −1 = bearish",
-          "Bullish BOS: close > last swing high  AND trend ≠ −1 (was bull or unknown)",
-          "Bearish BOS: close < last swing low   AND trend ≠ +1 (was bear or unknown)",
-          "Trend is updated on every break (BOS or CHoCH) to stay in sync with CHoCH_Detector",
-          "Confirmation: candle_close (default) or wick_break",
+          "Bullish BOS: close > unconsumed swing high → solid green line",
+          "Bearish BOS: close < unconsumed swing low  → solid red line",
+          "Each swing can only generate one BOS (consumed flag prevents duplicates)",
+          "BOS REMOVED when close goes back through the level (self-cleaning)",
+          "Pivot filter: InpPivotLen=5 bars each side (reduces minor pivot noise)",
+          "Distance filter: InpMinSwingPts — new swing must differ by N points from previous (0=off)",
+          "ATR filter: InpUseAtrFilt=true → use InpAtrMult × ATR instead of fixed points",
+          "Max lines: InpMaxBosLines=20 — oldest active BOS removed when limit exceeded",
         ],
         output: [
-          "STYLE_SOLID horizontal line from broken swing → break bar",
-          "Bullish BOS: green  |  Bearish BOS: red",
-          "Label 'BOS' anchored at break bar (above line for bull, below for bear)",
-          "Journal: BULLISH_BOS | BEARISH_BOS | id | price | time | trend_before",
+          "STYLE_SOLID horizontal line from swing candle → break bar",
+          "Label 'Bull BOS' / 'Bear BOS' anchored at break bar",
+          "Invalidated lines deleted immediately from the chart",
+          "Journal: BULLISH_BOS | BEARISH_BOS | BOS_INVALIDATED | id | price | time",
+          "No arrows. No swing markers. No CHoCH. No trend state.",
         ],
         status: "ready",
         generate: generateBosDetector,
