@@ -282,7 +282,7 @@ void BOS_EnforceLimit()
 
    while(activeCount > InpMaxBosLines)
    {
-      datetime oldestT = (datetime)LLONG_MAX;
+      datetime oldestT = (datetime)LONG_MAX;
       int oldestIdx = -1;
       for(int i = 0; i < bosTotal; i++)
       {
