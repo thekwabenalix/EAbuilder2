@@ -479,7 +479,7 @@ void STRUCT_DrawLine(int idx)
       ObjectSetInteger(0, objLbl, OBJPROP_COLOR,      clr);
       ObjectSetInteger(0, objLbl, OBJPROP_FONTSIZE,   7);
       ObjectSetInteger(0, objLbl, OBJPROP_ANCHOR,
-         strList[idx].dir > 0 ? ANCHOR_LOWER_LEFT : ANCHOR_UPPER_LEFT);
+         strList[idx].dir > 0 ? ANCHOR_LEFT_LOWER : ANCHOR_LEFT_UPPER);
       ObjectSetInteger(0, objLbl, OBJPROP_SELECTABLE, false);
       ObjectSetInteger(0, objLbl, OBJPROP_HIDDEN,     true);
       ObjectSetInteger(0, objLbl, OBJPROP_BACK,       false);
