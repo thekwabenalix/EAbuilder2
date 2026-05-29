@@ -422,6 +422,7 @@ void DrawAll()
    int drawn = 0;
    for(int i = chochCount - 1; i >= 0 && drawn < InpMaxLines; i--)
      {
+      if(chochList[i].invalid == 1) continue; // skip invalidated — don't waste a slot
       DrawOne(i);
       drawn++;
      }

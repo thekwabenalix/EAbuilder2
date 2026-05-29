@@ -83,6 +83,7 @@ struct BosRecord
    datetime swingTime;
    datetime bosTime;
    int      drawn;      // 0 = not drawn, 1 = drawn
+   int      invalid;    // 1 = price has closed back through this level
   };
 
 #define MAX_SWINGS 2000
@@ -262,6 +263,7 @@ void CheckBOS(int sh)
       bosList[bIdx].swingTime  = swingList[k].time;
       bosList[bIdx].bosTime    = barT;
       bosList[bIdx].drawn      = 0;
+      bosList[bIdx].invalid    = 0;
 
       swingList[k].consumed = true;
       gTrend = isBullBos ? TREND_BULL : TREND_BEAR;
@@ -290,11 +292,38 @@ void StampTrendBuf(int sh)
    else if(gTrend == TREND_BEAR) BearTrendBuf[sh]  = 1.0;
   }
 
+// ─── InvalidateBOSLines ───────────────────────────────────────────
+// Called every bar. Removes a BOS line when a body close trades back
+// through its level — that BOS is negated and no longer meaningful.
+//   Bull BOS (broke above swing high): invalid when close < swingLevel
+//   Bear BOS (broke below swing low) : invalid when close > swingLevel
+void InvalidateBOSLines(int sh)
+  {
+   double closeV = Cl(sh);
+   for(int i = 0; i < bosCount; i++)
+     {
+      if(bosList[i].invalid == 1) continue;
+
+      bool crossed = false;
+      if(bosList[i].dir == DIR_HIGH && closeV < bosList[i].swingLevel)
+         crossed = true;
+      if(bosList[i].dir == DIR_LOW  && closeV > bosList[i].swingLevel)
+         crossed = true;
+
+      if(crossed)
+        {
+         if(bosList[i].drawn == 1) DeleteOne(i);
+         bosList[i].invalid = 1;
+        }
+     }
+  }
+
 // ─── DrawOne ──────────────────────────────────────────────────────
 void DrawOne(int idx)
   {
    if(idx < 0 || idx >= bosCount) return;
-   if(bosList[idx].drawn == 1)   return;  // already drawn
+   if(bosList[idx].drawn   == 1) return;  // already drawn
+   if(bosList[idx].invalid == 1) return;  // traded through — do not draw
 
    bool   isBull = (bosList[idx].dir == DIR_HIGH);
    if( isBull && !InpShowBull) return;
@@ -352,12 +381,13 @@ void DeleteOne(int idx)
   }
 
 // ─── DrawAll (full recalculation) ─────────────────────────────────
-// Draw the InpMaxLines most recent BOS records.
+// Draw the InpMaxLines most recent non-invalidated BOS records.
 void DrawAll()
   {
    int drawn = 0;
    for(int i = bosCount - 1; i >= 0 && drawn < InpMaxLines; i--)
      {
+      if(bosList[i].invalid == 1) continue; // skip invalidated — don't waste a slot
       DrawOne(i);
       drawn++;
      }
@@ -415,6 +445,7 @@ int OnCalculate(const int rates_total,
         {
          TryAddSwing(sh);
          CheckBOS(sh);
+         InvalidateBOSLines(sh);
          StampTrendBuf(sh);
         }
 
@@ -425,10 +456,11 @@ int OnCalculate(const int rates_total,
    // ── Live: one bar just closed ─────────────────────────────
    TryAddSwing(1);
    CheckBOS(1);
+   InvalidateBOSLines(1);
    StampTrendBuf(1);
    EnforceMaxLines();
-   // Draw any BOS record that just got added (will have drawn==0)
-   if(bosCount > 0 && bosList[bosCount - 1].drawn == 0)
+   // Draw any BOS record that just got added (will have drawn==0, invalid==0)
+   if(bosCount > 0 && bosList[bosCount - 1].drawn == 0 && bosList[bosCount - 1].invalid == 0)
       DrawOne(bosCount - 1);
 
    return(rates_total);
