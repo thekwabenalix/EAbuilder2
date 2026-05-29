@@ -42,11 +42,35 @@ import { generateClassicSnrStateModule }    from "@/lib/smc-modules/classic-snr-
 import { generateGapSnrStateModule }        from "@/lib/smc-modules/gap-snr-state-module";
 import { generateFvgExecutionEa } from "@/lib/phase3-modules/fvg-execution-ea";
 import {
+  generatePhase3Ea,
+  OB_EA_CONFIG,
+  BREAKOUT_EA_CONFIG,
+  BB_EA_CONFIG,
+  LIQSWEEP_EA_CONFIG,
+  IFVG_EA_CONFIG,
+  CLASSIC_SNR_EA_CONFIG,
+  GAP_SNR_EA_CONFIG,
+} from "@/lib/phase3-modules/state-module-ea";
+import {
   generateMtfOrchestrator,
   FVG_3TF_BULL,
   FVG_3TF_BEAR,
   FVG_2TF_BULL,
   FVG_2TF_BEAR,
+  OB_3TF_BULL,
+  OB_3TF_BEAR,
+  OB_2TF_BULL,
+  OB_2TF_BEAR,
+  BREAKOUT_2TF_BULL,
+  BREAKOUT_2TF_BEAR,
+  BB_2TF_BULL,
+  BB_2TF_BEAR,
+  BOS_BIAS_FVG_BULL,
+  BOS_BIAS_FVG_BEAR,
+  BOS_BIAS_OB_BULL,
+  BOS_BIAS_OB_BEAR,
+  BOS_OB_FVG_BULL,
+  BOS_OB_FVG_BEAR,
 } from "@/lib/mtf-modules/mtf-orchestrator";
 
 export const Route = createFileRoute("/modules")({
@@ -864,17 +888,171 @@ const TRADING_MODULES: ModuleCategory[] = [
         name: "Order Block Execution EA",
         description:
           "Expert Advisor that consumes OB_State_Module.mq5 via iCustom(). " +
-          "Enters when an OB CONFIRMED signal fires with a valid SL buffer.",
-        status: "pending",
+          "Enters on the bar open after an OB CONFIRMED signal fires. SL from " +
+          "BullSLBuf / BearSLBuf. Fixed RR TP, breakeven at 0.5R, spread filter, " +
+          "max-open-trades guard. Place in MQL5/Experts/ folder.",
+        rules: [
+          "BUY signal:  BullConfirmBuf[1]==1.0 AND BullSLBuf[1]>0 AND sl < entry",
+          "SELL signal: BearConfirmBuf[1]==1.0 AND BearSLBuf[1]>0 AND sl > entry",
+          "Entry: new-bar open (one signal check per candle close)",
+          "TP: entry ± slDist × InpRR  (default RR = 2.0)",
+          "Lot size: (balance × InpRiskPct%) / (slDist × tickValue/tickSize)",
+          "Spread filter: current spread > InpMaxSpreadPts → SIGNAL_BLOCKED",
+          "Max trades: CountMyPositions() ≥ InpMaxTrades → SIGNAL_BLOCKED",
+          "Breakeven: every tick — if floating profit ≥ InpBreakevenR × initialRisk, move SL to entry",
+        ],
+        output: [
+          "Reads iCustom() buffers 0–3 from OB_State_Module (BullConfirm / BearConfirm / BullSL / BearSL)",
+          "Journal: TRADE_OPENED | TRADE_FAILED | BREAKEVEN_SET | SIGNAL_BLOCKED",
+          "Inputs: module_name · module_tf · module_lookback · magic · risk_pct · rr · breakeven_r · max_trades · max_spread_pts",
+          "Compatible with any Phase 2 state module — change InpModuleName to swap modules",
+        ],
+        status: "ready",
+        generate: () => generatePhase3Ea(OB_EA_CONFIG),
       },
       {
-        id: "snr-exec",
-        filename: "SNR_Execution_EA.mq5",
-        name: "SNR Execution EA",
+        id: "breakout-exec",
+        filename: "Breakout_Execution_EA.mq5",
+        name: "Breakout Execution EA",
         description:
-          "Expert Advisor that consumes SNR_State_Module.mq5 via iCustom(). " +
-          "Enters on RBS/SBR CONFIRMED signals with risk-managed position sizing.",
-        status: "pending",
+          "Expert Advisor that consumes Breakout_State_Module.mq5 via iCustom(). " +
+          "Enters on RBS CONFIRMED (BUY) or SBR CONFIRMED (SELL) signals. " +
+          "SL from BullSLBuf / BearSLBuf (wick low/high of retest bar).",
+        rules: [
+          "BUY signal:  BullConfirmBuf[1]==1.0 (RBS CONFIRMED) AND BullSLBuf[1]>0",
+          "SELL signal: BearConfirmBuf[1]==1.0 (SBR CONFIRMED) AND BearSLBuf[1]>0",
+          "Entry: new-bar open after confirmed breakout retest",
+          "TP: entry ± slDist × InpRR  (default RR = 2.0)",
+          "Spread filter, max-trades guard, breakeven management identical to FVG EA",
+        ],
+        output: [
+          "Reads iCustom() buffers 0–3 from Breakout_State_Module",
+          "Journal: TRADE_OPENED | TRADE_FAILED | BREAKEVEN_SET | SIGNAL_BLOCKED",
+          "Inputs: module_name · module_tf · module_lookback · magic · risk_pct · rr · breakeven_r",
+          "Compatible with any Phase 2 state module — change InpModuleName to swap modules",
+        ],
+        status: "ready",
+        generate: () => generatePhase3Ea(BREAKOUT_EA_CONFIG),
+      },
+      {
+        id: "bb-exec",
+        filename: "BB_Execution_EA.mq5",
+        name: "Breaker Block Execution EA",
+        description:
+          "Expert Advisor that consumes BB_State_Module.mq5 via iCustom(). " +
+          "Enters on BB CONFIRMED signals — an OB that flipped polarity and " +
+          "price retested the recycled zone from the new direction.",
+        rules: [
+          "BUY signal:  BullConfirmBuf[1]==1.0 (Bullish BB CONFIRMED) AND BullSLBuf[1]>0",
+          "SELL signal: BearConfirmBuf[1]==1.0 (Bearish BB CONFIRMED) AND BearSLBuf[1]>0",
+          "Two-layer detection: OB detected → OB broken (BB created) → BB retested → CONFIRMED",
+          "TP: entry ± slDist × InpRR  (default RR = 2.0)",
+          "Spread filter, max-trades guard, breakeven management identical to FVG EA",
+        ],
+        output: [
+          "Reads iCustom() buffers 0–3 from BB_State_Module",
+          "Journal: TRADE_OPENED | TRADE_FAILED | BREAKEVEN_SET | SIGNAL_BLOCKED",
+          "Inputs: module_name · module_tf · module_lookback · magic · risk_pct · rr · breakeven_r",
+          "Compatible with any Phase 2 state module — change InpModuleName to swap modules",
+        ],
+        status: "ready",
+        generate: () => generatePhase3Ea(BB_EA_CONFIG),
+      },
+      {
+        id: "liqsweep-exec",
+        filename: "LiqSweep_Execution_EA.mq5",
+        name: "Liquidity Sweep Execution EA",
+        description:
+          "Expert Advisor that consumes LiqSweep_State_Module.mq5 via iCustom(). " +
+          "Enters when a sweep CONFIRMATION fires — wick pierced a swing level and " +
+          "price closed back on the correct side. SL = wick extreme of the sweep bar.",
+        rules: [
+          "BUY signal:  BullConfirmBuf[1]==1.0 (Bull Sweep CONFIRMED) AND BullSLBuf[1]>0",
+          "SELL signal: BearConfirmBuf[1]==1.0 (Bear Sweep CONFIRMED) AND BearSLBuf[1]>0",
+          "SL for bull entries: sweepLow (wick low of sweep bar)",
+          "SL for bear entries: sweepHigh (wick high of sweep bar)",
+          "TP: entry ± slDist × InpRR  (default RR = 2.0)",
+        ],
+        output: [
+          "Reads iCustom() buffers 0–3 from LiqSweep_State_Module",
+          "Journal: TRADE_OPENED | TRADE_FAILED | BREAKEVEN_SET | SIGNAL_BLOCKED",
+          "Inputs: module_name · module_tf · module_lookback · magic · risk_pct · rr · breakeven_r",
+          "Compatible with any Phase 2 state module — change InpModuleName to swap modules",
+        ],
+        status: "ready",
+        generate: () => generatePhase3Ea(LIQSWEEP_EA_CONFIG),
+      },
+      {
+        id: "fvg-inversion-exec",
+        filename: "FVG_Inversion_Execution_EA.mq5",
+        name: "FVG Inversion Execution EA",
+        description:
+          "Expert Advisor that consumes FVG_Inversion_State_Module.mq5 via iCustom(). " +
+          "Enters when an Inversion FVG CONFIRMED signal fires — an FVG that flipped " +
+          "polarity and was then retested from the new direction.",
+        rules: [
+          "BUY signal:  BullConfirmBuf[1]==1.0 (Bullish IFVG CONFIRMED) AND BullSLBuf[1]>0",
+          "SELL signal: BearConfirmBuf[1]==1.0 (Bearish IFVG CONFIRMED) AND BearSLBuf[1]>0",
+          "Two-layer detection: FVG detected → FVG inverted (IFVG created) → IFVG retested → CONFIRMED",
+          "TP: entry ± slDist × InpRR  (default RR = 2.0)",
+          "Spread filter, max-trades guard, breakeven management identical to FVG EA",
+        ],
+        output: [
+          "Reads iCustom() buffers 0–3 from FVG_Inversion_State_Module",
+          "Journal: TRADE_OPENED | TRADE_FAILED | BREAKEVEN_SET | SIGNAL_BLOCKED",
+          "Inputs: module_name · module_tf · module_lookback · magic · risk_pct · rr · breakeven_r",
+          "Compatible with any Phase 2 state module — change InpModuleName to swap modules",
+        ],
+        status: "ready",
+        generate: () => generatePhase3Ea(IFVG_EA_CONFIG),
+      },
+      {
+        id: "classic-snr-exec",
+        filename: "Classic_SNR_Execution_EA.mq5",
+        name: "Classic SNR Execution EA",
+        description:
+          "Expert Advisor that consumes Classic_SNR_State_Module.mq5 via iCustom(). " +
+          "Enters when a Classic S/R level CONFIRMED signal fires — a wick touched the " +
+          "level (RETESTED) then close held on the correct side (CONFIRMED).",
+        rules: [
+          "BUY signal:  BullConfirmBuf[1]==1.0 (Support CONFIRMED) AND BullSLBuf[1]>0",
+          "SELL signal: BearConfirmBuf[1]==1.0 (Resistance CONFIRMED) AND BearSLBuf[1]>0",
+          "SL for bulls: retestLow (wick low of the retest candle)",
+          "SL for bears: retestHigh (wick high of the retest candle)",
+          "TP: entry ± slDist × InpRR  (default RR = 2.0)",
+        ],
+        output: [
+          "Reads iCustom() buffers 0–3 from Classic_SNR_State_Module",
+          "Journal: TRADE_OPENED | TRADE_FAILED | BREAKEVEN_SET | SIGNAL_BLOCKED",
+          "Inputs: module_name · module_tf · module_lookback · magic · risk_pct · rr · breakeven_r",
+          "Compatible with any Phase 2 state module — change InpModuleName to swap modules",
+        ],
+        status: "ready",
+        generate: () => generatePhase3Ea(CLASSIC_SNR_EA_CONFIG),
+      },
+      {
+        id: "gap-snr-exec",
+        filename: "Gap_SNR_Execution_EA.mq5",
+        name: "Gap SNR Execution EA",
+        description:
+          "Expert Advisor that consumes Gap_SNR_State_Module.mq5 via iCustom(). " +
+          "Enters when a Gap S/R level CONFIRMED signal fires. Gap SNR uses candle-pair " +
+          "direction CONTINUATION (Bull→Bull / Bear→Bear) instead of reversal pairs.",
+        rules: [
+          "BUY signal:  BullConfirmBuf[1]==1.0 (Gap Support CONFIRMED) AND BullSLBuf[1]>0",
+          "SELL signal: BearConfirmBuf[1]==1.0 (Gap Resistance CONFIRMED) AND BearSLBuf[1]>0",
+          "SL for bulls: retestLow  |  SL for bears: retestHigh",
+          "TP: entry ± slDist × InpRR  (default RR = 2.0)",
+          "Spread filter, max-trades guard, breakeven management identical to FVG EA",
+        ],
+        output: [
+          "Reads iCustom() buffers 0–3 from Gap_SNR_State_Module",
+          "Journal: TRADE_OPENED | TRADE_FAILED | BREAKEVEN_SET | SIGNAL_BLOCKED",
+          "Inputs: module_name · module_tf · module_lookback · magic · risk_pct · rr · breakeven_r",
+          "Compatible with any Phase 2 state module — change InpModuleName to swap modules",
+        ],
+        status: "ready",
+        generate: () => generatePhase3Ea(GAP_SNR_EA_CONFIG),
       },
     ],
   },
@@ -978,13 +1156,289 @@ const TRADING_MODULES: ModuleCategory[] = [
         generate: () => generateMtfOrchestrator(FVG_2TF_BEAR),
       },
       {
-        id: "mtf-ob-strategy",
+        id: "ob-3tf-bull",
         filename: "MTF_OB_3TF_Bull.mq5",
-        name: "OB 3-TF Strategy",
+        name: "OB 3-TF Bull  (D1 → H4 → M30)",
         description:
-          "D1 Order Block confirm → H4 Order Block confirm → M30 entry signal. " +
-          "Pending OB_State_Module — available after Phase 2 OB module is built.",
-        status: "pending",
+          "D1 OB confirmed → H4 OB confirmed → M30 OB entry signal → BUY. " +
+          "Classic top-down OB confluence. Requires OB_State_Module.mq5 in MQL5/Indicators/. " +
+          "Place this EA in MQL5/Experts/ and attach to a M30 chart.",
+        rules: [
+          "Step 1 (D1): BullConfirmBuf[1]==1.0 on D1 OB_State_Module — sets daily OB bias",
+          "Step 2 (H4): BullConfirmBuf[1]==1.0 on H4 OB_State_Module — activates only after Step 1",
+          "Step 3 (M30): BullConfirmBuf[1]==1.0 on M30 OB_State_Module — activates only after Step 2",
+          "Execution: BUY on M30 bar open after all 3 steps confirmed — SL from BullSLBuf",
+          "Chain reset: if any step expires before confirming, restart from that step",
+        ],
+        output: [
+          "Journal: STEP_N_ACTIVE | STEP_N_CONFIRMED | STEP_N_EXPIRED | ALL_STEPS_CONFIRMED",
+          "Journal: TRADE_OPENED | TRADE_FAILED | BREAKEVEN_SET | SIGNAL_BLOCKED",
+          "Inputs: risk_pct · rr · breakeven_r · max_trades · max_spread · sl_buf_idx (per step)",
+        ],
+        status: "ready",
+        generate: () => generateMtfOrchestrator(OB_3TF_BULL),
+      },
+      {
+        id: "ob-3tf-bear",
+        filename: "MTF_OB_3TF_Bear.mq5",
+        name: "OB 3-TF Bear  (D1 → H4 → M30)",
+        description:
+          "D1 OB bear confirm → H4 OB bear confirm → M30 OB entry signal → SELL. " +
+          "Mirror of the 3-TF OB bull strategy. Run both with different magic numbers.",
+        rules: [
+          "Step 1 (D1): BearConfirmBuf[1]==1.0 on D1",
+          "Step 2 (H4): BearConfirmBuf[1]==1.0 on H4 — activates only after Step 1",
+          "Step 3 (M30): BearConfirmBuf[1]==1.0 on M30 — activates only after Step 2",
+          "Execution: SELL on M30 bar open — SL from BearSLBuf",
+        ],
+        output: [
+          "Same journal events as the bull orchestrator — direction is SELL throughout",
+          "Magic number default: 20250702",
+        ],
+        status: "ready",
+        generate: () => generateMtfOrchestrator(OB_3TF_BEAR),
+      },
+      {
+        id: "ob-2tf-bull",
+        filename: "MTF_OB_2TF_Bull.mq5",
+        name: "OB 2-TF Bull  (H4 → M30)",
+        description:
+          "H4 OB bull confirm → M30 OB entry signal → BUY. " +
+          "Shorter intraday OB chain — H4 zone sets the bias, M30 provides the retest entry.",
+        rules: [
+          "Step 1 (H4): BullConfirmBuf[1]==1.0 on H4",
+          "Step 2 (M30): BullConfirmBuf[1]==1.0 on M30 — activates only after Step 1",
+          "Execution: BUY — SL from BullSLBuf on M30 module",
+        ],
+        output: [
+          "2-step chain — fewer confirmations, higher trade frequency than 3-TF",
+          "Magic number default: 20250703",
+        ],
+        status: "ready",
+        generate: () => generateMtfOrchestrator(OB_2TF_BULL),
+      },
+      {
+        id: "ob-2tf-bear",
+        filename: "MTF_OB_2TF_Bear.mq5",
+        name: "OB 2-TF Bear  (H4 → M30)",
+        description:
+          "H4 OB bear confirm → M30 OB entry signal → SELL. " +
+          "Mirror of the 2-TF OB bull strategy.",
+        rules: [
+          "Step 1 (H4): BearConfirmBuf[1]==1.0 on H4",
+          "Step 2 (M30): BearConfirmBuf[1]==1.0 on M30 — activates only after Step 1",
+          "Execution: SELL — SL from BearSLBuf on M30 module",
+        ],
+        output: [
+          "2-step chain — mirror of 2-TF OB bull strategy",
+          "Magic number default: 20250704",
+        ],
+        status: "ready",
+        generate: () => generateMtfOrchestrator(OB_2TF_BEAR),
+      },
+      {
+        id: "breakout-2tf-bull",
+        filename: "MTF_Breakout_2TF_Bull.mq5",
+        name: "Breakout 2-TF Bull  (H4 → M30)",
+        description:
+          "H4 RBS confirm → M30 RBS entry signal → BUY. " +
+          "H4 breakout flip confirmed first (Classic SNR broken + retest held), " +
+          "then M30 retest of its own RBS level triggers entry. " +
+          "Requires Breakout_State_Module.mq5 in MQL5/Indicators/.",
+        rules: [
+          "Step 1 (H4): BullConfirmBuf[1]==1.0 — RBS CONFIRMED on H4",
+          "Step 2 (M30): BullConfirmBuf[1]==1.0 — RBS CONFIRMED on M30",
+          "Execution: BUY — SL from BullSLBuf (wick low of M30 retest bar)",
+        ],
+        output: [
+          "2-step chain using Breakout_State_Module at both steps",
+          "Magic number default: 20250705",
+        ],
+        status: "ready",
+        generate: () => generateMtfOrchestrator(BREAKOUT_2TF_BULL),
+      },
+      {
+        id: "breakout-2tf-bear",
+        filename: "MTF_Breakout_2TF_Bear.mq5",
+        name: "Breakout 2-TF Bear  (H4 → M30)",
+        description:
+          "H4 SBR confirm → M30 SBR entry signal → SELL. " +
+          "Mirror of the 2-TF Breakout bull strategy.",
+        rules: [
+          "Step 1 (H4): BearConfirmBuf[1]==1.0 — SBR CONFIRMED on H4",
+          "Step 2 (M30): BearConfirmBuf[1]==1.0 — SBR CONFIRMED on M30",
+          "Execution: SELL — SL from BearSLBuf (wick high of M30 retest bar)",
+        ],
+        output: [
+          "2-step chain using Breakout_State_Module at both steps",
+          "Magic number default: 20250706",
+        ],
+        status: "ready",
+        generate: () => generateMtfOrchestrator(BREAKOUT_2TF_BEAR),
+      },
+      {
+        id: "bb-2tf-bull",
+        filename: "MTF_BB_2TF_Bull.mq5",
+        name: "BB 2-TF Bull  (H4 → M30)",
+        description:
+          "H4 Bullish Breaker Block confirm → M30 BB entry signal → BUY. " +
+          "H4 OB broken and flipped, then M30 retest of the recycled zone triggers entry. " +
+          "Requires BB_State_Module.mq5 in MQL5/Indicators/.",
+        rules: [
+          "Step 1 (H4): BullConfirmBuf[1]==1.0 — Bullish BB CONFIRMED on H4",
+          "Step 2 (M30): BullConfirmBuf[1]==1.0 — Bullish BB CONFIRMED on M30",
+          "Execution: BUY — SL from BullSLBuf (wick low of M30 retest bar)",
+        ],
+        output: [
+          "2-step chain using BB_State_Module at both steps",
+          "Magic number default: 20250707",
+        ],
+        status: "ready",
+        generate: () => generateMtfOrchestrator(BB_2TF_BULL),
+      },
+      {
+        id: "bb-2tf-bear",
+        filename: "MTF_BB_2TF_Bear.mq5",
+        name: "BB 2-TF Bear  (H4 → M30)",
+        description:
+          "H4 Bearish Breaker Block confirm → M30 BB entry signal → SELL. " +
+          "Mirror of the 2-TF BB bull strategy.",
+        rules: [
+          "Step 1 (H4): BearConfirmBuf[1]==1.0 — Bearish BB CONFIRMED on H4",
+          "Step 2 (M30): BearConfirmBuf[1]==1.0 — Bearish BB CONFIRMED on M30",
+          "Execution: SELL — SL from BearSLBuf (wick high of M30 retest bar)",
+        ],
+        output: [
+          "2-step chain using BB_State_Module at both steps",
+          "Magic number default: 20250708",
+        ],
+        status: "ready",
+        generate: () => generateMtfOrchestrator(BB_2TF_BEAR),
+      },
+      {
+        id: "bos-bias-fvg-bull",
+        filename: "MTF_BOS_Bias_FVG_Bull.mq5",
+        name: "BOS Bias + FVG Bull  (D1 → H4)",
+        description:
+          "D1 structural bias BULL (BOS_State_Module) → H4 FVG confirmed → BUY. " +
+          "Step 1 gates instantly if D1 BOS trend is already BULL — no waiting for a new BOS event. " +
+          "Requires BOS_State_Module.mq5 and FVG_State_Module.mq5 in MQL5/Indicators/. " +
+          "Attach to H4 chart.",
+        rules: [
+          "Step 1 (D1 BOS): BullTrendBuf[1]==1.0 — persistent; confirms immediately if D1 is already BULL",
+          "Step 2 (H4 FVG): BullConfirmBuf[1]==1.0 — FVG retested + close held above UL",
+          "Execution: BUY on H4 bar open — SL from H4 BullSLBuf (retest low)",
+          "If D1 bias flips before Step 2 fires, next chain cycle re-checks trend and waits",
+        ],
+        output: [
+          "Uses two different Phase 2 modules: BOS_State_Module (bias) + FVG_State_Module (entry)",
+          "Journal: STEP_N_ACTIVE | STEP_N_CONFIRMED | STEP_N_EXPIRED | TRADE_OPENED",
+          "Magic: 20250801 — change if running alongside other strategies",
+        ],
+        status: "ready",
+        generate: () => generateMtfOrchestrator(BOS_BIAS_FVG_BULL),
+      },
+      {
+        id: "bos-bias-fvg-bear",
+        filename: "MTF_BOS_Bias_FVG_Bear.mq5",
+        name: "BOS Bias + FVG Bear  (D1 → H4)",
+        description:
+          "D1 structural bias BEAR → H4 FVG confirmed → SELL. " +
+          "Mirror of the BOS Bias + FVG Bull strategy. Attach to H4 chart.",
+        rules: [
+          "Step 1 (D1 BOS): BearTrendBuf[1]==1.0 — confirms immediately if D1 is already BEAR",
+          "Step 2 (H4 FVG): BearConfirmBuf[1]==1.0 — FVG retested + close held below LL",
+          "Execution: SELL on H4 bar open — SL from H4 BearSLBuf (retest high)",
+        ],
+        output: [
+          "Uses BOS_State_Module (bias) + FVG_State_Module (entry)",
+          "Magic: 20250802",
+        ],
+        status: "ready",
+        generate: () => generateMtfOrchestrator(BOS_BIAS_FVG_BEAR),
+      },
+      {
+        id: "bos-bias-ob-bull",
+        filename: "MTF_BOS_Bias_OB_Bull.mq5",
+        name: "BOS Bias + OB Bull  (D1 → H4)",
+        description:
+          "D1 structural bias BULL → H4 Order Block confirmed → BUY. " +
+          "Higher-conviction variant: daily structure aligns with H4 institutional zone retest. " +
+          "Requires BOS_State_Module.mq5 and OB_State_Module.mq5. Attach to H4 chart.",
+        rules: [
+          "Step 1 (D1 BOS): BullTrendBuf[1]==1.0 — persistent bias gate",
+          "Step 2 (H4 OB): BullConfirmBuf[1]==1.0 — OB retested + close held above OB high",
+          "Execution: BUY on H4 bar open — SL from H4 BullSLBuf (retest low)",
+        ],
+        output: [
+          "Uses BOS_State_Module (bias) + OB_State_Module (entry)",
+          "Magic: 20250803",
+        ],
+        status: "ready",
+        generate: () => generateMtfOrchestrator(BOS_BIAS_OB_BULL),
+      },
+      {
+        id: "bos-bias-ob-bear",
+        filename: "MTF_BOS_Bias_OB_Bear.mq5",
+        name: "BOS Bias + OB Bear  (D1 → H4)",
+        description:
+          "D1 structural bias BEAR → H4 Order Block confirmed → SELL. " +
+          "Mirror of the BOS Bias + OB Bull strategy. Attach to H4 chart.",
+        rules: [
+          "Step 1 (D1 BOS): BearTrendBuf[1]==1.0 — persistent bias gate",
+          "Step 2 (H4 OB): BearConfirmBuf[1]==1.0 — OB retested + close held below OB low",
+          "Execution: SELL on H4 bar open — SL from H4 BearSLBuf (retest high)",
+        ],
+        output: [
+          "Uses BOS_State_Module (bias) + OB_State_Module (entry)",
+          "Magic: 20250804",
+        ],
+        status: "ready",
+        generate: () => generateMtfOrchestrator(BOS_BIAS_OB_BEAR),
+      },
+      {
+        id: "bos-ob-fvg-bull",
+        filename: "MTF_BOS_OB_FVG_Bull.mq5",
+        name: "BOS + OB + FVG Bull  (D1 → H4 → M30)",
+        description:
+          "Highest-confluence 3-step cross-module strategy: " +
+          "D1 structural bias BULL → H4 OB confirmed (zone established) → M30 FVG entry → BUY. " +
+          "Three independent modules confirm at three timeframes before any trade is placed. " +
+          "Requires BOS_State_Module.mq5, OB_State_Module.mq5, FVG_State_Module.mq5. Attach to M30 chart.",
+        rules: [
+          "Step 1 (D1 BOS): BullTrendBuf[1]==1.0 — gates instantly if D1 trend already BULL",
+          "Step 2 (H4 OB): BullConfirmBuf[1]==1.0 — H4 OB retested and held (institutional zone confirmed)",
+          "Step 3 (M30 FVG): BullConfirmBuf[1]==1.0 — M30 FVG retested and held (precision entry)",
+          "Execution: BUY on M30 bar open — SL from M30 BullSLBuf (FVG retest low)",
+          "Default RR = 2.5 (elevated for triple-confluence requirement)",
+        ],
+        output: [
+          "Three different Phase 2 modules across three timeframes — zero shared indicator handles",
+          "Journal: STEP_N_ACTIVE | STEP_N_CONFIRMED | STEP_N_EXPIRED | ALL_STEPS_CONFIRMED | TRADE_OPENED",
+          "Magic: 20250805",
+        ],
+        status: "ready",
+        generate: () => generateMtfOrchestrator(BOS_OB_FVG_BULL),
+      },
+      {
+        id: "bos-ob-fvg-bear",
+        filename: "MTF_BOS_OB_FVG_Bear.mq5",
+        name: "BOS + OB + FVG Bear  (D1 → H4 → M30)",
+        description:
+          "D1 structural bias BEAR → H4 OB confirmed → M30 FVG entry → SELL. " +
+          "Mirror of the triple-confluence bull strategy. Attach to M30 chart.",
+        rules: [
+          "Step 1 (D1 BOS): BearTrendBuf[1]==1.0",
+          "Step 2 (H4 OB): BearConfirmBuf[1]==1.0",
+          "Step 3 (M30 FVG): BearConfirmBuf[1]==1.0",
+          "Execution: SELL — SL from M30 BearSLBuf (FVG retest high)  |  RR = 2.5",
+        ],
+        output: [
+          "Uses BOS_State_Module + OB_State_Module + FVG_State_Module across D1 / H4 / M30",
+          "Magic: 20250806",
+        ],
+        status: "ready",
+        generate: () => generateMtfOrchestrator(BOS_OB_FVG_BEAR),
       },
       {
         id: "mtf-custom",

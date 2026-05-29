@@ -594,3 +594,627 @@ export const FVG_2TF_BEAR: MtfOrchestratorConfig = {
     slippage:     3,
   },
 };
+
+// ─── Order Block Strategies ───────────────────────────────────────────────────
+
+// ── OB 3-Timeframe Bull  (D1 → H4 → M30 → BUY) ───────────────────────────────
+export const OB_3TF_BULL: MtfOrchestratorConfig = {
+  id:          "ob-3tf-bull",
+  name:        "MTF_OB_3TF_Bull",
+  description:
+    "D1 OB bull confirm → H4 OB bull confirm → M30 OB entry signal → BUY. " +
+    "Classic top-down OB confluence. " +
+    "Requires OB_State_Module.mq5 compiled in MQL5/Indicators/.",
+  direction: "BULL",
+  steps: [
+    {
+      label:        "D1 OB Bull Confirm",
+      moduleName:   "OB_State_Module",
+      timeframe:    "PERIOD_D1",
+      lookback:     200,
+      bufIdx:       0,   // BullConfirmBuf
+      triggerValue: 1.0,
+      expiryBars:   10,
+    },
+    {
+      label:        "H4 OB Bull Confirm",
+      moduleName:   "OB_State_Module",
+      timeframe:    "PERIOD_H4",
+      lookback:     300,
+      bufIdx:       0,
+      triggerValue: 1.0,
+      expiryBars:   24,
+    },
+    {
+      label:        "M30 OB Entry Signal",
+      moduleName:   "OB_State_Module",
+      timeframe:    "PERIOD_M30",
+      lookback:     500,
+      bufIdx:       0,
+      triggerValue: 1.0,
+      expiryBars:   40,
+    },
+  ],
+  execution: {
+    slBufIdx:     2,   // BullSLBuf
+    magic:        20250701,
+    riskPct:      1.0,
+    rr:           2.0,
+    breakevenR:   0.5,
+    maxTrades:    1,
+    maxSpreadPts: 20,
+    slippage:     3,
+  },
+};
+
+// ── OB 3-Timeframe Bear  (D1 → H4 → M30 → SELL) ─────────────────────────────
+export const OB_3TF_BEAR: MtfOrchestratorConfig = {
+  id:          "ob-3tf-bear",
+  name:        "MTF_OB_3TF_Bear",
+  description:
+    "D1 OB bear confirm → H4 OB bear confirm → M30 OB entry signal → SELL. " +
+    "Mirror of the 3-TF OB bull strategy.",
+  direction: "BEAR",
+  steps: [
+    {
+      label:        "D1 OB Bear Confirm",
+      moduleName:   "OB_State_Module",
+      timeframe:    "PERIOD_D1",
+      lookback:     200,
+      bufIdx:       1,   // BearConfirmBuf
+      triggerValue: 1.0,
+      expiryBars:   10,
+    },
+    {
+      label:        "H4 OB Bear Confirm",
+      moduleName:   "OB_State_Module",
+      timeframe:    "PERIOD_H4",
+      lookback:     300,
+      bufIdx:       1,
+      triggerValue: 1.0,
+      expiryBars:   24,
+    },
+    {
+      label:        "M30 OB Entry Signal",
+      moduleName:   "OB_State_Module",
+      timeframe:    "PERIOD_M30",
+      lookback:     500,
+      bufIdx:       1,
+      triggerValue: 1.0,
+      expiryBars:   40,
+    },
+  ],
+  execution: {
+    slBufIdx:     3,   // BearSLBuf
+    magic:        20250702,
+    riskPct:      1.0,
+    rr:           2.0,
+    breakevenR:   0.5,
+    maxTrades:    1,
+    maxSpreadPts: 20,
+    slippage:     3,
+  },
+};
+
+// ── OB 2-Timeframe Bull  (H4 → M30 → BUY) ────────────────────────────────────
+export const OB_2TF_BULL: MtfOrchestratorConfig = {
+  id:          "ob-2tf-bull",
+  name:        "MTF_OB_2TF_Bull",
+  description:
+    "H4 OB bull confirm → M30 OB entry signal → BUY. " +
+    "Shorter intraday OB chain — H4 sets the zone bias, M30 provides the retest entry.",
+  direction: "BULL",
+  steps: [
+    {
+      label:        "H4 OB Bull Confirm",
+      moduleName:   "OB_State_Module",
+      timeframe:    "PERIOD_H4",
+      lookback:     300,
+      bufIdx:       0,
+      triggerValue: 1.0,
+      expiryBars:   24,
+    },
+    {
+      label:        "M30 OB Entry Signal",
+      moduleName:   "OB_State_Module",
+      timeframe:    "PERIOD_M30",
+      lookback:     500,
+      bufIdx:       0,
+      triggerValue: 1.0,
+      expiryBars:   40,
+    },
+  ],
+  execution: {
+    slBufIdx:     2,
+    magic:        20250703,
+    riskPct:      1.0,
+    rr:           2.0,
+    breakevenR:   0.5,
+    maxTrades:    2,
+    maxSpreadPts: 20,
+    slippage:     3,
+  },
+};
+
+// ── OB 2-Timeframe Bear  (H4 → M30 → SELL) ───────────────────────────────────
+export const OB_2TF_BEAR: MtfOrchestratorConfig = {
+  id:          "ob-2tf-bear",
+  name:        "MTF_OB_2TF_Bear",
+  description:
+    "H4 OB bear confirm → M30 OB entry signal → SELL. " +
+    "Mirror of the 2-TF OB bull strategy.",
+  direction: "BEAR",
+  steps: [
+    {
+      label:        "H4 OB Bear Confirm",
+      moduleName:   "OB_State_Module",
+      timeframe:    "PERIOD_H4",
+      lookback:     300,
+      bufIdx:       1,
+      triggerValue: 1.0,
+      expiryBars:   24,
+    },
+    {
+      label:        "M30 OB Entry Signal",
+      moduleName:   "OB_State_Module",
+      timeframe:    "PERIOD_M30",
+      lookback:     500,
+      bufIdx:       1,
+      triggerValue: 1.0,
+      expiryBars:   40,
+    },
+  ],
+  execution: {
+    slBufIdx:     3,
+    magic:        20250704,
+    riskPct:      1.0,
+    rr:           2.0,
+    breakevenR:   0.5,
+    maxTrades:    2,
+    maxSpreadPts: 20,
+    slippage:     3,
+  },
+};
+
+// ─── Breakout Strategies ──────────────────────────────────────────────────────
+
+// ── Breakout 2-Timeframe Bull  (H4 → M30 → BUY) ──────────────────────────────
+export const BREAKOUT_2TF_BULL: MtfOrchestratorConfig = {
+  id:          "breakout-2tf-bull",
+  name:        "MTF_Breakout_2TF_Bull",
+  description:
+    "H4 RBS confirm → M30 RBS entry signal → BUY. " +
+    "H4 breakout flip confirmed first, then M30 retest of the new RBS level. " +
+    "Requires Breakout_State_Module.mq5 compiled in MQL5/Indicators/.",
+  direction: "BULL",
+  steps: [
+    {
+      label:        "H4 RBS Confirm",
+      moduleName:   "Breakout_State_Module",
+      timeframe:    "PERIOD_H4",
+      lookback:     300,
+      bufIdx:       0,   // BullConfirmBuf (RBS CONFIRMED)
+      triggerValue: 1.0,
+      expiryBars:   24,
+    },
+    {
+      label:        "M30 RBS Entry Signal",
+      moduleName:   "Breakout_State_Module",
+      timeframe:    "PERIOD_M30",
+      lookback:     500,
+      bufIdx:       0,
+      triggerValue: 1.0,
+      expiryBars:   40,
+    },
+  ],
+  execution: {
+    slBufIdx:     2,   // BullSLBuf
+    magic:        20250705,
+    riskPct:      1.0,
+    rr:           2.0,
+    breakevenR:   0.5,
+    maxTrades:    2,
+    maxSpreadPts: 20,
+    slippage:     3,
+  },
+};
+
+// ── Breakout 2-Timeframe Bear  (H4 → M30 → SELL) ─────────────────────────────
+export const BREAKOUT_2TF_BEAR: MtfOrchestratorConfig = {
+  id:          "breakout-2tf-bear",
+  name:        "MTF_Breakout_2TF_Bear",
+  description:
+    "H4 SBR confirm → M30 SBR entry signal → SELL. " +
+    "Mirror of the 2-TF Breakout bull strategy.",
+  direction: "BEAR",
+  steps: [
+    {
+      label:        "H4 SBR Confirm",
+      moduleName:   "Breakout_State_Module",
+      timeframe:    "PERIOD_H4",
+      lookback:     300,
+      bufIdx:       1,   // BearConfirmBuf (SBR CONFIRMED)
+      triggerValue: 1.0,
+      expiryBars:   24,
+    },
+    {
+      label:        "M30 SBR Entry Signal",
+      moduleName:   "Breakout_State_Module",
+      timeframe:    "PERIOD_M30",
+      lookback:     500,
+      bufIdx:       1,
+      triggerValue: 1.0,
+      expiryBars:   40,
+    },
+  ],
+  execution: {
+    slBufIdx:     3,   // BearSLBuf
+    magic:        20250706,
+    riskPct:      1.0,
+    rr:           2.0,
+    breakevenR:   0.5,
+    maxTrades:    2,
+    maxSpreadPts: 20,
+    slippage:     3,
+  },
+};
+
+// ─── Breaker Block Strategies ─────────────────────────────────────────────────
+
+// ── BB 2-Timeframe Bull  (H4 → M30 → BUY) ────────────────────────────────────
+export const BB_2TF_BULL: MtfOrchestratorConfig = {
+  id:          "bb-2tf-bull",
+  name:        "MTF_BB_2TF_Bull",
+  description:
+    "H4 Bullish Breaker Block confirm → M30 BB entry signal → BUY. " +
+    "H4 OB broken and recycled as BB, then M30 retest of the flipped zone confirms entry. " +
+    "Requires BB_State_Module.mq5 compiled in MQL5/Indicators/.",
+  direction: "BULL",
+  steps: [
+    {
+      label:        "H4 Bull BB Confirm",
+      moduleName:   "BB_State_Module",
+      timeframe:    "PERIOD_H4",
+      lookback:     300,
+      bufIdx:       0,   // BullConfirmBuf
+      triggerValue: 1.0,
+      expiryBars:   24,
+    },
+    {
+      label:        "M30 Bull BB Entry Signal",
+      moduleName:   "BB_State_Module",
+      timeframe:    "PERIOD_M30",
+      lookback:     500,
+      bufIdx:       0,
+      triggerValue: 1.0,
+      expiryBars:   40,
+    },
+  ],
+  execution: {
+    slBufIdx:     2,   // BullSLBuf
+    magic:        20250707,
+    riskPct:      1.0,
+    rr:           2.0,
+    breakevenR:   0.5,
+    maxTrades:    2,
+    maxSpreadPts: 20,
+    slippage:     3,
+  },
+};
+
+// ── BB 2-Timeframe Bear  (H4 → M30 → SELL) ───────────────────────────────────
+export const BB_2TF_BEAR: MtfOrchestratorConfig = {
+  id:          "bb-2tf-bear",
+  name:        "MTF_BB_2TF_Bear",
+  description:
+    "H4 Bearish Breaker Block confirm → M30 BB entry signal → SELL. " +
+    "Mirror of the 2-TF BB bull strategy.",
+  direction: "BEAR",
+  steps: [
+    {
+      label:        "H4 Bear BB Confirm",
+      moduleName:   "BB_State_Module",
+      timeframe:    "PERIOD_H4",
+      lookback:     300,
+      bufIdx:       1,   // BearConfirmBuf
+      triggerValue: 1.0,
+      expiryBars:   24,
+    },
+    {
+      label:        "M30 Bear BB Entry Signal",
+      moduleName:   "BB_State_Module",
+      timeframe:    "PERIOD_M30",
+      lookback:     500,
+      bufIdx:       1,
+      triggerValue: 1.0,
+      expiryBars:   40,
+    },
+  ],
+  execution: {
+    slBufIdx:     3,   // BearSLBuf
+    magic:        20250708,
+    riskPct:      1.0,
+    rr:           2.0,
+    breakevenR:   0.5,
+    maxTrades:    2,
+    maxSpreadPts: 20,
+    slippage:     3,
+  },
+};
+
+// ─── Cross-Module Strategies (BOS structural bias + zone entry) ───────────────
+//
+// BOS_State_Module buffer layout:
+//   buf 0 — BullTrendBuf  (persistent 1.0 on EVERY bar while D1 trend is BULL)
+//   buf 1 — BearTrendBuf  (persistent 1.0 on EVERY bar while D1 trend is BEAR)
+//
+// Because BullTrendBuf is persistent (not an event pulse), Step 1 in these
+// strategies confirms IMMEDIATELY when the bias is already active — it acts as
+// a gate rather than a trigger. If the bias is absent, Step 1 stays ACTIVE until
+// its expiry window elapses and the chain resets cleanly.
+//
+// Execution TF for 2-step D1→H4 strategies: attach EA to H4 chart.
+// Execution TF for 3-step D1→H4→M30 strategies: attach EA to M30 chart.
+
+// ── BOS Bias + FVG Entry — Bull  (D1 BOS → H4 FVG → BUY) ────────────────────
+export const BOS_BIAS_FVG_BULL: MtfOrchestratorConfig = {
+  id:          "bos-bias-fvg-bull",
+  name:        "MTF_BOS_Bias_FVG_Bull",
+  description:
+    "D1 structural bias BULL (BOS_State_Module) → H4 FVG confirmed → BUY. " +
+    "Step 1 gates instantly if D1 trend is already BULL. " +
+    "Requires BOS_State_Module.mq5 and FVG_State_Module.mq5 in MQL5/Indicators/. " +
+    "Attach to H4 chart.",
+  direction: "BULL",
+  steps: [
+    {
+      label:        "D1 BOS Bull Bias",
+      moduleName:   "BOS_State_Module",
+      timeframe:    "PERIOD_D1",
+      lookback:     200,
+      bufIdx:       0,   // BullTrendBuf — persistent, 1.0 while trend is BULL
+      triggerValue: 1.0,
+      expiryBars:   60,  // 60 H4 bars ≈ 10 D1 days
+    },
+    {
+      label:        "H4 FVG Bull Confirm",
+      moduleName:   "FVG_State_Module",
+      timeframe:    "PERIOD_H4",
+      lookback:     300,
+      bufIdx:       0,   // BullConfirmBuf
+      triggerValue: 1.0,
+      expiryBars:   24,  // 24 H4 bars = 4 D1 days
+    },
+  ],
+  execution: {
+    slBufIdx:     2,   // BullSLBuf from H4 FVG_State_Module
+    magic:        20250801,
+    riskPct:      1.0,
+    rr:           2.0,
+    breakevenR:   0.5,
+    maxTrades:    1,
+    maxSpreadPts: 20,
+    slippage:     3,
+  },
+};
+
+// ── BOS Bias + FVG Entry — Bear  (D1 BOS → H4 FVG → SELL) ───────────────────
+export const BOS_BIAS_FVG_BEAR: MtfOrchestratorConfig = {
+  id:          "bos-bias-fvg-bear",
+  name:        "MTF_BOS_Bias_FVG_Bear",
+  description:
+    "D1 structural bias BEAR (BOS_State_Module) → H4 FVG confirmed → SELL. " +
+    "Mirror of the BOS Bias + FVG Bull strategy. Attach to H4 chart.",
+  direction: "BEAR",
+  steps: [
+    {
+      label:        "D1 BOS Bear Bias",
+      moduleName:   "BOS_State_Module",
+      timeframe:    "PERIOD_D1",
+      lookback:     200,
+      bufIdx:       1,   // BearTrendBuf — persistent, 1.0 while trend is BEAR
+      triggerValue: 1.0,
+      expiryBars:   60,
+    },
+    {
+      label:        "H4 FVG Bear Confirm",
+      moduleName:   "FVG_State_Module",
+      timeframe:    "PERIOD_H4",
+      lookback:     300,
+      bufIdx:       1,   // BearConfirmBuf
+      triggerValue: 1.0,
+      expiryBars:   24,
+    },
+  ],
+  execution: {
+    slBufIdx:     3,   // BearSLBuf from H4 FVG_State_Module
+    magic:        20250802,
+    riskPct:      1.0,
+    rr:           2.0,
+    breakevenR:   0.5,
+    maxTrades:    1,
+    maxSpreadPts: 20,
+    slippage:     3,
+  },
+};
+
+// ── BOS Bias + OB Entry — Bull  (D1 BOS → H4 OB → BUY) ──────────────────────
+export const BOS_BIAS_OB_BULL: MtfOrchestratorConfig = {
+  id:          "bos-bias-ob-bull",
+  name:        "MTF_BOS_Bias_OB_Bull",
+  description:
+    "D1 structural bias BULL (BOS_State_Module) → H4 Order Block confirmed → BUY. " +
+    "Higher-conviction entry: daily structure + H4 institutional zone retest. " +
+    "Requires BOS_State_Module.mq5 and OB_State_Module.mq5. Attach to H4 chart.",
+  direction: "BULL",
+  steps: [
+    {
+      label:        "D1 BOS Bull Bias",
+      moduleName:   "BOS_State_Module",
+      timeframe:    "PERIOD_D1",
+      lookback:     200,
+      bufIdx:       0,   // BullTrendBuf
+      triggerValue: 1.0,
+      expiryBars:   60,
+    },
+    {
+      label:        "H4 OB Bull Confirm",
+      moduleName:   "OB_State_Module",
+      timeframe:    "PERIOD_H4",
+      lookback:     300,
+      bufIdx:       0,   // BullConfirmBuf
+      triggerValue: 1.0,
+      expiryBars:   24,
+    },
+  ],
+  execution: {
+    slBufIdx:     2,   // BullSLBuf from H4 OB_State_Module
+    magic:        20250803,
+    riskPct:      1.0,
+    rr:           2.0,
+    breakevenR:   0.5,
+    maxTrades:    1,
+    maxSpreadPts: 20,
+    slippage:     3,
+  },
+};
+
+// ── BOS Bias + OB Entry — Bear  (D1 BOS → H4 OB → SELL) ─────────────────────
+export const BOS_BIAS_OB_BEAR: MtfOrchestratorConfig = {
+  id:          "bos-bias-ob-bear",
+  name:        "MTF_BOS_Bias_OB_Bear",
+  description:
+    "D1 structural bias BEAR (BOS_State_Module) → H4 Order Block confirmed → SELL. " +
+    "Mirror of the BOS Bias + OB Bull strategy. Attach to H4 chart.",
+  direction: "BEAR",
+  steps: [
+    {
+      label:        "D1 BOS Bear Bias",
+      moduleName:   "BOS_State_Module",
+      timeframe:    "PERIOD_D1",
+      lookback:     200,
+      bufIdx:       1,   // BearTrendBuf
+      triggerValue: 1.0,
+      expiryBars:   60,
+    },
+    {
+      label:        "H4 OB Bear Confirm",
+      moduleName:   "OB_State_Module",
+      timeframe:    "PERIOD_H4",
+      lookback:     300,
+      bufIdx:       1,   // BearConfirmBuf
+      triggerValue: 1.0,
+      expiryBars:   24,
+    },
+  ],
+  execution: {
+    slBufIdx:     3,   // BearSLBuf from H4 OB_State_Module
+    magic:        20250804,
+    riskPct:      1.0,
+    rr:           2.0,
+    breakevenR:   0.5,
+    maxTrades:    1,
+    maxSpreadPts: 20,
+    slippage:     3,
+  },
+};
+
+// ── BOS Bias + OB Setup + FVG Entry — Bull  (D1 BOS → H4 OB → M30 FVG → BUY) ─
+export const BOS_OB_FVG_BULL: MtfOrchestratorConfig = {
+  id:          "bos-ob-fvg-bull",
+  name:        "MTF_BOS_OB_FVG_Bull",
+  description:
+    "D1 structural bias BULL → H4 OB confirmed (zone established) → M30 FVG entry → BUY. " +
+    "Highest-confluence 3-step cross-module strategy. Three independent modules confirm " +
+    "at three timeframes before a trade is placed. " +
+    "Requires BOS_State_Module.mq5, OB_State_Module.mq5, FVG_State_Module.mq5. Attach to M30 chart.",
+  direction: "BULL",
+  steps: [
+    {
+      label:        "D1 BOS Bull Bias",
+      moduleName:   "BOS_State_Module",
+      timeframe:    "PERIOD_D1",
+      lookback:     200,
+      bufIdx:       0,   // BullTrendBuf (persistent bias gate)
+      triggerValue: 1.0,
+      expiryBars:   500, // 500 M30 bars ≈ 10 D1 days
+    },
+    {
+      label:        "H4 OB Bull Setup",
+      moduleName:   "OB_State_Module",
+      timeframe:    "PERIOD_H4",
+      lookback:     300,
+      bufIdx:       0,   // BullConfirmBuf
+      triggerValue: 1.0,
+      expiryBars:   48,  // 48 M30 bars = 1 D1 day
+    },
+    {
+      label:        "M30 FVG Entry Signal",
+      moduleName:   "FVG_State_Module",
+      timeframe:    "PERIOD_M30",
+      lookback:     500,
+      bufIdx:       0,   // BullConfirmBuf
+      triggerValue: 1.0,
+      expiryBars:   40,
+    },
+  ],
+  execution: {
+    slBufIdx:     2,   // BullSLBuf from M30 FVG_State_Module
+    magic:        20250805,
+    riskPct:      1.0,
+    rr:           2.5,  // higher RR justified by triple confluence
+    breakevenR:   0.5,
+    maxTrades:    1,
+    maxSpreadPts: 20,
+    slippage:     3,
+  },
+};
+
+// ── BOS Bias + OB Setup + FVG Entry — Bear  (D1 BOS → H4 OB → M30 FVG → SELL) ─
+export const BOS_OB_FVG_BEAR: MtfOrchestratorConfig = {
+  id:          "bos-ob-fvg-bear",
+  name:        "MTF_BOS_OB_FVG_Bear",
+  description:
+    "D1 structural bias BEAR → H4 OB confirmed → M30 FVG entry → SELL. " +
+    "Mirror of the 3-step cross-module bull strategy. Attach to M30 chart.",
+  direction: "BEAR",
+  steps: [
+    {
+      label:        "D1 BOS Bear Bias",
+      moduleName:   "BOS_State_Module",
+      timeframe:    "PERIOD_D1",
+      lookback:     200,
+      bufIdx:       1,   // BearTrendBuf
+      triggerValue: 1.0,
+      expiryBars:   500,
+    },
+    {
+      label:        "H4 OB Bear Setup",
+      moduleName:   "OB_State_Module",
+      timeframe:    "PERIOD_H4",
+      lookback:     300,
+      bufIdx:       1,   // BearConfirmBuf
+      triggerValue: 1.0,
+      expiryBars:   48,
+    },
+    {
+      label:        "M30 FVG Entry Signal",
+      moduleName:   "FVG_State_Module",
+      timeframe:    "PERIOD_M30",
+      lookback:     500,
+      bufIdx:       1,   // BearConfirmBuf
+      triggerValue: 1.0,
+      expiryBars:   40,
+    },
+  ],
+  execution: {
+    slBufIdx:     3,   // BearSLBuf from M30 FVG_State_Module
+    magic:        20250806,
+    riskPct:      1.0,
+    rr:           2.5,
+    breakevenR:   0.5,
+    maxTrades:    1,
+    maxSpreadPts: 20,
+    slippage:     3,
+  },
+};
