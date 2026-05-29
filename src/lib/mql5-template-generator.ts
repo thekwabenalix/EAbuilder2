@@ -524,7 +524,7 @@ function genInputs(bp: StrategyBlueprint, ctx: Ctx): string {
 
   // FVG always uses break-even (managed by FVG_ManageBreakEven); default is 0.5R.
   // Non-FVG strategies only emit this input when the blueprint enables break-even.
-  if (ctx.hasFVG || ctx.hasOrderBlock) {
+  if (ctx.hasFVG || ctx.hasOrderBlock || ctx.hasBOS) {
     lines.push(`//--- Break-even`);
     lines.push(`input double InpBEAtR = 0.5;  // Move SL to B/E at this R multiple`);
     lines.push(``);
@@ -564,6 +564,27 @@ function genGlobals(ctx: Ctx): string {
   if (ctx.hasATR)   lines.push(`int hATR   = INVALID_HANDLE;`);
   if (ctx.hasHTF)   lines.push(`int hHTF   = INVALID_HANDLE;`);
   lines.push(``, `static datetime lastBarTime = 0;`, ``);
+  if (ctx.hasBOS) {
+    lines.push(
+      `#define BOS_PENDING  0   // BOS detected — entry fires on next bar open`,
+      `#define BOS_TRADED   1   // trade executed`,
+      `#define BOS_MISSED   2   // entry attempted but blocked (position limit, stops)`,
+      `#define MAX_BOS_SIG  100`,
+      ``,
+      `struct BOSSignal`,
+      `{`,
+      `   int      dir;          // 1 = bull BOS,  -1 = bear BOS`,
+      `   datetime detectedAt;   // bar where BOS fired`,
+      `   double   swingBroken;  // the swing level that was broken`,
+      `   double   slLevel;      // opposite swing — used as SL`,
+      `   int      state;`,
+      `};`,
+      ``,
+      `BOSSignal bosSigs[MAX_BOS_SIG];`,
+      `int       bosSigCount = 0;`,
+      ``,
+    );
+  }
   if (ctx.hasOrderBlock) {
     lines.push(
       `#define OB_ACTIVE      0`,
@@ -1059,6 +1080,180 @@ void FVG_DeleteAllObjects()
 `;
 }
 
+// ─── BOS / CHoCH State Machine generator ─────────────────────────────────────
+
+function genBOSStateMachine(ctx: Ctx): string {
+  return `//+------------------------------------------------------------------+
+//| BOS / CHoCH State Machine                                        |
+//| Detects Break of Structure: close beyond recent swing high/low.  |
+//| Enters at bar open on the NEXT bar after detection.              |
+//| SL at the opposite swing extreme. TP at R multiple. BE at 0.5R. |
+//+------------------------------------------------------------------+
+
+// Find the highest high and lowest low within InpBOSLookback bars (bars 2..N).
+void BOS_FindSwings(double &swHigh, double &swLow)
+{
+   swHigh = iHigh(InpSymbol, InpEntryTF, 2);
+   swLow  = iLow (InpSymbol, InpEntryTF, 2);
+   for(int i = 3; i <= InpBOSLookback; i++)
+   {
+      double h = iHigh(InpSymbol, InpEntryTF, i);
+      double l = iLow (InpSymbol, InpEntryTF, i);
+      if(h > swHigh) swHigh = h;
+      if(l < swLow)  swLow  = l;
+   }
+}
+
+// Called each bar: detect BOS in the just-closed bar (shift 1).
+// Bull BOS: close > recent swing high.  Bear BOS: close < recent swing low.
+void BOS_Detect()
+{
+   double   swHigh, swLow;
+   BOS_FindSwings(swHigh, swLow);
+   double   c1   = iClose(InpSymbol, InpEntryTF, 1);
+   datetime barT = iTime (InpSymbol, InpEntryTF, 1);
+
+   // ── Bull BOS ───────────────────────────────────────────────────────────────
+   if(c1 > swHigh)
+   {
+      bool dup = false;
+      for(int i = 0; i < bosSigCount; i++)
+         if(bosSigs[i].detectedAt == barT && bosSigs[i].dir == 1) { dup = true; break; }
+      if(!dup)
+      {
+         int idx = -1;
+         for(int i = 0; i < bosSigCount; i++)
+            if(bosSigs[i].state >= BOS_TRADED) { idx = i; break; }
+         if(idx < 0 && bosSigCount < MAX_BOS_SIG) idx = bosSigCount++;
+         if(idx >= 0)
+         {
+            bosSigs[idx].dir         =  1;
+            bosSigs[idx].detectedAt  = barT;
+            bosSigs[idx].swingBroken = swHigh;
+            bosSigs[idx].slLevel     = swLow;
+            bosSigs[idx].state       = BOS_PENDING;
+            PrintFormat("[BOS] BULL break | level=%.5f | sl=%.5f | bar=%s",
+                        swHigh, swLow, TimeToString(barT, TIME_DATE|TIME_MINUTES));
+         }
+      }
+   }
+
+   // ── Bear BOS ───────────────────────────────────────────────────────────────
+   if(c1 < swLow)
+   {
+      bool dup = false;
+      for(int i = 0; i < bosSigCount; i++)
+         if(bosSigs[i].detectedAt == barT && bosSigs[i].dir == -1) { dup = true; break; }
+      if(!dup)
+      {
+         int idx = -1;
+         for(int i = 0; i < bosSigCount; i++)
+            if(bosSigs[i].state >= BOS_TRADED) { idx = i; break; }
+         if(idx < 0 && bosSigCount < MAX_BOS_SIG) idx = bosSigCount++;
+         if(idx >= 0)
+         {
+            bosSigs[idx].dir         = -1;
+            bosSigs[idx].detectedAt  = barT;
+            bosSigs[idx].swingBroken = swLow;
+            bosSigs[idx].slLevel     = swHigh;
+            bosSigs[idx].state       = BOS_PENDING;
+            PrintFormat("[BOS] BEAR break | level=%.5f | sl=%.5f | bar=%s",
+                        swLow, swHigh, TimeToString(barT, TIME_DATE|TIME_MINUTES));
+         }
+      }
+   }
+}
+
+// Execute market entries for PENDING signals at bar open.
+void BOS_ExecuteEntries()
+{
+   ${ctx.hasMaxTradesFilter
+     ? `if(CountOpenPositions(InpSymbol, InpMagic) >= InpMaxTrades) return;`
+     : `if(HasOpenPosition(InpSymbol, InpMagic)) return;`}
+   if(!SpreadOk(InpSymbol, InpMaxSpread)) return;
+
+   double point  = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   double ask    = SymbolInfoDouble(InpSymbol, SYMBOL_ASK);
+   double bid    = SymbolInfoDouble(InpSymbol, SYMBOL_BID);
+   int    digits = (int)SymbolInfoInteger(InpSymbol, SYMBOL_DIGITS);
+   long   stops  = SymbolInfoInteger(InpSymbol, SYMBOL_TRADE_STOPS_LEVEL);
+
+   for(int i = 0; i < bosSigCount; i++)
+   {
+      if(bosSigs[i].state != BOS_PENDING) continue;
+
+      if(bosSigs[i].dir == 1) // Bull BOS → BUY at bar open
+      {
+         double sl   = NormalizeDouble(bosSigs[i].slLevel - InpStopBuffer * point, digits);
+         double dist = (ask - sl) / point;
+         if(dist < (double)stops) { bosSigs[i].state = BOS_MISSED; continue; }
+         double lot  = CalcLot(dist, InpSymbol, InpRiskPercent);
+         if(lot <= 0)             { bosSigs[i].state = BOS_MISSED; continue; }
+         double tp   = NormalizeDouble(ask + dist * InpRewardRisk * point, digits);
+         PrintFormat("[BOS ENTRY] BUY | entry=%.5f | SL=%.5f | TP=%.5f | broke=%.5f",
+                     ask, sl, tp, bosSigs[i].swingBroken);
+         if(trade.Buy(lot, InpSymbol, ask, sl, tp, "BOS Buy"))
+            bosSigs[i].state = BOS_TRADED;
+         else
+            bosSigs[i].state = BOS_MISSED;
+      }
+      else // Bear BOS → SELL at bar open
+      {
+         double sl   = NormalizeDouble(bosSigs[i].slLevel + InpStopBuffer * point, digits);
+         double dist = (sl - bid) / point;
+         if(dist < (double)stops) { bosSigs[i].state = BOS_MISSED; continue; }
+         double lot  = CalcLot(dist, InpSymbol, InpRiskPercent);
+         if(lot <= 0)             { bosSigs[i].state = BOS_MISSED; continue; }
+         double tp   = NormalizeDouble(bid - dist * InpRewardRisk * point, digits);
+         PrintFormat("[BOS ENTRY] SELL | entry=%.5f | SL=%.5f | TP=%.5f | broke=%.5f",
+                     bid, sl, tp, bosSigs[i].swingBroken);
+         if(trade.Sell(lot, InpSymbol, bid, sl, tp, "BOS Sell"))
+            bosSigs[i].state = BOS_TRADED;
+         else
+            bosSigs[i].state = BOS_MISSED;
+      }
+      break; // one trade per bar
+   }
+}
+
+// Move SL to break-even when profit >= InpBEAtR × initial risk.
+void BOS_ManageBreakEven()
+{
+   double point  = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   int    digits = (int)SymbolInfoInteger(InpSymbol, SYMBOL_DIGITS);
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(!PositionSelectByTicket(ticket)) continue;
+      if(PositionGetString(POSITION_SYMBOL) != InpSymbol) continue;
+      if(PositionGetInteger(POSITION_MAGIC) != InpMagic)  continue;
+      long   type = PositionGetInteger(POSITION_TYPE);
+      double open = PositionGetDouble(POSITION_PRICE_OPEN);
+      double sl   = PositionGetDouble(POSITION_SL);
+      double tp   = PositionGetDouble(POSITION_TP);
+      if(open <= 0 || sl <= 0) continue;
+      double initRisk = MathAbs(open - sl);
+      if(initRisk < point) continue;
+      double bid = SymbolInfoDouble(InpSymbol, SYMBOL_BID);
+      double ask = SymbolInfoDouble(InpSymbol, SYMBOL_ASK);
+      if(type == POSITION_TYPE_BUY)
+      {
+         if(sl >= open - point) continue;
+         if(bid - open >= initRisk * InpBEAtR)
+            trade.PositionModify(ticket, NormalizeDouble(open, digits), tp);
+      }
+      else
+      {
+         if(sl <= open + point) continue;
+         if(open - ask >= initRisk * InpBEAtR)
+            trade.PositionModify(ticket, NormalizeDouble(open, digits), tp);
+      }
+   }
+}
+
+`;
+}
+
 // ─── OB State Machine generator ──────────────────────────────────────────────
 
 function genOBStateMachine(ctx: Ctx): string {
@@ -1423,29 +1618,7 @@ bool IsShootingStar(int sh) { return IsBearishPinBar(sh); }
 
   // ── SMC helpers ─────────────────────────────────────────────────────────────
   if (ctx.hasBOS) {
-    parts.push(`// BOS / CHoCH: close breaks beyond the highest high or lowest low of last N bars
-bool IsBullishBOS()
-{
-   double highest = iHigh(InpSymbol, InpEntryTF, 2);
-   for(int i = 3; i <= InpBOSLookback; i++)
-   {
-      double h = iHigh(InpSymbol, InpEntryTF, i);
-      if(h > highest) highest = h;
-   }
-   return iClose(InpSymbol, InpEntryTF, 1) > highest;
-}
-bool IsBearishBOS()
-{
-   double lowest = iLow(InpSymbol, InpEntryTF, 2);
-   for(int i = 3; i <= InpBOSLookback; i++)
-   {
-      double l = iLow(InpSymbol, InpEntryTF, i);
-      if(l < lowest) lowest = l;
-   }
-   return iClose(InpSymbol, InpEntryTF, 1) < lowest;
-}
-
-`);
+    parts.push(genBOSStateMachine(ctx));
   }
 
   if (ctx.hasFVG) {
@@ -1578,7 +1751,7 @@ bool IsNearSupplyZone()
 
   // State-machine strategies drive entries through their own Execute function.
   // CheckEntrySignal is not used — return early before it is generated.
-  if (ctx.hasFVG || ctx.hasOrderBlock) return parts.join("");
+  if (ctx.hasFVG || ctx.hasOrderBlock || ctx.hasBOS) return parts.join("");
 
   // ── Entry signal ─────────────────────────────────────────────────────────────
   // Collect trigger conditions (OR'd — any can fire)
@@ -1874,7 +2047,7 @@ function genOnTick(bp: StrategyBlueprint, ctx: Ctx): string {
   // ── Unified state-machine OnTick ────────────────────────────────────────────
   // Each module that is active contributes its lines to four phases.
   // Adding a new module = add four lines below. No other changes needed.
-  const isStateMachine = ctx.hasFVG || ctx.hasOrderBlock;
+  const isStateMachine = ctx.hasFVG || ctx.hasOrderBlock || ctx.hasBOS;
 
   if (isStateMachine) {
     // Phase 0 — break-even (runs every tick, before bar-open guard)
@@ -1902,10 +2075,14 @@ function genOnTick(bp: StrategyBlueprint, ctx: Ctx): string {
       detectLines.push(`   OB_ScanBar(1);`);
       drawLines  .push(`   OB_DrawZones();`);
     }
+    if (ctx.hasBOS) {
+      beLines    .push(`   BOS_ManageBreakEven();`);
+      execLines  .push(`   BOS_ExecuteEntries();`);
+      detectLines.push(`   BOS_Detect();`);
+      // BOS has no chart objects — no drawLines entry needed
+    }
     // ── Future modules: add here ──────────────────────────────────────────────
-    // if (ctx.hasBOS)           { beLines.push(...); updateLines.push(...); ... }
-    // if (ctx.hasLiquiditySweep){ beLines.push(...); updateLines.push(...); ... }
-    // if (ctx.hasCHoCH)         { beLines.push(...); updateLines.push(...); ... }
+    // if (ctx.hasLiquiditySweep){ beLines.push(...); execLines.push(...); detectLines.push(...); }
 
     const beBlock = beLines.length > 0
       ? beLines.join("\n") + "\n\n"
