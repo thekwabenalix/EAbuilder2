@@ -1871,40 +1871,64 @@ ${rel.join("\n")}
 }
 
 function genOnTick(bp: StrategyBlueprint, ctx: Ctx): string {
-  // State-machine strategies use a dedicated OnTick.
-  if (ctx.hasFVG) {
+  // ── Unified state-machine OnTick ────────────────────────────────────────────
+  // Each module that is active contributes its lines to four phases.
+  // Adding a new module = add four lines below. No other changes needed.
+  const isStateMachine = ctx.hasFVG || ctx.hasOrderBlock;
+
+  if (isStateMachine) {
+    // Phase 0 — break-even (runs every tick, before bar-open guard)
+    const beLines:      string[] = [];
+    // Phase 1 — update zone states with just-closed bar
+    const updateLines:  string[] = [];
+    // Phase 2 — execute entries at bar open for confirmed zones
+    const execLines:    string[] = [];
+    // Phase 3 — detect new zones in just-closed bar
+    const detectLines:  string[] = [];
+    // Phase 4 — refresh chart objects
+    const drawLines:    string[] = [];
+
+    if (ctx.hasFVG) {
+      beLines    .push(`   FVG_ManageBreakEven();`);
+      updateLines.push(`   FVG_Update();`);
+      execLines  .push(`   FVG_ExecuteEntries();`);
+      detectLines.push(`   FVG_Detect();`);
+      drawLines  .push(`   FVG_DrawZones();`);
+    }
+    if (ctx.hasOrderBlock) {
+      beLines    .push(`   OB_ManageBreakEven();`);
+      updateLines.push(`   OB_Update();`);
+      execLines  .push(`   OB_ExecuteEntries();`);
+      detectLines.push(`   OB_ScanBar(1);`);
+      drawLines  .push(`   OB_DrawZones();`);
+    }
+    // ── Future modules: add here ──────────────────────────────────────────────
+    // if (ctx.hasBOS)           { beLines.push(...); updateLines.push(...); ... }
+    // if (ctx.hasLiquiditySweep){ beLines.push(...); updateLines.push(...); ... }
+    // if (ctx.hasCHoCH)         { beLines.push(...); updateLines.push(...); ... }
+
+    const beBlock = beLines.length > 0
+      ? beLines.join("\n") + "\n\n"
+      : "";
+
     return `void OnTick()
 {
-   FVG_ManageBreakEven(); // Move SL to break-even at 0.5R every tick
-
-   // Bar-open pattern: run state machine on first tick of each new bar only
+${beBlock}   // Bar-open pattern: state machines run once per bar (on the first tick of each new bar)
    datetime bar = iTime(InpSymbol, InpEntryTF, 0);
    if(bar == lastBarTime) return;
    lastBarTime = bar;
 
-   FVG_Update();         // 1. Confirm/reject zones using the just-closed bar
-   FVG_ExecuteEntries(); // 2. Enter at the new bar's open — zones are already updated
-   FVG_Detect();         // 3. Identify new FVGs in the latest 3 bars
-   FVG_DrawZones();      // 4. Refresh chart rectangle objects
-}
+   // 1. Update all zone states using the just-closed bar
+${updateLines.join("\n")}
 
-`;
-  }
+   // 2. Execute entries for confirmed zones at bar open
+${execLines.join("\n")}
 
-  if (ctx.hasOrderBlock) {
-    return `void OnTick()
-{
-   OB_ManageBreakEven(); // Move SL to break-even at 0.5R every tick
+   // 3. Detect new zones in the just-closed bar
+${detectLines.join("\n")}
 
-   // Bar-open pattern: run state machine on first tick of each new bar only
-   datetime bar = iTime(InpSymbol, InpEntryTF, 0);
-   if(bar == lastBarTime) return;
-   lastBarTime = bar;
-
-   OB_Update();          // 1. Update zone states using the just-closed bar
-   OB_ExecuteEntries();  // 2. Enter at the new bar's open for CONFIRMED zones
-   OB_ScanBar(1);        // 3. Scan just-closed bar for new OBs
-   OB_DrawZones();       // 4. Refresh chart rectangle objects
+   // 4. Refresh chart objects
+${drawLines.join("\n")}
 }
 
 `;
