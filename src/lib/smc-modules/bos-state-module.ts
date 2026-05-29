@@ -162,13 +162,15 @@ void TryAddSwing(int sh)
    int pivot    = sh + InpSwingRight;
    int totalBars = Bars(_Symbol, InpTimeframe);
    if(pivot + InpSwingLeft >= totalBars) return;
-   if(swingCount >= MAX_SWINGS - 2)      return;
 
    datetime pivotT = Tm(pivot);
 
-   // ── Dedup by datetime ─────────────────────────────────────
+   // Dedup: skip consumed swings — their slot can be recycled
    for(int k = 0; k < swingCount; k++)
+     {
+      if(swingList[k].consumed) continue;
       if(swingList[k].time == pivotT) return;
+     }
 
    double pivotH = Hi(pivot);
    double pivotL = Lo(pivot);
@@ -189,21 +191,33 @@ void TryAddSwing(int sh)
 
    if(isHigh)
      {
-      swingList[swingCount].id       = gNextSId++;
-      swingList[swingCount].dir      = DIR_HIGH;
-      swingList[swingCount].price    = pivotH;
-      swingList[swingCount].time     = pivotT;
-      swingList[swingCount].consumed = false;
-      swingCount++;
+      int sHi = -1;
+      for(int k = 0; k < swingCount; k++)
+         if(swingList[k].consumed) { sHi = k; break; }
+      if(sHi < 0 && swingCount < MAX_SWINGS) sHi = swingCount++;
+      if(sHi >= 0)
+        {
+         swingList[sHi].id       = gNextSId++;
+         swingList[sHi].dir      = DIR_HIGH;
+         swingList[sHi].price    = pivotH;
+         swingList[sHi].time     = pivotT;
+         swingList[sHi].consumed = false;
+        }
      }
    if(isLow)
      {
-      swingList[swingCount].id       = gNextSId++;
-      swingList[swingCount].dir      = DIR_LOW;
-      swingList[swingCount].price    = pivotL;
-      swingList[swingCount].time     = pivotT;
-      swingList[swingCount].consumed = false;
-      swingCount++;
+      int sLo = -1;
+      for(int k = 0; k < swingCount; k++)
+         if(swingList[k].consumed) { sLo = k; break; }
+      if(sLo < 0 && swingCount < MAX_SWINGS) sLo = swingCount++;
+      if(sLo >= 0)
+        {
+         swingList[sLo].id       = gNextSId++;
+         swingList[sLo].dir      = DIR_LOW;
+         swingList[sLo].price    = pivotL;
+         swingList[sLo].time     = pivotT;
+         swingList[sLo].consumed = false;
+        }
      }
   }
 
@@ -213,8 +227,6 @@ void TryAddSwing(int sh)
 // Each swing can only generate one BOS (consumed flag prevents repeats).
 void CheckBOS(int sh)
   {
-   if(bosCount >= MAX_BOS - 1) return;
-
    double   closeV = Cl(sh);
    datetime barT   = Tm(sh);
 
@@ -223,41 +235,46 @@ void CheckBOS(int sh)
       if(swingList[k].consumed)      continue;
       if(swingList[k].time >= barT)  continue;  // swing must pre-date this bar
 
-      // ── Bull BOS ──────────────────────────────────────────
-      if(swingList[k].dir == DIR_HIGH && closeV > swingList[k].price)
+      bool isBullBos = (swingList[k].dir == DIR_HIGH && closeV > swingList[k].price);
+      bool isBearBos = (swingList[k].dir == DIR_LOW  && closeV < swingList[k].price);
+      if(!isBullBos && !isBearBos) continue;
+
+      // Allocate slot — recycle oldest (drawn=1) when pool full.
+      // gTrend and buffer writes happen regardless of whether slot is available.
+      int bIdx = bosCount < MAX_BOS ? bosCount++ : -1;
+      if(bIdx < 0)
         {
-         bosList[bosCount].id         = gNextBId++;
-         bosList[bosCount].dir        = DIR_HIGH;
-         bosList[bosCount].swingLevel = swingList[k].price;
-         bosList[bosCount].swingTime  = swingList[k].time;
-         bosList[bosCount].bosTime    = barT;
-         bosList[bosCount].drawn      = 0;
-         bosCount++;
+         // Find first drawn slot (oldest) to recycle
+         for(int m = 0; m < bosCount; m++)
+            if(bosList[m].drawn == 1) { bIdx = m; break; }
+         if(bIdx < 0) bIdx = 0;  // fallback: overwrite slot 0
+         // Clean up visual of the recycled slot
+         string rname  = OBJ_PREFIX + IntegerToString(bosList[bIdx].id);
+         string rlname = OBJ_PREFIX + "L" + IntegerToString(bosList[bIdx].id);
+         if(ObjectFind(0, rname)  >= 0) ObjectDelete(0, rname);
+         if(ObjectFind(0, rlname) >= 0) ObjectDelete(0, rlname);
+         if(bosList[bIdx].drawn == 1) gLinesDrawn--;
+        }
 
-         swingList[k].consumed = true;
-         gTrend = TREND_BULL;
+      bosList[bIdx].id         = gNextBId++;
+      bosList[bIdx].dir        = isBullBos ? DIR_HIGH : DIR_LOW;
+      bosList[bIdx].swingLevel = swingList[k].price;
+      bosList[bIdx].swingTime  = swingList[k].time;
+      bosList[bIdx].bosTime    = barT;
+      bosList[bIdx].drawn      = 0;
 
+      swingList[k].consumed = true;
+      gTrend = isBullBos ? TREND_BULL : TREND_BEAR;
+
+      if(isBullBos)
+        {
          if(sh < ArraySize(BosUpBuf)) BosUpBuf[sh] = 1.0;
-
          PrintFormat("BOS_BULL | id=%d | level=%.5f | bosTime=%s",
                      gNextBId - 1, swingList[k].price, TimeToString(barT));
         }
-      // ── Bear BOS ──────────────────────────────────────────
-      else if(swingList[k].dir == DIR_LOW && closeV < swingList[k].price)
+      else
         {
-         bosList[bosCount].id         = gNextBId++;
-         bosList[bosCount].dir        = DIR_LOW;
-         bosList[bosCount].swingLevel = swingList[k].price;
-         bosList[bosCount].swingTime  = swingList[k].time;
-         bosList[bosCount].bosTime    = barT;
-         bosList[bosCount].drawn      = 0;
-         bosCount++;
-
-         swingList[k].consumed = true;
-         gTrend = TREND_BEAR;
-
          if(sh < ArraySize(BosDnBuf)) BosDnBuf[sh] = 1.0;
-
          PrintFormat("BOS_BEAR | id=%d | level=%.5f | bosTime=%s",
                      gNextBId - 1, swingList[k].price, TimeToString(barT));
         }

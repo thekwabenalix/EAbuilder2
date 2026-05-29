@@ -174,45 +174,56 @@ void ResetState()
 // A gap exists when C3.Low > C1.High (bull) or C3.High < C1.Low (bear).
 void DetectFvg(int sh)
   {
-   if(fvgCount >= MAX_FVGS - 1) return;
    int totalBars = Bars(_Symbol, InpTimeframe);
    if(sh + 2 >= totalBars) return;
 
    datetime c1T = Tm(sh + 2);
 
-   // Dedup
+   // Dedup: skip inverted FVGs — their slot can be recycled
    for(int k = 0; k < fvgCount; k++)
+     {
+      if(fvgList[k].inverted) continue;
       if(fvgList[k].c1Time == c1T) return;
+     }
 
    double c3Lo = Lo(sh);
    double c1Hi = Hi(sh + 2);
    double c3Hi = Hi(sh);
    double c1Lo = Lo(sh + 2);
 
-   // ── Bullish FVG ───────────────────────────────────────────
-   if(c3Lo > c1Hi)
+   bool isBullGap = (c3Lo > c1Hi);
+   bool isBearGap = (c3Hi < c1Lo);
+   if(!isBullGap && !isBearGap) return;
+
+   // Slot allocation: recycle an inverted FVG slot before appending
+   int idx = -1;
+   for(int k = 0; k < fvgCount; k++)
+      if(fvgList[k].inverted) { idx = k; break; }
+   if(idx < 0)
      {
-      fvgList[fvgCount].id       = gNextFId++;
-      fvgList[fvgCount].dir      = 1;
-      fvgList[fvgCount].ul       = c3Lo;  // C3.Low = top of gap
-      fvgList[fvgCount].ll       = c1Hi;  // C1.High = bottom of gap
-      fvgList[fvgCount].c1Time   = c1T;
-      fvgList[fvgCount].inverted = false;
-      fvgCount++;
+      if(fvgCount >= MAX_FVGS) return;
+      idx = fvgCount++;
+     }
+
+   // ── Bullish FVG ───────────────────────────────────────────
+   if(isBullGap)
+     {
+      fvgList[idx].id       = gNextFId++;
+      fvgList[idx].dir      = 1;
+      fvgList[idx].ul       = c3Lo;  // C3.Low = top of gap
+      fvgList[idx].ll       = c1Hi;  // C1.High = bottom of gap
+      fvgList[idx].c1Time   = c1T;
+      fvgList[idx].inverted = false;
       return;  // a 3-bar set can only produce one FVG type
      }
 
    // ── Bearish FVG ───────────────────────────────────────────
-   if(c3Hi < c1Lo)
-     {
-      fvgList[fvgCount].id       = gNextFId++;
-      fvgList[fvgCount].dir      = -1;
-      fvgList[fvgCount].ul       = c1Lo;  // C1.Low = top of gap
-      fvgList[fvgCount].ll       = c3Hi;  // C3.High = bottom of gap
-      fvgList[fvgCount].c1Time   = c1T;
-      fvgList[fvgCount].inverted = false;
-      fvgCount++;
-     }
+   fvgList[idx].id       = gNextFId++;
+   fvgList[idx].dir      = -1;
+   fvgList[idx].ul       = c1Lo;  // C1.Low = top of gap
+   fvgList[idx].ll       = c3Hi;  // C3.High = bottom of gap
+   fvgList[idx].c1Time   = c1T;
+   fvgList[idx].inverted = false;
   }
 
 // ─── CheckFvgInversion ────────────────────────────────────────────
@@ -221,8 +232,6 @@ void DetectFvg(int sh)
 //   Bearish FVG (UL=C1.Low, LL=C3.High): inverted when close > UL → Bull IFVG
 void CheckFvgInversion(int sh)
   {
-   if(ifvgCount >= MAX_IFVGS - 1) return;
-
    double   closeV = Cl(sh);
    datetime barT   = Tm(sh);
 
@@ -231,52 +240,44 @@ void CheckFvgInversion(int sh)
       if(fvgList[k].inverted)          continue;
       if(fvgList[k].c1Time >= barT)    continue;  // FVG must pre-date bar
 
-      if(fvgList[k].dir == 1 && closeV < fvgList[k].ll)
-        {
-         // Bullish FVG inverted → Bear IFVG
-         ifvgList[ifvgCount].id             = gNextIId++;
-         ifvgList[ifvgCount].dir            = -1;
-         ifvgList[ifvgCount].ul             = fvgList[k].ul;
-         ifvgList[ifvgCount].ll             = fvgList[k].ll;
-         ifvgList[ifvgCount].state          = STATE_ACTIVE;
-         ifvgList[ifvgCount].drawnState     = STATE_UNDRAWN;
-         ifvgList[ifvgCount].barsAlive      = 0;
-         ifvgList[ifvgCount].fvgTime        = fvgList[k].c1Time;
-         ifvgList[ifvgCount].inversionTime  = barT;
-         ifvgList[ifvgCount].retestTime     = 0;
-         ifvgList[ifvgCount].retestHigh     = 0.0;
-         ifvgList[ifvgCount].retestLow      = 0.0;
-         ifvgList[ifvgCount].confirmTime    = 0;
-         ifvgList[ifvgCount].endTime        = FAR_FUTURE;
-         ifvgCount++;
+      bool doInvert = (fvgList[k].dir == 1  && closeV < fvgList[k].ll)
+                   || (fvgList[k].dir == -1 && closeV > fvgList[k].ul);
+      if(!doInvert) continue;
 
-         fvgList[k].inverted = true;
-         PrintFormat("IFVG_BEAR_ACTIVE | id=%d | ul=%.5f | ll=%.5f | inv=%s",
-                     gNextIId - 1, fvgList[k].ul, fvgList[k].ll, TimeToString(barT));
-        }
-      else if(fvgList[k].dir == -1 && closeV > fvgList[k].ul)
+      // Recycle a terminal IFVG slot before appending
+      int iIdx = -1;
+      for(int m = 0; m < ifvgCount; m++)
         {
-         // Bearish FVG inverted → Bull IFVG
-         ifvgList[ifvgCount].id             = gNextIId++;
-         ifvgList[ifvgCount].dir            = 1;
-         ifvgList[ifvgCount].ul             = fvgList[k].ul;
-         ifvgList[ifvgCount].ll             = fvgList[k].ll;
-         ifvgList[ifvgCount].state          = STATE_ACTIVE;
-         ifvgList[ifvgCount].drawnState     = STATE_UNDRAWN;
-         ifvgList[ifvgCount].barsAlive      = 0;
-         ifvgList[ifvgCount].fvgTime        = fvgList[k].c1Time;
-         ifvgList[ifvgCount].inversionTime  = barT;
-         ifvgList[ifvgCount].retestTime     = 0;
-         ifvgList[ifvgCount].retestHigh     = 0.0;
-         ifvgList[ifvgCount].retestLow      = 0.0;
-         ifvgList[ifvgCount].confirmTime    = 0;
-         ifvgList[ifvgCount].endTime        = FAR_FUTURE;
-         ifvgCount++;
-
-         fvgList[k].inverted = true;
-         PrintFormat("IFVG_BULL_ACTIVE | id=%d | ul=%.5f | ll=%.5f | inv=%s",
-                     gNextIId - 1, fvgList[k].ul, fvgList[k].ll, TimeToString(barT));
+         int ist = ifvgList[m].state;
+         if(ist == STATE_MITIGATED || ist == STATE_INVALIDATED || ist == STATE_EXPIRED)
+            { iIdx = m; break; }
         }
+      if(iIdx < 0)
+        {
+         if(ifvgCount >= MAX_IFVGS) { fvgList[k].inverted = true; continue; }
+         iIdx = ifvgCount++;
+        }
+
+      ifvgList[iIdx].id             = gNextIId++;
+      ifvgList[iIdx].dir            = (fvgList[k].dir == 1) ? -1 : 1;
+      ifvgList[iIdx].ul             = fvgList[k].ul;
+      ifvgList[iIdx].ll             = fvgList[k].ll;
+      ifvgList[iIdx].state          = STATE_ACTIVE;
+      ifvgList[iIdx].drawnState     = STATE_UNDRAWN;
+      ifvgList[iIdx].barsAlive      = 0;
+      ifvgList[iIdx].fvgTime        = fvgList[k].c1Time;
+      ifvgList[iIdx].inversionTime  = barT;
+      ifvgList[iIdx].retestTime     = 0;
+      ifvgList[iIdx].retestHigh     = 0.0;
+      ifvgList[iIdx].retestLow      = 0.0;
+      ifvgList[iIdx].confirmTime    = 0;
+      ifvgList[iIdx].endTime        = FAR_FUTURE;
+
+      fvgList[k].inverted = true;
+      PrintFormat(ifvgList[iIdx].dir == -1
+                  ? "IFVG_BEAR_ACTIVE | id=%d | ul=%.5f | ll=%.5f | inv=%s"
+                  : "IFVG_BULL_ACTIVE | id=%d | ul=%.5f | ll=%.5f | inv=%s",
+                  gNextIId - 1, fvgList[k].ul, fvgList[k].ll, TimeToString(barT));
      }
   }
 

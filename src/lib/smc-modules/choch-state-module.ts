@@ -179,11 +179,14 @@ void TryAddSwing(int sh)
    int pivot     = sh + InpSwingRight;
    int totalBars = Bars(_Symbol, InpTimeframe);
    if(pivot + InpSwingLeft >= totalBars) return;
-   if(swingCount >= MAX_SWINGS - 2)      return;
 
    datetime pivotT = Tm(pivot);
+   // Dedup: skip consumed swings — their slot can be recycled
    for(int k = 0; k < swingCount; k++)
+     {
+      if(swingList[k].consumed) continue;
       if(swingList[k].time == pivotT) return;
+     }
 
    double pivotH = Hi(pivot);
    double pivotL = Lo(pivot);
@@ -202,21 +205,33 @@ void TryAddSwing(int sh)
 
    if(isHigh)
      {
-      swingList[swingCount].id       = gNextSId++;
-      swingList[swingCount].dir      = DIR_HIGH;
-      swingList[swingCount].price    = pivotH;
-      swingList[swingCount].time     = pivotT;
-      swingList[swingCount].consumed = false;
-      swingCount++;
+      int sHi = -1;
+      for(int k = 0; k < swingCount; k++)
+         if(swingList[k].consumed) { sHi = k; break; }
+      if(sHi < 0 && swingCount < MAX_SWINGS) sHi = swingCount++;
+      if(sHi >= 0)
+        {
+         swingList[sHi].id       = gNextSId++;
+         swingList[sHi].dir      = DIR_HIGH;
+         swingList[sHi].price    = pivotH;
+         swingList[sHi].time     = pivotT;
+         swingList[sHi].consumed = false;
+        }
      }
    if(isLow)
      {
-      swingList[swingCount].id       = gNextSId++;
-      swingList[swingCount].dir      = DIR_LOW;
-      swingList[swingCount].price    = pivotL;
-      swingList[swingCount].time     = pivotT;
-      swingList[swingCount].consumed = false;
-      swingCount++;
+      int sLo = -1;
+      for(int k = 0; k < swingCount; k++)
+         if(swingList[k].consumed) { sLo = k; break; }
+      if(sLo < 0 && swingCount < MAX_SWINGS) sLo = swingCount++;
+      if(sLo >= 0)
+        {
+         swingList[sLo].id       = gNextSId++;
+         swingList[sLo].dir      = DIR_LOW;
+         swingList[sLo].price    = pivotL;
+         swingList[sLo].time     = pivotT;
+         swingList[sLo].consumed = false;
+        }
      }
   }
 
@@ -226,8 +241,6 @@ void TryAddSwing(int sh)
 // either direction fires a CHoCH and establishes the initial trend state.
 void CheckCHoCH(int sh)
   {
-   if(chochCount >= MAX_CHOCHS - 1) return;
-
    double   closeV = Cl(sh);
    datetime barT   = Tm(sh);
 
@@ -238,57 +251,67 @@ void CheckCHoCH(int sh)
 
       if(swingList[k].dir == DIR_HIGH && closeV > swingList[k].price)
         {
+         swingList[k].consumed = true;
          // Break above swing high.
          // CHoCH if trend was BEAR or UNKNOWN; plain BOS if trend already BULL.
          if(gTrend != TREND_BULL)
            {
-            chochList[chochCount].id         = gNextCId++;
-            chochList[chochCount].dir        = DIR_HIGH;
-            chochList[chochCount].swingLevel = swingList[k].price;
-            chochList[chochCount].swingTime  = swingList[k].time;
-            chochList[chochCount].chochTime  = barT;
-            chochList[chochCount].drawn      = 0;
-            chochCount++;
+            // Allocate slot — recycle oldest drawn slot when pool full
+            int cIdx = chochCount < MAX_CHOCHS ? chochCount++ : -1;
+            if(cIdx < 0)
+              {
+               for(int m = 0; m < chochCount; m++)
+                  if(chochList[m].drawn == 1) { cIdx = m; break; }
+               if(cIdx < 0) cIdx = 0;
+               string rn  = OBJ_PREFIX + IntegerToString(chochList[cIdx].id);
+               string rln = OBJ_PREFIX + "L" + IntegerToString(chochList[cIdx].id);
+               if(ObjectFind(0, rn)  >= 0) ObjectDelete(0, rn);
+               if(ObjectFind(0, rln) >= 0) ObjectDelete(0, rln);
+               if(chochList[cIdx].drawn == 1) gLinesDrawn--;
+              }
+            chochList[cIdx].id         = gNextCId++;
+            chochList[cIdx].dir        = DIR_HIGH;
+            chochList[cIdx].swingLevel = swingList[k].price;
+            chochList[cIdx].swingTime  = swingList[k].time;
+            chochList[cIdx].chochTime  = barT;
+            chochList[cIdx].drawn      = 0;
 
-            swingList[k].consumed = true;
             gTrend = TREND_BULL;
-
             if(sh < ArraySize(ChochUpBuf)) ChochUpBuf[sh] = 1.0;
-
             PrintFormat("CHOCH_BULL | id=%d | level=%.5f | time=%s",
                         gNextCId - 1, swingList[k].price, TimeToString(barT));
-           }
-         else
-           {
-            // BOS continuation — consume swing but don't fire CHoCH
-            swingList[k].consumed = true;
            }
         }
       else if(swingList[k].dir == DIR_LOW && closeV < swingList[k].price)
         {
+         swingList[k].consumed = true;
          // Break below swing low.
          // CHoCH if trend was BULL or UNKNOWN.
          if(gTrend != TREND_BEAR)
            {
-            chochList[chochCount].id         = gNextCId++;
-            chochList[chochCount].dir        = DIR_LOW;
-            chochList[chochCount].swingLevel = swingList[k].price;
-            chochList[chochCount].swingTime  = swingList[k].time;
-            chochList[chochCount].chochTime  = barT;
-            chochList[chochCount].drawn      = 0;
-            chochCount++;
+            int cIdx = chochCount < MAX_CHOCHS ? chochCount++ : -1;
+            if(cIdx < 0)
+              {
+               for(int m = 0; m < chochCount; m++)
+                  if(chochList[m].drawn == 1) { cIdx = m; break; }
+               if(cIdx < 0) cIdx = 0;
+               string rn  = OBJ_PREFIX + IntegerToString(chochList[cIdx].id);
+               string rln = OBJ_PREFIX + "L" + IntegerToString(chochList[cIdx].id);
+               if(ObjectFind(0, rn)  >= 0) ObjectDelete(0, rn);
+               if(ObjectFind(0, rln) >= 0) ObjectDelete(0, rln);
+               if(chochList[cIdx].drawn == 1) gLinesDrawn--;
+              }
+            chochList[cIdx].id         = gNextCId++;
+            chochList[cIdx].dir        = DIR_LOW;
+            chochList[cIdx].swingLevel = swingList[k].price;
+            chochList[cIdx].swingTime  = swingList[k].time;
+            chochList[cIdx].chochTime  = barT;
+            chochList[cIdx].drawn      = 0;
 
-            swingList[k].consumed = true;
             gTrend = TREND_BEAR;
-
             if(sh < ArraySize(ChochDnBuf)) ChochDnBuf[sh] = 1.0;
-
             PrintFormat("CHOCH_BEAR | id=%d | level=%.5f | time=%s",
                         gNextCId - 1, swingList[k].price, TimeToString(barT));
-           }
-         else
-           {
-            swingList[k].consumed = true;
            }
         }
      }

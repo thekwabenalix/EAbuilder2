@@ -188,7 +188,6 @@ void ResetState()
 // sh+1 up to InpObLookback bars to find the last opposing candle = OB.
 void DetectOb(int sh)
   {
-   if(obCount >= MAX_OBS - 1) return;
    int totalBars = Bars(_Symbol, InpTimeframe);
    if(sh + InpAtrPeriod + 1 >= totalBars) return;
 
@@ -207,21 +206,36 @@ void DetectOb(int sh)
       bool found = (isBullDisp && isBearCandle) || (!isBullDisp && isBullCandle);
       if(!found) continue;
 
-      // Dedup: OB at this time already registered?
+      // Dedup: OB at this time already registered? (skip broken — their slot can be recycled)
       datetime obT = Tm(j);
       bool dup = false;
       for(int k = 0; k < obCount; k++)
+        {
+         if(obList[k].broken) continue;
          if(obList[k].time == obT) { dup = true; break; }
+        }
       if(dup) return;
 
-      // Register internal OB
-      obList[obCount].id     = gNextOId++;
-      obList[obCount].dir    = isBullDisp ? 1 : -1;
-      obList[obCount].hi     = Hi(j);
-      obList[obCount].lo     = Lo(j);
-      obList[obCount].time   = obT;
-      obList[obCount].broken = false;
-      obCount++;
+      // Slot allocation: recycle a broken OB slot before appending.
+      // Without recycling, obCount hits MAX_OBS during long backtests
+      // and DetectOb silently stops registering new OBs — no BBs born.
+      int idx = -1;
+      for(int k = 0; k < obCount; k++)
+        {
+         if(obList[k].broken) { idx = k; break; }
+        }
+      if(idx < 0)
+        {
+         if(obCount >= MAX_OBS) return;  // All slots live — hard pool cap
+         idx = obCount++;
+        }
+
+      obList[idx].id     = gNextOId++;
+      obList[idx].dir    = isBullDisp ? 1 : -1;
+      obList[idx].hi     = Hi(j);
+      obList[idx].lo     = Lo(j);
+      obList[idx].time   = obT;
+      obList[idx].broken = false;
       return;  // one OB per displacement
      }
   }
@@ -232,8 +246,6 @@ void DetectOb(int sh)
 //   Bearish OB (dir=-1) broken when close > hi → Bullish BB (buy zone)
 void CheckObBreakout(int sh)
   {
-   if(bbCount >= MAX_BBS - 1) return;
-
    double   closeV = Cl(sh);
    datetime barT   = Tm(sh);
 
@@ -245,21 +257,33 @@ void CheckObBreakout(int sh)
       if(obList[k].dir == 1 && closeV < obList[k].lo)
         {
          // Bullish OB broken → Bearish BB
-         bbList[bbCount].id           = gNextBId++;
-         bbList[bbCount].dir          = -1;
-         bbList[bbCount].hi           = obList[k].hi;
-         bbList[bbCount].lo           = obList[k].lo;
-         bbList[bbCount].state        = STATE_ACTIVE;
-         bbList[bbCount].drawnState   = STATE_UNDRAWN;
-         bbList[bbCount].barsAlive    = 0;
-         bbList[bbCount].obTime       = obList[k].time;
-         bbList[bbCount].breakoutTime = barT;
-         bbList[bbCount].retestTime   = 0;
-         bbList[bbCount].retestHigh   = 0.0;
-         bbList[bbCount].retestLow    = 0.0;
-         bbList[bbCount].confirmTime  = 0;
-         bbList[bbCount].endTime      = FAR_FUTURE;
-         bbCount++;
+         // Recycle a terminal BB slot before appending
+         int bIdx = -1;
+         for(int m = 0; m < bbCount; m++)
+           {
+            int bst = bbList[m].state;
+            if(bst == STATE_MITIGATED || bst == STATE_INVALIDATED || bst == STATE_EXPIRED)
+              { bIdx = m; break; }
+           }
+         if(bIdx < 0)
+           {
+            if(bbCount >= MAX_BBS) { obList[k].broken = true; continue; }
+            bIdx = bbCount++;
+           }
+         bbList[bIdx].id           = gNextBId++;
+         bbList[bIdx].dir          = -1;
+         bbList[bIdx].hi           = obList[k].hi;
+         bbList[bIdx].lo           = obList[k].lo;
+         bbList[bIdx].state        = STATE_ACTIVE;
+         bbList[bIdx].drawnState   = STATE_UNDRAWN;
+         bbList[bIdx].barsAlive    = 0;
+         bbList[bIdx].obTime       = obList[k].time;
+         bbList[bIdx].breakoutTime = barT;
+         bbList[bIdx].retestTime   = 0;
+         bbList[bIdx].retestHigh   = 0.0;
+         bbList[bIdx].retestLow    = 0.0;
+         bbList[bIdx].confirmTime  = 0;
+         bbList[bIdx].endTime      = FAR_FUTURE;
 
          obList[k].broken = true;
          PrintFormat("BB_BEAR_ACTIVE | id=%d | hi=%.5f | lo=%.5f | breakout=%s",
@@ -268,21 +292,32 @@ void CheckObBreakout(int sh)
       else if(obList[k].dir == -1 && closeV > obList[k].hi)
         {
          // Bearish OB broken → Bullish BB
-         bbList[bbCount].id           = gNextBId++;
-         bbList[bbCount].dir          = 1;
-         bbList[bbCount].hi           = obList[k].hi;
-         bbList[bbCount].lo           = obList[k].lo;
-         bbList[bbCount].state        = STATE_ACTIVE;
-         bbList[bbCount].drawnState   = STATE_UNDRAWN;
-         bbList[bbCount].barsAlive    = 0;
-         bbList[bbCount].obTime       = obList[k].time;
-         bbList[bbCount].breakoutTime = barT;
-         bbList[bbCount].retestTime   = 0;
-         bbList[bbCount].retestHigh   = 0.0;
-         bbList[bbCount].retestLow    = 0.0;
-         bbList[bbCount].confirmTime  = 0;
-         bbList[bbCount].endTime      = FAR_FUTURE;
-         bbCount++;
+         int bIdx = -1;
+         for(int m = 0; m < bbCount; m++)
+           {
+            int bst = bbList[m].state;
+            if(bst == STATE_MITIGATED || bst == STATE_INVALIDATED || bst == STATE_EXPIRED)
+              { bIdx = m; break; }
+           }
+         if(bIdx < 0)
+           {
+            if(bbCount >= MAX_BBS) { obList[k].broken = true; continue; }
+            bIdx = bbCount++;
+           }
+         bbList[bIdx].id           = gNextBId++;
+         bbList[bIdx].dir          = 1;
+         bbList[bIdx].hi           = obList[k].hi;
+         bbList[bIdx].lo           = obList[k].lo;
+         bbList[bIdx].state        = STATE_ACTIVE;
+         bbList[bIdx].drawnState   = STATE_UNDRAWN;
+         bbList[bIdx].barsAlive    = 0;
+         bbList[bIdx].obTime       = obList[k].time;
+         bbList[bIdx].breakoutTime = barT;
+         bbList[bIdx].retestTime   = 0;
+         bbList[bIdx].retestHigh   = 0.0;
+         bbList[bIdx].retestLow    = 0.0;
+         bbList[bIdx].confirmTime  = 0;
+         bbList[bIdx].endTime      = FAR_FUTURE;
 
          obList[k].broken = true;
          PrintFormat("BB_BULL_ACTIVE | id=%d | hi=%.5f | lo=%.5f | breakout=%s",

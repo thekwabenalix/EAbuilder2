@@ -78,7 +78,7 @@ export function generateObStateModule(): string {
 #define STATE_EXPIRED      5   // terminal
 #define STATE_UNDRAWN     -1
 
-#define OB_MAX     200
+#define OB_MAX     500          // Slot pool — recycled; actual live cap = InpMaxZones
 #define FAR_FUTURE ((datetime)4102444800)   // 2100-01-01 00:00 UTC
 
 //+------------------------------------------------------------------+
@@ -189,11 +189,16 @@ double CalcATR(int shift, int period)
 
 //+------------------------------------------------------------------+
 //| Duplicate guard: same direction + same OB candle time            |
+//| Skip terminal zones — their slot may be recycled.               |
 //+------------------------------------------------------------------+
 bool OB_IsDuplicate(int dir, datetime obT)
 {
    for(int i = 0; i < obTotal; i++)
+   {
+      int st = obList[i].state;
+      if(st == STATE_MITIGATED || st == STATE_INVALIDATED || st == STATE_EXPIRED) continue;
       if(obList[i].dir == dir && obList[i].obTime == obT) return true;
+   }
    return false;
 }
 
@@ -202,10 +207,29 @@ bool OB_IsDuplicate(int dir, datetime obT)
 //+------------------------------------------------------------------+
 void OB_Add(int dir, datetime obT, datetime dispT, double hi, double lo)
 {
-   if(obTotal >= OB_MAX) return;
    if(OB_IsDuplicate(dir, obT)) return;
 
-   int idx = obTotal++;
+   // Slot allocation: recycle a terminal zone before appending.
+   // Critical for long backtests — without recycling, obTotal hits
+   // OB_MAX after heavy history and OB_Add silently returns, killing
+   // all future zone detection.
+   int idx = -1;
+   for(int i = 0; i < obTotal; i++)
+   {
+      int st = obList[i].state;
+      if(st == STATE_MITIGATED || st == STATE_INVALIDATED || st == STATE_EXPIRED)
+      {
+         ObjectDelete(0, ObjRect(obList[i].id));
+         ObjectDelete(0, ObjLbl (obList[i].id));
+         idx = i;
+         break;
+      }
+   }
+   if(idx < 0)
+   {
+      if(obTotal >= OB_MAX) return;   // All slots live — hard pool cap reached
+      idx = obTotal++;
+   }
    obList[idx].id          = nextObId++;
    obList[idx].dir         = dir;
    obList[idx].hi          = hi;

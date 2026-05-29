@@ -269,11 +269,22 @@ void AddSnrLevel(int shA, int shB)
    datetime timeA = iTime (_Symbol, InpTF, shA);
    datetime timeB = iTime (_Symbol, InpTF, shB);
 
+   // Dedup: skip broken levels — their slot can be recycled
    for(int i = 0; i < snrTotal; i++)
+   {
+      if(snrList[i].broken) continue;
       if(snrList[i].candleATime == timeA && snrList[i].type == snrType) return;
+   }
 
-   if(snrTotal >= SNR_MAX) return;
-   int idx = snrTotal++;
+   // Slot allocation: recycle a broken SNR slot before appending
+   int idx = -1;
+   for(int i = 0; i < snrTotal; i++)
+      if(snrList[i].broken) { idx = i; break; }
+   if(idx < 0)
+   {
+      if(snrTotal >= SNR_MAX) return;
+      idx = snrTotal++;
+   }
    snrList[idx].id          = nextSnrId++;
    snrList[idx].type        = snrType;
    snrList[idx].price       = lvl;
@@ -309,9 +320,20 @@ void CheckBreakout(int sh)
       if(!BreakoutFilter(sh, lvl, dir)) continue;
 
       snrList[i].broken = true;
-      if(boTotal >= BO_MAX) continue;
 
-      int idx = boTotal++;
+      // Recycle a terminal BO slot before appending
+      int boIdx = -1;
+      for(int j = 0; j < boTotal; j++)
+      {
+         if(boList[j].state == STATE_INVALIDATED || boList[j].state == STATE_EXPIRED)
+            { boIdx = j; break; }
+      }
+      if(boIdx < 0)
+      {
+         if(boTotal >= BO_MAX) continue;
+         boIdx = boTotal++;
+      }
+      int idx = boIdx;
       boList[idx].id            = nextBoId++;
       boList[idx].snrId         = snrList[i].id;
       boList[idx].dir           = dir;

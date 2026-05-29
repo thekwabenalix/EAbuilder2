@@ -170,7 +170,6 @@ void ResetState()
 //   Bear A → Bear B  = Gap Resistance  (A.close = level)
 void DetectSnr(int sh)
   {
-   if(snrCount >= MAX_LEVELS - 1) return;
    int totalBars = Bars(_Symbol, InpTimeframe);
    if(sh + 1 >= totalBars) return;
 
@@ -188,24 +187,40 @@ void DetectSnr(int sh)
    else if(aBear && bBear) { dir = -1; level = Cl(sh + 1); }  // Gap Resistance
    else return;
 
+   // Dedup: skip terminal levels — their slot can be recycled
    datetime t = Tm(sh + 1);
    for(int k = 0; k < snrCount; k++)
+     {
+      if(snrList[k].state == STATE_BROKEN || snrList[k].state == STATE_EXPIRED) continue;
       if(snrList[k].levelTime == t && MathAbs(snrList[k].level - level) < _Point)
          return;
+     }
 
-   snrList[snrCount].id          = gNextId++;
-   snrList[snrCount].dir         = dir;
-   snrList[snrCount].level       = level;
-   snrList[snrCount].levelTime   = t;
-   snrList[snrCount].state       = STATE_ACTIVE;
-   snrList[snrCount].drawnState  = STATE_UNDRAWN;
-   snrList[snrCount].barsAlive   = 0;
-   snrList[snrCount].retestTime  = 0;
-   snrList[snrCount].retestHigh  = 0.0;
-   snrList[snrCount].retestLow   = 0.0;
-   snrList[snrCount].confirmTime = 0;
-   snrList[snrCount].endTime     = FAR_FUTURE;
-   snrCount++;
+   // Slot allocation: recycle a terminal slot before appending.
+   int idx = -1;
+   for(int k = 0; k < snrCount; k++)
+     {
+      if(snrList[k].state == STATE_BROKEN || snrList[k].state == STATE_EXPIRED)
+        { idx = k; break; }
+     }
+   if(idx < 0)
+     {
+      if(snrCount >= MAX_LEVELS) return;
+      idx = snrCount++;
+     }
+
+   snrList[idx].id          = gNextId++;
+   snrList[idx].dir         = dir;
+   snrList[idx].level       = level;
+   snrList[idx].levelTime   = t;
+   snrList[idx].state       = STATE_ACTIVE;
+   snrList[idx].drawnState  = STATE_UNDRAWN;
+   snrList[idx].barsAlive   = 0;
+   snrList[idx].retestTime  = 0;
+   snrList[idx].retestHigh  = 0.0;
+   snrList[idx].retestLow   = 0.0;
+   snrList[idx].confirmTime = 0;
+   snrList[idx].endTime     = FAR_FUTURE;
   }
 
 // ─── UpdateSnrStates ──────────────────────────────────────────────

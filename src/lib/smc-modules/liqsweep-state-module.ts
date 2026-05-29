@@ -172,11 +172,14 @@ void TryAddSwing(int sh)
    int pivot     = sh + InpSwingStr;
    int totalBars = Bars(_Symbol, InpTimeframe);
    if(pivot + InpSwingStr >= totalBars) return;
-   if(swingCount >= MAX_SWINGS - 2)     return;
 
    datetime pivotT = Tm(pivot);
+   // Dedup: skip consumed swings — their slot can be recycled
    for(int k = 0; k < swingCount; k++)
-      if(swingList[k].time == pivotT) return;  // dedup
+     {
+      if(swingList[k].consumed) continue;
+      if(swingList[k].time == pivotT) return;
+     }
 
    double pivotH = Hi(pivot);
    double pivotL = Lo(pivot);
@@ -197,21 +200,34 @@ void TryAddSwing(int sh)
 
    if(isHigh)
      {
-      swingList[swingCount].id       = gNextSId++;
-      swingList[swingCount].dir      = 1;
-      swingList[swingCount].price    = pivotH;
-      swingList[swingCount].time     = pivotT;
-      swingList[swingCount].consumed = false;
-      swingCount++;
+      // Recycle a consumed swing slot before appending
+      int sHi = -1;
+      for(int k = 0; k < swingCount; k++)
+         if(swingList[k].consumed) { sHi = k; break; }
+      if(sHi < 0 && swingCount < MAX_SWINGS) sHi = swingCount++;
+      if(sHi >= 0)
+        {
+         swingList[sHi].id       = gNextSId++;
+         swingList[sHi].dir      = 1;
+         swingList[sHi].price    = pivotH;
+         swingList[sHi].time     = pivotT;
+         swingList[sHi].consumed = false;
+        }
      }
    if(isLow)
      {
-      swingList[swingCount].id       = gNextSId++;
-      swingList[swingCount].dir      = -1;
-      swingList[swingCount].price    = pivotL;
-      swingList[swingCount].time     = pivotT;
-      swingList[swingCount].consumed = false;
-      swingCount++;
+      int sLo = -1;
+      for(int k = 0; k < swingCount; k++)
+         if(swingList[k].consumed) { sLo = k; break; }
+      if(sLo < 0 && swingCount < MAX_SWINGS) sLo = swingCount++;
+      if(sLo >= 0)
+        {
+         swingList[sLo].id       = gNextSId++;
+         swingList[sLo].dir      = -1;
+         swingList[sLo].price    = pivotL;
+         swingList[sLo].time     = pivotT;
+         swingList[sLo].consumed = false;
+        }
      }
   }
 
@@ -221,8 +237,6 @@ void TryAddSwing(int sh)
 // the sweep is immediately CONFIRMED without going through PENDING.
 void CheckNewSweeps(int sh)
   {
-   if(sweepCount >= MAX_SWEEPS - 1) return;
-
    double   barHigh  = Hi(sh);
    double   barLow   = Lo(sh);
    double   barClose = Cl(sh);
@@ -233,27 +247,42 @@ void CheckNewSweeps(int sh)
       if(swingList[k].consumed)      continue;
       if(swingList[k].time >= barT)  continue;
 
-      // ── Bull sweep — wick below swing low ─────────────────
-      if(swingList[k].dir == -1 && barLow < swingList[k].price)
-        {
-         sweepList[sweepCount].id         = gNextSwId++;
-         sweepList[sweepCount].dir        = 1;
-         sweepList[sweepCount].barsAlive  = 0;
-         sweepList[sweepCount].waitBars   = 0;
-         sweepList[sweepCount].swingLevel = swingList[k].price;
-         sweepList[sweepCount].swingTime  = swingList[k].time;
-         sweepList[sweepCount].sweepTime  = barT;
-         sweepList[sweepCount].sweepHigh  = barHigh;
-         sweepList[sweepCount].sweepLow   = barLow;
-         sweepList[sweepCount].confirmTime = 0;
-         sweepList[sweepCount].endTime     = FAR_FUTURE;
-         sweepList[sweepCount].drawnState  = STATE_UNDRAWN;
+      bool isBullSweep = (swingList[k].dir == -1 && barLow  < swingList[k].price);
+      bool isBearSweep = (swingList[k].dir ==  1 && barHigh > swingList[k].price);
+      if(!isBullSweep && !isBearSweep) continue;
 
-         // Same-bar close-back?
+      // Recycle a terminal sweep slot before appending
+      int swIdx = -1;
+      for(int m = 0; m < sweepCount; m++)
+        {
+         int sst = sweepList[m].state;
+         if(sst == STATE_CONFIRMED || sst == STATE_EXPIRED) { swIdx = m; break; }
+        }
+      if(swIdx < 0)
+        {
+         if(sweepCount >= MAX_SWEEPS) { swingList[k].consumed = true; continue; }
+         swIdx = sweepCount++;
+        }
+
+      sweepList[swIdx].id         = gNextSwId++;
+      sweepList[swIdx].dir        = isBullSweep ? 1 : -1;
+      sweepList[swIdx].barsAlive  = 0;
+      sweepList[swIdx].waitBars   = 0;
+      sweepList[swIdx].swingLevel = swingList[k].price;
+      sweepList[swIdx].swingTime  = swingList[k].time;
+      sweepList[swIdx].sweepTime  = barT;
+      sweepList[swIdx].sweepHigh  = barHigh;
+      sweepList[swIdx].sweepLow   = barLow;
+      sweepList[swIdx].confirmTime = 0;
+      sweepList[swIdx].endTime     = FAR_FUTURE;
+      sweepList[swIdx].drawnState  = STATE_UNDRAWN;
+
+      if(isBullSweep)
+        {
          if(barClose > swingList[k].price)
            {
-            sweepList[sweepCount].state = STATE_CONFIRMED;
-            sweepList[sweepCount].confirmTime = barT;
+            sweepList[swIdx].state = STATE_CONFIRMED;
+            sweepList[swIdx].confirmTime = barT;
             if(sh < ArraySize(BullConfirmBuf)) BullConfirmBuf[sh] = 1.0;
             if(sh < ArraySize(BullSLBuf))      BullSLBuf[sh]      = barLow;
             PrintFormat("LIQSWEEP_BULL_CONFIRMED | id=%d | level=%.5f | sl=%.5f | sh=%d",
@@ -261,34 +290,17 @@ void CheckNewSweeps(int sh)
            }
          else
            {
-            sweepList[sweepCount].state = STATE_PENDING;
+            sweepList[swIdx].state = STATE_PENDING;
             PrintFormat("LIQSWEEP_BULL_PENDING | id=%d | level=%.5f | wickLow=%.5f",
                         gNextSwId - 1, swingList[k].price, barLow);
            }
-
-         sweepCount++;
-         swingList[k].consumed = true;
         }
-      // ── Bear sweep — wick above swing high ────────────────
-      else if(swingList[k].dir == 1 && barHigh > swingList[k].price)
+      else
         {
-         sweepList[sweepCount].id         = gNextSwId++;
-         sweepList[sweepCount].dir        = -1;
-         sweepList[sweepCount].barsAlive  = 0;
-         sweepList[sweepCount].waitBars   = 0;
-         sweepList[sweepCount].swingLevel = swingList[k].price;
-         sweepList[sweepCount].swingTime  = swingList[k].time;
-         sweepList[sweepCount].sweepTime  = barT;
-         sweepList[sweepCount].sweepHigh  = barHigh;
-         sweepList[sweepCount].sweepLow   = barLow;
-         sweepList[sweepCount].confirmTime = 0;
-         sweepList[sweepCount].endTime     = FAR_FUTURE;
-         sweepList[sweepCount].drawnState  = STATE_UNDRAWN;
-
          if(barClose < swingList[k].price)
            {
-            sweepList[sweepCount].state = STATE_CONFIRMED;
-            sweepList[sweepCount].confirmTime = barT;
+            sweepList[swIdx].state = STATE_CONFIRMED;
+            sweepList[swIdx].confirmTime = barT;
             if(sh < ArraySize(BearConfirmBuf)) BearConfirmBuf[sh] = 1.0;
             if(sh < ArraySize(BearSLBuf))      BearSLBuf[sh]      = barHigh;
             PrintFormat("LIQSWEEP_BEAR_CONFIRMED | id=%d | level=%.5f | sl=%.5f | sh=%d",
@@ -296,14 +308,13 @@ void CheckNewSweeps(int sh)
            }
          else
            {
-            sweepList[sweepCount].state = STATE_PENDING;
+            sweepList[swIdx].state = STATE_PENDING;
             PrintFormat("LIQSWEEP_BEAR_PENDING | id=%d | level=%.5f | wickHigh=%.5f",
                         gNextSwId - 1, swingList[k].price, barHigh);
            }
-
-         sweepCount++;
-         swingList[k].consumed = true;
         }
+
+      swingList[k].consumed = true;
      }
   }
 

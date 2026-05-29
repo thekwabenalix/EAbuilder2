@@ -88,7 +88,7 @@ export function generateFvgStateModule(): string {
 #define STATE_EXPIRED      5   // terminal
 #define STATE_UNDRAWN     -1
 
-#define FVG_MAX    200
+#define FVG_MAX    500          // Slot pool — recycled; actual live cap = InpMaxZones
 #define FAR_FUTURE ((datetime)4102444800)   // 2100-01-01 00:00 UTC
 
 //+------------------------------------------------------------------+
@@ -203,13 +203,36 @@ void DetectFvg(int sh)
    datetime leftT   = iTime(_Symbol, InpTF, sh + 2); // candle 1 — left edge
    datetime detectT = iTime(_Symbol, InpTF, sh);      // candle 3 — birth
 
-   // Dedup: same candle-1 time + direction
+   // Dedup: same candle-1 time + direction (live zones only)
    for(int i = 0; i < fvgTotal; i++)
+   {
+      int st = fvgList[i].state;
+      if(st == STATE_MITIGATED || st == STATE_INVALIDATED || st == STATE_EXPIRED) continue;
       if(fvgList[i].leftTime == leftT && fvgList[i].dir == dir) return;
+   }
 
-   if(fvgTotal >= FVG_MAX) return;
+   // ── Slot allocation: recycle a terminal zone before appending ─────
+   // Critical for long backtests — without recycling, fvgTotal hits
+   // FVG_MAX after ~month of H1 data and DetectFvg returns early
+   // for every subsequent bar, silently killing all future signals.
+   int idx = -1;
+   for(int i = 0; i < fvgTotal; i++)
+   {
+      int st = fvgList[i].state;
+      if(st == STATE_MITIGATED || st == STATE_INVALIDATED || st == STATE_EXPIRED)
+      {
+         ObjectDelete(0, ObjRect(fvgList[i].id));
+         ObjectDelete(0, ObjLbl (fvgList[i].id));
+         idx = i;
+         break;
+      }
+   }
+   if(idx < 0)
+   {
+      if(fvgTotal >= FVG_MAX) return;   // All slots live — hard pool cap reached
+      idx = fvgTotal++;
+   }
 
-   int idx = fvgTotal++;
    fvgList[idx].id           = nextFvgId++;
    fvgList[idx].dir          = dir;
    fvgList[idx].ul           = ul;
