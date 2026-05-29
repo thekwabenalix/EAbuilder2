@@ -1165,8 +1165,21 @@ void BOS_Detect()
 }
 
 // Execute market entries for PENDING signals at bar open.
+// Signals expire after 1 bar — a BOS is only valid on the immediately
+// following bar. If a position was open and blocked the entry, the signal
+// is discarded rather than firing weeks/months later when the position closes.
 void BOS_ExecuteEntries()
 {
+   // Expire stale signals first — before the position/spread check so they
+   // are cleaned up even when we can't trade.
+   datetime bar1 = iTime(InpSymbol, InpEntryTF, 1); // just-closed bar
+   for(int i = 0; i < bosSigCount; i++)
+   {
+      if(bosSigs[i].state != BOS_PENDING) continue;
+      if(bosSigs[i].detectedAt < bar1)    // older than the just-closed bar → stale
+        { bosSigs[i].state = BOS_MISSED; continue; }
+   }
+
    ${ctx.hasMaxTradesFilter
      ? `if(CountOpenPositions(InpSymbol, InpMagic) >= InpMaxTrades) return;`
      : `if(HasOpenPosition(InpSymbol, InpMagic)) return;`}
