@@ -560,7 +560,7 @@ function genGlobals(ctx: Ctx): string {
       `#define FVG_CONFIRMED 2`,
       `#define FVG_TRADED    3`,
       `#define FVG_INVALID   4`,
-      `#define MAX_FVGS     20`,
+      `#define MAX_FVGS     200`,
       ``,
       `struct FVGZone`,
       `{`,
@@ -681,10 +681,12 @@ function genFVGStateMachine(ctx: Ctx): string {
 //+------------------------------------------------------------------+
 
 // Add a new FVG zone if it is not already tracked.
+// Slot recycling: reuses the first TRADED/INVALID slot before appending.
+// MAX_FVGS is only a hard cap — active zones are never evicted.
 void FVG_Add(double ul, double ll, int dir)
 {
-   if(fvgCount >= MAX_FVGS) return;
    double point = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   // Dedup: skip terminal zones so their stale price data can't block new detection
    for(int i = 0; i < fvgCount; i++)
    {
       if(fvgZones[i].state >= FVG_TRADED) continue;
@@ -692,7 +694,18 @@ void FVG_Add(double ul, double ll, int dir)
       if(MathAbs(fvgZones[i].ul - ul) < 5.0 * point &&
          MathAbs(fvgZones[i].ll - ll) < 5.0 * point) return;
    }
-   int idx = fvgCount++;
+   // Slot allocation: recycle a terminal slot before growing the pool
+   int idx = -1;
+   for(int i = 0; i < fvgCount; i++)
+   {
+      if(fvgZones[i].state == FVG_TRADED || fvgZones[i].state == FVG_INVALID)
+        { idx = i; break; }
+   }
+   if(idx < 0)
+   {
+      if(fvgCount >= MAX_FVGS) return;
+      idx = fvgCount++;
+   }
    fvgZones[idx].ul         = ul;
    fvgZones[idx].ll         = ll;
    fvgZones[idx].dir        = dir;
