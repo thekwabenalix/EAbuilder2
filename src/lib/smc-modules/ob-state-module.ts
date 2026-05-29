@@ -41,7 +41,7 @@
  * NO trading logic. State tracking and visualisation only.
  */
 
-export const OB_STATE_MODULE_VERSION = "1.0.0";
+export const OB_STATE_MODULE_VERSION = "1.00";
 export const OB_STATE_MODULE         = "OB_State_Module";
 
 export function generateObStateModule(): string {

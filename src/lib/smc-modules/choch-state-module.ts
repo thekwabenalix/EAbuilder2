@@ -29,7 +29,7 @@
 //   [2] ChochUpBuf    — 1.0 at the bar where bull CHoCH fired (event)
 //   [3] ChochDnBuf    — 1.0 at the bar where bear CHoCH fired (event)
 
-export const CHOCH_STATE_MODULE_VERSION = "1.0.0";
+export const CHOCH_STATE_MODULE_VERSION = "1.00";
 export const CHOCH_STATE_MODULE = "CHoCH_State_Module";
 
 export function generateChochStateModule(): string {

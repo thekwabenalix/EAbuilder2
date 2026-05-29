@@ -17,7 +17,7 @@
 // Standard 4-buffer Phase 3 contract:
 //   [0] BullConfirmBuf  [1] BearConfirmBuf  [2] BullSLBuf  [3] BearSLBuf
 
-export const BB_STATE_MODULE_VERSION = "1.0.0";
+export const BB_STATE_MODULE_VERSION = "1.00";
 export const BB_STATE_MODULE = "BB_State_Module";
 
 export function generateBbStateModule(): string {

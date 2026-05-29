@@ -21,7 +21,7 @@
 // Standard 4-buffer Phase 3 contract:
 //   [0] BullConfirmBuf  [1] BearConfirmBuf  [2] BullSLBuf  [3] BearSLBuf
 
-export const LIQSWEEP_STATE_MODULE_VERSION = "1.0.0";
+export const LIQSWEEP_STATE_MODULE_VERSION = "1.00";
 export const LIQSWEEP_STATE_MODULE = "LiqSweep_State_Module";
 
 export function generateLiqSweepStateModule(): string {

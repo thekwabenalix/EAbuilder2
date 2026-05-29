@@ -11,7 +11,7 @@
 // orchestrator step confirm "currently in bull/bear trend" by reading bar[1].
 // The event buffers [2] and [3] fire once per BOS bar for fine-grained timing.
 
-export const BOS_STATE_MODULE_VERSION = "1.0.0";
+export const BOS_STATE_MODULE_VERSION = "1.00";
 export const BOS_STATE_MODULE = "BOS_State_Module";
 
 export function generateBosStateModule(): string {

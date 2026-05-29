@@ -55,7 +55,7 @@
  * NO trading logic. State tracking and visualisation only.
  */
 
-export const BREAKOUT_STATE_MODULE_VERSION = "1.0.0";
+export const BREAKOUT_STATE_MODULE_VERSION = "1.00";
 export const BREAKOUT_STATE_MODULE         = "Breakout_State_Module";
 
 export function generateBreakoutStateModule(): string {

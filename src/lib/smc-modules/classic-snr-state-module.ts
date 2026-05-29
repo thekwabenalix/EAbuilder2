@@ -26,7 +26,7 @@
 //   BullSLBuf = retestLow  (wick low of the support retest bar — buyer's SL)
 //   BearSLBuf = retestHigh (wick high of the resistance retest bar — seller's SL)
 
-export const CLASSIC_SNR_STATE_MODULE_VERSION = "1.0.0";
+export const CLASSIC_SNR_STATE_MODULE_VERSION = "1.00";
 export const CLASSIC_SNR_STATE_MODULE = "Classic_SNR_State_Module";
 
 export function generateClassicSnrStateModule(): string {
