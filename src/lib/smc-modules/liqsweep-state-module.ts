@@ -410,26 +410,29 @@ void DrawOne(int idx)
    string lname = OBJ_PREFIX + "L" + IntegerToString(sweepList[idx].id);
 
    bool terminal = (st == STATE_EXPIRED);
-   datetime right = terminal
-                    ? sweepList[idx].endTime
-                    : (st == STATE_CONFIRMED ? sweepList[idx].confirmTime : FAR_FUTURE);
 
-   ENUM_LINE_STYLE lStyle = terminal ? STYLE_DOT : STYLE_DASH;
+   // Delete existing objects before redrawing — prevents EXPIRED sweeps lingering
+   // as active-state lines after the sweep has timed out or been confirmed.
+   ObjectDelete(0, name);
+   ObjectDelete(0, lname);
+   sweepList[idx].drawnState = st;
+   if(terminal) return;   // EXPIRED: deleted, not recreated
+
+   datetime right = (st == STATE_CONFIRMED) ? sweepList[idx].confirmTime : FAR_FUTURE;
+
+   ENUM_LINE_STYLE lStyle = STYLE_DASH;
    int             lWidth = (st == STATE_CONFIRMED) ? InpLineWidth + 1 : InpLineWidth;
    color           lineCol = (st == STATE_CONFIRMED) ? lc : BlendWithBg(lc, 180);
 
    // ── OBJ_TREND dashed line from swingTime to right ──────
-   if(ObjectFind(0, name) < 0)
-      ObjectCreate(0, name, OBJ_TREND, 0,
-                   sweepList[idx].swingTime, sweepList[idx].swingLevel,
-                   right,                    sweepList[idx].swingLevel);
-   else
-      ObjectSetInteger(0, name, OBJPROP_TIME, 1, right);
+   ObjectCreate(0, name, OBJ_TREND, 0,
+                sweepList[idx].swingTime, sweepList[idx].swingLevel,
+                right,                    sweepList[idx].swingLevel);
 
    ObjectSetInteger(0, name, OBJPROP_COLOR,      lineCol);
    ObjectSetInteger(0, name, OBJPROP_WIDTH,      lWidth);
    ObjectSetInteger(0, name, OBJPROP_STYLE,      lStyle);
-   ObjectSetInteger(0, name, OBJPROP_RAY_RIGHT,  terminal ? 0 : 1);
+   ObjectSetInteger(0, name, OBJPROP_RAY_RIGHT,  st == STATE_CONFIRMED ? 0 : 1);
    ObjectSetInteger(0, name, OBJPROP_SELECTABLE, 0);
    ObjectSetInteger(0, name, OBJPROP_HIDDEN,     1);
 

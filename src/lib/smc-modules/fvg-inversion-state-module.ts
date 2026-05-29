@@ -437,7 +437,15 @@ void DrawOne(int idx)
    int   st       = ifvgList[idx].state;
    bool  terminal = (st == STATE_MITIGATED || st == STATE_INVALIDATED || st == STATE_EXPIRED);
 
-   if(terminal && !InpShowTerminal) return;
+   if(terminal)
+     {
+      string _nm  = OBJ_PREFIX + IntegerToString(ifvgList[idx].id);
+      string _lnm = OBJ_PREFIX + "L" + IntegerToString(ifvgList[idx].id);
+      ObjectDelete(0, _nm);
+      ObjectDelete(0, _lnm);
+      ifvgList[idx].drawnState = st;
+      if(!InpShowTerminal) return;
+     }
    if( isBull  && !InpShowBull)     return;
    if(!isBull  && !InpShowBear)     return;
    if(st == ifvgList[idx].drawnState) return;

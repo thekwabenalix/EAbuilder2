@@ -483,7 +483,17 @@ void DrawOne(int idx)
    int     st     = bbList[idx].state;
    bool    terminal = (st == STATE_MITIGATED || st == STATE_INVALIDATED || st == STATE_EXPIRED);
 
-   if(terminal && !InpShowTerminal) return;
+   // Delete existing objects unconditionally when terminal — prevents stale rectangles
+   // from persisting on screen. Without this, the active zone rectangle never gets removed.
+   if(terminal)
+     {
+      string _nm  = OBJ_PREFIX + IntegerToString(bbList[idx].id);
+      string _lnm = OBJ_PREFIX + "L" + IntegerToString(bbList[idx].id);
+      ObjectDelete(0, _nm);
+      ObjectDelete(0, _lnm);
+      bbList[idx].drawnState = st;
+      if(!InpShowTerminal) return;  // deleted, not recreated — zone is gone
+     }
    if( isBull  && !InpShowBull)     return;
    if(!isBull  && !InpShowBear)     return;
    if(st == bbList[idx].drawnState) return;  // no visual change

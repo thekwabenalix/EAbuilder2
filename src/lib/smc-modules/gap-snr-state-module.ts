@@ -338,7 +338,15 @@ void DrawOne(int idx)
    int   st       = snrList[idx].state;
    bool  terminal = (st == STATE_BROKEN || st == STATE_EXPIRED);
 
-   if(terminal && !InpShowTerminal) return;
+   if(terminal)
+     {
+      string _nm  = OBJ_PREFIX + IntegerToString(snrList[idx].id);
+      string _lnm = OBJ_PREFIX + "L" + IntegerToString(snrList[idx].id);
+      ObjectDelete(0, _nm);
+      ObjectDelete(0, _lnm);
+      snrList[idx].drawnState = st;
+      if(!InpShowTerminal) return;
+     }
    if( isSup   && !InpShowSup)      return;
    if(!isSup   && !InpShowRes)      return;
    if(st == snrList[idx].drawnState) return;
