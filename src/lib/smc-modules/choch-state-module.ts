@@ -104,6 +104,7 @@ struct ChochRecord
    datetime swingTime;
    datetime chochTime;
    int      drawn;
+   int      invalid;     // 1 = price has closed back through this level
   };
 
 #define MAX_SWINGS 2000
@@ -275,6 +276,7 @@ void CheckCHoCH(int sh)
             chochList[cIdx].swingTime  = swingList[k].time;
             chochList[cIdx].chochTime  = barT;
             chochList[cIdx].drawn      = 0;
+            chochList[cIdx].invalid    = 0;
 
             gTrend = TREND_BULL;
             if(sh < ArraySize(ChochUpBuf)) ChochUpBuf[sh] = 1.0;
@@ -307,6 +309,7 @@ void CheckCHoCH(int sh)
             chochList[cIdx].swingTime  = swingList[k].time;
             chochList[cIdx].chochTime  = barT;
             chochList[cIdx].drawn      = 0;
+            chochList[cIdx].invalid    = 0;
 
             gTrend = TREND_BEAR;
             if(sh < ArraySize(ChochDnBuf)) ChochDnBuf[sh] = 1.0;
@@ -325,11 +328,38 @@ void StampTrendBuf(int sh)
    else if(gTrend == TREND_BEAR) BearTrendBuf[sh] = 1.0;
   }
 
+// ─── InvalidateCHoCHs ─────────────────────────────────────────────
+// Called every bar. When price closes back through a CHoCH level the
+// line has been "traded through" — remove it from the chart.
+//   Bull CHoCH (broke above swing high): invalid when close < swingLevel
+//   Bear CHoCH (broke below swing low) : invalid when close > swingLevel
+void InvalidateCHoCHs(int sh)
+  {
+   double closeV = Cl(sh);
+   for(int i = 0; i < chochCount; i++)
+     {
+      if(chochList[i].invalid == 1) continue;
+
+      bool crossed = false;
+      if(chochList[i].dir == DIR_HIGH && closeV < chochList[i].swingLevel)
+         crossed = true;
+      if(chochList[i].dir == DIR_LOW  && closeV > chochList[i].swingLevel)
+         crossed = true;
+
+      if(crossed)
+        {
+         if(chochList[i].drawn == 1) DeleteOne(i);
+         chochList[i].invalid = 1;
+        }
+     }
+  }
+
 // ─── DrawOne ──────────────────────────────────────────────────────
 void DrawOne(int idx)
   {
    if(idx < 0 || idx >= chochCount) return;
-   if(chochList[idx].drawn == 1)    return;
+   if(chochList[idx].drawn    == 1) return;
+   if(chochList[idx].invalid  == 1) return; // already traded through — do not draw
 
    bool   isBull = (chochList[idx].dir == DIR_HIGH);
    if( isBull && !InpShowBull) return;
@@ -445,6 +475,7 @@ int OnCalculate(const int rates_total,
         {
          TryAddSwing(sh);
          CheckCHoCH(sh);
+         InvalidateCHoCHs(sh);
          StampTrendBuf(sh);
         }
 
@@ -455,6 +486,7 @@ int OnCalculate(const int rates_total,
    // ── Live: one bar just closed ─────────────────────────────
    TryAddSwing(1);
    CheckCHoCH(1);
+   InvalidateCHoCHs(1);
    StampTrendBuf(1);
    EnforceMaxLines();
    if(chochCount > 0 && chochList[chochCount - 1].drawn == 0)
