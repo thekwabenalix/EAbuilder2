@@ -42,7 +42,7 @@
  *   SIGNAL_BLOCKED (reason: spread / max_trades / sl_invalid / zero_lots / sl_too_close)
  */
 
-export const FVG_EXECUTION_EA_VERSION = "1.0.0";
+export const FVG_EXECUTION_EA_VERSION = "1.1.0";
 export const FVG_EXECUTION_EA_MODULE  = "FVG_Execution_EA";
 
 export function generateFvgExecutionEa(): string {
@@ -60,7 +60,7 @@ export function generateFvgExecutionEa(): string {
 //| ⚠  FVG_State_Module.mq5 must be compiled in MQL5/Indicators/  |
 //+------------------------------------------------------------------+
 #property copyright "EA Builder — Phase 3 Execution Module"
-#property version   "1.00"
+#property version   "1.01"
 #property strict
 
 #include <Trade\\Trade.mqh>
@@ -73,6 +73,7 @@ export function generateFvgExecutionEa(): string {
 #define BUF_BEAR_SL       3
 
 //=== Inputs — State module link ====================================
+input group "══════════ State Module Link ══════════"
 input string          InpModuleName     = "FVG_State_Module"; // State module filename (no .mq5)
 input ENUM_TIMEFRAMES InpModuleTF       = PERIOD_CURRENT;     // Timeframe — MUST match state module
 input int             InpModuleLookback = 500;                // Lookback  — MUST match state module
@@ -81,19 +82,26 @@ input bool            InpModuleShowBear = true;               // State module: t
 input int             InpModuleExpiry   = 100;                // State module: expiry bars
 
 //=== Inputs — Execution ============================================
+input group "══════════ Execution ══════════"
 input int    InpMagic      = 20250528; // Magic number (unique per EA instance)
 input bool   InpTradeBull  = true;     // Enable bullish FVG signals
 input bool   InpTradeBear  = true;     // Enable bearish FVG signals
 input int    InpSlippage   = 3;        // Max entry slippage in points
 
 //=== Inputs — Risk management ======================================
+input group "══════════ Risk Management ══════════"
 input double InpRiskPct    = 1.0;  // Risk per trade (% of account balance)
 input double InpRR         = 2.0;  // Risk:Reward ratio  (TP = entry ± SL_dist × RR)
 input double InpBreakevenR = 0.5;  // Move SL to entry when profit ≥ X × risk  (0 = off)
 
 //=== Inputs — Filters ==============================================
+input group "══════════ Filters ══════════"
 input int    InpMaxTrades    = 2;  // Max concurrent positions with this magic  (0 = unlimited)
 input int    InpMaxSpreadPts = 20; // Max spread in points to allow entry        (0 = off)
+
+//=== Inputs — Debug ================================================
+input group "══════════ Debug ══════════"
+input bool   InpDebugMode  = true; // Print buffer values on every bar — set false in production
 
 CTrade        trade;
 CPositionInfo pos;
@@ -107,10 +115,13 @@ int OnInit()
    trade.SetDeviationInPoints(InpSlippage);
    trade.LogLevel(LOG_LEVEL_ERRORS);
 
+   // Resolve effective timeframe (PERIOD_CURRENT = chart TF)
+   ENUM_TIMEFRAMES effectiveTF = (InpModuleTF == PERIOD_CURRENT) ? Period() : InpModuleTF;
+
    //--- Load FVG_State_Module via iCustom ---------------------------
-   // Inputs are passed in declaration order from FVG_State_Module.mq5.
-   // Colour / display inputs are hard-coded to defaults; they do not
-   // affect buffer data. InpShowLog set false — EA logs its own events.
+   // Inputs passed in declaration order from FVG_State_Module.mq5.
+   // Colour / display inputs hard-coded to defaults — they do not
+   // affect buffer data. InpShowLog=false — EA logs its own events.
    //
    //  #  Parameter              Type             Value
    //  1  InpTF                  ENUM_TIMEFRAMES  InpModuleTF
@@ -152,16 +163,23 @@ int OnInit()
 
    if(hState == INVALID_HANDLE)
    {
-      PrintFormat("FVG_Execution_EA: FAILED to load '%s'. "
-                  "Ensure FVG_State_Module.mq5 is compiled in MQL5/Indicators/.",
+      PrintFormat("[FVG_EA] INIT_FAILED — could not load '%s'. "
+                  "Check: (1) FVG_State_Module.mq5 is in MQL5/Indicators/ and compiled. "
+                  "(2) The filename spelling is exact (no .mq5 extension here).",
                   InpModuleName);
       return INIT_FAILED;
    }
 
-   PrintFormat("FVG_Execution_EA v1.0.0 ready | module=%s | TF=%s | magic=%d "
-               "| risk=%.1f%% | RR=%.1f | be_trigger=%.2fR | max_trades=%d",
-      InpModuleName, EnumToString(InpModuleTF), InpMagic,
-      InpRiskPct, InpRR, InpBreakevenR, InpMaxTrades);
+   PrintFormat("[FVG_EA] READY v${FVG_EXECUTION_EA_VERSION} | module=%s | effectiveTF=%s | lookback=%d "
+               "| magic=%d | risk=%.1f%% | RR=%.1f | BE=%.2fR | maxTrades=%d | debug=%s",
+      InpModuleName, EnumToString(effectiveTF), InpModuleLookback,
+      InpMagic, InpRiskPct, InpRR, InpBreakevenR, InpMaxTrades,
+      InpDebugMode ? "ON" : "OFF");
+
+   if(InpDebugMode)
+      Print("[FVG_EA] DEBUG MODE ON — buffer values printed every bar. "
+            "Set InpDebugMode=false when signals are confirmed working.");
+
    return INIT_SUCCEEDED;
 }
 
@@ -188,15 +206,68 @@ void OnTick()
 
    // ── Read state module buffers at bar[1] (last fully closed bar) ─
    double bullConf[1], bearConf[1], bullSL[1], bearSL[1];
-   if(CopyBuffer(hState, BUF_BULL_CONFIRM, 1, 1, bullConf) < 1) return;
-   if(CopyBuffer(hState, BUF_BEAR_CONFIRM, 1, 1, bearConf) < 1) return;
-   if(CopyBuffer(hState, BUF_BULL_SL,      1, 1, bullSL)   < 1) return;
-   if(CopyBuffer(hState, BUF_BEAR_SL,      1, 1, bearSL)   < 1) return;
+   if(CopyBuffer(hState, BUF_BULL_CONFIRM, 1, 1, bullConf) < 1)
+   {
+      if(InpDebugMode) Print("[FVG_EA] CopyBuffer FAILED — BUF_BULL_CONFIRM. "
+                             "Module may not have calculated yet (normal on first bar).");
+      return;
+   }
+   if(CopyBuffer(hState, BUF_BEAR_CONFIRM, 1, 1, bearConf) < 1)
+   {
+      if(InpDebugMode) Print("[FVG_EA] CopyBuffer FAILED — BUF_BEAR_CONFIRM.");
+      return;
+   }
+   if(CopyBuffer(hState, BUF_BULL_SL, 1, 1, bullSL) < 1)
+   {
+      if(InpDebugMode) Print("[FVG_EA] CopyBuffer FAILED — BUF_BULL_SL.");
+      return;
+   }
+   if(CopyBuffer(hState, BUF_BEAR_SL, 1, 1, bearSL) < 1)
+   {
+      if(InpDebugMode) Print("[FVG_EA] CopyBuffer FAILED — BUF_BEAR_SL.");
+      return;
+   }
+
+   // Normalise EMPTY_VALUE to 0 — some builds use DBL_MAX for empty buffers
+   double normBullConf = (bullConf[0] >= EMPTY_VALUE / 2.0) ? 0.0 : bullConf[0];
+   double normBearConf = (bearConf[0] >= EMPTY_VALUE / 2.0) ? 0.0 : bearConf[0];
+   double normBullSL   = (bullSL[0]   >= EMPTY_VALUE / 2.0) ? 0.0 : bullSL[0];
+   double normBearSL   = (bearSL[0]   >= EMPTY_VALUE / 2.0) ? 0.0 : bearSL[0];
+
+   // ── Debug: print raw buffer state every bar ──────────────────────
+   if(InpDebugMode)
+      PrintFormat("[FVG_EA] BUFFER_DEBUG | bar=%s | bullConf=%.1f | bearConf=%.1f "
+                  "| bullSL=%.5f | bearSL=%.5f",
+         TimeToString(currentBar, TIME_DATE|TIME_MINUTES),
+         normBullConf, normBearConf, normBullSL, normBearSL);
 
    // Signal valid only when both confirmation AND SL buffer are set
-   bool hasBull = (InpTradeBull && bullConf[0] == 1.0 && bullSL[0] > 0.0);
-   bool hasBear = (InpTradeBear && bearConf[0] == 1.0 && bearSL[0] > 0.0);
-   if(!hasBull && !hasBear) return;
+   bool hasBull = (InpTradeBull && normBullConf == 1.0 && normBullSL > 0.0);
+   bool hasBear = (InpTradeBear && normBearConf == 1.0 && normBearSL > 0.0);
+
+   if(!hasBull && !hasBear)
+   {
+      if(InpDebugMode)
+      {
+         // Print the exact reason so the user knows what to fix
+         if(!InpTradeBull && !InpTradeBear)
+            Print("[FVG_EA] NO_SIGNAL | reason=both_directions_disabled");
+         else if(normBullConf != 1.0 && normBearConf != 1.0)
+            Print("[FVG_EA] NO_SIGNAL | reason=no_confirmation_on_bar1 "
+                  "— FVG has not reached CONFIRMED state yet. "
+                  "Expected: ACTIVE→RETESTED→CONFIRMED lifecycle.");
+         else if(normBullConf == 1.0 && normBullSL <= 0.0)
+            Print("[FVG_EA] NO_SIGNAL | reason=bull_sl_buffer_zero "
+                  "— BullConfirm=1.0 but BullSL=0. "
+                  "Check FVG_State_Module BullSLBuf assignment.");
+         else if(normBearConf == 1.0 && normBearSL <= 0.0)
+            Print("[FVG_EA] NO_SIGNAL | reason=bear_sl_buffer_zero "
+                  "— BearConfirm=1.0 but BearSL=0.");
+         else
+            Print("[FVG_EA] NO_SIGNAL | reason=direction_filtered_by_InpTradeBull/Bear");
+      }
+      return;
+   }
 
    // ── Spread filter ────────────────────────────────────────────────
    if(InpMaxSpreadPts > 0)
@@ -204,7 +275,8 @@ void OnTick()
       long spread = SymbolInfoInteger(_Symbol, SYMBOL_SPREAD);
       if(spread > InpMaxSpreadPts)
       {
-         PrintFormat("SIGNAL_BLOCKED | reason=spread | spread=%d pts | max=%d pts",
+         PrintFormat("[FVG_EA] SIGNAL_BLOCKED | reason=spread | spread=%d pts | max=%d pts "
+                     "— increase InpMaxSpreadPts or trade during tighter spread window",
             spread, InpMaxSpreadPts);
          return;
       }
@@ -216,15 +288,15 @@ void OnTick()
       int open = CountMyPositions();
       if(open >= InpMaxTrades)
       {
-         PrintFormat("SIGNAL_BLOCKED | reason=max_trades | open=%d | max=%d",
+         PrintFormat("[FVG_EA] SIGNAL_BLOCKED | reason=max_trades | open=%d | max=%d",
             open, InpMaxTrades);
          return;
       }
    }
 
    // ── Execute signals ──────────────────────────────────────────────
-   if(hasBull) OpenTrade(ORDER_TYPE_BUY,  bullSL[0]);
-   if(hasBear) OpenTrade(ORDER_TYPE_SELL, bearSL[0]);
+   if(hasBull) OpenTrade(ORDER_TYPE_BUY,  normBullSL);
+   if(hasBear) OpenTrade(ORDER_TYPE_SELL, normBearSL);
 }
 
 //+------------------------------------------------------------------+
@@ -241,13 +313,15 @@ bool OpenTrade(ENUM_ORDER_TYPE type, double sl)
    // Validate: SL must be on the correct side of entry
    if(isBull && sl >= entry)
    {
-      PrintFormat("SIGNAL_BLOCKED | reason=sl_invalid | dir=BUY | entry=%.5f | sl=%.5f",
+      PrintFormat("[FVG_EA] SIGNAL_BLOCKED | reason=sl_invalid | dir=BUY | entry=%.5f | sl=%.5f "
+                  "— SL must be BELOW entry for a BUY. Check BullSLBuf value in state module.",
          entry, sl);
       return false;
    }
    if(!isBull && sl <= entry)
    {
-      PrintFormat("SIGNAL_BLOCKED | reason=sl_invalid | dir=SELL | entry=%.5f | sl=%.5f",
+      PrintFormat("[FVG_EA] SIGNAL_BLOCKED | reason=sl_invalid | dir=SELL | entry=%.5f | sl=%.5f "
+                  "— SL must be ABOVE entry for a SELL. Check BearSLBuf value in state module.",
          entry, sl);
       return false;
    }
@@ -257,8 +331,9 @@ bool OpenTrade(ENUM_ORDER_TYPE type, double sl)
    double minStop = (double)SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL) * _Point;
    if(slDist < minStop)
    {
-      PrintFormat("SIGNAL_BLOCKED | reason=sl_too_close | sl_dist=%.5f | min_stop=%.5f",
-         slDist, minStop);
+      PrintFormat("[FVG_EA] SIGNAL_BLOCKED | reason=sl_too_close | sl_dist=%.5f | min_stop=%.5f "
+                  "— broker requires minimum %.5f distance. FVG zone is too close to current price.",
+         slDist, minStop, minStop);
       return false;
    }
 
@@ -270,7 +345,8 @@ bool OpenTrade(ENUM_ORDER_TYPE type, double sl)
    double lots = CalcLots(slDist);
    if(lots <= 0.0)
    {
-      PrintFormat("SIGNAL_BLOCKED | reason=zero_lots | sl_dist=%.5f | risk=%.1f%%",
+      PrintFormat("[FVG_EA] SIGNAL_BLOCKED | reason=zero_lots | sl_dist=%.5f | risk=%.1f%% "
+                  "— check account balance and symbol tick value.",
          slDist, InpRiskPct);
       return false;
    }
@@ -280,13 +356,13 @@ bool OpenTrade(ENUM_ORDER_TYPE type, double sl)
            : trade.Sell(lots, _Symbol, entry, sl, tp, "FVG-C Sell");
 
    if(ok)
-      PrintFormat("TRADE_OPENED | dir=%s | entry=%.5f | sl=%.5f | tp=%.5f "
-                  "| lots=%.2f | risk=%.2f %s",
-         isBull ? "BUY" : "SELL", entry, sl, tp, lots,
+      PrintFormat("[FVG_EA] TRADE_OPENED | dir=%s | entry=%.5f | sl=%.5f | tp=%.5f "
+                  "| lots=%.2f | slDist=%.5f | risk=%.2f %s",
+         isBull ? "BUY" : "SELL", entry, sl, tp, lots, slDist,
          AccountInfoDouble(ACCOUNT_BALANCE) * InpRiskPct / 100.0,
          AccountInfoString(ACCOUNT_CURRENCY));
    else
-      PrintFormat("TRADE_FAILED | dir=%s | retcode=%d | entry=%.5f | sl=%.5f",
+      PrintFormat("[FVG_EA] TRADE_FAILED | dir=%s | retcode=%d | entry=%.5f | sl=%.5f",
          isBull ? "BUY" : "SELL", trade.ResultRetcode(), entry, sl);
 
    return ok;
@@ -356,10 +432,10 @@ void ManageBreakeven()
 
       // Move SL to entry price
       if(trade.PositionModify(ticket, openPrice, curTP))
-         PrintFormat("BREAKEVEN_SET | ticket=%I64u | dir=%s | entry=%.5f | profit_at_trigger=%.5f",
+         PrintFormat("[FVG_EA] BREAKEVEN_SET | ticket=%I64u | dir=%s | entry=%.5f | profit_at_trigger=%.5f",
             ticket, isBull ? "BUY" : "SELL", openPrice, profit);
       else
-         PrintFormat("BREAKEVEN_FAILED | ticket=%I64u | retcode=%d",
+         PrintFormat("[FVG_EA] BREAKEVEN_FAILED | ticket=%I64u | retcode=%d",
             ticket, trade.ResultRetcode());
    }
 }
