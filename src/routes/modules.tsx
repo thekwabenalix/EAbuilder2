@@ -13,6 +13,9 @@ import {
   ArrowUpDown,
   Activity,
   BarChart2,
+  Layers,
+  Zap,
+  Network,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -27,6 +30,24 @@ import { generateChochDetector } from "@/lib/smc-modules/choch-detector";
 import { generateClassicSnrDetector } from "@/lib/smc-modules/classic-snr-detector";
 import { generateGapSnrDetector } from "@/lib/smc-modules/gap-snr-detector";
 import { generateBreakoutDetector } from "@/lib/smc-modules/breakout-detector";
+import { generateFvgStateModule }       from "@/lib/smc-modules/fvg-state-module";
+import { generateObStateModule }        from "@/lib/smc-modules/ob-state-module";
+import { generateBreakoutStateModule }  from "@/lib/smc-modules/breakout-state-module";
+import { generateBosStateModule }       from "@/lib/smc-modules/bos-state-module";
+import { generateBbStateModule }        from "@/lib/smc-modules/bb-state-module";
+import { generateLiqSweepStateModule }       from "@/lib/smc-modules/liqsweep-state-module";
+import { generateFvgInversionStateModule }  from "@/lib/smc-modules/fvg-inversion-state-module";
+import { generateChochStateModule }         from "@/lib/smc-modules/choch-state-module";
+import { generateClassicSnrStateModule }    from "@/lib/smc-modules/classic-snr-state-module";
+import { generateGapSnrStateModule }        from "@/lib/smc-modules/gap-snr-state-module";
+import { generateFvgExecutionEa } from "@/lib/phase3-modules/fvg-execution-ea";
+import {
+  generateMtfOrchestrator,
+  FVG_3TF_BULL,
+  FVG_3TF_BEAR,
+  FVG_2TF_BULL,
+  FVG_2TF_BEAR,
+} from "@/lib/mtf-modules/mtf-orchestrator";
 
 export const Route = createFileRoute("/modules")({
   component: ModulesPage,
@@ -456,7 +477,529 @@ const TRADING_MODULES: ModuleCategory[] = [
     ],
   },
 
-  // ── 3. Supply & Demand ────────────────────────────────────────────────────
+  // ── 3. Phase 2 State Modules ─────────────────────────────────────────────
+  {
+    id: "phase2-state",
+    label: "State",
+    fullName: "Phase 2: State Modules",
+    icon: Layers,
+    phaseTag: "Phase 2 Active",
+    phaseActive: true,
+    description:
+      "Phase 2 consumes Phase 1 detection output and manages full zone lifecycles. " +
+      "Each State Module embeds its own detection, tracks every state transition, " +
+      "and exposes indicator buffers for Phase 3 execution modules to consume.",
+    modules: [
+      {
+        id: "fvg-state",
+        filename: "FVG_State_Module.mq5",
+        name: "FVG State Module",
+        description:
+          "Embeds FVG detection and manages the complete zone lifecycle. Each zone " +
+          "moves through ACTIVE → RETESTED → CONFIRMED, or terminates via MITIGATED / " +
+          "INVALIDATED / EXPIRED. Phase 3 can read confirmed-signal bars via indicator buffers.",
+        rules: [
+          "Bullish FVG: C3.Low > C1.High → UL = C3.Low, LL = C1.High",
+          "Bearish FVG: C3.High < C1.Low → UL = C1.Low, LL = C3.High",
+          "RETESTED: wick enters zone — Bull: Low ≤ UL  |  Bear: High ≥ LL",
+          "CONFIRMED: from RETESTED, close back outside — Bull: Close > UL  |  Bear: Close < LL",
+          "MITIGATED: close trades inside zone  LL ≤ Close ≤ UL  [terminal]",
+          "INVALIDATED: close beyond far edge — Bull: Close < LL  |  Bear: Close > UL  [terminal]",
+          "EXPIRED: barsAlive ≥ InpExpiryBars (default 100)  [terminal]",
+          "State cycle: ACTIVE → RETESTED → CONFIRMED → re-RETESTED → … until terminal",
+        ],
+        output: [
+          "OBJ_RECTANGLE per zone — left=C1 time, right=FAR_FUTURE (live) or endTime (terminal)",
+          "ACTIVE: solid width 1  |  CONFIRMED: solid width 2  |  RETESTED: gold  |  Terminal: dashed/faded",
+          "Labels: FVG↑/↓ (ACTIVE) · FVG-T (RETESTED) · FVG-C (CONFIRMED) · FVG-M / FVG-X / FVG-E",
+          "Buffer 0: BullConfirmBuf[sh]=1.0 at bar where bull FVG confirmed (Phase 3 readable via iCustom)",
+          "Buffer 1: BearConfirmBuf[sh]=1.0 at bar where bear FVG confirmed",
+          "Buffer 2: BullSLBuf[sh]=retestLow at confirmation bar — SL for Phase 3 bull entries",
+          "Buffer 3: BearSLBuf[sh]=retestHigh at confirmation bar — SL for Phase 3 bear entries",
+          "Journal: FVG_ACTIVE | FVG_RETESTED | FVG_CONFIRMED | FVG_MITIGATED | FVG_INVALIDATED | FVG_EXPIRED",
+        ],
+        status: "ready",
+        generate: generateFvgStateModule,
+      },
+      {
+        id: "ob-state",
+        filename: "OB_State_Module.mq5",
+        name: "Order Block State Module",
+        description:
+          "Embeds OB detection (ATR-displacement) and manages full zone lifecycle. " +
+          "Same 4-buffer contract as FVG State Module — drop-in for any Phase 3 " +
+          "execution module or MTF orchestrator step.",
+        rules: [
+          "Bullish OB: last BEARISH candle before a bullish displacement (body ≥ InpDispMult × ATR)",
+          "Bearish OB: last BULLISH candle before a bearish displacement",
+          "RETESTED: wick enters zone — Bull: Low ≤ OB high  |  Bear: High ≥ OB low",
+          "CONFIRMED: from RETESTED, close exits near edge — Bull: Close > OB high  |  Bear: Close < OB low",
+          "MITIGATED: close inside zone  OB low ≤ Close ≤ OB high  [terminal]",
+          "INVALIDATED: close beyond far edge — Bull: Close < OB low  |  Bear: Close > OB high  [terminal]",
+          "EXPIRED: barsAlive ≥ InpExpiryBars (default 100)  [terminal]",
+          "State cycle: ACTIVE → RETESTED → CONFIRMED → re-RETESTED → … until terminal",
+        ],
+        output: [
+          "OBJ_RECTANGLE per zone — left=OB candle time, right=FAR_FUTURE (live) or endTime (terminal)",
+          "ACTIVE: solid width 1  |  CONFIRMED: solid width 2  |  RETESTED: gold  |  Terminal: dashed/faded",
+          "Labels: OB↑/↓ (ACTIVE) · OB-T (RETESTED) · OB-C (CONFIRMED) · OB-M / OB-X / OB-E",
+          "Buffer 0: BullConfirmBuf[sh]=1.0 at bar where bull OB confirmed",
+          "Buffer 1: BearConfirmBuf[sh]=1.0 at bar where bear OB confirmed",
+          "Buffer 2: BullSLBuf[sh]=retestLow at confirmation bar — SL for bull entries",
+          "Buffer 3: BearSLBuf[sh]=retestHigh at confirmation bar — SL for bear entries",
+          "Journal: OB_ACTIVE | OB_RETESTED | OB_CONFIRMED | OB_MITIGATED | OB_INVALIDATED | OB_EXPIRED",
+        ],
+        status: "ready",
+        generate: generateObStateModule,
+      },
+      {
+        id: "breakout-state",
+        filename: "Breakout_State_Module.mq5",
+        name: "Breakout State Module",
+        description:
+          "Embeds Classic SNR detection + breakout logic and manages the full RBS/SBR " +
+          "lifecycle. A broken SNR level flips to FLIP state (first bar holds), then " +
+          "tracks RETESTED → CONFIRMED when a wick returns and close holds. Same 4-buffer " +
+          "contract as all Phase 2 modules — drop-in for MTF orchestrator steps.",
+        rules: [
+          "Embeds Classic SNR: Bull→Bear pair = Resistance, Bear→Bull pair = Support (A close = level)",
+          "ACTIVE: close breaks through SNR level — confirmed breakout bar",
+          "FLIP: first bar after breakout where price does NOT close back through — RBS/SBR live",
+          "RETESTED: from FLIP, wick returns to level without closing through",
+          "CONFIRMED: from RETESTED, close holds on correct side → Phase 3 signal fired",
+          "INVALIDATED: close back through the level at any FLIP/RETESTED/CONFIRMED stage [terminal]",
+          "EXPIRED: barsAlive ≥ InpExpiryBars (default 100) [terminal]",
+          "Filters: body size, break-distance, optional ATR multiplier",
+        ],
+        output: [
+          "OBJ_TREND line per zone — from breakoutTime, RAY_RIGHT while live",
+          "ACTIVE: width 1 (bull/bear color)  |  FLIP: width 2 (RBS green / SBR orange-red)",
+          "RETESTED: clrGold  |  CONFIRMED: width 2 confirm color  |  Terminal: dashed/faded",
+          "Labels: BO↑/↓ (ACTIVE) · RBS/SBR (FLIP) · RBS-T/SBR-T (RETESTED) · RBS-C/SBR-C · RBS-X/SBR-X",
+          "Buffer 0: BullConfirmBuf[sh]=1.0 at bar where RBS confirmed (Phase 3 readable via iCustom)",
+          "Buffer 1: BearConfirmBuf[sh]=1.0 at bar where SBR confirmed",
+          "Buffer 2: BullSLBuf[sh]=retestLow at RBS confirmation bar — SL for bull entries",
+          "Buffer 3: BearSLBuf[sh]=retestHigh at SBR confirmation bar — SL for bear entries",
+          "Journal: RBS_ACTIVE | SBR_ACTIVE | RBS_RETESTED | SBR_RETESTED | RBS_CONFIRMED | SBR_CONFIRMED | RBS_INVALIDATED | SBR_INVALIDATED | BREAKOUT_ACTIVE | BREAKOUT_EXPIRED",
+        ],
+        status: "ready",
+        generate: generateBreakoutStateModule,
+      },
+      {
+        id: "choch-state",
+        filename: "CHoCH_State_Module.mq5",
+        name: "CHoCH State Module",
+        description:
+          "Structural reversal module — embeds swing pivot detection and fires only on " +
+          "counter-trend structure breaks. In a BEAR trend, a close above a swing high " +
+          "is a Bull CHoCH (potential reversal). In a BULL trend, a close below a swing " +
+          "low is a Bear CHoCH. BOS-style persistent trend buffers + CHoCH event buffers. " +
+          "Dashed lines visually distinguish CHoCH from BOS (which uses solid lines).",
+        rules: [
+          "Swing High / Low confirmed after InpSwingLeft + InpSwingRight bars",
+          "Bull CHoCH: close > unconsumed swing HIGH while trend is BEAR or UNKNOWN",
+          "Bear CHoCH: close < unconsumed swing LOW while trend is BULL or UNKNOWN",
+          "With-trend breaks (continuation): swing consumed silently, no CHoCH signal",
+          "UNKNOWN trend: first break in either direction creates CHoCH + sets gTrend",
+          "gTrend flips on every CHoCH event (BEAR→BULL or BULL→BEAR)",
+          "Each swing consumed once regardless of whether CHoCH or BOS",
+          "InpMaxLines=20 — oldest dashed line removed when limit exceeded",
+        ],
+        output: [
+          "OBJ_TREND STYLE_DASH horizontal ray per CHoCH — from swingTime, RAY_RIGHT=1",
+          "Bull CHoCH: clrDodgerBlue  |  Bear CHoCH: clrDarkOrange",
+          "Optional OBJ_TEXT label: 'CHoCH ↑' / 'CHoCH ↓' at the CHoCH bar",
+          "Buffer 0: BullTrendBuf[sh]=1.0 on every bar while CHoCH-based trend is BULL",
+          "Buffer 1: BearTrendBuf[sh]=1.0 on every bar while CHoCH-based trend is BEAR",
+          "Buffer 2: ChochUpBuf[sh]=1.0 at bar where bull CHoCH fired (event)",
+          "Buffer 3: ChochDnBuf[sh]=1.0 at bar where bear CHoCH fired (event)",
+          "Journal: CHOCH_BULL | CHOCH_BEAR | id | level | time",
+        ],
+        status: "ready",
+        generate: generateChochStateModule,
+      },
+      {
+        id: "bos-state",
+        filename: "BOS_State_Module.mq5",
+        name: "BOS State Module",
+        description:
+          "Structural bias module — embeds swing pivot detection and Break-of-Structure " +
+          "logic. Tracks trend state (BULL / BEAR / UNKNOWN) and exposes both persistent " +
+          "trend buffers (read any bar) and event buffers (fire once at the BOS bar). " +
+          "Used as a bias filter in MTF strategies: step confirms immediately when trend " +
+          "is active, rather than waiting for a zone retest.",
+        rules: [
+          "Swing High: high > InpSwingLeft left bars AND > InpSwingRight right bars",
+          "Swing Low:  low  < InpSwingLeft left bars AND < InpSwingRight right bars",
+          "Bull BOS: candle CLOSE > unconsumed swing high → gTrend = BULL",
+          "Bear BOS: candle CLOSE < unconsumed swing low  → gTrend = BEAR",
+          "Each swing can generate exactly one BOS (consumed flag prevents repeats)",
+          "Trend persists until next BOS event — no invalidation / auto-reversal",
+          "BOS lines drawn as horizontal rays from swing candle → FAR_FUTURE",
+          "Max lines: InpMaxLines=20 — oldest line removed when limit exceeded",
+        ],
+        output: [
+          "OBJ_TREND horizontal ray per BOS — from swingTime, RAY_RIGHT=1",
+          "Bull BOS: clrMediumSeaGreen  |  Bear BOS: clrTomato",
+          "Optional OBJ_TEXT label at BOS bar: 'Bull BOS' / 'Bear BOS'",
+          "Buffer 0: BullTrendBuf[sh]=1.0 on every bar while trend is BULL (persistent)",
+          "Buffer 1: BearTrendBuf[sh]=1.0 on every bar while trend is BEAR (persistent)",
+          "Buffer 2: BosUpBuf[sh]=1.0 at the specific bar where bull BOS fired (event)",
+          "Buffer 3: BosDnBuf[sh]=1.0 at the specific bar where bear BOS fired (event)",
+          "Journal: BOS_BULL | BOS_BEAR | id | level | bosTime",
+        ],
+        status: "ready",
+        generate: generateBosStateModule,
+      },
+      {
+        id: "bb-state",
+        filename: "BB_State_Module.mq5",
+        name: "Breaker Block State Module",
+        description:
+          "Two-layer detection: embeds OB detection (ATR displacement) and checks when " +
+          "an OB is broken in the opposite direction — creating a Breaker Block zone. " +
+          "The BB then tracks ACTIVE → RETESTED → CONFIRMED with identical lifecycle to " +
+          "OB State. Same 4-buffer contract — drop-in for any Phase 3 or MTF step.",
+        rules: [
+          "OB Detection: ATR body ≥ InpDispMult × ATR14 → walk back up to InpObLookback bars for last opposing candle",
+          "Bullish OB (last bearish before bull disp.) broken when close < OB lo → Bearish BB",
+          "Bearish OB (last bullish before bear disp.) broken when close > OB hi → Bullish BB",
+          "BB ACTIVE: breakout confirmed — zone now flipped polarity",
+          "RETESTED: wick enters zone — Bull BB: Low ≤ OB hi  |  Bear BB: High ≥ OB lo",
+          "CONFIRMED: from RETESTED, close exits near edge — Bull: Close > OB hi  |  Bear: Close < OB lo",
+          "MITIGATED: close inside zone  OB lo ≤ Close ≤ OB hi  [terminal]",
+          "INVALIDATED: close beyond far edge [terminal]  |  EXPIRED: barsAlive ≥ InpExpiryBars [terminal]",
+        ],
+        output: [
+          "OBJ_RECTANGLE per zone — left=OB candle time, right=FAR_FUTURE (live) or endTime (terminal)",
+          "ACTIVE: solid width 1  |  CONFIRMED: solid width 2  |  RETESTED: gold  |  Terminal: dashed/faded",
+          "Labels: BB↑/↓ (ACTIVE) · BB-T (RETESTED) · BB-C (CONFIRMED) · BB-M / BB-X / BB-E",
+          "Buffer 0: BullConfirmBuf[sh]=1.0 at bar where bull BB confirmed",
+          "Buffer 1: BearConfirmBuf[sh]=1.0 at bar where bear BB confirmed",
+          "Buffer 2: BullSLBuf[sh]=retestLow at confirmation bar — SL for bull entries",
+          "Buffer 3: BearSLBuf[sh]=retestHigh at confirmation bar — SL for bear entries",
+          "Journal: BB_BULL_ACTIVE | BB_BEAR_ACTIVE | BB_BULL_RETESTED | BB_BULL_CONFIRMED | BB_BEAR_CONFIRMED | BB_BULL_MITIGATED | BB_BEAR_INVALIDATED | BB_BULL_EXPIRED",
+        ],
+        status: "ready",
+        generate: generateBbStateModule,
+      },
+      {
+        id: "fvg-inversion-state",
+        filename: "FVG_Inversion_State_Module.mq5",
+        name: "FVG Inversion State Module",
+        description:
+          "Two-layer detection: embeds FVG detection and checks when an FVG is closed " +
+          "through on its far side — flipping polarity. The Inversion FVG then tracks " +
+          "ACTIVE → RETESTED → CONFIRMED with identical state logic to FVG State Module. " +
+          "Distinct object prefix (SMCIFVGS_) and colours prevent collision.",
+        rules: [
+          "Bullish FVG: C3.Low > C1.High → UL=C3.Low, LL=C1.High",
+          "Bearish FVG: C3.High < C1.Low → UL=C1.Low, LL=C3.High",
+          "Bullish FVG inverted when close < LL → Bearish IFVG (resistance zone)",
+          "Bearish FVG inverted when close > UL → Bullish IFVG (support zone)",
+          "Bull IFVG RETESTED: barLow ≤ UL  |  CONFIRMED: barClose > UL from RETESTED",
+          "Bear IFVG RETESTED: barHigh ≥ LL  |  CONFIRMED: barClose < LL from RETESTED",
+          "MITIGATED: close inside zone  LL ≤ Close ≤ UL  [terminal]",
+          "INVALIDATED: close beyond far edge  |  EXPIRED: barsAlive ≥ InpExpiryBars",
+        ],
+        output: [
+          "OBJ_RECTANGLE per zone — left=FVG C1 time, right=FAR_FUTURE (live) or endTime",
+          "Bull: clrMediumAquamarine  |  Bear: clrOrchid  |  RETESTED: gold  |  Terminal: dotted/faded",
+          "Labels: IFVG↑/↓ · IFVG-T · IFVG-C · IFVG-M · IFVG-X · IFVG-E",
+          "Buffer 0: BullConfirmBuf[sh]=1.0 at bull IFVG CONFIRMED bar",
+          "Buffer 1: BearConfirmBuf[sh]=1.0 at bear IFVG CONFIRMED bar",
+          "Buffer 2: BullSLBuf[sh]=retestLow at confirmation bar",
+          "Buffer 3: BearSLBuf[sh]=retestHigh at confirmation bar",
+          "Journal: IFVG_BULL_ACTIVE | IFVG_BEAR_ACTIVE | IFVG_BULL_RETESTED | IFVG_BULL_CONFIRMED | IFVG_BEAR_CONFIRMED | IFVG_BULL_MITIGATED | IFVG_BEAR_INVALIDATED | IFVG_BULL_EXPIRED",
+        ],
+        status: "ready",
+        generate: generateFvgInversionStateModule,
+      },
+      {
+        id: "liqsweep-state",
+        filename: "LiqSweep_State_Module.mq5",
+        name: "Liquidity Sweep State Module",
+        description:
+          "Embeds swing pivot detection and tracks the full sweep lifecycle. Unlike " +
+          "FVG/OB state modules (which wait for a retest), the sweep confirmation IS " +
+          "the signal: wick pierces a swing level (PENDING), then closes back on the " +
+          "correct side (CONFIRMED → Phase 3 signal). EXPIRED if close-back doesn't " +
+          "arrive within InpMaxWaitBars. Same 4-buffer contract as all Phase 2 modules.",
+        rules: [
+          "Swing High / Low confirmed after InpSwingStr bars each side (default 3)",
+          "Bull sweep: barLow < swing low AND (same-bar OR next N bars) close > swing low",
+          "Bear sweep: barHigh > swing high AND close < swing high",
+          "PENDING: wick detected, close-back not yet confirmed",
+          "CONFIRMED: close-back on correct side within InpMaxWaitBars (default 5)",
+          "EXPIRED: InpMaxWaitBars exceeded without close-back — or InpExpiryBars total age",
+          "Same-bar confirmation supported: wick + close-back on same candle → immediate CONFIRMED",
+          "Each swing consumed once — single sweep per pivot",
+        ],
+        output: [
+          "OBJ_TREND dashed line at swing level — swingTime → confirmTime (or FAR_FUTURE if pending)",
+          "PENDING: faded dashed line  |  CONFIRMED: full-opacity solid+1 line  |  EXPIRED: dotted",
+          "Optional OBJ_TEXT label: Sweep↑/↓ (PENDING) · Sweep↑-C/↓-C (CONFIRMED) · Sweep↑-E/↓-E",
+          "Buffer 0: BullConfirmBuf[sh]=1.0 at bull sweep CONFIRMED bar",
+          "Buffer 1: BearConfirmBuf[sh]=1.0 at bear sweep CONFIRMED bar",
+          "Buffer 2: BullSLBuf[sh]=sweepLow — wick low of sweep bar (SL for bull entries)",
+          "Buffer 3: BearSLBuf[sh]=sweepHigh — wick high of sweep bar (SL for bear entries)",
+          "Journal: LIQSWEEP_BULL_PENDING | LIQSWEEP_BULL_CONFIRMED | LIQSWEEP_BULL_EXPIRED (and BEAR variants)",
+        ],
+        status: "ready",
+        generate: generateLiqSweepStateModule,
+      },
+      {
+        id: "classic-snr-state",
+        filename: "Classic_SNR_State_Module.mq5",
+        name: "Classic SNR State Module",
+        description:
+          "Embeds Classic SNR detection (candle-pair direction REVERSAL) and tracks each " +
+          "level through ACTIVE → RETESTED → CONFIRMED. A wick touching the level triggers " +
+          "RETESTED; a close-back on the correct side triggers CONFIRMED (Phase 3 signal). " +
+          "Cycles until BROKEN (close through) or EXPIRED.",
+        rules: [
+          "RESISTANCE: Bullish A → Bearish B  →  A.close = resistance level",
+          "SUPPORT:    Bearish A → Bullish B  →  A.close = support level",
+          "Optional doji filter: skip candles with body ≤ InpDojiThresh × range",
+          "RETESTED: wick reaches level — Support: barLow ≤ level  |  Resistance: barHigh ≥ level",
+          "CONFIRMED: from RETESTED, close holds — Support: close > level  |  Resistance: close < level",
+          "BROKEN: close on wrong side [terminal]  |  EXPIRED: barsAlive ≥ InpExpiryBars [terminal]",
+          "Post-CONFIRMED: cycles back RETESTED → CONFIRMED on each new touch until terminal",
+        ],
+        output: [
+          "OBJ_TREND horizontal line per level — levelTime to FAR_FUTURE (live) or endTime (terminal)",
+          "ACTIVE: faded solid  |  RETESTED: gold  |  CONFIRMED: full-color width+1  |  Terminal: dotted",
+          "Labels: C-Sup / C-Res (ACTIVE) · C-Sup-T / C-Res-T (RETESTED) · C-Sup-C / C-Res-C (CONFIRMED) · -B / -E",
+          "Buffer 0: BullConfirmBuf[sh]=1.0 at support CONFIRMED bar",
+          "Buffer 1: BearConfirmBuf[sh]=1.0 at resistance CONFIRMED bar",
+          "Buffer 2: BullSLBuf[sh]=retestLow at confirmation bar — wick low of retest (SL for bulls)",
+          "Buffer 3: BearSLBuf[sh]=retestHigh at confirmation bar — wick high of retest (SL for bears)",
+          "Journal: C_SNR_SUPPORT_CONFIRMED | C_SNR_RESISTANCE_CONFIRMED | id | level | sl | sh",
+        ],
+        status: "ready",
+        generate: generateClassicSnrStateModule,
+      },
+      {
+        id: "gap-snr-state",
+        filename: "Gap_SNR_State_Module.mq5",
+        name: "Gap SNR State Module",
+        description:
+          "Identical lifecycle to Classic SNR State — only detection differs. Gap SNR " +
+          "uses candle-pair direction CONTINUATION (Bull→Bull = Support, Bear→Bear = " +
+          "Resistance). Distinct object prefix (SMCSNRGS_) and colours prevent collision " +
+          "when both modules run on the same chart.",
+        rules: [
+          "GAP SUPPORT:    Bullish A → Bullish B  →  A.close = support level",
+          "GAP RESISTANCE: Bearish A → Bearish B  →  A.close = resistance level",
+          "Optional doji filter: skip candles with body ≤ InpDojiThresh × range",
+          "RETESTED: wick reaches level — Support: barLow ≤ level  |  Resistance: barHigh ≥ level",
+          "CONFIRMED: from RETESTED, close holds — Support: close > level  |  Resistance: close < level",
+          "BROKEN: close on wrong side [terminal]  |  EXPIRED: barsAlive ≥ InpExpiryBars [terminal]",
+          "Post-CONFIRMED: cycles back RETESTED → CONFIRMED on each new touch until terminal",
+        ],
+        output: [
+          "OBJ_TREND horizontal line per level — levelTime to FAR_FUTURE or endTime",
+          "ACTIVE: faded solid  |  RETESTED: gold  |  CONFIRMED: full-color width+1  |  Terminal: dotted",
+          "Labels: G-Sup / G-Res · G-Sup-T / G-Res-T · G-Sup-C / G-Res-C · -B / -E",
+          "Buffer 0: BullConfirmBuf[sh]=1.0 at gap support CONFIRMED bar",
+          "Buffer 1: BearConfirmBuf[sh]=1.0 at gap resistance CONFIRMED bar",
+          "Buffer 2: BullSLBuf[sh]=retestLow at confirmation bar",
+          "Buffer 3: BearSLBuf[sh]=retestHigh at confirmation bar",
+          "Journal: G_SNR_SUPPORT_CONFIRMED | G_SNR_RESISTANCE_CONFIRMED | id | level | sl | sh",
+        ],
+        status: "ready",
+        generate: generateGapSnrStateModule,
+      },
+    ],
+  },
+
+  // ── 4. Phase 3 Execution Modules ─────────────────────────────────────────
+  {
+    id: "phase3-exec",
+    label: "Execution",
+    fullName: "Phase 3: Execution Modules",
+    icon: Zap,
+    phaseTag: "Phase 3 Active",
+    phaseActive: true,
+    description:
+      "Phase 3 Expert Advisors consume Phase 2 State Module buffers via iCustom() " +
+      "and place real trades. Each EA reads confirmed-signal bars, validates SL from " +
+      "the state module, applies risk management, and manages open positions.",
+    modules: [
+      {
+        id: "fvg-exec",
+        filename: "FVG_Execution_EA.mq5",
+        name: "FVG Execution EA",
+        description:
+          "Expert Advisor that consumes FVG_State_Module.mq5 via iCustom(). " +
+          "Enters on the bar open after BullConfirmBuf[1]==1.0 (BUY) or " +
+          "BearConfirmBuf[1]==1.0 (SELL). SL comes from BullSLBuf / BearSLBuf — " +
+          "trade is blocked if SL buffer is zero or on the wrong side. " +
+          "Fixed RR TP, breakeven at 0.5R, spread filter, max-open-trades guard. " +
+          "Place in MQL5/Experts/ folder.",
+        rules: [
+          "BUY signal:  BullConfirmBuf[1]==1.0 AND BullSLBuf[1]>0 AND sl < entry",
+          "SELL signal: BearConfirmBuf[1]==1.0 AND BearSLBuf[1]>0 AND sl > entry",
+          "Entry: new-bar open (one signal check per candle close)",
+          "TP: entry ± slDist × InpRR  (default RR = 2.0)",
+          "Lot size: (balance × InpRiskPct%) / (slDist × tickValue/tickSize)",
+          "Spread filter: current spread > InpMaxSpreadPts → SIGNAL_BLOCKED",
+          "Max trades: CountMyPositions() ≥ InpMaxTrades → SIGNAL_BLOCKED",
+          "Breakeven: every tick — if floating profit ≥ InpBreakevenR × initialRisk, move SL to entry",
+        ],
+        output: [
+          "Journal: TRADE_OPENED | dir | entry | sl | tp | lots | risk",
+          "Journal: TRADE_FAILED | dir | retcode | entry | sl",
+          "Journal: BREAKEVEN_SET | ticket | dir | entry | profit_at_trigger",
+          "Journal: SIGNAL_BLOCKED | reason (spread / max_trades / sl_invalid / zero_lots / sl_too_close)",
+          "Inputs: module_name · module_tf · magic · risk_pct · rr · breakeven_r · max_trades · max_spread_pts",
+          "Reads: iCustom() buffers 0–3 from FVG_State_Module (BullConfirm / BearConfirm / BullSL / BearSL)",
+        ],
+        status: "ready",
+        generate: generateFvgExecutionEa,
+      },
+      {
+        id: "ob-exec",
+        filename: "OB_Execution_EA.mq5",
+        name: "Order Block Execution EA",
+        description:
+          "Expert Advisor that consumes OB_State_Module.mq5 via iCustom(). " +
+          "Enters when an OB CONFIRMED signal fires with a valid SL buffer.",
+        status: "pending",
+      },
+      {
+        id: "snr-exec",
+        filename: "SNR_Execution_EA.mq5",
+        name: "SNR Execution EA",
+        description:
+          "Expert Advisor that consumes SNR_State_Module.mq5 via iCustom(). " +
+          "Enters on RBS/SBR CONFIRMED signals with risk-managed position sizing.",
+        status: "pending",
+      },
+    ],
+  },
+
+  // ── 5. MTF Strategy Orchestration ────────────────────────────────────────
+  {
+    id: "strategy",
+    label: "Strategy",
+    fullName: "MTF Strategy Orchestration",
+    icon: Network,
+    phaseTag: "Phase 3 Active",
+    phaseActive: true,
+    description:
+      "Multi-timeframe strategy orchestrators. Each orchestrator chains " +
+      "Phase 2 State Module signals across timeframes: step N only becomes " +
+      "ACTIVE after step N-1 is CONFIRMED. When all steps confirm in order, " +
+      "the EA executes with risk management inherited from Phase 3. " +
+      "Each step's module, timeframe, buffer index, and expiry are independently configurable.",
+    modules: [
+      {
+        id: "fvg-3tf-bull",
+        filename: "MTF_FVG_3TF_Bull.mq5",
+        name: "FVG 3-TF Bull  (D1 → H4 → M30)",
+        description:
+          "D1 FVG confirmed → H4 FVG confirmed → M30 FVG entry signal → BUY. " +
+          "Classic top-down confluence. Requires FVG_State_Module.mq5 in MQL5/Indicators/. " +
+          "Place this EA in MQL5/Experts/ and attach to a M30 chart.",
+        rules: [
+          "Step 1 (D1): BullConfirmBuf[1]==1.0 on D1 FVG_State_Module — sets daily bias",
+          "Step 2 (H4): BullConfirmBuf[1]==1.0 on H4 FVG_State_Module — activates only after Step 1",
+          "Step 3 (M30): BullConfirmBuf[1]==1.0 on M30 FVG_State_Module — activates only after Step 2",
+          "Execution: BUY on M30 bar open after all 3 steps confirmed — SL from BullSLBuf",
+          "Chain reset: if any step expires (configurable bars) before confirming, restart from that step",
+          "Each step is independently configurable: module · timeframe · buffer index · expiry",
+        ],
+        output: [
+          "Journal: STEP_N_ACTIVE | STEP_N_CONFIRMED | STEP_N_EXPIRED | ALL_STEPS_CONFIRMED",
+          "Journal: TRADE_OPENED | TRADE_FAILED | BREAKEVEN_SET | SIGNAL_BLOCKED",
+          "Step statuses: WAITING → ACTIVE → CONFIRMED → (EXPIRED resets chain)",
+          "Execution inputs: risk_pct · rr · breakeven_r · max_trades · max_spread · sl_buf_idx",
+        ],
+        status: "ready",
+        generate: () => generateMtfOrchestrator(FVG_3TF_BULL),
+      },
+      {
+        id: "fvg-3tf-bear",
+        filename: "MTF_FVG_3TF_Bear.mq5",
+        name: "FVG 3-TF Bear  (D1 → H4 → M30)",
+        description:
+          "D1 FVG bear confirm → H4 FVG bear confirm → M30 FVG entry signal → SELL. " +
+          "Mirror of the bull strategy. Run both with different magic numbers to trade both directions.",
+        rules: [
+          "Step 1 (D1): BearConfirmBuf[1]==1.0 on D1",
+          "Step 2 (H4): BearConfirmBuf[1]==1.0 on H4 — activates only after Step 1",
+          "Step 3 (M30): BearConfirmBuf[1]==1.0 on M30 — activates only after Step 2",
+          "Execution: SELL on M30 bar open — SL from BearSLBuf",
+        ],
+        output: [
+          "Same journal events as the bull orchestrator — direction is SELL throughout",
+          "Magic number default: 20250602 (different from bull's 20250601)",
+        ],
+        status: "ready",
+        generate: () => generateMtfOrchestrator(FVG_3TF_BEAR),
+      },
+      {
+        id: "fvg-2tf-bull",
+        filename: "MTF_FVG_2TF_Bull.mq5",
+        name: "FVG 2-TF Bull  (H4 → M30)",
+        description:
+          "H4 FVG bull confirm → M30 FVG entry signal → BUY. " +
+          "Shorter intraday chain — no daily filter.",
+        rules: [
+          "Step 1 (H4): BullConfirmBuf[1]==1.0 on H4",
+          "Step 2 (M30): BullConfirmBuf[1]==1.0 on M30 — activates only after Step 1",
+          "Execution: BUY — SL from BullSLBuf on M30 module",
+        ],
+        output: [
+          "2-step chain — fewer confirmations required, higher trade frequency",
+          "Max trades default: 2 (vs 1 for the 3-TF strategies)",
+        ],
+        status: "ready",
+        generate: () => generateMtfOrchestrator(FVG_2TF_BULL),
+      },
+      {
+        id: "fvg-2tf-bear",
+        filename: "MTF_FVG_2TF_Bear.mq5",
+        name: "FVG 2-TF Bear  (H4 → M30)",
+        description:
+          "H4 FVG bear confirm → M30 FVG entry signal → SELL. " +
+          "Mirror of the 2-TF bull strategy.",
+        rules: [
+          "Step 1 (H4): BearConfirmBuf[1]==1.0 on H4",
+          "Step 2 (M30): BearConfirmBuf[1]==1.0 on M30 — activates only after Step 1",
+          "Execution: SELL — SL from BearSLBuf on M30 module",
+        ],
+        output: [
+          "2-step chain — mirror of 2-TF bull strategy",
+          "Magic number default: 20250604",
+        ],
+        status: "ready",
+        generate: () => generateMtfOrchestrator(FVG_2TF_BEAR),
+      },
+      {
+        id: "mtf-ob-strategy",
+        filename: "MTF_OB_3TF_Bull.mq5",
+        name: "OB 3-TF Strategy",
+        description:
+          "D1 Order Block confirm → H4 Order Block confirm → M30 entry signal. " +
+          "Pending OB_State_Module — available after Phase 2 OB module is built.",
+        status: "pending",
+      },
+      {
+        id: "mtf-custom",
+        filename: "MTF_Custom.mq5",
+        name: "Custom Strategy Builder",
+        description:
+          "Define a fully custom N-step orchestration: choose any Phase 2 State Module " +
+          "for each step, set timeframes, buffer indices, and expiry independently. " +
+          "Mix modules across steps (e.g. D1 OB → H4 FVG → M15 CHoCH).",
+        status: "planned",
+      },
+    ],
+  },
+
+  // ── 6. Supply & Demand ────────────────────────────────────────────────────
   {
     id: "supply-demand",
     label: "S&D",
@@ -526,7 +1069,7 @@ const TRADING_MODULES: ModuleCategory[] = [
     ],
   },
 
-  // ── 4. Engulfing ──────────────────────────────────────────────────────────
+  // ── 6. Engulfing ──────────────────────────────────────────────────────────
   {
     id: "engulfing",
     label: "Engulfing",
@@ -587,7 +1130,7 @@ const TRADING_MODULES: ModuleCategory[] = [
     ],
   },
 
-  // ── 5. Indicators ─────────────────────────────────────────────────────────
+  // ── 7. Indicators ─────────────────────────────────────────────────────────
   {
     id: "indicators",
     label: "Indicators",
