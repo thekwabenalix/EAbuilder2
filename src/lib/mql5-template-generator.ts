@@ -249,6 +249,10 @@ interface Ctx {
   hasFVG: boolean;
   hasOrderBlock: boolean;
   obLookback: number;
+  obATRPeriod: number;
+  obDispMult: number;
+  obScanBack: number;
+  obExpiry: number;
   hasLiquiditySweep: boolean;
   liqLookback: number;
   hasZone: boolean; // demand/supply zones
@@ -356,7 +360,11 @@ function analyze(bp: StrategyBlueprint): Ctx {
     hasFVG: Boolean(fvgRule),
 
     hasOrderBlock: Boolean(obRule),
-    obLookback: safeInt(param(obRule, "lookback", 20), 20, 5, 100),
+    obLookback:   safeInt(param(obRule, "lookback", 20), 20, 5, 100),
+    obATRPeriod:  safeInt(param(obRule, "atrPeriod", 14), 14, 2, 50),
+    obDispMult:   safeFloat(param(obRule, "dispMult", 1.5), 1.5, 0.5, 5.0),
+    obScanBack:   safeInt(param(obRule, "scanBack", 5), 5, 1, 20),
+    obExpiry:     safeInt(param(obRule, "expiry", 100), 100, 0, 500),
 
     hasLiquiditySweep: Boolean(liqRule),
     liqLookback: safeInt(param(liqRule, "lookback", 20), 20, 5, 100),
@@ -491,8 +499,11 @@ function genInputs(bp: StrategyBlueprint, ctx: Ctx): string {
     lines.push(``);
   }
   if (ctx.hasOrderBlock) {
-    lines.push(`//--- Order block`);
-    lines.push(`input int InpOBLookback = ${ctx.obLookback};  // Bars to scan for order block`);
+    lines.push(`//--- Order Block`);
+    lines.push(`input int    InpOBATRPeriod = ${ctx.obATRPeriod};   // ATR period for displacement filter`);
+    lines.push(`input double InpOBDispMult  = ${ctx.obDispMult.toFixed(1)};   // Displacement body ≥ N × ATR`);
+    lines.push(`input int    InpOBScanBack  = ${ctx.obScanBack};    // Bars before displacement to search for OB candle`);
+    lines.push(`input int    InpOBExpiry    = ${ctx.obExpiry};      // OB expiry (bars, 0 = never)`);
     lines.push(``);
   }
   if (ctx.hasLiquiditySweep) {
@@ -513,9 +524,9 @@ function genInputs(bp: StrategyBlueprint, ctx: Ctx): string {
 
   // FVG always uses break-even (managed by FVG_ManageBreakEven); default is 0.5R.
   // Non-FVG strategies only emit this input when the blueprint enables break-even.
-  if (ctx.hasFVG) {
+  if (ctx.hasFVG || ctx.hasOrderBlock) {
     lines.push(`//--- Break-even`);
-    lines.push(`input double InpBEAtR = 0.5;  // Move SL to B/E at this R multiple (FVG default: 0.5)`);
+    lines.push(`input double InpBEAtR = 0.5;  // Move SL to B/E at this R multiple`);
     lines.push(``);
   } else if (risk.breakevenEnabled) {
     lines.push(`//--- Break-even`);
@@ -553,6 +564,37 @@ function genGlobals(ctx: Ctx): string {
   if (ctx.hasATR)   lines.push(`int hATR   = INVALID_HANDLE;`);
   if (ctx.hasHTF)   lines.push(`int hHTF   = INVALID_HANDLE;`);
   lines.push(``, `static datetime lastBarTime = 0;`, ``);
+  if (ctx.hasOrderBlock) {
+    lines.push(
+      `#define OB_ACTIVE      0`,
+      `#define OB_RETESTED    1`,
+      `#define OB_CONFIRMED   2`,
+      `#define OB_TRADED      3`,
+      `#define OB_MITIGATED   4`,
+      `#define OB_INVALIDATED 5`,
+      `#define OB_EXPIRED     6`,
+      `#define MAX_OBS        200`,
+      ``,
+      `struct OBZone`,
+      `{`,
+      `   double   hi;`,
+      `   double   lo;`,
+      `   int      dir;        // 1=bullish, -1=bearish`,
+      `   datetime obTime;     // OB candle open time`,
+      `   datetime dispTime;   // displacement candle time (zone birth)`,
+      `   int      state;`,
+      `   double   retestLow;`,
+      `   double   retestHigh;`,
+      `   int      barsAlive;`,
+      `   datetime retestBar;`,
+      `   datetime confirmBar;`,
+      `};`,
+      ``,
+      `OBZone obZones[MAX_OBS];`,
+      `int    obCount = 0;`,
+      ``,
+    );
+  }
   if (ctx.hasFVG) {
     lines.push(
       `#define FVG_ACTIVE    0`,
@@ -1017,6 +1059,291 @@ void FVG_DeleteAllObjects()
 `;
 }
 
+// ─── OB State Machine generator ──────────────────────────────────────────────
+
+function genOBStateMachine(ctx: Ctx): string {
+  return `//+------------------------------------------------------------------+
+//| OB State Machine                                                 |
+//| Detects ATR-displacement Order Blocks, tracks retest/confirm,  |
+//| enters on the bar AFTER confirmation (bar-open pattern).       |
+//| States: ACTIVE -> RETESTED -> CONFIRMED -> TRADED               |
+//|         Any live state -> MITIGATED / INVALIDATED / EXPIRED     |
+//+------------------------------------------------------------------+
+
+// Add a new OB zone. Dedup skips terminal zones; recycling reuses their slots.
+void OB_Add(int dir, datetime obT, datetime dispT, double hi, double lo)
+{
+   for(int i = 0; i < obCount; i++)
+   {
+      if(obZones[i].state >= OB_TRADED) continue;
+      if(obZones[i].dir == dir && obZones[i].obTime == obT) return;
+   }
+   int idx = -1;
+   for(int i = 0; i < obCount; i++)
+      if(obZones[i].state >= OB_TRADED) { idx = i; break; }
+   if(idx < 0)
+   {
+      if(obCount >= MAX_OBS) return;
+      idx = obCount++;
+   }
+   obZones[idx].hi          = hi;
+   obZones[idx].lo          = lo;
+   obZones[idx].dir         = dir;
+   obZones[idx].obTime      = obT;
+   obZones[idx].dispTime    = dispT;
+   obZones[idx].state       = OB_ACTIVE;
+   obZones[idx].retestLow   = lo;
+   obZones[idx].retestHigh  = hi;
+   obZones[idx].barsAlive   = 0;
+   obZones[idx].retestBar   = 0;
+   obZones[idx].confirmBar  = 0;
+}
+
+// Embedded ATR — no indicator handle needed, self-contained.
+double OB_CalcATR(int shift)
+{
+   int avail = iBars(InpSymbol, InpEntryTF);
+   if(shift + InpOBATRPeriod + 1 >= avail) return 0.0;
+   double sum = 0.0;
+   for(int k = 0; k < InpOBATRPeriod; k++)
+   {
+      double h  = iHigh (InpSymbol, InpEntryTF, shift + k);
+      double l  = iLow  (InpSymbol, InpEntryTF, shift + k);
+      double pc = iClose(InpSymbol, InpEntryTF, shift + k + 1);
+      sum += MathMax(h - l, MathMax(MathAbs(h - pc), MathAbs(l - pc)));
+   }
+   return sum / InpOBATRPeriod;
+}
+
+// Scan bar at dispShift: if body >= InpOBDispMult*ATR, look back for OB candle.
+// Bullish displacement (close>open): last bearish candle before it = bullish OB.
+// Bearish displacement (close<open): last bullish candle before it = bearish OB.
+void OB_ScanBar(int dispShift)
+{
+   if(dispShift < 1) return;
+   double atr = OB_CalcATR(dispShift);
+   if(atr <= 0.0) return;
+   double dispO = iOpen (InpSymbol, InpEntryTF, dispShift);
+   double dispC = iClose(InpSymbol, InpEntryTF, dispShift);
+   if(MathAbs(dispC - dispO) < InpOBDispMult * atr) return;
+   int  dir     = (dispC > dispO) ? 1 : -1;
+   int  avail   = iBars(InpSymbol, InpEntryTF);
+   int  scanEnd = MathMin(dispShift + InpOBScanBack, avail - 2);
+   for(int j = dispShift + 1; j <= scanEnd; j++)
+   {
+      double jO = iOpen (InpSymbol, InpEntryTF, j);
+      double jC = iClose(InpSymbol, InpEntryTF, j);
+      if(dir == 1 && jC < jO)   // bullish displacement → last bearish candle
+      {
+         OB_Add(1,
+                iTime(InpSymbol, InpEntryTF, j),
+                iTime(InpSymbol, InpEntryTF, dispShift),
+                iHigh(InpSymbol, InpEntryTF, j),
+                iLow (InpSymbol, InpEntryTF, j));
+         break;
+      }
+      if(dir == -1 && jC > jO)  // bearish displacement → last bullish candle
+      {
+         OB_Add(-1,
+                iTime(InpSymbol, InpEntryTF, j),
+                iTime(InpSymbol, InpEntryTF, dispShift),
+                iHigh(InpSymbol, InpEntryTF, j),
+                iLow (InpSymbol, InpEntryTF, j));
+         break;
+      }
+   }
+}
+
+// Called on each new bar: update state of all live zones using just-closed bar (shift 1).
+void OB_Update()
+{
+   double   barHigh  = iHigh (InpSymbol, InpEntryTF, 1);
+   double   barLow   = iLow  (InpSymbol, InpEntryTF, 1);
+   double   barClose = iClose(InpSymbol, InpEntryTF, 1);
+   datetime barT     = iTime (InpSymbol, InpEntryTF, 1);
+
+   for(int i = 0; i < obCount; i++)
+   {
+      int st = obZones[i].state;
+      if(st >= OB_TRADED) continue;             // skip all terminal states
+      if(obZones[i].dispTime >= barT) continue; // zone not born yet
+
+      obZones[i].barsAlive++;
+      bool   isBull = (obZones[i].dir == 1);
+      double hi     = obZones[i].hi;
+      double lo     = obZones[i].lo;
+
+      // 1. Expiry
+      if(InpOBExpiry > 0 && obZones[i].barsAlive >= InpOBExpiry)
+         { obZones[i].state = OB_EXPIRED; continue; }
+
+      // 2. Invalidated — close beyond far edge (zone fully violated)
+      //    Bull: close < lo   Bear: close > hi
+      if((isBull && barClose < lo) || (!isBull && barClose > hi))
+         { obZones[i].state = OB_INVALIDATED; continue; }
+
+      // 3. Mitigated — close inside zone (partial fill)
+      if(barClose >= lo && barClose <= hi)
+         { obZones[i].state = OB_MITIGATED; continue; }
+
+      // 4. Confirmed — from RETESTED, close exits from near edge
+      //    Bull: close > hi   Bear: close < lo
+      if(st == OB_RETESTED)
+      {
+         if((isBull && barClose > hi) || (!isBull && barClose < lo))
+         {
+            obZones[i].state      = OB_CONFIRMED;
+            obZones[i].confirmBar = barT;
+            continue;
+         }
+         // Still retesting — track worst wick for SL calculation
+         if(barLow  < obZones[i].retestLow)  obZones[i].retestLow  = barLow;
+         if(barHigh > obZones[i].retestHigh) obZones[i].retestHigh = barHigh;
+         continue;
+      }
+
+      // 5. Retested — wick enters zone from correct side (from ACTIVE or CONFIRMED)
+      //    Bull: barLow <= hi   Bear: barHigh >= lo
+      bool retested = isBull ? (barLow <= hi) : (barHigh >= lo);
+      if(retested)
+      {
+         obZones[i].state      = OB_RETESTED;
+         obZones[i].retestBar  = barT;
+         obZones[i].retestLow  = barLow;
+         obZones[i].retestHigh = barHigh;
+      }
+   }
+}
+
+// Called at bar open: execute market entries for CONFIRMED zones.
+void OB_ExecuteEntries()
+{
+   ${ctx.hasMaxTradesFilter
+     ? `if(CountOpenPositions(InpSymbol, InpMagic) >= InpMaxTrades) return;`
+     : `if(HasOpenPosition(InpSymbol, InpMagic)) return;`}
+   if(!SpreadOk(InpSymbol, InpMaxSpread)) return;
+
+   double   point    = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   double   ask      = SymbolInfoDouble(InpSymbol, SYMBOL_ASK);
+   double   bid      = SymbolInfoDouble(InpSymbol, SYMBOL_BID);
+   int      digits   = (int)SymbolInfoInteger(InpSymbol, SYMBOL_DIGITS);
+   long     stops    = SymbolInfoInteger(InpSymbol, SYMBOL_TRADE_STOPS_LEVEL);
+
+   for(int i = 0; i < obCount; i++)
+   {
+      if(obZones[i].state != OB_CONFIRMED) continue;
+
+      // Validation: both retestBar and confirmBar must have been recorded
+      if(obZones[i].retestBar == 0 || obZones[i].confirmBar == 0)
+         { obZones[i].state = OB_INVALIDATED; continue; }
+
+      if(obZones[i].dir == 1) // Bullish OB → BUY at bar open
+      {
+         double sl   = NormalizeDouble(obZones[i].retestLow - InpStopBuffer * point, digits);
+         double dist = (ask - sl) / point;
+         if(dist < (double)stops) { obZones[i].state = OB_INVALIDATED; continue; }
+         double lot  = CalcLot(dist, InpSymbol, InpRiskPercent);
+         if(lot <= 0) { obZones[i].state = OB_INVALIDATED; continue; }
+         double tp   = NormalizeDouble(ask + dist * InpRewardRisk * point, digits);
+         PrintFormat("[OB SETUP] id=%d | dir=BUY  | hi=%.5f | lo=%.5f | retest=%s | confirm=%s | SL=%.5f | TP=%.5f",
+                     i, obZones[i].hi, obZones[i].lo,
+                     TimeToString(obZones[i].retestBar,  TIME_DATE|TIME_MINUTES),
+                     TimeToString(obZones[i].confirmBar, TIME_DATE|TIME_MINUTES), sl, tp);
+         if(trade.Buy(lot, InpSymbol, ask, sl, tp, "OB Buy"))
+            obZones[i].state = OB_TRADED;
+      }
+      else // Bearish OB → SELL at bar open
+      {
+         double sl   = NormalizeDouble(obZones[i].retestHigh + InpStopBuffer * point, digits);
+         double dist = (sl - bid) / point;
+         if(dist < (double)stops) { obZones[i].state = OB_INVALIDATED; continue; }
+         double lot  = CalcLot(dist, InpSymbol, InpRiskPercent);
+         if(lot <= 0) { obZones[i].state = OB_INVALIDATED; continue; }
+         double tp   = NormalizeDouble(bid - dist * InpRewardRisk * point, digits);
+         PrintFormat("[OB SETUP] id=%d | dir=SELL | hi=%.5f | lo=%.5f | retest=%s | confirm=%s | SL=%.5f | TP=%.5f",
+                     i, obZones[i].hi, obZones[i].lo,
+                     TimeToString(obZones[i].retestBar,  TIME_DATE|TIME_MINUTES),
+                     TimeToString(obZones[i].confirmBar, TIME_DATE|TIME_MINUTES), sl, tp);
+         if(trade.Sell(lot, InpSymbol, bid, sl, tp, "OB Sell"))
+            obZones[i].state = OB_TRADED;
+      }
+      break; // one trade per bar
+   }
+}
+
+// Called every tick: move SL to break-even when profit >= InpBEAtR × initial risk.
+void OB_ManageBreakEven()
+{
+   double point  = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   int    digits = (int)SymbolInfoInteger(InpSymbol, SYMBOL_DIGITS);
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(!PositionSelectByTicket(ticket)) continue;
+      if(PositionGetString(POSITION_SYMBOL) != InpSymbol) continue;
+      if(PositionGetInteger(POSITION_MAGIC) != InpMagic)  continue;
+      long   type = PositionGetInteger(POSITION_TYPE);
+      double open = PositionGetDouble(POSITION_PRICE_OPEN);
+      double sl   = PositionGetDouble(POSITION_SL);
+      double tp   = PositionGetDouble(POSITION_TP);
+      if(open <= 0 || sl <= 0) continue;
+      double initRisk = MathAbs(open - sl);
+      if(initRisk < point) continue;
+      double bid = SymbolInfoDouble(InpSymbol, SYMBOL_BID);
+      double ask = SymbolInfoDouble(InpSymbol, SYMBOL_ASK);
+      if(type == POSITION_TYPE_BUY)
+      {
+         if(sl >= open - point) continue;
+         if(bid - open >= initRisk * InpBEAtR)
+            trade.PositionModify(ticket, NormalizeDouble(open, digits), tp);
+      }
+      else
+      {
+         if(sl <= open + point) continue;
+         if(open - ask >= initRisk * InpBEAtR)
+            trade.PositionModify(ticket, NormalizeDouble(open, digits), tp);
+      }
+   }
+}
+
+// Draw zone rectangles for ACTIVE / RETESTED / CONFIRMED OBs.
+void OB_DrawZones()
+{
+   for(int i = ObjectsTotal(0) - 1; i >= 0; i--)
+   {
+      string nm = ObjectName(0, i);
+      if(StringFind(nm, "OBZ_") == 0) ObjectDelete(0, nm);
+   }
+   for(int i = 0; i < obCount; i++)
+   {
+      int st = obZones[i].state;
+      if(st >= OB_TRADED) continue;
+      string nm  = "OBZ_" + IntegerToString(i);
+      color  clr = (obZones[i].dir == 1)
+                   ? (st == OB_CONFIRMED ? clrLimeGreen  : (st == OB_RETESTED ? clrGold : clrRoyalBlue))
+                   : (st == OB_CONFIRMED ? clrOrangeRed  : (st == OB_RETESTED ? clrGold : clrCrimson));
+      datetime t1 = obZones[i].obTime;
+      datetime t2 = TimeCurrent() + (datetime)(PeriodSeconds(InpEntryTF) * 20);
+      if(!ObjectCreate(0, nm, OBJ_RECTANGLE, 0, t1, obZones[i].hi, t2, obZones[i].lo)) continue;
+      ObjectSetInteger(0, nm, OBJPROP_COLOR,      clr);
+      ObjectSetInteger(0, nm, OBJPROP_BACK,       true);
+      ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
+   }
+}
+
+// Delete all OB chart objects — called from OnDeinit.
+void OB_DeleteAllObjects()
+{
+   for(int i = ObjectsTotal(0) - 1; i >= 0; i--)
+   {
+      string nm = ObjectName(0, i);
+      if(StringFind(nm, "OBZ_") == 0) ObjectDelete(0, nm);
+   }
+}
+
+`;
+}
+
 // ─── Strategy helpers (strategy-type driven) ──────────────────────────────────
 
 function genStrategyHelpers(bp: StrategyBlueprint, ctx: Ctx): string {
@@ -1128,34 +1455,7 @@ bool IsBearishBOS()
   }
 
   if (ctx.hasOrderBlock) {
-    parts.push(`// Order Block: simplified — last opposing candle before the current move.
-// Price returns to that candle's body → order block entry.
-bool IsBullishOrderBlock()
-{
-   double price = iClose(InpSymbol, InpEntryTF, 1);
-   for(int i = 2; i <= InpOBLookback; i++)
-   {
-      double o = iOpen(InpSymbol, InpEntryTF, i);
-      double c = iClose(InpSymbol, InpEntryTF, i);
-      if(c >= o) continue; // skip bullish candles
-      if(price >= c && price <= o) return true; // price inside bearish OB body
-   }
-   return false;
-}
-bool IsBearishOrderBlock()
-{
-   double price = iClose(InpSymbol, InpEntryTF, 1);
-   for(int i = 2; i <= InpOBLookback; i++)
-   {
-      double o = iOpen(InpSymbol, InpEntryTF, i);
-      double c = iClose(InpSymbol, InpEntryTF, i);
-      if(c <= o) continue; // skip bearish candles
-      if(price <= c && price >= o) return true; // price inside bullish OB body
-   }
-   return false;
-}
-
-`);
+    parts.push(genOBStateMachine(ctx));
   }
 
   if (ctx.hasLiquiditySweep) {
@@ -1276,8 +1576,9 @@ bool IsNearSupplyZone()
 `);
   }
 
-  // FVG strategies drive entries through FVG_ExecuteEntries() — no CheckEntrySignal needed.
-  if (ctx.hasFVG) return parts.join("");
+  // State-machine strategies drive entries through their own Execute function.
+  // CheckEntrySignal is not used — return early before it is generated.
+  if (ctx.hasFVG || ctx.hasOrderBlock) return parts.join("");
 
   // ── Entry signal ─────────────────────────────────────────────────────────────
   // Collect trigger conditions (OR'd — any can fire)
@@ -1558,7 +1859,8 @@ function genOnDeinit(ctx: Ctx): string {
   if (ctx.hasStoch) rel.push(`   if(hStoch!=INVALID_HANDLE) IndicatorRelease(hStoch);`);
   if (ctx.hasATR)   rel.push(`   if(hATR  !=INVALID_HANDLE) IndicatorRelease(hATR);`);
   if (ctx.hasHTF)   rel.push(`   if(hHTF  !=INVALID_HANDLE) IndicatorRelease(hHTF);`);
-  if (ctx.hasFVG)   rel.push(`   FVG_DeleteAllObjects();`);
+  if (ctx.hasFVG)        rel.push(`   FVG_DeleteAllObjects();`);
+  if (ctx.hasOrderBlock) rel.push(`   OB_DeleteAllObjects();`);
 
   return `void OnDeinit(const int reason)
 {
@@ -1569,7 +1871,7 @@ ${rel.join("\n")}
 }
 
 function genOnTick(bp: StrategyBlueprint, ctx: Ctx): string {
-  // FVG strategies use a dedicated OnTick that drives the state machine.
+  // State-machine strategies use a dedicated OnTick.
   if (ctx.hasFVG) {
     return `void OnTick()
 {
@@ -1584,6 +1886,25 @@ function genOnTick(bp: StrategyBlueprint, ctx: Ctx): string {
    FVG_ExecuteEntries(); // 2. Enter at the new bar's open — zones are already updated
    FVG_Detect();         // 3. Identify new FVGs in the latest 3 bars
    FVG_DrawZones();      // 4. Refresh chart rectangle objects
+}
+
+`;
+  }
+
+  if (ctx.hasOrderBlock) {
+    return `void OnTick()
+{
+   OB_ManageBreakEven(); // Move SL to break-even at 0.5R every tick
+
+   // Bar-open pattern: run state machine on first tick of each new bar only
+   datetime bar = iTime(InpSymbol, InpEntryTF, 0);
+   if(bar == lastBarTime) return;
+   lastBarTime = bar;
+
+   OB_Update();          // 1. Update zone states using the just-closed bar
+   OB_ExecuteEntries();  // 2. Enter at the new bar's open for CONFIRMED zones
+   OB_ScanBar(1);        // 3. Scan just-closed bar for new OBs
+   OB_DrawZones();       // 4. Refresh chart rectangle objects
 }
 
 `;
