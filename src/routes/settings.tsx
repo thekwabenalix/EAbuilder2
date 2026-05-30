@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { runPhase1Validation } from "@/lib/phase1-validation";
 import {
   LOCAL_RUNNER_URL,
   configureMt5,
@@ -107,6 +108,52 @@ function RunnerStartCard({ onRefresh }: { onRefresh: () => void }) {
         <span className="text-xs text-muted-foreground">Windows x64 · No install needed</span>
       </div>
     </div>
+  );
+}
+
+function Phase1ValidationPanel() {
+  const [log, setLog] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
+  const [allPass, setAllPass] = useState<boolean | null>(null);
+
+  const run = () => {
+    setRunning(true);
+    setLog(null);
+    setTimeout(() => {
+      try {
+        const report = runPhase1Validation();
+        setLog(report.summary);
+        setAllPass(report.allPass);
+      } catch (e) {
+        setLog(`Exception: ${e instanceof Error ? e.message : String(e)}`);
+        setAllPass(false);
+      } finally {
+        setRunning(false);
+      }
+    }, 50);
+  };
+
+  return (
+    <section className="rounded-md border border-border bg-card p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Phase 1 — Generator Validation</h2>
+        <Button size="sm" variant="outline" onClick={run} disabled={running}>
+          {running ? "Running…" : "Run 5 Tests"}
+        </Button>
+      </div>
+      {log && (
+        <pre
+          className={[
+            "text-[11px] font-mono whitespace-pre-wrap rounded p-3 border",
+            allPass
+              ? "bg-emerald-950/30 border-emerald-800/40 text-emerald-300"
+              : "bg-red-950/30 border-red-800/40 text-red-300",
+          ].join(" ")}
+        >
+          {log}
+        </pre>
+      )}
+    </section>
   );
 }
 
@@ -391,6 +438,8 @@ function SettingsPage() {
               </Button>
             </div>
           </section>
+
+          <Phase1ValidationPanel />
 
           <section className="rounded-md border border-border bg-card p-4 text-xs text-muted-foreground space-y-2">
             <h2 className="text-xs uppercase tracking-wide">Disclaimer</h2>
