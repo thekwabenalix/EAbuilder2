@@ -41,8 +41,8 @@ input int      InpMaxSpread   = 25;        // Max spread (points)
 input double   InpBEAtR       = 1.0;       // Break-even at N × R
 input int      InpEMAFast     = 12;
 input int      InpEMASlow     = 48;
-input int      InpSLLookback  = 30;    // Bars to scan back for pullback swing (SL)
-input int      InpMaxSLPips   = 20;   // Max SL distance in pips (0 = no limit)
+input int      InpSLLookback  = 10;    // Bars to scan back for pullback swing (SL)
+input int      InpMaxSLPips   = 20;   // Max SL distance in pips (skip trade if wider)
 
 //--- EMA handles
 int hFast = INVALID_HANDLE;
