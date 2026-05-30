@@ -42,6 +42,7 @@ input double   InpBEAtR       = 1.0;       // Break-even at N × R
 input int      InpEMAFast     = 12;
 input int      InpEMASlow     = 48;
 input int      InpSLLookback  = 30;    // Bars to scan back for pullback swing (SL)
+input int      InpMaxSLPips   = 20;   // Max SL distance in pips (0 = no limit)
 
 //--- EMA handles
 int hFast = INVALID_HANDLE;
@@ -246,6 +247,9 @@ void ExecuteEntries(int currentBias)
    double bid   = SymbolInfoDouble(InpSymbol,SYMBOL_BID);
    int    digs  = (int)SymbolInfoInteger(InpSymbol,SYMBOL_DIGITS);
    long   stops = SymbolInfoInteger(InpSymbol,SYMBOL_TRADE_STOPS_LEVEL);
+   // 1 pip = 10 points for 5-decimal (EURUSD) and 3-decimal (USDJPY) brokers
+   int    pipDigits = (digs==3||digs==5) ? 10 : 1;
+   double maxDistPts = (InpMaxSLPips > 0) ? (double)InpMaxSLPips * pipDigits : 1e10;
    datetime bar1= iTime(InpSymbol,PERIOD_CURRENT,1);  // just-closed bar = inversion bar
 
    for(int k=0;k<fvgN;k++)
@@ -272,12 +276,13 @@ void ExecuteEntries(int currentBias)
          }
          double sl  = NormalizeDouble(pullbackLow - InpStopBuffer*pt, digs);
          double dist= (ask-sl)/pt;
-         if(dist<=(double)stops){PrintFormat("[SKIP] BUY dist=%.0f",dist);continue;}
+         if(dist<=(double)stops){PrintFormat("[SKIP] BUY dist=%.0fpts < stops_level",dist);fvg[k].traded=true;continue;}
+         if(dist>maxDistPts){PrintFormat("[SKIP] BUY SL too wide: %.1f pips (max %d pips)",dist/pipDigits,InpMaxSLPips);fvg[k].traded=true;continue;}
          double lot = CalcLot(dist);
          if(lot<=0){Print("[SKIP] BUY lot=0");continue;}
          double tp  = NormalizeDouble(ask+dist*InpRewardRisk*pt, digs);
-         PrintFormat("[ENTRY] BUY | ask=%.5f sl=%.5f tp=%.5f lot=%.2f dist=%.0fpts",
-                     ask,sl,tp,lot,dist);
+         PrintFormat("[ENTRY] BUY | ask=%.5f sl=%.5f tp=%.5f lot=%.2f dist=%.1fpips",
+                     ask,sl,tp,lot,dist/pipDigits);
          if(trade.Buy(lot,InpSymbol,ask,sl,tp,"EMA_IFVG_BUY"))
          {
             fvg[k].traded=true;
@@ -311,12 +316,13 @@ void ExecuteEntries(int currentBias)
          }
          double sl  = NormalizeDouble(pullbackHigh + InpStopBuffer*pt, digs);
          double dist= (sl-bid)/pt;
-         if(dist<=(double)stops){PrintFormat("[SKIP] SELL dist=%.0f",dist);continue;}
+         if(dist<=(double)stops){PrintFormat("[SKIP] SELL dist=%.0fpts < stops_level",dist);fvg[k].traded=true;continue;}
+         if(dist>maxDistPts){PrintFormat("[SKIP] SELL SL too wide: %.1f pips (max %d pips)",dist/pipDigits,InpMaxSLPips);fvg[k].traded=true;continue;}
          double lot = CalcLot(dist);
          if(lot<=0){Print("[SKIP] SELL lot=0");continue;}
          double tp  = NormalizeDouble(bid-dist*InpRewardRisk*pt, digs);
-         PrintFormat("[ENTRY] SELL | bid=%.5f sl=%.5f tp=%.5f lot=%.2f dist=%.0fpts",
-                     bid,sl,tp,lot,dist);
+         PrintFormat("[ENTRY] SELL | bid=%.5f sl=%.5f tp=%.5f lot=%.2f dist=%.1fpips",
+                     bid,sl,tp,lot,dist/pipDigits);
          if(trade.Sell(lot,InpSymbol,bid,sl,tp,"EMA_IFVG_SELL"))
          {
             fvg[k].traded=true;
