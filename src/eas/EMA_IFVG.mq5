@@ -1,23 +1,28 @@
 //+------------------------------------------------------------------+
 //| EMA_IFVG.mq5                                                    |
-//| EMA 12/48 Cross + iFVG Entry                                    |
+//| EMA Trend + iFVG Execution                                      |
 //|                                                                  |
-//| Direction : EMA 12 cross EMA 48                                 |
-//|             EMA12 > EMA48 → bullish → look for bull iFVG        |
-//|             EMA12 < EMA48 → bearish → look for bear iFVG        |
+//| Architecture (4-Brain):                                         |
+//|   Direction : EMA12 vs EMA48                                    |
+//|               EMA12 > EMA48 = BULL  EMA12 < EMA48 = BEAR       |
+//|   Execution : iFVG created in trend direction                   |
+//|               (IFVG itself proves the pullback occurred)        |
+//|   Management: SL = lowest pullback low / highest pullback high  |
+//|               TP = 2R  |  BE = 1R                              |
 //|                                                                  |
-//| Entry     : Next bar open after iFVG is CREATED (inversion      |
-//|             candle closes through the FVG)                       |
+//| Entry flow (BUY example):                                       |
+//|   1. EMA12 > EMA48 → bullish direction                         |
+//|   2. Bearish FVG forms (pullback creates gap)                   |
+//|   3. Candle CLOSES above bearish FVG UL → bullish iFVG born    |
+//|   4. BUY at next bar open                                       |
+//|   5. SL = lowest low of last InpSLLookback bars − buffer        |
+//|   Invalidation: EMA flips before entry fires → skip trade      |
 //|                                                                  |
-//| SL        : High of inversion candle (sell) or                  |
-//|             Low  of inversion candle (buy)  + buffer            |
-//| TP        : 2R  |  BE : 1R                                      |
-//|                                                                  |
-//| FVG definition (from Phase 3 module):                           |
-//|   Bullish FVG : C3.Low > C1.High  (C1=oldest, C3=newest)        |
-//|   Bearish FVG : C3.High < C1.Low                                |
-//|   Bullish iFVG: bearish FVG → close > FVG upper limit           |
-//|   Bearish iFVG: bullish FVG → close < FVG lower limit           |
+//| FVG definition (Phase 3 module):                                |
+//|   Bullish FVG : C3.Low > C1.High (C1=oldest, C3=newest)        |
+//|   Bearish FVG : C3.High < C1.Low                               |
+//|   Bull iFVG   : bearish FVG, close > FVG UL                    |
+//|   Bear iFVG   : bullish FVG, close < FVG LL                    |
 //+------------------------------------------------------------------+
 #property copyright "EAbuilder2"
 #property version   "1.10"
@@ -36,6 +41,7 @@ input int      InpMaxSpread   = 25;        // Max spread (points)
 input double   InpBEAtR       = 1.0;       // Break-even at N × R
 input int      InpEMAFast     = 12;
 input int      InpEMASlow     = 48;
+input int      InpSLLookback  = 30;    // Bars to scan back for pullback swing (SL)
 
 //--- EMA handles
 int hFast = INVALID_HANDLE;
@@ -194,13 +200,9 @@ void CheckInversions(int emaBias)
       fvg[k].invHigh  = hi1;   // SL for SELL entries
       fvg[k].invLow   = lo1;   // SL for BUY  entries
 
-      double slLevel = bullInv
-                       ? fvg[k].ll - InpStopBuffer * SymbolInfoDouble(InpSymbol,SYMBOL_POINT)
-                       : fvg[k].ul + InpStopBuffer * SymbolInfoDouble(InpSymbol,SYMBOL_POINT);
-
-      PrintFormat("[IFVG] %s CREATED | ul=%.5f ll=%.5f | SL=%.5f | %s",
+      PrintFormat("[IFVG] %s CREATED | ul=%.5f ll=%.5f | inv_close=%.5f | %s",
                   bullInv?"BULL":"BEAR",
-                  fvg[k].ul, fvg[k].ll, slLevel,
+                  fvg[k].ul, fvg[k].ll, cl1,
                   TimeToString(bar1,TIME_DATE|TIME_MINUTES));
 
       // Draw iFVG zone rectangle
@@ -224,32 +226,18 @@ void CheckInversions(int emaBias)
          ObjectSetInteger(0,ln,OBJPROP_ANCHOR,    bullInv?ANCHOR_LOWER:ANCHOR_UPPER);
          ObjectSetInteger(0,ln,OBJPROP_SELECTABLE,false);
       }
-      // SL horizontal line (red dotted, like in the chart)
-      string sn=StringFormat("IFVG_SL_%s_%d",bullInv?"B":"S",(int)bar1);
-      if(ObjectCreate(0,sn,OBJ_HLINE,0,0,slLevel))
-      {
-         ObjectSetInteger(0,sn,OBJPROP_COLOR,     clrRed);
-         ObjectSetInteger(0,sn,OBJPROP_STYLE,     STYLE_DOT);
-         ObjectSetInteger(0,sn,OBJPROP_WIDTH,     1);
-         ObjectSetInteger(0,sn,OBJPROP_BACK,      true);
-         ObjectSetInteger(0,sn,OBJPROP_SELECTABLE,false);
-      }
-      // "SL" text label
-      string st=StringFormat("IFVG_SLT_%s_%d",bullInv?"B":"S",(int)bar1);
-      if(ObjectCreate(0,st,OBJ_TEXT,0,bar1,slLevel))
-      {
-         ObjectSetString (0,st,OBJPROP_TEXT,     "SL");
-         ObjectSetInteger(0,st,OBJPROP_COLOR,    clrRed);
-         ObjectSetInteger(0,st,OBJPROP_FONTSIZE, 8);
-         ObjectSetInteger(0,st,OBJPROP_SELECTABLE,false);
-      }
+      // SL line will be drawn at entry time (pullback swing, not zone boundary)
    }
 }
 
 //+------------------------------------------------------------------+
 //| Execute on bar AFTER inversion                                  |
+//| SL = pullback swing extreme (lowest low / highest high of the  |
+//|      last InpSLLookback bars before entry)                      |
+//| Invalidation: if EMA direction flipped since iFVG was created, |
+//|               skip the trade (setup no longer valid)           |
 //+------------------------------------------------------------------+
-void ExecuteEntries()
+void ExecuteEntries(int currentBias)
 {
    if(HasPos() || !SpreadOk()) return;
 
@@ -262,15 +250,27 @@ void ExecuteEntries()
 
    for(int k=0;k<fvgN;k++)
    {
-      if(!fvg[k].inverted)   continue;
-      if(fvg[k].traded)      continue;
+      if(!fvg[k].inverted)    continue;
+      if(fvg[k].traded)       continue;
       if(fvg[k].invTime!=bar1) continue;  // entry on the bar immediately after inversion
+
+      // ── Invalidation: EMA must still agree with the iFVG direction ──────────
+      // Bull iFVG (was bear FVG, dir=-1) requires BULL bias (currentBias==1)
+      // Bear iFVG (was bull FVG, dir==1) requires BEAR bias (currentBias==-1)
+      bool needsBull = (fvg[k].dir == -1);  // bull iFVG needs bull EMA
+      if(needsBull  && currentBias != 1)  { PrintFormat("[SKIP] iFVG BULL invalidated — EMA now BEAR"); fvg[k].traded=true; continue; }
+      if(!needsBull && currentBias != -1) { PrintFormat("[SKIP] iFVG BEAR invalidated — EMA now BULL"); fvg[k].traded=true; continue; }
 
       if(fvg[k].dir==-1)   // bearish FVG inverted → BUY
       {
-         // SL = below the iFVG zone lower limit (LL = C3.High of original bearish FVG)
-         // This is the bottom of the zone rectangle shown on the chart
-         double sl  = NormalizeDouble(fvg[k].ll - InpStopBuffer*pt, digs);
+         // SL = lowest low of last InpSLLookback bars (the pullback low before the iFVG)
+         double pullbackLow = 1e10;
+         for(int i=1; i<=InpSLLookback; i++)
+         {
+            double l = iLow(InpSymbol,PERIOD_CURRENT,i);
+            if(l < pullbackLow) pullbackLow = l;
+         }
+         double sl  = NormalizeDouble(pullbackLow - InpStopBuffer*pt, digs);
          double dist= (ask-sl)/pt;
          if(dist<=(double)stops){PrintFormat("[SKIP] BUY dist=%.0f",dist);continue;}
          double lot = CalcLot(dist);
@@ -282,22 +282,34 @@ void ExecuteEntries()
          {
             fvg[k].traded=true;
             datetime et=iTime(InpSymbol,PERIOD_CURRENT,0);
-            // Arrow + "Buy entry" label (matches chart visual)
+            // Arrow + label
             string an=StringFormat("E_BUY_%d",(int)et);
             if(ObjectCreate(0,an,OBJ_ARROW_BUY,0,et,sl))
             { ObjectSetInteger(0,an,OBJPROP_COLOR,clrLime); ObjectSetInteger(0,an,OBJPROP_WIDTH,2); ObjectSetInteger(0,an,OBJPROP_SELECTABLE,false); }
             string el=StringFormat("E_BUY_L_%d",(int)et);
             if(ObjectCreate(0,el,OBJ_TEXT,0,et,ask))
             { ObjectSetString(0,el,OBJPROP_TEXT,"Buy entry"); ObjectSetInteger(0,el,OBJPROP_COLOR,clrLime); ObjectSetInteger(0,el,OBJPROP_FONTSIZE,8); ObjectSetInteger(0,el,OBJPROP_SELECTABLE,false); }
+            // SL line at pullback low
+            string sn=StringFormat("IFVG_SL_B_%d",(int)et);
+            if(ObjectCreate(0,sn,OBJ_HLINE,0,0,sl))
+            { ObjectSetInteger(0,sn,OBJPROP_COLOR,clrRed); ObjectSetInteger(0,sn,OBJPROP_STYLE,STYLE_DOT); ObjectSetInteger(0,sn,OBJPROP_WIDTH,1); ObjectSetInteger(0,sn,OBJPROP_BACK,true); ObjectSetInteger(0,sn,OBJPROP_SELECTABLE,false); }
+            string st=StringFormat("IFVG_SLT_B_%d",(int)et);
+            if(ObjectCreate(0,st,OBJ_TEXT,0,et,sl))
+            { ObjectSetString(0,st,OBJPROP_TEXT,"SL"); ObjectSetInteger(0,st,OBJPROP_COLOR,clrRed); ObjectSetInteger(0,st,OBJPROP_FONTSIZE,8); ObjectSetInteger(0,st,OBJPROP_SELECTABLE,false); }
          }
          break;
       }
 
       if(fvg[k].dir== 1)   // bullish FVG inverted → SELL
       {
-         // SL = above the iFVG zone upper limit (UL = C3.Low of original bullish FVG)
-         // This is the top of the zone rectangle shown on the chart
-         double sl  = NormalizeDouble(fvg[k].ul + InpStopBuffer*pt, digs);
+         // SL = highest high of last InpSLLookback bars (the pullback high before the iFVG)
+         double pullbackHigh = 0.0;
+         for(int i=1; i<=InpSLLookback; i++)
+         {
+            double h = iHigh(InpSymbol,PERIOD_CURRENT,i);
+            if(h > pullbackHigh) pullbackHigh = h;
+         }
+         double sl  = NormalizeDouble(pullbackHigh + InpStopBuffer*pt, digs);
          double dist= (sl-bid)/pt;
          if(dist<=(double)stops){PrintFormat("[SKIP] SELL dist=%.0f",dist);continue;}
          double lot = CalcLot(dist);
@@ -315,6 +327,13 @@ void ExecuteEntries()
             string el=StringFormat("E_SELL_L_%d",(int)et);
             if(ObjectCreate(0,el,OBJ_TEXT,0,et,bid))
             { ObjectSetString(0,el,OBJPROP_TEXT,"Sell entry"); ObjectSetInteger(0,el,OBJPROP_COLOR,clrOrangeRed); ObjectSetInteger(0,el,OBJPROP_FONTSIZE,8); ObjectSetInteger(0,el,OBJPROP_SELECTABLE,false); }
+            // SL line at pullback high
+            string sn=StringFormat("IFVG_SL_S_%d",(int)et);
+            if(ObjectCreate(0,sn,OBJ_HLINE,0,0,sl))
+            { ObjectSetInteger(0,sn,OBJPROP_COLOR,clrRed); ObjectSetInteger(0,sn,OBJPROP_STYLE,STYLE_DOT); ObjectSetInteger(0,sn,OBJPROP_WIDTH,1); ObjectSetInteger(0,sn,OBJPROP_BACK,true); ObjectSetInteger(0,sn,OBJPROP_SELECTABLE,false); }
+            string st=StringFormat("IFVG_SLT_S_%d",(int)et);
+            if(ObjectCreate(0,st,OBJ_TEXT,0,et,sl))
+            { ObjectSetString(0,st,OBJPROP_TEXT,"SL"); ObjectSetInteger(0,st,OBJPROP_COLOR,clrRed); ObjectSetInteger(0,st,OBJPROP_FONTSIZE,8); ObjectSetInteger(0,st,OBJPROP_SELECTABLE,false); }
          }
          break;
       }
@@ -410,6 +429,6 @@ void OnTick()
    // 2. Check if just-closed bar inverts any stored FVG
    CheckInversions(bias);
 
-   // 3. Enter on bar AFTER inversion
-   ExecuteEntries();
+   // 3. Enter on bar AFTER inversion (re-checks current EMA for invalidation)
+   ExecuteEntries(bias);
 }
