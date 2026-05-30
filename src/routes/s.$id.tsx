@@ -58,7 +58,7 @@ import type { StrategyBlueprint } from "@/types/blueprint";
 import { DEFAULT_BLUEPRINT } from "@/types/blueprint";
 import type { FourBrainConfig, BrainConfig, BrainModuleType } from "@/types/blueprint";
 import { ALL_BRAIN_MODULES, TIMEFRAMES as TF_LIST, formatBrainChain } from "@/lib/brain-modules";
-import { generateAiBrainWiring } from "@/lib/api-client";
+import { generateAiBrainWiring, generateAiEaFromDescription } from "@/lib/api-client";
 import {
   getLocalRunnerHealth,
   getMt5Status,
@@ -274,6 +274,7 @@ function StrategyPage() {
               strategyName={name || "Untitled Strategy"}
               blueprint={blueprint}
               code={generatedCode}
+              prompt={data.prompt}
               onCodeChange={(code) => { setGeneratedCode(code); setDirty(true); }}
               onAutoSave={async (code) => {
                 await updateStrategy(id, { name: name || "Untitled Strategy", blueprint, generatedCode: code });
@@ -302,7 +303,7 @@ function StrategyPage() {
           </TabsContent>
         </Tabs>
       ) : (
-        /* ── Rules-based strategy tabs (unchanged) ─────────────────────────── */
+        /* ── Rules-based strategy tabs ─────────────────────────────────────── */
         <Tabs defaultValue={data.generated_code ? "spec" : "code"} className="px-6 pt-4">
           <TabsList>
             <TabsTrigger value="spec">Spec</TabsTrigger>
@@ -327,6 +328,7 @@ function StrategyPage() {
               strategyName={name || "Untitled Strategy"}
               blueprint={blueprint}
               code={generatedCode}
+              prompt={data.prompt}
               onCodeChange={(code) => { setGeneratedCode(code); setDirty(true); }}
               onAutoSave={async (code) => {
                 await updateStrategy(id, { name: name || "Untitled Strategy", blueprint, generatedCode: code });
@@ -823,6 +825,7 @@ function CodeTab({
   code,
   onCodeChange,
   onAutoSave,
+  prompt,
 }: {
   strategyId: string;
   strategyName: string;
@@ -830,10 +833,13 @@ function CodeTab({
   code: string;
   onCodeChange: (code: string) => void;
   onAutoSave?: (code: string) => Promise<void>;
+  /** Original user prompt from /new — enables AI generation from description */
+  prompt?: string;
 }) {
   const [generating, setGenerating] = useState(false);
   const [compiling, setCompiling] = useState(false);
   const [compileLog, setCompileLog] = useState<string | null>(null);
+  const [aiNotes, setAiNotes] = useState<string | null>(null);
 
   const companion = useQuery({
     queryKey: ["local-runner-health"],
@@ -876,6 +882,39 @@ function CodeTab({
       }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Template generation failed");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const generateWithAi = async () => {
+    const userPrompt = prompt || blueprint.marketPhilosophy || "";
+    if (!userPrompt.trim()) {
+      toast.error("No strategy description available. Use the AI Description Builder to write your strategy first.");
+      return;
+    }
+    setGenerating(true);
+    setAiNotes(null);
+    try {
+      const wiring = await generateAiEaFromDescription(userPrompt, strategyName);
+      setAiNotes(wiring.notes ?? null);
+      const { generateEA } = await import("@/generators/gen-ea");
+      const generatedCode = generateEA({
+        eaName: strategyName.replace(/[^\w\s-]/g, "").trim(),
+        config: blueprint.fourBrain ?? {
+          execution: { modules: ["fvg"], timeframe: "H1" },
+        },
+        aiWiring: wiring,
+      });
+      if (onAutoSave) {
+        await onAutoSave(generatedCode);
+        toast.success("AI-built EA saved — Claude interpreted your strategy and wired the modules");
+      } else {
+        onCodeChange(generatedCode);
+        toast.success("AI-built EA ready");
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "AI generation failed");
     } finally {
       setGenerating(false);
     }
@@ -979,55 +1018,59 @@ function CodeTab({
           )}
         </div>
 
-        {/* Generate button — always Template */}
-        <div className="space-y-2">
+        {/* Generation options */}
+        <div className="space-y-3">
+          {/* Primary: AI generation — interprets description, selects modules, embeds logic */}
+          <Button
+            onClick={generateWithAi}
+            disabled={generating}
+            size="lg"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+          >
+            {generating ? (
+              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Claude is building your EA…</>
+            ) : (
+              <><Sparkles className="h-4 w-4 mr-1.5" />Build EA with AI</>
+            )}
+          </Button>
+          <p className="text-[11px] text-center text-muted-foreground">
+            Claude reads your strategy description, selects the right detection modules, and generates a self-contained EA.
+          </p>
+
+          {/* Divider */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">or</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          {/* Secondary: Template — instant, offline */}
           <Button
             onClick={generateTemplate}
             disabled={generating || !build.buildable}
-            size="lg"
-            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white border-0"
+            variant="outline"
+            size="sm"
+            className="w-full"
           >
             {generating ? (
-              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Generating…</>
+              <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Generating…</>
             ) : (
-              <><Hammer className="h-4 w-4 mr-1.5" />
-                {build.unsupportedCount === 0
-                  ? "Generate EA from Template"
-                  : `Generate EA (${build.supportedCount} of ${blueprint.rules.length} rules)`}
-              </>
+              <><Hammer className="h-3.5 w-3.5 mr-1.5" />Template (instant, no AI)</>
             )}
           </Button>
 
           {!build.buildable && (
-            <p className="text-xs text-center text-destructive">
-              No supported entry trigger found. Refine your strategy description and re-run the interview.
+            <p className="text-[11px] text-center text-muted-foreground">
+              Template requires a supported entry trigger. Use <strong>Build with AI</strong> for any strategy.
             </p>
           )}
-
-          {/* AI Generate — collapsed, secondary */}
-          <details className="group">
-            <summary className="text-[11px] text-muted-foreground cursor-pointer hover:text-foreground flex items-center gap-1 justify-center select-none">
-              <Sparkles className="h-3 w-3" /> Advanced: AI direct generation (may produce compile errors)
-            </summary>
-            <div className="mt-2 rounded-md border border-border bg-card p-3 space-y-2">
-              <p className="text-xs text-muted-foreground">
-                AI writes custom MQL5 directly from your blueprint. Higher flexibility,
-                but the output is not guaranteed to compile and may invent logic not in your spec.
-                Use only when the template doesn't cover your strategy.
-              </p>
-              <Button onClick={generate} disabled={generating} variant="outline" size="sm" className="w-full">
-                {generating ? (
-                  <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Generating…</>
-                ) : (
-                  <><Sparkles className="h-3.5 w-3.5 mr-1.5" /> AI Generate (experimental)</>
-                )}
-              </Button>
-            </div>
-          </details>
         </div>
 
-        {generating && (
-          <p className="text-xs text-muted-foreground text-center">Generating your Expert Advisor…</p>
+        {/* AI notes when generating */}
+        {aiNotes && (
+          <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
+            <span className="font-medium text-primary">AI reasoning: </span>{aiNotes}
+          </div>
         )}
       </div>
     );
@@ -1071,11 +1114,25 @@ function CodeTab({
           )}
           <Button
             size="sm"
+            onClick={generateWithAi}
+            disabled={generating}
+            title="Claude interprets your description and rebuilds with proven modules"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
+          >
+            {generating ? (
+              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4 mr-1.5" />
+            )}
+            AI Rebuild
+          </Button>
+          <Button
+            size="sm"
             variant="outline"
             onClick={generateTemplate}
             disabled={generating}
             title="Instant template regeneration — always compiles"
-            className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+            className="border-border text-muted-foreground"
           >
             {generating ? (
               <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
@@ -1083,14 +1140,6 @@ function CodeTab({
               <Hammer className="h-4 w-4 mr-1.5" />
             )}
             Template
-          </Button>
-          <Button size="sm" variant="outline" onClick={generate} disabled={generating} title="AI regeneration — more custom, may need fixing">
-            {generating ? (
-              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4 mr-1.5" />
-            )}
-            AI Regen
           </Button>
         </div>
       </div>

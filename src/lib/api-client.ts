@@ -234,6 +234,7 @@ export interface AiBrainWiring {
 
 /**
  * Ask Claude to generate the 4-Brain wiring code using the module library.
+ * Config-guided mode: visual builder provided explicit brain config.
  * Returns the three brain function bodies + which state machines to embed.
  */
 export async function generateAiBrainWiring(
@@ -246,6 +247,18 @@ export async function generateAiBrainWiring(
   description?: string,
 ): Promise<AiBrainWiring> {
   return post<AiBrainWiring>("/api/gen-4brain-ai", { config, eaName, description });
+}
+
+/**
+ * Description-first mode: trader wrote a plain-English strategy description.
+ * Claude interprets it, selects modules, chooses brain roles + timeframes, and
+ * generates the complete wiring. Returns the same AiBrainWiring structure.
+ */
+export async function generateAiEaFromDescription(
+  prompt: string,
+  eaName: string,
+): Promise<AiBrainWiring> {
+  return post<AiBrainWiring>("/api/gen-4brain-ai", { prompt, eaName });
 }
 
 // ─── Brain param extraction ───────────────────────────────────────────────────

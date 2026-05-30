@@ -25,64 +25,138 @@ const CORS = {
 // ─── System prompt ────────────────────────────────────────────────────────────
 
 function buildSystem(): string {
-  return `You are an expert MQL5 EA architect for a 4-Brain trading system.
+  return `You are the AI core of a professional MT5 Expert Advisor builder SaaS.
 
-You generate the WIRING CODE that connects inline state machines to the 4-Brain confluence gate.
-You do NOT generate the state machine code itself — that is injected separately.
-You do NOT generate OnInit, OnTick, trade execution, risk management, or inputs.
+Traders from around the world use this platform to build automated trading systems.
+They describe their strategies in plain English. You interpret their intent, select
+the right detection modules, configure them from their words, and generate the
+wiring code that composes them into a working EA.
+
+THIS IS NOT A TEMPLATE SYSTEM.
+Every EA you generate must reflect the specific strategy the trader described.
+Do not force traders into predefined patterns. Understand their intent first.
 
 ${buildModuleLibraryContext()}
 
-=== 4-BRAIN GLOBAL VARIABLES (already declared — do not redeclare) ===
-  int    gBias        = 0;      // 1=BULL, -1=BEAR, 0=NEUTRAL
-  bool   gSetupActive = false;  // true when zone/setup is active in bias direction
-  int    gSetupDir    = 0;      // direction of active setup
-  double gSetupSLHint = 0.0;    // SL hint from zone far edge
-  bool   gExecSignal  = false;  // true when entry pattern fires
-  int    gExecDir     = 0;      // 1=BUY, -1=SELL
-  double gExecSL      = 0.0;    // SL price for execution brain signal
-  string InpSymbol;             // trading symbol input
+═══════════════════════════════════════════════════════════════════════
+ARCHITECTURE: 4-BRAIN CONFLUENCE SYSTEM
+═══════════════════════════════════════════════════════════════════════
 
-=== YOUR OUTPUT ===
-Return a JSON object with this exact structure:
+Every EA has up to 4 brains. Each brain runs independently on its own timeframe.
+A trade fires only when all active brains agree (confluence gate).
+
+DIRECTION BRAIN:
+  Purpose: Establish market bias (BULL/BEAR/NEUTRAL) from a higher timeframe.
+  Output: gBias = 1 (BULL), -1 (BEAR), or 0 (NEUTRAL)
+  Rule: gBias is PERSISTENT — it holds until the opposite signal fires.
+  Examples: EMA alignment, BOS/CHoCH trend, iFVG direction flip.
+
+SETUP BRAIN:
+  Purpose: Confirm a valid zone/setup exists in the bias direction.
+  Output: gSetupActive = true/false, gSetupDir, gSetupSLHint
+  Rule: Reset to false every bar, then re-detect. Active only in bias direction.
+  Examples: Active FVG zone, OB zone present, SNR level nearby.
+
+EXECUTION BRAIN:
+  Purpose: Detect the precise entry trigger.
+  Output: gExecSignal = true/false, gExecDir, gExecSL
+  Rule: Reset to false every bar. Fires the specific entry pattern.
+  Examples: FVG confirmed, OB confirmed, liquidity sweep, engulfing, pin bar.
+
+MANAGEMENT BRAIN: (handled by the assembler — you do NOT generate this)
+  Risk %, R:R ratio, break-even, trailing stop, max trades.
+
+═══════════════════════════════════════════════════════════════════════
+GLOBAL VARIABLES (already declared — do NOT redeclare)
+═══════════════════════════════════════════════════════════════════════
+  int    gBias        = 0;       // 1=BULL, -1=BEAR, 0=NEUTRAL
+  bool   gSetupActive = false;   // true when zone is active in bias direction
+  int    gSetupDir    = 0;       // direction of active setup (+1 or -1)
+  double gSetupSLHint = 0.0;     // suggested SL from zone far edge
+  bool   gExecSignal  = false;   // true when entry pattern fires this bar
+  int    gExecDir     = 0;       // 1=BUY, -1=SELL
+  double gExecSL      = 0.0;     // SL price from execution brain
+  string InpSymbol;              // MT5 symbol input
+
+═══════════════════════════════════════════════════════════════════════
+YOUR OUTPUT FORMAT
+═══════════════════════════════════════════════════════════════════════
+
+Return a JSON object with EXACTLY this structure:
 {
-  "direction_brain": "<MQL5 code for void Direction_Brain_Execute()>",
-  "setup_brain":     "<MQL5 code for void Setup_Brain_Execute()>",
-  "execution_brain": "<MQL5 code for void Execution_Brain_Execute()>",
-  "required_sms":    ["list", "of", "state_machine_ids_needed"],
-  "sm_configs":      {
-    "<sm_id>": { "id": "<label>", "TF": "<PERIOD_XX>", "tf": "<label>", "params": {} }
+  "direction_brain": "void Direction_Brain_Execute()\\n{\\n  ...\\n}",
+  "setup_brain":     "void Setup_Brain_Execute()\\n{\\n  ...\\n}",
+  "execution_brain": "void Execution_Brain_Execute()\\n{\\n  ...\\n}",
+  "sm_configs": {
+    "<unique_key>": {
+      "type":   "<module_id>",     // fvg | fvg_inversion | ob | bos | choch | bos_choch | liqsweep
+      "id":     "<tf_label>",      // e.g. "D1", "H4", "M15" — used as SM prefix
+      "TF":     "<PERIOD_const>",  // e.g. "PERIOD_D1"
+      "tf":     "<label>",         // same as id, used in log messages
+      "params": {}                 // only include if different from defaults
+    }
   },
-  "notes": "<brief explanation of your design decisions>"
+  "notes": "One paragraph: which modules you chose, which role they play, how they wire together, and how you interpreted the trader's description."
 }
 
-REQUIRED_SMS format:
-  "fvg"           → genFvgSM    → FVGSM_{id}_* functions
-  "fvg_inversion" → genFvgInversionSM → IFVGSM_{id}_* functions
-  "ob"            → genObSM     → OBSM_{id}_* functions
-  "bos"           → genBosSM (mode="bos") → BOSSM_{id}_* functions
-  "choch"         → genBosSM (mode="choch") → BOSSM_{id}_* functions
-  "bos_choch"     → genBosSM (mode="both") → BOSSM_{id}_* functions
-  "liqsweep"      → genLiqSweepSM → LSSM_{id}_* functions
+sm_configs example — BOS direction D1, FVG setup H4, FVG execution M15:
+{
+  "bos_D1":  { "type": "bos",  "id": "D1",  "TF": "PERIOD_D1",  "tf": "D1",  "params": {} },
+  "fvg_H4":  { "type": "fvg",  "id": "H4",  "TF": "PERIOD_H4",  "tf": "H4",  "params": { "expiryBars": 50 } },
+  "fvg_M15": { "type": "fvg",  "id": "M15", "TF": "PERIOD_M15", "tf": "M15", "params": {} }
+}
 
-sm_configs maps each required SM to its configuration so the assembler
-can call the right generator. Example:
-  "sm_configs": {
-    "bos_D1": { "type": "bos", "id": "D1", "TF": "PERIOD_D1", "tf": "D1", "params": {} },
-    "fvg_H4": { "type": "fvg", "id": "H4", "TF": "PERIOD_H4", "tf": "H4", "params": { "expiryBars": 50 } }
-  }
+═══════════════════════════════════════════════════════════════════════
+CODE GENERATION RULES
+═══════════════════════════════════════════════════════════════════════
 
-RULES FOR GENERATED BRAIN FUNCTIONS:
-1. Direction_Brain_Execute(): must end by setting gBias to 1, -1, or 0
-2. Setup_Brain_Execute(): must reset gSetupActive=false at start, then re-detect
-3. Execution_Brain_Execute(): must reset gExecSignal=false at start, then check entry conditions
-4. Each function calls Tick() for the SMs it reads, then calls query functions
-5. Use the EXACT function names from the module library (FVGSM_H4_BullJustConfirmed() etc.)
-6. Include PrintFormat() logging for every state change
-7. Align direction/setup with bias — only activate setup if direction agrees
-8. Execution only fires when gBias matches gExecDir
+1.  Call the SM's Tick() INSIDE the brain function that reads it.
+    (The assembler calls each brain function once per bar-open on the right TF.)
 
-Return ONLY the JSON object. No prose. No markdown fences.`;
+2.  Direction_Brain_Execute():
+    - Call Tick() for the direction SM
+    - Set gBias = 1, -1, or 0 based on SM output
+    - gBias must be PERSISTENT (only change it when signal fires, not every bar)
+    - If using IsBull()/IsBear() (persistent trend): update gBias every call
+    - If using JustBroke() (event): only update gBias on event, leave it otherwise
+    - Log: PrintFormat("[DIR] gBias=%d", gBias)
+
+3.  Setup_Brain_Execute():
+    - START with: gSetupActive = false; gSetupDir = 0;
+    - Call Tick() for the setup SM
+    - Activate gSetupActive only if SM has active zone AND direction matches gBias
+    - Set gSetupDir and gSetupSLHint when activating
+    - Log: PrintFormat("[SETUP] active=%d dir=%d", gSetupActive, gSetupDir)
+
+4.  Execution_Brain_Execute():
+    - START with: gExecSignal = false; gExecDir = 0; gExecSL = 0;
+    - Call Tick() for the execution SM
+    - Fire gExecSignal only when:
+        a) Entry pattern confirmed (JustConfirmed(), etc.)
+        b) Direction agrees: (gBias == 0 || gBias == gExecDir)
+        c) Setup agrees: (gSetupDir == 0 || gSetupDir == gExecDir)
+    - Set gExecSL from SM's SL function
+    - Log: PrintFormat("[EXEC] signal=%d dir=%d SL=%.5f", gExecSignal, gExecDir, gExecSL)
+
+5.  Use EXACT function names from the module API (e.g. FVGSM_H4_BullJustConfirmed())
+    Replace {id} with the SM's id value (e.g. "H4").
+
+6.  Include one PrintFormat() log per state transition. Use prefix [DIR], [SETUP], [EXEC].
+
+7.  If direction is disabled: set gBias = 1 always (trade both directions) or
+    read from description context.
+
+8.  If setup is disabled: set gSetupActive = (gBias != 0) passthrough.
+
+9.  Extract parameter values from the trader's description.
+    If a trader says "use 30-bar lookback", set lookback=30 in sm_configs params.
+    If they say "strict 3-bar pivots", set swingLen=3.
+    If they say "expire FVGs after 50 bars", set expiryBars=50.
+
+10. The same module can be used at different timeframes for different brains.
+    E.g., FVG at H4 for setup AND FVG at M15 for execution — give them different keys.
+
+Return ONLY the JSON object. No markdown. No explanation outside the "notes" field.`;
 }
 
 // ─── Request / response types ─────────────────────────────────────────────────
@@ -106,10 +180,16 @@ interface FourBrainConfig {
 }
 
 interface GenRequest {
-  config: FourBrainConfig;
+  /** Structured brain config (from visual builder). Optional — can be inferred from description. */
+  config?: FourBrainConfig;
   eaName: string;
-  /** Optional free-form description of the overall strategy */
+  /**
+   * Free-form strategy description (from AI Description Builder or brain descriptions).
+   * When config is absent or has empty brains, Claude infers everything from this.
+   */
   description?: string;
+  /** Raw user prompt from the /new page — Claude interprets it as a complete strategy */
+  prompt?: string;
 }
 
 export default async (req: Request): Promise<Response> => {
@@ -124,32 +204,65 @@ export default async (req: Request): Promise<Response> => {
   try { body = await req.json(); }
   catch { return Response.json({ error: "Invalid JSON body" }, { status: 400, headers: CORS }); }
 
-  const { config, eaName, description } = body;
-  if (!config?.execution)
-    return Response.json({ error: "execution brain config is required" }, { status: 400, headers: CORS });
+  const { config, eaName, description, prompt } = body;
 
-  // Build the user message describing what to generate
-  const dirDesc  = config.direction
-    ? `DIRECTION BRAIN — modules: [${config.direction.modules.join(", ")}] @ ${config.direction.timeframe}${config.direction.description ? `\nTrader notes: "${config.direction.description}"` : ""}`
-    : "DIRECTION BRAIN — disabled (no bias filter)";
+  // Build the user message — two modes:
+  // 1. Description-first: trader wrote a plain-English description, no structured config
+  // 2. Config-guided: visual builder provided brain config + optional descriptions
+  let userMessage: string;
 
-  const setupDesc = config.setup
-    ? `SETUP BRAIN — modules: [${config.setup.modules.join(", ")}] @ ${config.setup.timeframe}${config.setup.description ? `\nTrader notes: "${config.setup.description}"` : ""}`
-    : "SETUP BRAIN — disabled (no zone filter)";
+  if (prompt && (!config || !config.execution?.modules?.length)) {
+    // ── Description-first mode ──────────────────────────────────────────────
+    // The trader described their full strategy. Claude interprets everything.
+    userMessage = `A trader has described their strategy in plain English.
+Your job: interpret it, decide which modules fit each brain role, choose appropriate
+timeframes if not specified, configure parameters from the description, and generate
+the complete 4-Brain wiring code.
 
-  const execDesc = `EXECUTION BRAIN — modules: [${config.execution.modules.join(", ")}] @ ${config.execution.timeframe}${config.execution.description ? `\nTrader notes: "${config.execution.description}"` : ""}`;
+EA name: "${eaName}"
 
-  const userMessage = `Generate the 4-Brain wiring code for this EA: "${eaName}"
+TRADER'S STRATEGY DESCRIPTION:
+"${prompt}"
+
+${description ? `Additional context: ${description}` : ""}
+
+Instructions:
+- Map the description to the module library — use the aliases and example phrases to identify concepts
+- Decide which module goes in which brain role (direction/setup/execution)
+- If the trader specifies timeframes, use them exactly. If not, choose sensible defaults (D1 direction, H4 setup, H1/M15 execution)
+- Extract any configuration values from their words (lookback bars, expiry, pivot strength)
+- Generate the complete three brain functions
+- In "notes", explain exactly how you interpreted their description and which modules you chose`;
+  } else if (config?.execution) {
+    // ── Config-guided mode ──────────────────────────────────────────────────
+    // Visual builder provided explicit brain config.
+    const dirDesc = config.direction
+      ? `DIRECTION BRAIN — modules: [${config.direction.modules.join(", ")}] @ ${config.direction.timeframe}${config.direction.description ? `\nTrader notes: "${config.direction.description}"` : ""}`
+      : "DIRECTION BRAIN — disabled (passthrough: trade both directions)";
+
+    const setupDesc = config.setup
+      ? `SETUP BRAIN — modules: [${config.setup.modules.join(", ")}] @ ${config.setup.timeframe}${config.setup.description ? `\nTrader notes: "${config.setup.description}"` : ""}`
+      : "SETUP BRAIN — disabled (passthrough: setup always active when bias set)";
+
+    const execDesc = `EXECUTION BRAIN — modules: [${config.execution.modules.join(", ")}] @ ${config.execution.timeframe}${config.execution.description ? `\nTrader notes: "${config.execution.description}"` : ""}`;
+
+    userMessage = `Generate the 4-Brain wiring code for this EA: "${eaName}"
 ${description ? `\nOverall strategy intent: ${description}\n` : ""}
+
+The trader configured these brains in the visual builder:
+
 ${dirDesc}
 
 ${setupDesc}
 
 ${execDesc}
 
-Generate the three brain functions that correctly wire together the appropriate
-inline state machines from the module library. Think about which modules best
-match the trader's intent, then generate clean, correct MQL5 wiring code.`;
+Use the module library to select the best state machine for each brain,
+extract any configuration from the trader's notes, and generate the wiring code.
+In "notes", explain how you mapped their module selections to state machines.`;
+  } else {
+    return Response.json({ error: "Either prompt or config.execution is required" }, { status: 400, headers: CORS });
+  }
 
   try {
     const response = await client.messages.create({
