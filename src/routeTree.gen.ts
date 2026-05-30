@@ -10,8 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as ModulesRouteImport } from './routes/modules'
 import { Route as NewRouteImport } from './routes/new'
+import { Route as ModulesRouteImport } from './routes/modules'
+import { Route as BuildRouteImport } from './routes/build'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SIdRouteImport } from './routes/s.$id'
 
@@ -20,14 +21,19 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NewRoute = NewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ModulesRoute = ModulesRouteImport.update({
   id: '/modules',
   path: '/modules',
   getParentRoute: () => rootRouteImport,
 } as any)
-const NewRoute = NewRouteImport.update({
-  id: '/new',
-  path: '/new',
+const BuildRoute = BuildRouteImport.update({
+  id: '/build',
+  path: '/build',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -43,38 +49,42 @@ const SIdRoute = SIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/new': typeof NewRoute
+  '/build': typeof BuildRoute
   '/modules': typeof ModulesRoute
+  '/new': typeof NewRoute
   '/settings': typeof SettingsRoute
   '/s/$id': typeof SIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/new': typeof NewRoute
+  '/build': typeof BuildRoute
   '/modules': typeof ModulesRoute
+  '/new': typeof NewRoute
   '/settings': typeof SettingsRoute
   '/s/$id': typeof SIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/new': typeof NewRoute
+  '/build': typeof BuildRoute
   '/modules': typeof ModulesRoute
+  '/new': typeof NewRoute
   '/settings': typeof SettingsRoute
   '/s/$id': typeof SIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/new' | '/modules' | '/settings' | '/s/$id'
+  fullPaths: '/' | '/build' | '/modules' | '/new' | '/settings' | '/s/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/new' | '/modules' | '/settings' | '/s/$id'
-  id: '__root__' | '/' | '/new' | '/modules' | '/settings' | '/s/$id'
+  to: '/' | '/build' | '/modules' | '/new' | '/settings' | '/s/$id'
+  id: '__root__' | '/' | '/build' | '/modules' | '/new' | '/settings' | '/s/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  NewRoute: typeof NewRoute
+  BuildRoute: typeof BuildRoute
   ModulesRoute: typeof ModulesRoute
+  NewRoute: typeof NewRoute
   SettingsRoute: typeof SettingsRoute
   SIdRoute: typeof SIdRoute
 }
@@ -88,6 +98,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/new': {
+      id: '/new'
+      path: '/new'
+      fullPath: '/new'
+      preLoaderRoute: typeof NewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/modules': {
       id: '/modules'
       path: '/modules'
@@ -95,11 +112,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ModulesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/new': {
-      id: '/new'
-      path: '/new'
-      fullPath: '/new'
-      preLoaderRoute: typeof NewRouteImport
+    '/build': {
+      id: '/build'
+      path: '/build'
+      fullPath: '/build'
+      preLoaderRoute: typeof BuildRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -121,8 +138,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  NewRoute: NewRoute,
+  BuildRoute: BuildRoute,
   ModulesRoute: ModulesRoute,
+  NewRoute: NewRoute,
   SettingsRoute: SettingsRoute,
   SIdRoute: SIdRoute,
 }
