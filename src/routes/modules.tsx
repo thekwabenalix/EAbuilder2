@@ -2252,25 +2252,26 @@ function ModulesPage() {
               </div>
             </div>
 
-            {/* EMA × iFVG — the clean one */}
+            {/* EMA × iFVG — the current recommended EA */}
             <EaBacktestPanel
               filename="EMA_IFVG.mq5"
               sourceCode={EMA_IFVG_SOURCE}
-              defaultSymbol="EURUSD"
+              defaultSymbol="EURUSDm"
               defaultPeriod="M5"
               meta={{
-                name: "EMA 12/48 × iFVG",
+                name: "EMA 12/48 × iFVG  ✦ Current",
                 description:
-                  "EMA 12 vs EMA 48 cross sets direction. When a FVG is inverted in that " +
-                  "direction (iFVG CREATED), enter on the NEXT bar open. SL at the high/low " +
-                  "of the inversion candle + buffer. TP 2R. BE at 1R.",
+                  "EMA 12 vs EMA 48 cross sets direction. The iFVG itself proves the pullback — " +
+                  "no separate pullback detector needed. SL = lowest low of last 10 bars (pullback swing). " +
+                  "Trades skipped if SL > InpMaxSLPips (default 12 pips). TP 2R. BE 1R. " +
+                  "Note: 'SL for −170' in MT5 = 170 points = 17 pips.",
                 rules: [
-                  "EMA12 > EMA48 → BUY bias: look for bearish FVG inversion (close > FVG UL)",
-                  "EMA12 < EMA48 → SELL bias: look for bullish FVG inversion (close < FVG LL)",
-                  "Entry: next bar open after iFVG creation (inversion close)",
-                  "SL: inversion candle low − buffer (buy) | inversion candle high + buffer (sell)",
-                  "TP: entry ± (SL distance × 2.0)",
-                  "BE: move SL to entry when profit ≥ 1R",
+                  "EMA12 > EMA48 → BUY bias: bearish FVG inversion (close > FVG UL) → BUY next bar",
+                  "EMA12 < EMA48 → SELL bias: bullish FVG inversion (close < FVG LL) → SELL next bar",
+                  "SL = lowest low of last 10 bars − 20pts buffer (buy) | highest high + buffer (sell)",
+                  "Max SL filter: InpMaxSLPips = 12 → skip if pullback swing > 12 pips (120 pts)",
+                  "Invalidation: EMA flips between iFVG creation and entry → cancel trade",
+                  "TP = 2R | BE at 1R | 1% risk | max spread 25pts",
                 ],
                 output: [
                   "Chart: orchid rectangle = bearish iFVG zone | green = bullish iFVG zone",
