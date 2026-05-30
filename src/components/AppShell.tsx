@@ -15,7 +15,7 @@ import type { ReactNode } from "react";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/new", label: "New Strategy", icon: PlusSquare },
+  { to: "/new", label: "Strategy Builders", icon: PlusSquare },
   { to: "/modules", label: "Trading Modules", icon: LayoutGrid },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;

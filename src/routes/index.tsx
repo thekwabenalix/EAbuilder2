@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listStrategies, deleteStrategy, duplicateStrategy, createStrategy } from "@/lib/strategies";
+import { listStrategies, deleteStrategy, duplicateStrategy } from "@/lib/strategies";
 import { useAuth } from "@/lib/auth-context";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -14,11 +14,8 @@ import {
   CheckCircle2,
   Clock,
   Brain,
-  Bot,
 } from "lucide-react";
 import { toast } from "sonner";
-import { DEFAULT_BLUEPRINT } from "@/types/blueprint";
-import EMA_IFVG_SOURCE from "@/eas/EMA_IFVG.mq5?raw";
 import { formatBrainChain } from "@/lib/brain-modules";
 
 export const Route = createFileRoute("/")({
@@ -65,38 +62,6 @@ function Dashboard() {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed to delete"),
   });
 
-  // Seed the EMA × iFVG EA as a real dashboard strategy → opens in /s/$id
-  // with the full compile / backtest / visual-test workflow.
-  const seedEmaIfvgMut = useMutation({
-    mutationFn: async () => {
-      const blueprint = {
-        ...DEFAULT_BLUEPRINT,
-        name: "EMA 12/48 × iFVG",
-        strategyType: ["SMC", "iFVG"],
-        marketPhilosophy: "EMA trend direction + iFVG inversion entry on M5.",
-        execution: {
-          ...DEFAULT_BLUEPRINT.execution,
-          symbol: "EURUSD",
-          setupTimeframe: "M5",
-          entryTimeframe: "M5",
-        },
-      };
-      return createStrategy({
-        userId: user!.id,
-        name: "EMA 12/48 × iFVG",
-        prompt: "EMA 12/48 cross direction + iFVG inversion entry, SL at swing, max 7 pips, TP 2R, BE 1R.",
-        blueprint,
-        generatedCode: EMA_IFVG_SOURCE,
-      });
-    },
-    onSuccess: (row) => {
-      toast.success("EMA × iFVG EA added — opening backtest");
-      qc.invalidateQueries({ queryKey: ["strategies"] });
-      navigate({ to: "/s/$id", params: { id: row.id } });
-    },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed to add EA"),
-  });
-
   return (
     <div>
       <PageHeader
@@ -105,30 +70,11 @@ function Dashboard() {
           data ? `${data.length} saved strateg${data.length === 1 ? "y" : "ies"}` : "Your strategies"
         }
         actions={
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5"
-              onClick={() => seedEmaIfvgMut.mutate()}
-              disabled={seedEmaIfvgMut.isPending}
-            >
-              {seedEmaIfvgMut.isPending
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : <Bot className="h-4 w-4" />}
-              Add EMA × iFVG EA
+          <Link to="/new">
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-1.5" /> Strategy Builders
             </Button>
-            <Link to="/build">
-              <Button size="sm" variant="outline" className="gap-1.5">
-                <Brain className="h-4 w-4" /> 4-Brain Builder
-              </Button>
-            </Link>
-            <Link to="/new">
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-1.5" /> New Strategy
-              </Button>
-            </Link>
-          </div>
+          </Link>
         }
       />
 
