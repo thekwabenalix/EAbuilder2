@@ -2197,6 +2197,684 @@ function genRulesBlock(bp: StrategyBlueprint): string {
   return lines.join("\n") + "\n";
 }
 
+// ─── 4-Brain EA generator ─────────────────────────────────────────────────────
+//
+// Architecture:
+//   Direction Brain  — sets gBias (BUY=1 / SELL=-1 / NEUTRAL=0)
+//   Setup Brain      — sets gSetupActive + gSetupDir when a zone is confirmed
+//   Execution Brain  — fires the trade only when Direction + Setup agree
+//   Management Brain — risk, SL, TP, BE (standard across all strategies)
+//
+// Each brain runs on its own bar-open loop using its own timeframe.
+// The EA is completely self-contained — no iCustom, no external indicators.
+
+import type { FourBrainConfig, BrainConfig } from "@/types/blueprint";
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function fb_tf(tf: string): string {
+  const u = tf.toUpperCase();
+  return u === "MN" ? "PERIOD_MN1" : `PERIOD_${u}`;
+}
+
+// ── Inputs ────────────────────────────────────────────────────────────────────
+
+function genFourBrainInputs(bp: StrategyBlueprint, config: FourBrainConfig): string {
+  const { risk, execution } = bp;
+  const lines: string[] = [
+    `//--- General`,
+    `#define InpSymbol _Symbol  // Always trades the chart symbol`,
+    ``,
+    `//--- Risk management`,
+    `input double InpRiskPercent = ${risk.riskPercent ?? 1.0};  // Risk per trade (% equity)`,
+    `input double InpRewardRisk  = ${risk.rewardRisk  ?? 2.0};  // Reward:risk ratio`,
+    `input int    InpStopBuffer  = ${risk.stopBufferPoints ?? 20}; // Stop buffer (points)`,
+    `input int    InpMaxSpread   = ${execution.spreadFilterPoints ?? 25}; // Max spread (0 = off)`,
+    `input long   InpMagic       = ${execution.magicNumber ?? 990001}; // EA magic number`,
+    `input double InpBEAtR       = 0.5;  // Move SL to B/E at this R multiple`,
+    ``,
+  ];
+
+  if (config.direction) {
+    lines.push(`//--- Direction Brain — ${config.direction.timeframe}`);
+    lines.push(`input ENUM_TIMEFRAMES InpDirectionTF = ${fb_tf(config.direction.timeframe)};  // Direction Brain timeframe`);
+    const lb = safeInt((config.direction.params?.lookback as number | undefined) ?? 20, 20, 5, 200);
+    lines.push(`input int InpDirLookback = ${lb};  // Direction Brain structure lookback (bars)`);
+    lines.push(``);
+  }
+
+  if (config.setup) {
+    lines.push(`//--- Setup Brain — ${config.setup.timeframe}`);
+    lines.push(`input ENUM_TIMEFRAMES InpSetupTF = ${fb_tf(config.setup.timeframe)};  // Setup Brain timeframe`);
+    if (config.setup.module === "order_block") {
+      const atr  = safeInt(  (config.setup.params?.atrPeriod as number | undefined) ?? 14,  14, 2, 50);
+      const disp = safeFloat((config.setup.params?.dispMult  as number | undefined) ?? 1.5, 1.5, 0.5, 5.0);
+      const scan = safeInt(  (config.setup.params?.scanBack  as number | undefined) ?? 5,    5, 1, 20);
+      const exp  = safeInt(  (config.setup.params?.expiry    as number | undefined) ?? 100, 100, 0, 500);
+      lines.push(`input int    InpSetupATR     = ${atr};   // Setup OB ATR period`);
+      lines.push(`input double InpSetupDisp    = ${disp.toFixed(1)};   // Setup OB displacement multiplier`);
+      lines.push(`input int    InpSetupScan    = ${scan};    // Setup OB scan-back bars`);
+      lines.push(`input int    InpSetupExpiry  = ${exp};   // Setup OB expiry (bars, 0=never)`);
+    } else if (config.setup.module === "fvg") {
+      const exp = safeInt((config.setup.params?.expiry as number | undefined) ?? 100, 100, 0, 500);
+      lines.push(`input int InpSetupExpiry = ${exp};  // Setup FVG expiry (bars, 0=never)`);
+    }
+    lines.push(``);
+  }
+
+  lines.push(`//--- Execution Brain — ${config.execution.timeframe}`);
+  lines.push(`input ENUM_TIMEFRAMES InpExecTF = ${fb_tf(config.execution.timeframe)};  // Execution Brain timeframe`);
+  if (config.execution.module === "fvg") {
+    const exp = safeInt((config.execution.params?.expiry as number | undefined) ?? 50, 50, 0, 500);
+    lines.push(`input int InpExecFVGExpiry = ${exp};  // Execution FVG expiry (bars, 0=never)`);
+  } else if (config.execution.module === "order_block") {
+    const exp = safeInt((config.execution.params?.expiry as number | undefined) ?? 50, 50, 0, 500);
+    lines.push(`input int InpExecOBExpiry = ${exp};  // Execution OB expiry (bars, 0=never)`);
+  }
+  lines.push(``);
+
+  if (risk.maxOpenTrades > 1) {
+    lines.push(`//--- Trade count`);
+    lines.push(`input int InpMaxTrades = ${risk.maxOpenTrades};  // Max simultaneous open positions`);
+    lines.push(``);
+  }
+
+  return lines.join("\n") + "\n";
+}
+
+// ── Globals ───────────────────────────────────────────────────────────────────
+
+function genFourBrainGlobals(): string {
+  return `//--- 4-Brain shared state
+int    gBias        = 0;      // Direction Brain output: 1=BUY  -1=SELL  0=NEUTRAL
+bool   gSetupActive = false;  // Setup Brain output: true when a zone is confirmed
+int    gSetupDir    = 0;      // direction of the active setup zone
+double gSetupSLHint = 0.0;    // far edge of setup zone — SL anchor
+
+static datetime lastDirBar   = 0;
+static datetime lastSetupBar = 0;
+static datetime lastExecBar  = 0;
+
+`;
+}
+
+// ── Direction Brain ───────────────────────────────────────────────────────────
+
+function genFourBrainDirection(brain: BrainConfig | undefined): string {
+  if (!brain) {
+    return `// No Direction Brain configured — gBias stays NEUTRAL, both directions traded.
+void Direction_Update() {}
+
+`;
+  }
+
+  if (brain.module === "bos" || brain.module === "choch") {
+    return `//+------------------------------------------------------------------+
+//| Direction Brain: BOS / CHoCH on ${brain.timeframe}                       |
+//| Detects structural breaks and sets gBias persistently.           |
+//| Bull break → gBias = 1 (BUY).  Bear break → gBias = -1 (SELL). |
+//+------------------------------------------------------------------+
+void Direction_FindSwings(double &swH, double &swL)
+{
+   swH = iHigh(InpSymbol, InpDirectionTF, 2);
+   swL = iLow (InpSymbol, InpDirectionTF, 2);
+   for(int i = 3; i <= InpDirLookback; i++)
+   {
+      double h = iHigh(InpSymbol, InpDirectionTF, i);
+      double l = iLow (InpSymbol, InpDirectionTF, i);
+      if(h > swH) swH = h;
+      if(l < swL) swL = l;
+   }
+}
+
+void Direction_Update()
+{
+   double swH, swL;
+   Direction_FindSwings(swH, swL);
+   double c1 = iClose(InpSymbol, InpDirectionTF, 1);
+   if(c1 > swH && gBias != 1)
+   {
+      gBias = 1;
+      PrintFormat("[DIR] BULL bias | broke=%.5f | %s", swH, EnumToString(InpDirectionTF));
+   }
+   else if(c1 < swL && gBias != -1)
+   {
+      gBias = -1;
+      PrintFormat("[DIR] BEAR bias | broke=%.5f | %s", swL, EnumToString(InpDirectionTF));
+   }
+}
+
+`;
+  }
+
+  return `// Direction Brain module '${brain.module}' — coming soon\nvoid Direction_Update() {}\n\n`;
+}
+
+// ── Setup Brain ───────────────────────────────────────────────────────────────
+
+function genFourBrainSetup(brain: BrainConfig | undefined): string {
+  if (!brain) {
+    return `// No Setup Brain configured — gSetupActive always true once bias is set.
+void Setup_Update()
+{
+   gSetupActive = (gBias != 0);
+   gSetupDir    = gBias;
+}
+
+`;
+  }
+
+  if (brain.module === "order_block") {
+    return `//+------------------------------------------------------------------+
+//| Setup Brain: Order Block on ${brain.timeframe}                           |
+//| Detects ATR-displacement OBs. Sets gSetupActive when a zone is  |
+//| CONFIRMED in the same direction as gBias.                        |
+//+------------------------------------------------------------------+
+
+#define SOBS_ACTIVE      0
+#define SOBS_RETESTED    1
+#define SOBS_CONFIRMED   2
+#define SOBS_CONSUMED    3
+#define SOBS_MITIGATED   4
+#define SOBS_INVALIDATED 5
+#define SOBS_EXPIRED     6
+#define SOBS_MAX         50
+
+struct SetupOBZone
+{
+   double   hi; double lo; int dir;
+   datetime obTime; datetime dispTime; int state;
+   double   retestLow; double retestHigh; int barsAlive;
+   datetime retestBar; datetime confirmBar;
+};
+SetupOBZone sobs[SOBS_MAX];
+int         sobsCount = 0;
+
+double Setup_ATR(int shift)
+{
+   int av = iBars(InpSymbol, InpSetupTF);
+   if(shift + InpSetupATR + 1 >= av) return 0.0;
+   double s = 0.0;
+   for(int k = 0; k < InpSetupATR; k++)
+   {
+      double h = iHigh(InpSymbol,InpSetupTF,shift+k);
+      double l = iLow (InpSymbol,InpSetupTF,shift+k);
+      double p = iClose(InpSymbol,InpSetupTF,shift+k+1);
+      s += MathMax(h-l, MathMax(MathAbs(h-p), MathAbs(l-p)));
+   }
+   return s / InpSetupATR;
+}
+
+void Setup_OB_Add(int dir, datetime obT, datetime dispT, double hi, double lo)
+{
+   for(int i = 0; i < sobsCount; i++)
+   {
+      if(sobs[i].state >= SOBS_CONSUMED) continue;
+      if(sobs[i].dir == dir && sobs[i].obTime == obT) return;
+   }
+   int idx = -1;
+   for(int i = 0; i < sobsCount; i++)
+      if(sobs[i].state >= SOBS_CONSUMED) { idx = i; break; }
+   if(idx < 0) { if(sobsCount >= SOBS_MAX) return; idx = sobsCount++; }
+   sobs[idx].hi=hi; sobs[idx].lo=lo; sobs[idx].dir=dir;
+   sobs[idx].obTime=obT; sobs[idx].dispTime=dispT;
+   sobs[idx].state=SOBS_ACTIVE; sobs[idx].retestLow=lo; sobs[idx].retestHigh=hi;
+   sobs[idx].barsAlive=0; sobs[idx].retestBar=0; sobs[idx].confirmBar=0;
+}
+
+void Setup_OB_Scan(int ds)
+{
+   if(ds < 1) return;
+   double atr = Setup_ATR(ds);
+   if(atr <= 0.0) return;
+   double dO = iOpen(InpSymbol,InpSetupTF,ds);
+   double dC = iClose(InpSymbol,InpSetupTF,ds);
+   if(MathAbs(dC-dO) < InpSetupDisp * atr) return;
+   int dir = (dC > dO) ? 1 : -1;
+   if(gBias != 0 && dir != gBias) return;  // only scan OBs matching bias
+   int av = iBars(InpSymbol,InpSetupTF);
+   int se = MathMin(ds + InpSetupScan, av - 2);
+   for(int j = ds+1; j <= se; j++)
+   {
+      double jO=iOpen(InpSymbol,InpSetupTF,j), jC=iClose(InpSymbol,InpSetupTF,j);
+      if(dir==1 && jC<jO)
+        { Setup_OB_Add(1,iTime(InpSymbol,InpSetupTF,j),iTime(InpSymbol,InpSetupTF,ds),
+                       iHigh(InpSymbol,InpSetupTF,j),iLow(InpSymbol,InpSetupTF,j)); break; }
+      if(dir==-1 && jC>jO)
+        { Setup_OB_Add(-1,iTime(InpSymbol,InpSetupTF,j),iTime(InpSymbol,InpSetupTF,ds),
+                        iHigh(InpSymbol,InpSetupTF,j),iLow(InpSymbol,InpSetupTF,j)); break; }
+   }
+}
+
+void Setup_Update()
+{
+   double bH=iHigh(InpSymbol,InpSetupTF,1), bL=iLow(InpSymbol,InpSetupTF,1);
+   double bC=iClose(InpSymbol,InpSetupTF,1);
+   datetime bT=iTime(InpSymbol,InpSetupTF,1);
+
+   Setup_OB_Scan(1);
+
+   for(int i = 0; i < sobsCount; i++)
+   {
+      int st = sobs[i].state;
+      if(st >= SOBS_CONSUMED) continue;
+      if(sobs[i].dispTime >= bT) continue;
+      sobs[i].barsAlive++;
+      bool bull = (sobs[i].dir == 1);
+      double hi = sobs[i].hi, lo = sobs[i].lo;
+
+      if(InpSetupExpiry > 0 && sobs[i].barsAlive >= InpSetupExpiry)
+        { sobs[i].state = SOBS_EXPIRED; if(gSetupActive && gSetupDir==sobs[i].dir) gSetupActive=false; continue; }
+      if((bull && bC < lo) || (!bull && bC > hi))
+        { sobs[i].state = SOBS_INVALIDATED; if(gSetupActive && gSetupDir==sobs[i].dir) gSetupActive=false; continue; }
+      if(bC >= lo && bC <= hi)
+        { sobs[i].state = SOBS_MITIGATED;   if(gSetupActive && gSetupDir==sobs[i].dir) gSetupActive=false; continue; }
+
+      if(st == SOBS_RETESTED)
+      {
+         if((bull && bC > hi) || (!bull && bC < lo))
+         {
+            sobs[i].state = SOBS_CONFIRMED; sobs[i].confirmBar = bT;
+            if(sobs[i].dir == gBias || gBias == 0)
+            {
+               gSetupActive  = true;
+               gSetupDir     = sobs[i].dir;
+               gSetupSLHint  = bull ? sobs[i].lo : sobs[i].hi;
+               PrintFormat("[SETUP] OB CONFIRMED | dir=%s | hi=%.5f | lo=%.5f",
+                           bull?"BULL":"BEAR", hi, lo);
+            }
+            continue;
+         }
+         if(bL < sobs[i].retestLow)  sobs[i].retestLow  = bL;
+         if(bH > sobs[i].retestHigh) sobs[i].retestHigh = bH;
+         continue;
+      }
+      bool rt = bull ? (bL <= hi) : (bH >= lo);
+      if(rt) { sobs[i].state=SOBS_RETESTED; sobs[i].retestBar=bT; sobs[i].retestLow=bL; sobs[i].retestHigh=bH; }
+   }
+
+   // Revoke setup if no CONFIRMED zone in gSetupDir remains
+   if(gSetupActive)
+   {
+      bool ok = false;
+      for(int i = 0; i < sobsCount; i++)
+         if(sobs[i].state == SOBS_CONFIRMED && sobs[i].dir == gSetupDir) { ok = true; break; }
+      if(!ok) { gSetupActive = false; PrintFormat("[SETUP] Zone gone — setup reset"); }
+   }
+}
+
+`;
+  }
+
+  if (brain.module === "fvg") {
+    return `//+------------------------------------------------------------------+
+//| Setup Brain: FVG on ${brain.timeframe}                                   |
+//| Detects 3-candle gaps. Sets gSetupActive when a gap is CONFIRMED |
+//| in the same direction as gBias.                                  |
+//+------------------------------------------------------------------+
+
+#define SFVG_ACTIVE    0
+#define SFVG_RETESTING 1
+#define SFVG_CONFIRMED 2
+#define SFVG_CONSUMED  3
+#define SFVG_INVALID   4
+#define SFVG_MAX       100
+
+struct SetupFVGZone
+{
+   double ul; double ll; int dir; datetime createdAt; int state;
+   double retestLow; double retestHigh; int barsAlive;
+   datetime retestBar; datetime confirmBar;
+};
+SetupFVGZone sfvg[SFVG_MAX];
+int          sfvgCount = 0;
+
+void Setup_FVG_Add(double ul, double ll, int dir)
+{
+   double pt = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   for(int i=0;i<sfvgCount;i++)
+   {
+      if(sfvg[i].state>=SFVG_CONSUMED) continue;
+      if(sfvg[i].dir==dir && MathAbs(sfvg[i].ul-ul)<5*pt && MathAbs(sfvg[i].ll-ll)<5*pt) return;
+   }
+   if(gBias != 0 && dir != gBias) return;  // only track FVGs matching bias
+   int idx=-1;
+   for(int i=0;i<sfvgCount;i++) if(sfvg[i].state>=SFVG_CONSUMED){idx=i;break;}
+   if(idx<0){if(sfvgCount>=SFVG_MAX)return;idx=sfvgCount++;}
+   sfvg[idx].ul=ul;sfvg[idx].ll=ll;sfvg[idx].dir=dir;sfvg[idx].createdAt=TimeCurrent();
+   sfvg[idx].state=SFVG_ACTIVE;sfvg[idx].retestLow=ul;sfvg[idx].retestHigh=ll;
+   sfvg[idx].barsAlive=0;sfvg[idx].retestBar=0;sfvg[idx].confirmBar=0;
+}
+
+void Setup_Update()
+{
+   // Detect new FVGs
+   double c1Hi=iHigh(InpSymbol,InpSetupTF,3),c1Lo=iLow(InpSymbol,InpSetupTF,3);
+   double c3Hi=iHigh(InpSymbol,InpSetupTF,1),c3Lo=iLow(InpSymbol,InpSetupTF,1);
+   if(c1Hi>0&&c3Hi>0){if(c3Lo>c1Hi)Setup_FVG_Add(c3Lo,c1Hi,1);if(c3Hi<c1Lo)Setup_FVG_Add(c1Lo,c3Hi,-1);}
+
+   double bLo=iLow(InpSymbol,InpSetupTF,1),bHi=iHigh(InpSymbol,InpSetupTF,1);
+   double bCl=iClose(InpSymbol,InpSetupTF,1);datetime bT=iTime(InpSymbol,InpSetupTF,1);
+
+   for(int i=0;i<sfvgCount;i++)
+   {
+      int st=sfvg[i].state;
+      if(st>=SFVG_CONSUMED) continue;
+      sfvg[i].barsAlive++;
+      if(InpSetupExpiry>0&&sfvg[i].barsAlive>InpSetupExpiry){sfvg[i].state=SFVG_INVALID;continue;}
+      double ul=sfvg[i].ul,ll=sfvg[i].ll;bool bull=sfvg[i].dir>0;
+      if(st==SFVG_ACTIVE)
+      {
+         if(bull&&bLo<=ul){sfvg[i].state=SFVG_RETESTING;sfvg[i].retestLow=bLo;sfvg[i].retestBar=bT;
+            if(bCl>ul){sfvg[i].state=SFVG_CONFIRMED;sfvg[i].confirmBar=bT;
+               gSetupActive=true;gSetupDir=1;gSetupSLHint=ll;
+               PrintFormat("[SETUP] FVG BULL CONFIRMED | ul=%.5f|ll=%.5f",ul,ll);}
+            else if(bCl<ll)sfvg[i].state=SFVG_INVALID;}
+         if(!bull&&bHi>=ll){sfvg[i].state=SFVG_RETESTING;sfvg[i].retestHigh=bHi;sfvg[i].retestBar=bT;
+            if(bCl<ll){sfvg[i].state=SFVG_CONFIRMED;sfvg[i].confirmBar=bT;
+               gSetupActive=true;gSetupDir=-1;gSetupSLHint=ul;
+               PrintFormat("[SETUP] FVG BEAR CONFIRMED | ul=%.5f|ll=%.5f",ul,ll);}
+            else if(bCl>ul)sfvg[i].state=SFVG_INVALID;}
+      }
+      else if(st==SFVG_RETESTING)
+      {
+         if(bLo<sfvg[i].retestLow)sfvg[i].retestLow=bLo;
+         if(bHi>sfvg[i].retestHigh)sfvg[i].retestHigh=bHi;
+         if(bull&&bCl>ul){sfvg[i].state=SFVG_CONFIRMED;sfvg[i].confirmBar=bT;gSetupActive=true;gSetupDir=1;gSetupSLHint=ll;}
+         else if(!bull&&bCl<ll){sfvg[i].state=SFVG_CONFIRMED;sfvg[i].confirmBar=bT;gSetupActive=true;gSetupDir=-1;gSetupSLHint=ul;}
+         else if((bull&&bCl<ll)||(!bull&&bCl>ul))sfvg[i].state=SFVG_INVALID;
+      }
+   }
+}
+
+`;
+  }
+
+  return `// Setup Brain module '${brain.module}' — coming soon\nvoid Setup_Update() {}\n\n`;
+}
+
+// ── Execution Brain ───────────────────────────────────────────────────────────
+
+function genFourBrainExecution(brain: BrainConfig, config: FourBrainConfig): string {
+  const hasDirBrain   = Boolean(config.direction);
+  const hasSetupBrain = Boolean(config.setup);
+  const maxTrades     = (config as { _maxTrades?: number })._maxTrades ?? 1;
+  const posCheck      = maxTrades > 1
+    ? `if(CountOpenPositions(InpSymbol, InpMagic) >= ${maxTrades}) return;`
+    : `if(HasOpenPosition(InpSymbol, InpMagic)) return;`;
+
+  if (brain.module === "fvg") {
+    return `//+------------------------------------------------------------------+
+//| Execution Brain: FVG on ${brain.timeframe}                               |
+//| Detects FVG zones. Entry fires only when Direction + Setup agree. |
+//+------------------------------------------------------------------+
+
+#define EFVG_ACTIVE    0
+#define EFVG_RETESTING 1
+#define EFVG_CONFIRMED 2
+#define EFVG_TRADED    3
+#define EFVG_INVALID   4
+#define EFVG_MAX       200
+
+struct ExecFVGZone
+{
+   double ul; double ll; int dir; datetime createdAt; int state;
+   double retestLow; double retestHigh; int barsAlive;
+   datetime retestBar; datetime confirmBar;
+};
+ExecFVGZone efvg[EFVG_MAX];
+int         efvgCount = 0;
+
+void Exec_FVG_Add(double ul, double ll, int dir)
+{
+   double pt = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   for(int i=0;i<efvgCount;i++)
+   {
+      if(efvg[i].state>=EFVG_TRADED) continue;
+      if(efvg[i].dir==dir&&MathAbs(efvg[i].ul-ul)<5*pt&&MathAbs(efvg[i].ll-ll)<5*pt) return;
+   }
+   int idx=-1;
+   for(int i=0;i<efvgCount;i++) if(efvg[i].state>=EFVG_TRADED){idx=i;break;}
+   if(idx<0){if(efvgCount>=EFVG_MAX)return;idx=efvgCount++;}
+   efvg[idx].ul=ul;efvg[idx].ll=ll;efvg[idx].dir=dir;efvg[idx].createdAt=TimeCurrent();
+   efvg[idx].state=EFVG_ACTIVE;efvg[idx].retestLow=ul;efvg[idx].retestHigh=ll;
+   efvg[idx].barsAlive=0;efvg[idx].retestBar=0;efvg[idx].confirmBar=0;
+}
+
+void Exec_FVG_Detect()
+{
+   double c1Hi=iHigh(InpSymbol,InpExecTF,3),c1Lo=iLow(InpSymbol,InpExecTF,3);
+   double c3Hi=iHigh(InpSymbol,InpExecTF,1),c3Lo=iLow(InpSymbol,InpExecTF,1);
+   if(c1Hi<=0||c3Hi<=0) return;
+   if(c3Lo>c1Hi) Exec_FVG_Add(c3Lo,c1Hi,1);
+   if(c3Hi<c1Lo) Exec_FVG_Add(c1Lo,c3Hi,-1);
+}
+
+void Exec_FVG_Update()
+{
+   double bLo=iLow(InpSymbol,InpExecTF,1),bHi=iHigh(InpSymbol,InpExecTF,1);
+   double bCl=iClose(InpSymbol,InpExecTF,1);datetime bT=iTime(InpSymbol,InpExecTF,1);
+   for(int i=0;i<efvgCount;i++)
+   {
+      int st=efvg[i].state;
+      if(st==EFVG_TRADED||st==EFVG_INVALID) continue;
+      efvg[i].barsAlive++;
+      if(InpExecFVGExpiry>0&&efvg[i].barsAlive>InpExecFVGExpiry){efvg[i].state=EFVG_INVALID;continue;}
+      double ul=efvg[i].ul,ll=efvg[i].ll;
+      if(efvg[i].dir>0)
+      {
+         if(st==EFVG_ACTIVE){if(bLo<=ul){efvg[i].state=EFVG_RETESTING;efvg[i].retestLow=bLo;efvg[i].retestBar=bT;
+            if(bCl>ul){efvg[i].state=EFVG_CONFIRMED;efvg[i].confirmBar=bT;}else if(bCl<ll)efvg[i].state=EFVG_INVALID;}}
+         else{if(bLo<efvg[i].retestLow)efvg[i].retestLow=bLo;
+            if(bCl>ul){efvg[i].state=EFVG_CONFIRMED;efvg[i].confirmBar=bT;}else if(bCl<ll)efvg[i].state=EFVG_INVALID;}
+      }
+      else
+      {
+         if(st==EFVG_ACTIVE){if(bHi>=ll){efvg[i].state=EFVG_RETESTING;efvg[i].retestHigh=bHi;efvg[i].retestBar=bT;
+            if(bCl<ll){efvg[i].state=EFVG_CONFIRMED;efvg[i].confirmBar=bT;}else if(bCl>ul)efvg[i].state=EFVG_INVALID;}}
+         else{if(bHi>efvg[i].retestHigh)efvg[i].retestHigh=bHi;
+            if(bCl<ll){efvg[i].state=EFVG_CONFIRMED;efvg[i].confirmBar=bT;}else if(bCl>ul)efvg[i].state=EFVG_INVALID;}
+      }
+   }
+}
+
+void Execution_Update()  { Exec_FVG_Update(); Exec_FVG_Detect(); }
+
+void Execution_ExecuteEntries()
+{
+   // ── Confluence gates ────────────────────────────────────────────────────
+   ${hasDirBrain   ? `if(gBias == 0)         return; // Direction Brain has no bias yet` : ``}
+   ${hasSetupBrain ? `if(!gSetupActive)       return; // Setup Brain has no confirmed zone` : ``}
+   ${posCheck}
+   if(!SpreadOk(InpSymbol, InpMaxSpread)) return;
+
+   double pt=SymbolInfoDouble(InpSymbol,SYMBOL_POINT);
+   double ask=SymbolInfoDouble(InpSymbol,SYMBOL_ASK);
+   double bid=SymbolInfoDouble(InpSymbol,SYMBOL_BID);
+   int digits=(int)SymbolInfoInteger(InpSymbol,SYMBOL_DIGITS);
+   long stops=SymbolInfoInteger(InpSymbol,SYMBOL_TRADE_STOPS_LEVEL);
+
+   for(int i=0;i<efvgCount;i++)
+   {
+      if(efvg[i].state!=EFVG_CONFIRMED) continue;
+      if(efvg[i].retestBar==0||efvg[i].confirmBar==0){efvg[i].state=EFVG_INVALID;continue;}
+      ${hasDirBrain   ? `if(efvg[i].dir != gBias)     continue; // FVG direction must match bias` : ``}
+      ${hasSetupBrain ? `if(efvg[i].dir != gSetupDir) continue; // FVG direction must match setup` : ``}
+
+      if(efvg[i].dir > 0)
+      {
+         double sl=NormalizeDouble(efvg[i].retestLow-InpStopBuffer*pt,digits);
+         double dist=(ask-sl)/pt;
+         if(dist<(double)stops){efvg[i].state=EFVG_INVALID;continue;}
+         double lot=CalcLot(dist,InpSymbol,InpRiskPercent);
+         if(lot<=0){efvg[i].state=EFVG_INVALID;continue;}
+         double tp=NormalizeDouble(ask+dist*InpRewardRisk*pt,digits);
+         PrintFormat("[4-BRAIN BUY] bias=%d setup=%s FVG SL=%.5f TP=%.5f",gBias,gSetupActive?"✓":"—",sl,tp);
+         if(trade.Buy(lot,InpSymbol,ask,sl,tp,"4Brain Buy"))
+           { efvg[i].state=EFVG_TRADED; gSetupActive=false; }
+      }
+      else
+      {
+         double sl=NormalizeDouble(efvg[i].retestHigh+InpStopBuffer*pt,digits);
+         double dist=(sl-bid)/pt;
+         if(dist<(double)stops){efvg[i].state=EFVG_INVALID;continue;}
+         double lot=CalcLot(dist,InpSymbol,InpRiskPercent);
+         if(lot<=0){efvg[i].state=EFVG_INVALID;continue;}
+         double tp=NormalizeDouble(bid-dist*InpRewardRisk*pt,digits);
+         PrintFormat("[4-BRAIN SELL] bias=%d setup=%s FVG SL=%.5f TP=%.5f",gBias,gSetupActive?"✓":"—",sl,tp);
+         if(trade.Sell(lot,InpSymbol,bid,sl,tp,"4Brain Sell"))
+           { efvg[i].state=EFVG_TRADED; gSetupActive=false; }
+      }
+      break;
+   }
+}
+
+`;
+  }
+
+  return `// Execution Brain module '${brain.module}' — coming soon\nvoid Execution_Update() {}\nvoid Execution_ExecuteEntries() {}\n\n`;
+}
+
+// ── Break-even (generic — works for any brain combination) ────────────────────
+
+function genFourBrainBreakEven(): string {
+  return `void ManageBreakEven()
+{
+   double pt=SymbolInfoDouble(InpSymbol,SYMBOL_POINT);
+   int digits=(int)SymbolInfoInteger(InpSymbol,SYMBOL_DIGITS);
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong t=PositionGetTicket(i);
+      if(!PositionSelectByTicket(t)) continue;
+      if(PositionGetString(POSITION_SYMBOL)!=InpSymbol) continue;
+      if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+      long type=PositionGetInteger(POSITION_TYPE);
+      double open=PositionGetDouble(POSITION_PRICE_OPEN);
+      double sl=PositionGetDouble(POSITION_SL);
+      double tp=PositionGetDouble(POSITION_TP);
+      if(open<=0||sl<=0) continue;
+      double risk=MathAbs(open-sl);
+      if(risk<pt) continue;
+      double bid=SymbolInfoDouble(InpSymbol,SYMBOL_BID);
+      double ask=SymbolInfoDouble(InpSymbol,SYMBOL_ASK);
+      if(type==POSITION_TYPE_BUY)
+      {
+         if(sl>=open-pt) continue;
+         if(bid-open>=risk*InpBEAtR) trade.PositionModify(t,NormalizeDouble(open,digits),tp);
+      }
+      else
+      {
+         if(sl<=open+pt) continue;
+         if(open-ask>=risk*InpBEAtR) trade.PositionModify(t,NormalizeDouble(open,digits),tp);
+      }
+   }
+}
+
+`;
+}
+
+// ── OnInit / OnDeinit / OnTick ────────────────────────────────────────────────
+
+function genFourBrainOnInit(bp: StrategyBlueprint): string {
+  return `int OnInit()
+{
+   trade.SetExpertMagicNumber((ulong)InpMagic);
+   trade.SetTypeFillingBySymbol(InpSymbol);
+   return INIT_SUCCEEDED;
+}
+
+`;
+}
+
+function genFourBrainOnDeinit(): string {
+  return `void OnDeinit(const int reason) {}
+
+`;
+}
+
+function genFourBrainOnTick(config: FourBrainConfig): string {
+  const hasDirBrain   = Boolean(config.direction);
+  const hasSetupBrain = Boolean(config.setup);
+  const dirTF   = config.direction ? fb_tf(config.direction.timeframe) : "";
+  const setupTF = config.setup     ? fb_tf(config.setup.timeframe)     : "";
+  const lines: string[] = [
+    `void OnTick()`,
+    `{`,
+    `   ManageBreakEven();`,
+    ``,
+  ];
+  if (hasDirBrain) {
+    lines.push(
+      `   // Direction Brain — ${config.direction!.timeframe}`,
+      `   datetime db = iTime(InpSymbol, ${dirTF}, 0);`,
+      `   if(db != lastDirBar) { lastDirBar = db; Direction_Update(); }`,
+      ``,
+    );
+  }
+  if (hasSetupBrain) {
+    lines.push(
+      `   // Setup Brain — ${config.setup!.timeframe}`,
+      `   datetime sb = iTime(InpSymbol, ${setupTF}, 0);`,
+      `   if(sb != lastSetupBar) { lastSetupBar = sb; Setup_Update(); }`,
+      ``,
+    );
+  }
+  lines.push(
+    `   // Execution Brain — ${config.execution.timeframe}`,
+    `   datetime eb = iTime(InpSymbol, ${fb_tf(config.execution.timeframe)}, 0);`,
+    `   if(eb != lastExecBar)`,
+    `   {`,
+    `      lastExecBar = eb;`,
+    `      Execution_Update();`,
+    `      Execution_ExecuteEntries();`,
+    `   }`,
+    `}`,
+    ``,
+  );
+  return lines.join("\n") + "\n";
+}
+
+// ── Main 4-brain assembler ────────────────────────────────────────────────────
+
+function generateFourBrainEA(bp: StrategyBlueprint): string {
+  const config = bp.fourBrain!;
+  // Pass maxTrades through config for execution brain
+  (config as { _maxTrades?: number })._maxTrades = bp.risk.maxOpenTrades ?? 1;
+
+  const safeName = (bp.name || "4Brain_Strategy").replace(/[^\w\s-]/g, "").trim();
+  const header = `//+------------------------------------------------------------------+
+//| ${safeName}.mq5
+//| Generated by EA Builder — 4-Brain Architecture
+//|
+//| Direction : ${config.direction  ? `${config.direction.module}  @ ${config.direction.timeframe}`  : "none (NEUTRAL — both directions)"}
+//| Setup     : ${config.setup      ? `${config.setup.module}      @ ${config.setup.timeframe}`      : "none (any area)"}
+//| Execution : ${config.execution.module} @ ${config.execution.timeframe}
+//| Management: ${bp.risk.riskPercent}% risk · ${bp.risk.rewardRisk}R TP · BE at ${bp.risk.breakevenEnabled ? "1R" : "0.5R"}
+//+------------------------------------------------------------------+
+#property copyright "EA Builder"
+#property version   "1.00"
+#property strict
+
+#include <Trade/Trade.mqh>
+CTrade trade;
+
+`;
+
+  return [
+    header,
+    genFourBrainInputs(bp, config),
+    genFourBrainGlobals(),
+    genHelpers(),
+    genFourBrainBreakEven(),
+    genFourBrainDirection(config.direction),
+    genFourBrainSetup(config.setup),
+    genFourBrainExecution(config.execution, config),
+    genFourBrainOnInit(bp),
+    genFourBrainOnDeinit(),
+    genFourBrainOnTick(config),
+  ].join("");
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
@@ -2209,6 +2887,10 @@ function genRulesBlock(bp: StrategyBlueprint): string {
  *           engulfing, pin bar, inside bar, hammer, shooting star.
  */
 export function generateMql5FromBlueprint(bp: StrategyBlueprint): string {
+  // 4-Brain path — structured multi-TF EA
+  if (bp.fourBrain) return generateFourBrainEA(bp);
+
+  // Flat-rules path — existing single-TF EA (unchanged)
   const ctx = analyze(bp);
   return [
     genHeader(bp),

@@ -120,6 +120,14 @@ export interface StrategyBlueprint {
   pendingClarifications: string[];
   confidence: number;
   summary?: string;
+
+  /**
+   * Optional 4-brain configuration.
+   * When present, the template generator produces a 4-brain EA instead of
+   * the flat-rules EA. All existing flat-rules strategies continue to work
+   * unchanged when this field is absent.
+   */
+  fourBrain?: FourBrainConfig;
 }
 
 export const DEFAULT_BLUEPRINT: StrategyBlueprint = {
@@ -158,3 +166,36 @@ export const DEFAULT_BLUEPRINT: StrategyBlueprint = {
 
 export const TIMEFRAMES = ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN"] as const;
 export type Timeframe = (typeof TIMEFRAMES)[number];
+
+// ─── 4-Brain Architecture ─────────────────────────────────────────────────────
+// Each brain is assigned one module and one timeframe.
+// The template generator wires them into a single self-contained EA with
+// three independent bar-open loops and confluence gating between brains.
+
+export type BrainModuleType =
+  | "bos" | "choch"      // structural break — bias detection
+  | "fvg"                // fair value gap — zone setup or execution trigger
+  | "order_block"        // order block  — zone setup or execution trigger
+  | "liqsweep"           // liquidity sweep — execution trigger
+  | "snr"                // classic S/R — zone setup
+  | "ema"                // EMA trend — direction bias
+  | "engulfing"          // candle pattern — execution trigger
+  | "pin_bar";           // candle pattern — execution trigger
+
+export interface BrainConfig {
+  module: BrainModuleType;
+  timeframe: string;            // e.g. "D1", "H4", "M15"
+  params?: Record<string, unknown>;
+}
+
+/**
+ * Describes the four-brain strategy structure.
+ * direction and setup are optional — absent brains are bypassed (no gating).
+ * execution is required — it is the trade trigger.
+ */
+export interface FourBrainConfig {
+  direction?: BrainConfig;  // sets gBias = BUY / SELL / NEUTRAL
+  setup?:     BrainConfig;  // sets gSetupActive + gSetupDir + gSetupSLHint
+  execution:  BrainConfig;  // fires the trade when Direction + Setup agree
+}
+
