@@ -23,8 +23,11 @@ export const Route = createFileRoute("/build")({
 });
 
 // ─── Module definitions ────────────────────────────────────────────────────────
-
-type BrainRole = "direction" | "setup" | "execution";
+// IMPORTANT: ANY module can be used in ANY brain.
+// The brain role is determined by:
+// 1. The timeframe (Direction = HTF, Setup = MTF, Execution = LTF)
+// 2. How you interpret the output (bias vs zone vs signal)
+// 3. What configuration you apply
 
 interface ModuleDef {
   id: BrainModuleType;
@@ -32,26 +35,45 @@ interface ModuleDef {
   desc: string;
   symbol: string;   // visual glyph
   color: string;    // tailwind text color
+  category: string; // SMC pattern category
 }
 
-const MODULES: Record<BrainRole, ModuleDef[]> = {
-  direction: [
-    { id: "choch",  label: "CHoCH",      desc: "Change of Character — reversal bias",      symbol: "↺", color: "text-violet-400" },
-    { id: "bos",    label: "BOS",         desc: "Break of Structure — continuation bias",   symbol: "⟶", color: "text-blue-400"   },
-    { id: "ema",    label: "EMA Trend",   desc: "Fast/slow EMA crossover for trend bias",   symbol: "∿", color: "text-cyan-400"   },
-  ],
-  setup: [
-    { id: "order_block", label: "Order Block", desc: "Last opposing candle before displacement", symbol: "▣", color: "text-amber-400"  },
-    { id: "fvg",         label: "Fair Value Gap", desc: "3-candle imbalance zone",              symbol: "◫", color: "text-emerald-400" },
-    { id: "snr",         label: "S / R Level",    desc: "Classic horizontal support/resistance", symbol: "─", color: "text-sky-400"    },
-  ],
-  execution: [
-    { id: "fvg",       label: "FVG Retest",   desc: "Enter after gap fills and rejects",         symbol: "◫", color: "text-emerald-400" },
-    { id: "order_block", label: "OB Retest",  desc: "Enter after OB zone confirms",              symbol: "▣", color: "text-amber-400"  },
-    { id: "liqsweep",  label: "Liq Sweep",    desc: "Enter after stop hunt + close-back",        symbol: "⚡", color: "text-yellow-400" },
-    { id: "engulfing", label: "Engulfing",     desc: "Strong reversal candle pattern",           symbol: "◑", color: "text-pink-400"   },
-    { id: "pin_bar",   label: "Pin Bar",       desc: "Long wick rejection candle",               symbol: "⌇", color: "text-rose-400"   },
-  ],
+// ALL available modules — can be used in any brain at any timeframe
+const ALL_MODULES: ModuleDef[] = [
+  // Structure-based (CHoCH, BOS, etc.)
+  { id: "choch",            label: "CHoCH",              desc: "Change of Character — swing high/low reversal",           symbol: "↺", color: "text-violet-400", category: "Structure" },
+  { id: "bos",              label: "BOS",                desc: "Break of Structure — impulse continuation",               symbol: "⟶", color: "text-blue-400",   category: "Structure" },
+  { id: "bos_choch",        label: "BOS + CHoCH",        desc: "Combined structure detection",                           symbol: "⇄", color: "text-indigo-400", category: "Structure" },
+  { id: "swing_structure",  label: "Swing Structure",    desc: "Multi-timeframe swing points",                           symbol: "◇", color: "text-purple-400", category: "Structure" },
+
+  // Gaps and Imbalances
+  { id: "fvg",              label: "Fair Value Gap",     desc: "3-candle imbalance zone",                               symbol: "◫", color: "text-emerald-400", category: "Gap" },
+  { id: "fvg_inversion",    label: "FVG Inversion",      desc: "Inverted gap/imbalance patterns",                        symbol: "◬", color: "text-teal-400",   category: "Gap" },
+
+  // Order Blocks
+  { id: "order_block",      label: "Order Block",        desc: "Last opposing candle before displacement",               symbol: "▣", color: "text-amber-400",  category: "OrderBlock" },
+
+  // Support/Resistance
+  { id: "snr",              label: "Classic S/R",        desc: "Horizontal support and resistance levels",               symbol: "─", color: "text-sky-400",   category: "Level" },
+  { id: "gap_snr",          label: "Gap S/R",            desc: "Support/resistance at gap edges",                        symbol: "⋮", color: "text-slate-400",  category: "Level" },
+
+  // Volatility-based
+  { id: "bb",               label: "Bollinger Bands",    desc: "Volatility envelope at 2 standard deviations",           symbol: "≈", color: "text-orange-400", category: "Volatility" },
+
+  // Momentum-based
+  { id: "liqsweep",         label: "Liquidity Sweep",    desc: "Stop hunt and return to zone",                           symbol: "⚡", color: "text-yellow-400", category: "Momentum" },
+  { id: "breakout",         label: "Breakout",           desc: "Price break beyond defined level",                       symbol: "▶", color: "text-green-400",  category: "Momentum" },
+
+  // Candle patterns (for entry)
+  { id: "engulfing",        label: "Engulfing",          desc: "Strong reversal candle pattern",                         symbol: "◑", color: "text-pink-400",   category: "Candle" },
+  { id: "pin_bar",          label: "Pin Bar",            desc: "Long wick rejection candle",                             symbol: "⌇", color: "text-rose-400",   category: "Candle" },
+];
+
+// For convenience: group modules by suggested use (but NOT restricted)
+const MODULE_SUGGESTIONS = {
+  direction: ["choch", "bos", "bos_choch", "fvg", "order_block"],
+  setup: ["order_block", "fvg", "snr", "bb", "swing_structure"],
+  execution: ["fvg", "order_block", "liqsweep", "engulfing", "pin_bar", "breakout"],
 };
 
 const TIMEFRAMES = ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN"];
@@ -160,7 +182,7 @@ function ModuleMultiSelect({
   onChange: (modules: BrainModuleType[]) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const modules = MODULES[role];
+  const modules = ALL_MODULES;  // Show ALL modules in every brain — role is determined by timeframe, not module type
   const selectedDefs = modules.filter((m) => selected.includes(m.id));
 
   const toggleModule = (id: BrainModuleType) => {
@@ -365,7 +387,7 @@ function BrainCard({
   recommendBelow?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const modules = MODULES[role];
+  const modules = ALL_MODULES;  // Show ALL modules in every brain
   const configured = Boolean(state?.modules?.[0] && state?.timeframe);
 
   const selectedMod = state?.modules?.[0]
