@@ -215,6 +215,37 @@ export async function applyFix(
   return { code: finalCode };
 }
 
+// ─── Brain param extraction ───────────────────────────────────────────────────
+
+export interface ExtractBrainParamsResult {
+  /** Structured params extracted from the description (e.g. { lookback: 30, swingLeft: 5 }) */
+  params: Record<string, unknown>;
+  /** One-sentence confirmation of what Claude understood */
+  summary: string;
+}
+
+/**
+ * Focused Claude call: reads a plain-English description of one brain's
+ * configuration and returns concrete parameters for that module.
+ *
+ * Example: role="direction", module="choch", timeframe="D1",
+ *   description="use 5-bar pivots, lookback 30 bars"
+ *   → { params: { lookback: 30, swingLeft: 5, swingRight: 5 }, summary: "..." }
+ */
+export async function extractBrainParams(
+  role: string,
+  module: string,
+  timeframe: string,
+  description: string,
+): Promise<ExtractBrainParamsResult> {
+  return post<ExtractBrainParamsResult>("/api/extract-brain-params", {
+    role,
+    module,
+    timeframe,
+    description,
+  });
+}
+
 export interface FixCompileErrorsResult {
   code: string;
 }

@@ -9,10 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowRight, Zap, CheckCircle2, Plus, X, ChevronDown, ChevronUp,
-  Loader2, Brain, Target, Crosshair, Settings2,
+  Loader2, Brain, Target, Crosshair, Settings2, Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createStrategy } from "@/lib/strategies";
+import { extractBrainParams } from "@/lib/api-client";
 import type { FourBrainConfig, BrainConfig, BrainModuleType } from "@/types/blueprint";
 import type { StrategyBlueprint } from "@/types/blueprint";
 import { DEFAULT_BLUEPRINT } from "@/types/blueprint";
@@ -174,6 +175,119 @@ function ModuleCard({ def, selected, onClick }: {
   );
 }
 
+// ── AI param extractor (per-brain) ────────────────────────────────────────────
+
+function AIParamExtractor({
+  role,
+  state,
+  onChange,
+}: {
+  role: BrainRole;
+  state: BrainState | undefined;
+  onChange: (s: BrainState) => void;
+}) {
+  const [open, setOpen]           = useState(false);
+  const [hint, setHint]           = useState("");
+  const [extracting, setExtracting] = useState(false);
+  const [extractSummary, setExtractSummary] = useState<string | null>(null);
+
+  const hasParams = state?.params && Object.keys(state.params).filter(k => k !== "expiry" || state.params![k] !== 50).length > 0;
+
+  async function onExtract() {
+    if (!state?.module || !state.timeframe || !hint.trim()) {
+      toast.error("Select a module and timeframe first, then describe what you want.");
+      return;
+    }
+    setExtracting(true);
+    setExtractSummary(null);
+    try {
+      const result = await extractBrainParams(role, state.module, state.timeframe, hint.trim());
+      onChange({ ...state, params: { ...(state.params ?? {}), ...result.params } });
+      setExtractSummary(result.summary);
+      toast.success("Params extracted");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Extraction failed — try again");
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      {/* Toggle */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <Sparkles className="h-3 w-3 text-violet-400" />
+        Refine with AI
+        {hasParams && (
+          <span className="ml-1 text-[10px] text-emerald-400 font-medium">✓ params set</span>
+        )}
+        {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+      </button>
+
+      {open && (
+        <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3">
+          {/* Extracted params display */}
+          {state?.params && Object.keys(state.params).length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(state.params).map(([k, v]) => (
+                <span
+                  key={k}
+                  className="text-[10px] font-mono bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-full"
+                >
+                  {k} = {String(v)}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* AI summary */}
+          {extractSummary && (
+            <p className="text-[11px] text-emerald-400 italic">{extractSummary}</p>
+          )}
+
+          {/* Input + button */}
+          <div className="flex gap-2">
+            <Textarea
+              className="text-xs font-mono resize-none h-14 flex-1"
+              placeholder={`e.g. "use 5-bar pivots, lookback 30 bars, only first BOS of the session"`}
+              value={hint}
+              onChange={(e) => setHint(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) onExtract(); }}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onExtract}
+              disabled={extracting || !hint.trim()}
+              className="shrink-0 self-end gap-1.5 border-violet-500/40 text-violet-400 hover:bg-violet-500/10"
+            >
+              {extracting
+                ? <Loader2 className="h-3 w-3 animate-spin" />
+                : <Sparkles className="h-3 w-3" />}
+              Extract
+            </Button>
+          </div>
+
+          {/* Clear params */}
+          {state?.params && Object.keys(state.params).length > 0 && (
+            <button
+              onClick={() => { onChange({ ...state, params: {} }); setExtractSummary(null); }}
+              className="text-[10px] text-muted-foreground hover:text-destructive transition-colors"
+            >
+              Clear extracted params
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function BrainCard({
   role, icon: Icon, title, color,
   state, onChange, onClear,
@@ -295,21 +409,12 @@ function BrainCard({
             />
           </div>
 
-          {/* Optional hint */}
-          <details className="group">
-            <summary className="text-[11px] text-muted-foreground cursor-pointer hover:text-foreground transition-colors list-none flex items-center gap-1.5">
-              <Plus className="h-3 w-3" />
-              Describe further (optional — AI refines params)
-            </summary>
-            <Textarea
-              className="mt-2 text-xs font-mono resize-none h-16"
-              placeholder={`e.g. "use 5-bar pivots, lookback 30 bars, only first break each day"`}
-              value={state?.hint ?? ""}
-              onChange={(e) =>
-                onChange({ ...(state as BrainState), hint: e.target.value })
-              }
-            />
-          </details>
+          {/* AI param extraction */}
+          <AIParamExtractor
+            role={role}
+            state={state}
+            onChange={onChange}
+          />
 
           {/* Actions */}
           <div className="flex justify-between items-center pt-1">
