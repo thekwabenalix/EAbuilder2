@@ -40,7 +40,8 @@ import {
   buildRunnerApproval,
 } from "@/lib/local-runner";
 import type { TesterConfig, BacktestResult } from "@/types/mt5";
-import M5_IFVG_SOURCE from "@/eas/M5_IFVG_Pullback.mq5?raw";
+import M5_IFVG_SOURCE   from "@/eas/M5_IFVG_Pullback.mq5?raw";
+import EMA_IFVG_SOURCE  from "@/eas/EMA_IFVG.mq5?raw";
 import { M5_IFVG_PULLBACK_FILENAME, M5_IFVG_PULLBACK_META } from "@/eas/m5-ifvg-pullback-generator";
 import { toast } from "sonner";
 import { generateFvgDetector } from "@/lib/smc-modules/fvg-detector";
@@ -1723,14 +1724,28 @@ function oneYearAgo() {
   return d.toISOString().slice(0, 10).replace(/-/g, ".");
 }
 
+interface EaMeta {
+  name: string;
+  description: string;
+  rules: string[];
+  output: string[];
+}
+
 interface EaBacktestPanelProps {
   filename: string;
   sourceCode: string;
   defaultSymbol?: string;
   defaultPeriod?: string;
+  meta?: EaMeta;
 }
 
-function EaBacktestPanel({ filename, sourceCode, defaultSymbol = "EURUSD", defaultPeriod = "M5" }: EaBacktestPanelProps) {
+function EaBacktestPanel({ filename, sourceCode, defaultSymbol = "EURUSD", defaultPeriod = "M5", meta }: EaBacktestPanelProps) {
+  const displayMeta: EaMeta = meta ?? {
+    name: M5_IFVG_PULLBACK_META.name,
+    description: M5_IFVG_PULLBACK_META.description,
+    rules: M5_IFVG_PULLBACK_META.rules,
+    output: M5_IFVG_PULLBACK_META.output,
+  };
   const [symbol,   setSymbol]   = useState(defaultSymbol);
   const [period,   setPeriod]   = useState(defaultPeriod);
   const [from,     setFrom]     = useState(oneYearAgo());
@@ -1848,7 +1863,7 @@ function EaBacktestPanel({ filename, sourceCode, defaultSymbol = "EURUSD", defau
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border/60 bg-card">
         <Bot className="h-4 w-4 text-primary" />
-        <span className="text-sm font-semibold">{M5_IFVG_PULLBACK_META.name}</span>
+        <span className="text-sm font-semibold">{displayMeta.name}</span>
         <span className="ml-auto flex items-center gap-1.5">
           <span className={`h-1.5 w-1.5 rounded-full ${runnerOnline ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
           <span className="text-[10px] text-muted-foreground">
@@ -1859,12 +1874,12 @@ function EaBacktestPanel({ filename, sourceCode, defaultSymbol = "EURUSD", defau
 
       <div className="p-4 space-y-4">
         {/* Description + rules */}
-        <p className="text-xs text-muted-foreground">{M5_IFVG_PULLBACK_META.description}</p>
+        <p className="text-xs text-muted-foreground">{displayMeta.description}</p>
         <div className="grid sm:grid-cols-2 gap-3 text-xs">
           <div>
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Rules</p>
             <ul className="space-y-1">
-              {M5_IFVG_PULLBACK_META.rules.map((r, i) => (
+              {displayMeta.rules.map((r, i) => (
                 <li key={i} className="flex gap-1.5 text-muted-foreground">
                   <span className="text-primary/50 shrink-0">→</span><span>{r}</span>
                 </li>
@@ -1874,7 +1889,7 @@ function EaBacktestPanel({ filename, sourceCode, defaultSymbol = "EURUSD", defau
           <div>
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Chart output</p>
             <ul className="space-y-1">
-              {M5_IFVG_PULLBACK_META.output.map((o, i) => (
+              {displayMeta.output.map((o, i) => (
                 <li key={i} className="flex gap-1.5 text-muted-foreground">
                   <span className="text-primary/50 shrink-0">→</span><span>{o}</span>
                 </li>
@@ -2230,17 +2245,53 @@ function ModulesPage() {
                   Ready to test
                 </span>
                 <p className="mt-1">
-                  Self-contained EAs you can run directly from here. Configure the tester settings,
-                  click <strong>Run Backtest</strong> for a stats report or <strong>Visual Test</strong>
-                  to watch the strategy trade live in MT5.
+                  Self-contained EAs. Configure tester settings, click{" "}
+                  <strong>Run Backtest</strong> for a report or{" "}
+                  <strong>Visual Test</strong> to watch in MT5.
                 </p>
               </div>
             </div>
+
+            {/* EMA × iFVG — the clean one */}
+            <EaBacktestPanel
+              filename="EMA_IFVG.mq5"
+              sourceCode={EMA_IFVG_SOURCE}
+              defaultSymbol="EURUSD"
+              defaultPeriod="M5"
+              meta={{
+                name: "EMA 12/48 × iFVG",
+                description:
+                  "EMA 12 vs EMA 48 cross sets direction. When a FVG is inverted in that " +
+                  "direction (iFVG CREATED), enter on the NEXT bar open. SL at the high/low " +
+                  "of the inversion candle + buffer. TP 2R. BE at 1R.",
+                rules: [
+                  "EMA12 > EMA48 → BUY bias: look for bearish FVG inversion (close > FVG UL)",
+                  "EMA12 < EMA48 → SELL bias: look for bullish FVG inversion (close < FVG LL)",
+                  "Entry: next bar open after iFVG creation (inversion close)",
+                  "SL: inversion candle low − buffer (buy) | inversion candle high + buffer (sell)",
+                  "TP: entry ± (SL distance × 2.0)",
+                  "BE: move SL to entry when profit ≥ 1R",
+                ],
+                output: [
+                  "Chart: orchid rectangle = bearish iFVG zone | green = bullish iFVG zone",
+                  "Chart: buy/sell arrow at entry bar",
+                  "Journal: [FVG] born | [IFVG] BULL/BEAR CREATED | [ENTRY] | [BE]",
+                ],
+              }}
+            />
+
+            {/* M5 iFVG Pullback (original) */}
             <EaBacktestPanel
               filename={M5_IFVG_PULLBACK_FILENAME}
               sourceCode={M5_IFVG_SOURCE}
               defaultSymbol="EURUSD"
               defaultPeriod="M5"
+              meta={{
+                name: M5_IFVG_PULLBACK_META.name + " (swing variant)",
+                description: M5_IFVG_PULLBACK_META.description,
+                rules: M5_IFVG_PULLBACK_META.rules,
+                output: M5_IFVG_PULLBACK_META.output,
+              }}
             />
           </TabsContent>
 
