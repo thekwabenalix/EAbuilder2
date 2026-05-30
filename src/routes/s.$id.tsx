@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 import {
   Select,
   SelectContent,
@@ -38,6 +40,9 @@ import {
   BarChart2,
   WifiOff,
   Bot,
+  Brain,
+  Plus,
+  X,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EaChatDrawer } from "@/components/EaChatDrawer";
@@ -51,6 +56,8 @@ import { generateCode, fixCompileErrors } from "@/lib/api-client";
 import { generateMql5FromBlueprint, analyzeBuildability } from "@/lib/mql5-template-generator";
 import type { StrategyBlueprint } from "@/types/blueprint";
 import { DEFAULT_BLUEPRINT } from "@/types/blueprint";
+import type { FourBrainConfig, BrainConfig, BrainModuleType } from "@/types/blueprint";
+import { ALL_BRAIN_MODULES, TIMEFRAMES as TF_LIST, formatBrainChain } from "@/lib/brain-modules";
 import {
   getLocalRunnerHealth,
   getMt5Status,
@@ -155,17 +162,23 @@ function StrategyPage() {
     );
   }
 
+  const isFourBrain = Boolean(blueprint.fourBrain);
   const exec = blueprint.execution;
-  const subtitle = [
-    exec.symbol,
-    exec.setupTimeframe !== exec.entryTimeframe
-      ? `${exec.setupTimeframe} → ${exec.entryTimeframe}`
-      : exec.entryTimeframe,
-    `risk ${blueprint.risk.riskPercent}%`,
-    blueprint.strategyType.length > 0 ? blueprint.strategyType.join(", ") : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const subtitle = isFourBrain && blueprint.fourBrain
+    ? [
+        formatBrainChain(blueprint.fourBrain),
+        `risk ${blueprint.fourBrain.management?.riskPercent ?? blueprint.risk.riskPercent}%`,
+      ].join(" · ")
+    : [
+        exec.symbol,
+        exec.setupTimeframe !== exec.entryTimeframe
+          ? `${exec.setupTimeframe} → ${exec.entryTimeframe}`
+          : exec.entryTimeframe,
+        `risk ${blueprint.risk.riskPercent}%`,
+        blueprint.strategyType.length > 0 ? blueprint.strategyType.join(", ") : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
 
   const onBlueprintChange = (next: StrategyBlueprint) => {
     setBlueprint(next);
@@ -228,69 +241,122 @@ function StrategyPage() {
         }
       />
 
-      <Tabs defaultValue={data.generated_code ? "spec" : "code"} className="px-6 pt-4">
-        <TabsList>
-          <TabsTrigger value="spec">Spec</TabsTrigger>
-          <TabsTrigger value="builder">Builder</TabsTrigger>
-          <TabsTrigger value="code">Code</TabsTrigger>
-          <TabsTrigger value="backtest">Backtest</TabsTrigger>
-          <TabsTrigger value="validation">Validation</TabsTrigger>
-          <TabsTrigger value="export">Export</TabsTrigger>
-        </TabsList>
+      {isFourBrain ? (
+        /* ── 4-Brain strategy tabs ─────────────────────────────────────────── */
+        <Tabs defaultValue="brains" className="px-6 pt-4">
+          <TabsList>
+            <TabsTrigger value="brains"><Brain className="h-3.5 w-3.5 mr-1.5" />Brains</TabsTrigger>
+            <TabsTrigger value="code">Code</TabsTrigger>
+            <TabsTrigger value="backtest">Backtest</TabsTrigger>
+            <TabsTrigger value="export">Export</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="spec" className="pt-6 pb-10">
-          <StrategySpecForm blueprint={blueprint} onChange={onBlueprintChange} />
-        </TabsContent>
+          <TabsContent value="brains" className="pt-6 pb-10">
+            <FourBrainTab
+              blueprint={blueprint}
+              onChange={(next) => {
+                onBlueprintChange(next);
+              }}
+              onRegenerate={(next) => {
+                const code = generateMql5FromBlueprint(next);
+                setGeneratedCode(code);
+                setDirty(true);
+                toast.success("EA regenerated from updated brain config");
+              }}
+            />
+          </TabsContent>
 
-        <TabsContent value="builder" className="pt-6 pb-10 max-w-2xl">
-          <BuilderTab blueprint={blueprint} />
-        </TabsContent>
+          <TabsContent value="code" className="pt-6 pb-10">
+            <CodeTab
+              strategyId={id}
+              strategyName={name || "Untitled Strategy"}
+              blueprint={blueprint}
+              code={generatedCode}
+              onCodeChange={(code) => { setGeneratedCode(code); setDirty(true); }}
+              onAutoSave={async (code) => {
+                await updateStrategy(id, { name: name || "Untitled Strategy", blueprint, generatedCode: code });
+                setGeneratedCode(code); setDirty(false);
+                qc.invalidateQueries({ queryKey: ["strategies"] });
+                qc.invalidateQueries({ queryKey: ["strategy", id] });
+              }}
+            />
+          </TabsContent>
 
-        <TabsContent value="code" className="pt-6 pb-10">
-          <CodeTab
-            strategyId={id}
-            strategyName={name || "Untitled Strategy"}
-            blueprint={blueprint}
-            code={generatedCode}
-            onCodeChange={(code) => {
-              setGeneratedCode(code);
-              setDirty(true);
-            }}
-            onAutoSave={async (code) => {
-              await updateStrategy(id, {
-                name: name || "Untitled Strategy",
-                blueprint,
-                generatedCode: code,
-              });
-              setGeneratedCode(code);
-              setDirty(false);
-              qc.invalidateQueries({ queryKey: ["strategies"] });
-              qc.invalidateQueries({ queryKey: ["strategy", id] });
-            }}
-          />
-        </TabsContent>
+          <TabsContent value="backtest" className="pt-6 pb-10">
+            <BacktestTab
+              strategyId={id}
+              strategyName={name || "Untitled Strategy"}
+              blueprint={blueprint}
+              code={generatedCode}
+              onCompileLog={setCompileLog}
+              onBacktestSummary={setBacktestSummary}
+              onOpenChat={(msg) => { setChatAutoMessage(msg ?? null); setChatOpen(true); }}
+              onApplyCode={(fixed) => { setGeneratedCode(fixed); setDirty(true); }}
+            />
+          </TabsContent>
 
-        <TabsContent value="backtest" className="pt-6 pb-10">
-          <BacktestTab
-            strategyId={id}
-            strategyName={name || "Untitled Strategy"}
-            blueprint={blueprint}
-            code={generatedCode}
-            onCompileLog={setCompileLog}
-            onBacktestSummary={setBacktestSummary}
-            onOpenChat={(msg) => { setChatAutoMessage(msg ?? null); setChatOpen(true); }}
-            onApplyCode={(fixed) => { setGeneratedCode(fixed); setDirty(true); }}
-          />
-        </TabsContent>
+          <TabsContent value="export" className="pt-6 pb-10">
+            <ExportTab blueprint={blueprint} prompt={data.prompt} code={generatedCode} />
+          </TabsContent>
+        </Tabs>
+      ) : (
+        /* ── Rules-based strategy tabs (unchanged) ─────────────────────────── */
+        <Tabs defaultValue={data.generated_code ? "spec" : "code"} className="px-6 pt-4">
+          <TabsList>
+            <TabsTrigger value="spec">Spec</TabsTrigger>
+            <TabsTrigger value="builder">Builder</TabsTrigger>
+            <TabsTrigger value="code">Code</TabsTrigger>
+            <TabsTrigger value="backtest">Backtest</TabsTrigger>
+            <TabsTrigger value="validation">Validation</TabsTrigger>
+            <TabsTrigger value="export">Export</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="validation" className="pt-6 pb-10">
-          <ValidationTab blueprint={blueprint} />
-        </TabsContent>
+          <TabsContent value="spec" className="pt-6 pb-10">
+            <StrategySpecForm blueprint={blueprint} onChange={onBlueprintChange} />
+          </TabsContent>
 
-        <TabsContent value="export" className="pt-6 pb-10">
-          <ExportTab blueprint={blueprint} prompt={data.prompt} code={generatedCode} />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="builder" className="pt-6 pb-10 max-w-2xl">
+            <BuilderTab blueprint={blueprint} />
+          </TabsContent>
+
+          <TabsContent value="code" className="pt-6 pb-10">
+            <CodeTab
+              strategyId={id}
+              strategyName={name || "Untitled Strategy"}
+              blueprint={blueprint}
+              code={generatedCode}
+              onCodeChange={(code) => { setGeneratedCode(code); setDirty(true); }}
+              onAutoSave={async (code) => {
+                await updateStrategy(id, { name: name || "Untitled Strategy", blueprint, generatedCode: code });
+                setGeneratedCode(code); setDirty(false);
+                qc.invalidateQueries({ queryKey: ["strategies"] });
+                qc.invalidateQueries({ queryKey: ["strategy", id] });
+              }}
+            />
+          </TabsContent>
+
+          <TabsContent value="backtest" className="pt-6 pb-10">
+            <BacktestTab
+              strategyId={id}
+              strategyName={name || "Untitled Strategy"}
+              blueprint={blueprint}
+              code={generatedCode}
+              onCompileLog={setCompileLog}
+              onBacktestSummary={setBacktestSummary}
+              onOpenChat={(msg) => { setChatAutoMessage(msg ?? null); setChatOpen(true); }}
+              onApplyCode={(fixed) => { setGeneratedCode(fixed); setDirty(true); }}
+            />
+          </TabsContent>
+
+          <TabsContent value="validation" className="pt-6 pb-10">
+            <ValidationTab blueprint={blueprint} />
+          </TabsContent>
+
+          <TabsContent value="export" className="pt-6 pb-10">
+            <ExportTab blueprint={blueprint} prompt={data.prompt} code={generatedCode} />
+          </TabsContent>
+        </Tabs>
+      )}
 
       <EaChatDrawer
         open={chatOpen}
@@ -315,6 +381,327 @@ function StrategyPage() {
           toast.success("Regenerated from template — save and recompile");
         }}
       />
+    </div>
+  );
+}
+
+// ─── FourBrainTab ─────────────────────────────────────────────────────────────
+
+const TF_OPTIONS = [...TF_LIST];
+
+function BrainModuleChips({
+  selected,
+  onChange,
+}: {
+  selected: BrainModuleType[];
+  onChange: (mods: BrainModuleType[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const toggle = (id: BrainModuleType) => {
+    onChange(selected.includes(id) ? selected.filter((m) => m !== id) : [...selected, id]);
+  };
+
+  return (
+    <div className="space-y-1.5">
+      {/* Selected chips */}
+      <div className="flex flex-wrap gap-1.5">
+        {selected.map((id) => {
+          const def = ALL_BRAIN_MODULES.find((m) => m.id === id);
+          return (
+            <span
+              key={id}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary/15 border border-primary/30 text-primary"
+            >
+              {def?.symbol} {def?.label ?? id}
+              <button
+                onClick={() => toggle(id)}
+                className="ml-0.5 hover:text-destructive transition-colors"
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            </span>
+          );
+        })}
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border border-dashed border-border text-muted-foreground hover:border-primary/60 hover:text-primary transition-colors"
+        >
+          <Plus className="h-2.5 w-2.5" />
+          {selected.length === 0 ? "Add module" : "Add more"}
+        </button>
+      </div>
+
+      {/* Module picker dropdown */}
+      {open && (
+        <div className="rounded-lg border border-border bg-card p-3 grid grid-cols-2 gap-1 max-h-64 overflow-y-auto">
+          {ALL_BRAIN_MODULES.map((m) => {
+            const active = selected.includes(m.id);
+            return (
+              <button
+                key={m.id}
+                onClick={() => toggle(m.id)}
+                className={[
+                  "flex items-center gap-2 px-2.5 py-1.5 rounded text-xs text-left transition-all border",
+                  active
+                    ? "bg-primary/15 border-primary/40 text-primary"
+                    : "border-transparent text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+                ].join(" ")}
+              >
+                <span className={`${m.color} text-sm`}>{m.symbol}</span>
+                <span>{m.label}</span>
+                {active && <CheckCircle2 className="h-3 w-3 ml-auto text-primary" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TfPicker({ value, onChange }: { value: string; onChange: (tf: string) => void }) {
+  return (
+    <div className="flex flex-wrap gap-1">
+      {TF_OPTIONS.map((tf) => (
+        <button
+          key={tf}
+          onClick={() => onChange(tf)}
+          className={[
+            "px-2 py-0.5 rounded text-[11px] font-mono border transition-all",
+            value === tf
+              ? "bg-primary text-primary-foreground border-primary"
+              : "border-border text-muted-foreground hover:border-primary/60 hover:text-primary",
+          ].join(" ")}
+        >
+          {tf}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+type BrainRole = "direction" | "setup" | "execution";
+
+const BRAIN_META: Record<BrainRole, { label: string; icon: ReactNode; color: string; hint: string }> = {
+  direction: {
+    label: "Direction Brain",
+    icon: <Brain className="h-4 w-4" />,
+    color: "text-blue-400 border-blue-500/30 bg-blue-500/5",
+    hint: "Sets the market bias (BULL / BEAR). Uses the HTF.",
+  },
+  setup: {
+    label: "Setup Brain",
+    icon: <BarChart2 className="h-4 w-4" />,
+    color: "text-violet-400 border-violet-500/30 bg-violet-500/5",
+    hint: "Detects the active zone (OB / FVG / S-R). MTF.",
+  },
+  execution: {
+    label: "Execution Brain",
+    icon: <Sparkles className="h-4 w-4" />,
+    color: "text-emerald-400 border-emerald-500/30 bg-emerald-500/5",
+    hint: "Fires the entry trigger. LTF — required.",
+  },
+};
+
+function BrainCard({
+  role,
+  config,
+  enabled,
+  optional,
+  onChange,
+  onToggle,
+}: {
+  role: BrainRole;
+  config: BrainConfig;
+  enabled: boolean;
+  optional: boolean;
+  onChange: (c: BrainConfig) => void;
+  onToggle?: (on: boolean) => void;
+}) {
+  const meta = BRAIN_META[role];
+  return (
+    <div className={`rounded-lg border p-4 space-y-3 transition-opacity ${enabled ? "" : "opacity-40"} ${meta.color}`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {meta.icon}
+          <span className="text-sm font-semibold">{meta.label}</span>
+        </div>
+        {optional && onToggle && (
+          <Switch
+            checked={enabled}
+            onCheckedChange={onToggle}
+            className="scale-75"
+          />
+        )}
+      </div>
+      <p className="text-[11px] text-muted-foreground">{meta.hint}</p>
+
+      {enabled && (
+        <>
+          <div className="space-y-1">
+            <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">Modules</Label>
+            <BrainModuleChips
+              selected={config.modules}
+              onChange={(mods) => onChange({ ...config, modules: mods })}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">Timeframe</Label>
+            <TfPicker value={config.timeframe} onChange={(tf) => onChange({ ...config, timeframe: tf })} />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function FourBrainTab({
+  blueprint,
+  onChange,
+  onRegenerate,
+}: {
+  blueprint: StrategyBlueprint;
+  onChange: (bp: StrategyBlueprint) => void;
+  onRegenerate: (bp: StrategyBlueprint) => void;
+}) {
+  const cfg = blueprint.fourBrain!;
+  const mgmt = cfg.management;
+
+  const [direction, setDirection] = useState<BrainConfig | undefined>(cfg.direction);
+  const [setup,     setSetup]     = useState<BrainConfig | undefined>(cfg.setup);
+  const [execution, setExecution] = useState<BrainConfig>(cfg.execution);
+
+  const [riskPct,  setRiskPct]  = useState(mgmt?.riskPercent  ?? 1);
+  const [rr,       setRr]       = useState(mgmt?.rewardRisk   ?? 2);
+  const [stopBuf,  setStopBuf]  = useState(mgmt?.stopBuffer   ?? 20);
+  const [beOn,     setBeOn]     = useState(mgmt?.breakEvenEnabled ?? false);
+  const [beAtR,    setBeAtR]    = useState(mgmt?.breakEvenAtR ?? 1);
+  const [maxTrades,setMaxTrades]= useState(mgmt?.maxOpenTrades ?? 1);
+
+  function buildUpdatedBp(): StrategyBlueprint {
+    const newCfg: FourBrainConfig = {
+      direction: direction?.modules?.length ? direction : undefined,
+      setup:     setup?.modules?.length     ? setup     : undefined,
+      execution,
+      management: {
+        riskPercent:      riskPct,
+        rewardRisk:       rr,
+        stopBuffer:       stopBuf,
+        breakEvenEnabled: beOn,
+        breakEvenAtR:     beAtR,
+        maxOpenTrades:    maxTrades,
+      },
+    };
+    // Rebuild strategy name from new config
+    const parts: string[] = [];
+    if (newCfg.direction) parts.push(`${newCfg.direction.timeframe} ${newCfg.direction.modules.map(m => m.replace(/_/g, " ").toUpperCase()).join("+")}`);
+    if (newCfg.setup)     parts.push(`${newCfg.setup.timeframe} ${newCfg.setup.modules.map(m => m.replace(/_/g, " ").toUpperCase()).join("+")}`);
+    parts.push(`${newCfg.execution.timeframe} ${newCfg.execution.modules.map(m => m.replace(/_/g, " ").toUpperCase()).join("+")}`);
+    return { ...blueprint, name: parts.join(" → "), fourBrain: newCfg };
+  }
+
+  const canRegenerate = execution.modules.length > 0 && execution.timeframe;
+
+  return (
+    <div className="max-w-2xl space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Edit your brain configuration below. Click <strong>Save & Regenerate</strong> to rebuild the EA with the new settings.
+      </p>
+
+      {/* Direction brain */}
+      <BrainCard
+        role="direction"
+        config={direction ?? { modules: [], timeframe: "D1" }}
+        enabled={Boolean(direction)}
+        optional={true}
+        onToggle={(on) => setDirection(on ? { modules: ["choch"], timeframe: "D1" } : undefined)}
+        onChange={setDirection}
+      />
+
+      {/* Setup brain */}
+      <BrainCard
+        role="setup"
+        config={setup ?? { modules: [], timeframe: "H4" }}
+        enabled={Boolean(setup)}
+        optional={true}
+        onToggle={(on) => setSetup(on ? { modules: ["order_block"], timeframe: "H4" } : undefined)}
+        onChange={setSetup}
+      />
+
+      {/* Execution brain — always on */}
+      <BrainCard
+        role="execution"
+        config={execution}
+        enabled={true}
+        optional={false}
+        onChange={setExecution}
+      />
+
+      {/* Management */}
+      <div className="rounded-lg border border-border p-4 space-y-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Management</p>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Risk per trade</Label>
+            <div className="flex items-center gap-2">
+              <Slider value={[riskPct]} min={0.1} max={5} step={0.1} onValueChange={([v]) => setRiskPct(v)} className="flex-1" />
+              <span className="text-xs font-mono w-10 text-right">{riskPct}%</span>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Reward : Risk</Label>
+            <div className="flex items-center gap-2">
+              <Slider value={[rr]} min={0.5} max={10} step={0.5} onValueChange={([v]) => setRr(v)} className="flex-1" />
+              <span className="text-xs font-mono w-10 text-right">{rr}R</span>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Stop buffer (pts)</Label>
+            <div className="flex items-center gap-2">
+              <Slider value={[stopBuf]} min={0} max={100} step={5} onValueChange={([v]) => setStopBuf(v)} className="flex-1" />
+              <span className="text-xs font-mono w-10 text-right">{stopBuf}</span>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Max trades</Label>
+            <div className="flex items-center gap-2">
+              <Slider value={[maxTrades]} min={1} max={10} step={1} onValueChange={([v]) => setMaxTrades(v)} className="flex-1" />
+              <span className="text-xs font-mono w-10 text-right">{maxTrades}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Switch checked={beOn} onCheckedChange={setBeOn} />
+          <Label className="text-xs text-muted-foreground cursor-pointer" onClick={() => setBeOn(v => !v)}>
+            Break-even at
+          </Label>
+          {beOn && (
+            <div className="flex items-center gap-2 flex-1">
+              <Slider value={[beAtR]} min={0.5} max={3} step={0.25} onValueChange={([v]) => setBeAtR(v)} className="flex-1 max-w-32" />
+              <span className="text-xs font-mono">{beAtR}R</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <Button
+        onClick={() => {
+          if (!canRegenerate) {
+            toast.error("Execution Brain needs at least one module and a timeframe.");
+            return;
+          }
+          const bp = buildUpdatedBp();
+          onChange(bp);
+          onRegenerate(bp);
+        }}
+        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white border-0"
+      >
+        <Hammer className="h-4 w-4 mr-1.5" />
+        Save & Regenerate EA
+      </Button>
     </div>
   );
 }
