@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  Brain,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -68,11 +69,18 @@ function Dashboard() {
           data ? `${data.length} saved strateg${data.length === 1 ? "y" : "ies"}` : "Your strategies"
         }
         actions={
-          <Link to="/new">
-            <Button size="sm">
-              <Plus className="h-4 w-4 mr-1.5" /> New Strategy
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link to="/build">
+              <Button size="sm" variant="outline" className="gap-1.5">
+                <Brain className="h-4 w-4" /> 4-Brain Builder
+              </Button>
+            </Link>
+            <Link to="/new">
+              <Button size="sm">
+                <Plus className="h-4 w-4 mr-1.5" /> New Strategy
+              </Button>
+            </Link>
+          </div>
         }
       />
 
