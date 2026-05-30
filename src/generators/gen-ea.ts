@@ -62,17 +62,23 @@ ConfluenceGate gGate = {false, {}, 0, "Not evaluated"};
 int lastTickTime = 0;
 `;
 
-  // Step 7: Build brain descriptions
+  // Step 7: Build brain descriptions (include user's multi-module descriptions)
   const directionDesc = fourBrainConfig.direction
-    ? `${fourBrainConfig.direction.modules?.join(" + ").toUpperCase()} @ ${fourBrainConfig.direction.timeframe}`
+    ? `${fourBrainConfig.direction.modules?.join(" + ").toUpperCase()} @ ${fourBrainConfig.direction.timeframe}${
+        fourBrainConfig.direction.description ? ` — ${fourBrainConfig.direction.description}` : ""
+      }`
     : "DISABLED";
 
   const setupDesc = fourBrainConfig.setup
-    ? `${fourBrainConfig.setup.modules?.join(" + ").toUpperCase()} @ ${fourBrainConfig.setup.timeframe}`
+    ? `${fourBrainConfig.setup.modules?.join(" + ").toUpperCase()} @ ${fourBrainConfig.setup.timeframe}${
+        fourBrainConfig.setup.description ? ` — ${fourBrainConfig.setup.description}` : ""
+      }`
     : "DISABLED";
 
   const executionDesc = fourBrainConfig.execution
-    ? `${fourBrainConfig.execution.modules?.join(" + ").toUpperCase()} @ ${fourBrainConfig.execution.timeframe}`
+    ? `${fourBrainConfig.execution.modules?.join(" + ").toUpperCase()} @ ${fourBrainConfig.execution.timeframe}${
+        fourBrainConfig.execution.description ? ` — ${fourBrainConfig.execution.description}` : ""
+      }`
     : "DISABLED";
 
   const managementDesc = fourBrainConfig.management
