@@ -25,7 +25,7 @@
 //|   Bear iFVG   : bullish FVG, close < FVG LL                    |
 //+------------------------------------------------------------------+
 #property copyright "EAbuilder2"
-#property version   "1.10"
+#property version   "1.40"
 #property strict
 
 #include <Trade/Trade.mqh>
@@ -232,45 +232,46 @@ void CheckInversions(int emaBias)
 }
 
 //+------------------------------------------------------------------+
-//| Find nearest SWING HIGH (pivot: high > 2 bars each side)        |
-//| Scans shift 2..InpSLLookback, returns the most recent pivot.    |
-//| Falls back to highest high if no pivot found within range.      |
+//| Swing extreme that created the iFVG.                            |
+//| The SL anchors to the structure of the iFVG move:               |
+//|   SELL (bear iFVG): highest HIGH from the FVG's first candle    |
+//|                     up to the inversion bar — the swing high     |
+//|                     price rejected from.                         |
+//|   BUY  (bull iFVG): lowest LOW over that same span.             |
+//| fvgC1Time = the FVG's C1 (oldest) bar; invTime = inversion bar. |
 //+------------------------------------------------------------------+
-double FindSwingHigh()
+double SwingHighForSell(datetime fvgC1Time, datetime invTime)
 {
-   for(int i=2; i<=InpSLLookback; i++)
+   int shFrom = iBarShift(InpSymbol, PERIOD_CURRENT, invTime);   // newer (smaller shift)
+   int shTo   = iBarShift(InpSymbol, PERIOD_CURRENT, fvgC1Time); // older (larger shift)
+   if(shFrom < 1) shFrom = 1;
+   if(shTo < shFrom) shTo = shFrom;
+   // Cap the span so a runaway lookback can't grab a distant peak
+   if(shTo - shFrom > InpSLLookback) shTo = shFrom + InpSLLookback;
+
+   double hh = iHigh(InpSymbol,PERIOD_CURRENT,shFrom);
+   for(int i=shFrom; i<=shTo; i++)
    {
       double h = iHigh(InpSymbol,PERIOD_CURRENT,i);
-      if(h > iHigh(InpSymbol,PERIOD_CURRENT,i-1) &&
-         h > iHigh(InpSymbol,PERIOD_CURRENT,i-2) &&
-         h > iHigh(InpSymbol,PERIOD_CURRENT,i+1) &&
-         h > iHigh(InpSymbol,PERIOD_CURRENT,i+2))
-         return h;  // first (most recent) swing high
+      if(h > hh) hh = h;
    }
-   // Fallback — no clean pivot, use highest high
-   double hh = iHigh(InpSymbol,PERIOD_CURRENT,1);
-   for(int i=2;i<=InpSLLookback;i++)
-   { double h=iHigh(InpSymbol,PERIOD_CURRENT,i); if(h>hh) hh=h; }
    return hh;
 }
 
-//+------------------------------------------------------------------+
-//| Find nearest SWING LOW (pivot: low < 2 bars each side)          |
-//+------------------------------------------------------------------+
-double FindSwingLow()
+double SwingLowForBuy(datetime fvgC1Time, datetime invTime)
 {
-   for(int i=2; i<=InpSLLookback; i++)
+   int shFrom = iBarShift(InpSymbol, PERIOD_CURRENT, invTime);
+   int shTo   = iBarShift(InpSymbol, PERIOD_CURRENT, fvgC1Time);
+   if(shFrom < 1) shFrom = 1;
+   if(shTo < shFrom) shTo = shFrom;
+   if(shTo - shFrom > InpSLLookback) shTo = shFrom + InpSLLookback;
+
+   double ll = iLow(InpSymbol,PERIOD_CURRENT,shFrom);
+   for(int i=shFrom; i<=shTo; i++)
    {
       double l = iLow(InpSymbol,PERIOD_CURRENT,i);
-      if(l < iLow(InpSymbol,PERIOD_CURRENT,i-1) &&
-         l < iLow(InpSymbol,PERIOD_CURRENT,i-2) &&
-         l < iLow(InpSymbol,PERIOD_CURRENT,i+1) &&
-         l < iLow(InpSymbol,PERIOD_CURRENT,i+2))
-         return l;
+      if(l < ll) ll = l;
    }
-   double ll = iLow(InpSymbol,PERIOD_CURRENT,1);
-   for(int i=2;i<=InpSLLookback;i++)
-   { double l=iLow(InpSymbol,PERIOD_CURRENT,i); if(l<ll) ll=l; }
    return ll;
 }
 
@@ -309,8 +310,8 @@ void ExecuteEntries(int currentBias)
 
       if(fvg[k].dir==-1)   // bearish FVG inverted → BUY
       {
-         // SL = nearest swing LOW pivot below price + buffer
-         double swingLow = FindSwingLow();
+         // SL = lowest low across the iFVG move (the swing that created it) + buffer
+         double swingLow = SwingLowForBuy(fvg[k].c1Time, fvg[k].invTime);
          double sl  = NormalizeDouble(swingLow - InpStopBuffer*pt, digs);
          double dist= (ask-sl)/pt;
          if(dist<=(double)stops){PrintFormat("[SKIP] BUY dist=%.0fpts < stops_level",dist);fvg[k].traded=true;continue;}
@@ -344,8 +345,8 @@ void ExecuteEntries(int currentBias)
 
       if(fvg[k].dir== 1)   // bullish FVG inverted → SELL
       {
-         // SL = nearest swing HIGH pivot above price + buffer
-         double swingHigh = FindSwingHigh();
+         // SL = highest high across the iFVG move (the swing that created it) + buffer
+         double swingHigh = SwingHighForSell(fvg[k].c1Time, fvg[k].invTime);
          double sl  = NormalizeDouble(swingHigh + InpStopBuffer*pt, digs);
          double dist= (sl-bid)/pt;
          if(dist<=(double)stops){PrintFormat("[SKIP] SELL dist=%.0fpts < stops_level",dist);fvg[k].traded=true;continue;}
@@ -424,9 +425,10 @@ int OnInit()
    { Print("[INIT] EMA handles failed"); return INIT_FAILED; }
    trade.SetExpertMagicNumber(InpMagic);
    trade.SetTypeFillingBySymbol(InpSymbol);
-   Print("[INIT] EMA_IFVG EA loaded");
-   PrintFormat("[CONFIG] EMA %d/%d | Risk %.1f%% | RR %.1f | Buf %dpts | BE %.1fR",
-               InpEMAFast,InpEMASlow,InpRiskPercent,InpRewardRisk,InpStopBuffer,InpBEAtR);
+   Print("[INIT] EMA_IFVG EA loaded  ★ BUILD v1.4 — iFVG-anchored swing SL + 7pip cap ★");
+   PrintFormat("[CONFIG] EMA %d/%d | Risk %.1f%% | RR %.1f | Buf %dpts | BE %.1fR | MaxSL %d pips | SLLookback %d",
+               InpEMAFast,InpEMASlow,InpRiskPercent,InpRewardRisk,InpStopBuffer,InpBEAtR,
+               InpMaxSLPips,InpSLLookback);
    return INIT_SUCCEEDED;
 }
 
