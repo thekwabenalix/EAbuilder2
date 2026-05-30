@@ -232,11 +232,53 @@ void CheckInversions(int emaBias)
 }
 
 //+------------------------------------------------------------------+
+//| Find nearest SWING HIGH (pivot: high > 2 bars each side)        |
+//| Scans shift 2..InpSLLookback, returns the most recent pivot.    |
+//| Falls back to highest high if no pivot found within range.      |
+//+------------------------------------------------------------------+
+double FindSwingHigh()
+{
+   for(int i=2; i<=InpSLLookback; i++)
+   {
+      double h = iHigh(InpSymbol,PERIOD_CURRENT,i);
+      if(h > iHigh(InpSymbol,PERIOD_CURRENT,i-1) &&
+         h > iHigh(InpSymbol,PERIOD_CURRENT,i-2) &&
+         h > iHigh(InpSymbol,PERIOD_CURRENT,i+1) &&
+         h > iHigh(InpSymbol,PERIOD_CURRENT,i+2))
+         return h;  // first (most recent) swing high
+   }
+   // Fallback — no clean pivot, use highest high
+   double hh = iHigh(InpSymbol,PERIOD_CURRENT,1);
+   for(int i=2;i<=InpSLLookback;i++)
+   { double h=iHigh(InpSymbol,PERIOD_CURRENT,i); if(h>hh) hh=h; }
+   return hh;
+}
+
+//+------------------------------------------------------------------+
+//| Find nearest SWING LOW (pivot: low < 2 bars each side)          |
+//+------------------------------------------------------------------+
+double FindSwingLow()
+{
+   for(int i=2; i<=InpSLLookback; i++)
+   {
+      double l = iLow(InpSymbol,PERIOD_CURRENT,i);
+      if(l < iLow(InpSymbol,PERIOD_CURRENT,i-1) &&
+         l < iLow(InpSymbol,PERIOD_CURRENT,i-2) &&
+         l < iLow(InpSymbol,PERIOD_CURRENT,i+1) &&
+         l < iLow(InpSymbol,PERIOD_CURRENT,i+2))
+         return l;
+   }
+   double ll = iLow(InpSymbol,PERIOD_CURRENT,1);
+   for(int i=2;i<=InpSLLookback;i++)
+   { double l=iLow(InpSymbol,PERIOD_CURRENT,i); if(l<ll) ll=l; }
+   return ll;
+}
+
+//+------------------------------------------------------------------+
 //| Execute on bar AFTER inversion                                  |
-//| SL = pullback swing extreme (lowest low / highest high of the  |
-//|      last InpSLLookback bars before entry)                      |
-//| Invalidation: if EMA direction flipped since iFVG was created, |
-//|               skip the trade (setup no longer valid)           |
+//| SL = nearest swing high/low pivot (the swing that created iFVG) |
+//| Invalidation: EMA flipped since iFVG created → skip trade       |
+//| Filter: SL distance > InpMaxSLPips → skip trade                 |
 //+------------------------------------------------------------------+
 void ExecuteEntries(int currentBias)
 {
@@ -267,14 +309,9 @@ void ExecuteEntries(int currentBias)
 
       if(fvg[k].dir==-1)   // bearish FVG inverted → BUY
       {
-         // SL = lowest low of last InpSLLookback bars (the pullback low before the iFVG)
-         double pullbackLow = 1e10;
-         for(int i=1; i<=InpSLLookback; i++)
-         {
-            double l = iLow(InpSymbol,PERIOD_CURRENT,i);
-            if(l < pullbackLow) pullbackLow = l;
-         }
-         double sl  = NormalizeDouble(pullbackLow - InpStopBuffer*pt, digs);
+         // SL = nearest swing LOW pivot below price + buffer
+         double swingLow = FindSwingLow();
+         double sl  = NormalizeDouble(swingLow - InpStopBuffer*pt, digs);
          double dist= (ask-sl)/pt;
          if(dist<=(double)stops){PrintFormat("[SKIP] BUY dist=%.0fpts < stops_level",dist);fvg[k].traded=true;continue;}
          if(dist>maxDistPts){PrintFormat("[SKIP] BUY SL too wide: %.1f pips (max %d pips)",dist/pipDigits,InpMaxSLPips);fvg[k].traded=true;continue;}
@@ -307,14 +344,9 @@ void ExecuteEntries(int currentBias)
 
       if(fvg[k].dir== 1)   // bullish FVG inverted → SELL
       {
-         // SL = highest high of last InpSLLookback bars (the pullback high before the iFVG)
-         double pullbackHigh = 0.0;
-         for(int i=1; i<=InpSLLookback; i++)
-         {
-            double h = iHigh(InpSymbol,PERIOD_CURRENT,i);
-            if(h > pullbackHigh) pullbackHigh = h;
-         }
-         double sl  = NormalizeDouble(pullbackHigh + InpStopBuffer*pt, digs);
+         // SL = nearest swing HIGH pivot above price + buffer
+         double swingHigh = FindSwingHigh();
+         double sl  = NormalizeDouble(swingHigh + InpStopBuffer*pt, digs);
          double dist= (sl-bid)/pt;
          if(dist<=(double)stops){PrintFormat("[SKIP] SELL dist=%.0fpts < stops_level",dist);fvg[k].traded=true;continue;}
          if(dist>maxDistPts){PrintFormat("[SKIP] SELL SL too wide: %.1f pips (max %d pips)",dist/pipDigits,InpMaxSLPips);fvg[k].traded=true;continue;}
