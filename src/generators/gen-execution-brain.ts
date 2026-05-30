@@ -46,6 +46,64 @@ void Execution_Brain_Execute() { gExecSignal = false; gExecDir = 0; gExecSL = 0;
 
   for (const mod of modules) {
     switch (mod) {
+      case "fvg_inversion": {
+        // iFVG Execution:
+        //   Detect the EXACT bar (shift=1) that inverts an existing FVG.
+        //   "A candle closes above/below the FVG" = the inverting bar.
+        //   SL = low of the inverting candle (for buy) / high (for sell).
+        //   This fires once per inversion event — the entry candle IS the signal.
+        parts.push(`
+   // iFVG Execution: detect the bar that closes through an existing FVG (inversion event)
+   if(!gExecSignal)
+   {
+      double _c1 = iClose(InpSymbol, ${TF}, 1);  // just-closed bar (inverting candidate)
+      double _h1 = iHigh (InpSymbol, ${TF}, 1);
+      double _l1 = iLow  (InpSymbol, ${TF}, 1);
+
+      // Scan for existing bearish gaps (C.high < A.low) that _c1 has closed through upward
+      for(int _i = 3; _i <= 30 && !gExecSignal; _i++)
+      {
+         double _gapBot = iHigh(InpSymbol, ${TF}, _i);        // C.high = gap bottom
+         double _gapTop = iLow (InpSymbol, ${TF}, _i + 2);   // A.low  = gap top
+         if(_gapBot >= _gapTop) continue;                     // Not a bearish gap
+         if(gBias != 0 && gBias != 1) continue;
+         if(gSetupDir != 0 && gSetupDir != 1) continue;
+
+         // Inversion: bar at shift _i is the gap's C candle (formed gap)
+         // bar at shift 1 closes ABOVE the gap top (_gapTop = A.low)
+         // Verify shift 1 is more recent than shift _i (always true since _i >= 3)
+         if(_c1 > _gapTop)
+         {
+            gExecSignal = true;
+            gExecDir    = 1;        // BUY — bearish gap inverted bullishly
+            gExecSL     = _l1;      // SL at low of the inverting candle
+            PrintFormat("[EXEC/${tf}] iFVG BULL: gap top=%.5f inverted by c1=%.5f SL=%.5f",
+                        _gapTop, _c1, _l1);
+         }
+      }
+
+      // Scan for existing bullish gaps (C.low > A.high) that _c1 has closed through downward
+      for(int _i = 3; _i <= 30 && !gExecSignal; _i++)
+      {
+         double _gapTop = iLow (InpSymbol, ${TF}, _i);        // C.low  = gap top
+         double _gapBot = iHigh(InpSymbol, ${TF}, _i + 2);   // A.high = gap bottom
+         if(_gapTop <= _gapBot) continue;                     // Not a bullish gap
+         if(gBias != 0 && gBias != -1) continue;
+         if(gSetupDir != 0 && gSetupDir != -1) continue;
+
+         if(_c1 < _gapBot)
+         {
+            gExecSignal = true;
+            gExecDir    = -1;       // SELL — bullish gap inverted bearishly
+            gExecSL     = _h1;      // SL at high of the inverting candle
+            PrintFormat("[EXEC/${tf}] iFVG BEAR: gap bot=%.5f inverted by c1=%.5f SL=%.5f",
+                        _gapBot, _c1, _h1);
+         }
+      }
+   }`);
+        break;
+      }
+
       case "fvg": {
         parts.push(`
    // FVG: detect 3-candle imbalance → price enters gap → close bounces out

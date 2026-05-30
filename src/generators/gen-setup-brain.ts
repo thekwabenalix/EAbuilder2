@@ -99,6 +99,56 @@ void Setup_Brain_Execute()
         break;
       }
 
+      case "fvg_inversion": {
+        // iFVG Setup: look for a recently inverted FVG in the bias direction.
+        // Bullish iFVG = bearish gap that price closed back above → setup for longs.
+        // Bearish iFVG = bullish gap that price closed back below → setup for shorts.
+        parts.push(`
+   // iFVG Setup: scan for a recently inverted FVG aligned with gBias
+   if(!gSetupActive)
+   {
+      for(int _i = 3; _i <= 30 && !gSetupActive; _i++)
+      {
+         double _cHigh = iHigh(InpSymbol, ${TF}, _i);
+         double _aLow  = iLow (InpSymbol, ${TF}, _i + 2);
+         double _cLow  = iLow (InpSymbol, ${TF}, _i);
+         double _aHigh = iHigh(InpSymbol, ${TF}, _i + 2);
+
+         // Bearish gap → bullish iFVG when price closes above _aLow
+         if(_cHigh < _aLow && (gBias == 0 || gBias == 1))
+         {
+            for(int _j = 1; _j < _i && !gSetupActive; _j++)
+            {
+               if(iClose(InpSymbol, ${TF}, _j) > _aLow)
+               {
+                  gSetupActive = true;
+                  gSetupDir    = 1;
+                  gSetupSLHint = _cHigh;  // Bottom of the bearish gap
+                  PrintFormat("[SETUP/${tf}] iFVG BULL inverted gap top=%.5f bot=%.5f",
+                              _aLow, _cHigh);
+               }
+            }
+         }
+         // Bullish gap → bearish iFVG when price closes below _aHigh
+         else if(_cLow > _aHigh && (gBias == 0 || gBias == -1))
+         {
+            for(int _j = 1; _j < _i && !gSetupActive; _j++)
+            {
+               if(iClose(InpSymbol, ${TF}, _j) < _aHigh)
+               {
+                  gSetupActive = true;
+                  gSetupDir    = -1;
+                  gSetupSLHint = _cLow;   // Top of the bullish gap
+                  PrintFormat("[SETUP/${tf}] iFVG BEAR inverted gap top=%.5f bot=%.5f",
+                              _cLow, _aHigh);
+               }
+            }
+         }
+      }
+   }`);
+        break;
+      }
+
       case "fvg": {
         parts.push(`
    // FVG: detect 3-candle imbalance zone that price is retesting
