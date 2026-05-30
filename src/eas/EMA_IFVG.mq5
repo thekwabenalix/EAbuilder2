@@ -20,7 +20,7 @@
 //|   Bearish iFVG: bullish FVG → close < FVG lower limit           |
 //+------------------------------------------------------------------+
 #property copyright "EAbuilder2"
-#property version   "1.00"
+#property version   "1.10"
 #property strict
 
 #include <Trade/Trade.mqh>
@@ -194,20 +194,54 @@ void CheckInversions(int emaBias)
       fvg[k].invHigh  = hi1;   // SL for SELL entries
       fvg[k].invLow   = lo1;   // SL for BUY  entries
 
-      PrintFormat("[IFVG] %s CREATED | ul=%.5f ll=%.5f | inv_close=%.5f | hi=%.5f lo=%.5f | %s",
+      double slLevel = bullInv
+                       ? fvg[k].ll - InpStopBuffer * SymbolInfoDouble(InpSymbol,SYMBOL_POINT)
+                       : fvg[k].ul + InpStopBuffer * SymbolInfoDouble(InpSymbol,SYMBOL_POINT);
+
+      PrintFormat("[IFVG] %s CREATED | ul=%.5f ll=%.5f | SL=%.5f | %s",
                   bullInv?"BULL":"BEAR",
-                  fvg[k].ul, fvg[k].ll, cl1, hi1, lo1,
+                  fvg[k].ul, fvg[k].ll, slLevel,
                   TimeToString(bar1,TIME_DATE|TIME_MINUTES));
 
-      // Draw iFVG zone
+      // Draw iFVG zone rectangle
       string rn=StringFormat("IFVG_%s_%d",bullInv?"B":"S",(int)bar1);
       datetime rt2=bar1+PeriodSeconds(PERIOD_CURRENT)*40;
       if(ObjectCreate(0,rn,OBJ_RECTANGLE,0,fvg[k].c1Time,fvg[k].ul,rt2,fvg[k].ll))
       {
-         ObjectSetInteger(0,rn,OBJPROP_COLOR,    bullInv?clrMediumSeaGreen:clrOrchid);
-         ObjectSetInteger(0,rn,OBJPROP_BACK,     true);
-         ObjectSetInteger(0,rn,OBJPROP_FILL,     true);
+         ObjectSetInteger(0,rn,OBJPROP_COLOR,     bullInv?clrSteelBlue:clrOrchid);
+         ObjectSetInteger(0,rn,OBJPROP_BGCOLOR,   bullInv?0xFFE0F0FF:0xFFFFE0FF);
+         ObjectSetInteger(0,rn,OBJPROP_BACK,      true);
+         ObjectSetInteger(0,rn,OBJPROP_FILL,      true);
          ObjectSetInteger(0,rn,OBJPROP_SELECTABLE,false);
+      }
+      // Label "iFVG" inside the zone
+      string ln=StringFormat("IFVG_L_%s_%d",bullInv?"B":"S",(int)bar1);
+      if(ObjectCreate(0,ln,OBJ_TEXT,0,bar1,bullInv?fvg[k].ul:fvg[k].ll))
+      {
+         ObjectSetString (0,ln,OBJPROP_TEXT,      "iFVG");
+         ObjectSetInteger(0,ln,OBJPROP_COLOR,     bullInv?clrSteelBlue:clrOrchid);
+         ObjectSetInteger(0,ln,OBJPROP_FONTSIZE,  8);
+         ObjectSetInteger(0,ln,OBJPROP_ANCHOR,    bullInv?ANCHOR_LOWER:ANCHOR_UPPER);
+         ObjectSetInteger(0,ln,OBJPROP_SELECTABLE,false);
+      }
+      // SL horizontal line (red dotted, like in the chart)
+      string sn=StringFormat("IFVG_SL_%s_%d",bullInv?"B":"S",(int)bar1);
+      if(ObjectCreate(0,sn,OBJ_HLINE,0,0,slLevel))
+      {
+         ObjectSetInteger(0,sn,OBJPROP_COLOR,     clrRed);
+         ObjectSetInteger(0,sn,OBJPROP_STYLE,     STYLE_DOT);
+         ObjectSetInteger(0,sn,OBJPROP_WIDTH,     1);
+         ObjectSetInteger(0,sn,OBJPROP_BACK,      true);
+         ObjectSetInteger(0,sn,OBJPROP_SELECTABLE,false);
+      }
+      // "SL" text label
+      string st=StringFormat("IFVG_SLT_%s_%d",bullInv?"B":"S",(int)bar1);
+      if(ObjectCreate(0,st,OBJ_TEXT,0,bar1,slLevel))
+      {
+         ObjectSetString (0,st,OBJPROP_TEXT,     "SL");
+         ObjectSetInteger(0,st,OBJPROP_COLOR,    clrRed);
+         ObjectSetInteger(0,st,OBJPROP_FONTSIZE, 8);
+         ObjectSetInteger(0,st,OBJPROP_SELECTABLE,false);
       }
    }
 }
@@ -234,7 +268,9 @@ void ExecuteEntries()
 
       if(fvg[k].dir==-1)   // bearish FVG inverted → BUY
       {
-         double sl  = NormalizeDouble(fvg[k].invLow - InpStopBuffer*pt, digs);
+         // SL = below the iFVG zone lower limit (LL = C3.High of original bearish FVG)
+         // This is the bottom of the zone rectangle shown on the chart
+         double sl  = NormalizeDouble(fvg[k].ll - InpStopBuffer*pt, digs);
          double dist= (ask-sl)/pt;
          if(dist<=(double)stops){PrintFormat("[SKIP] BUY dist=%.0f",dist);continue;}
          double lot = CalcLot(dist);
@@ -245,17 +281,23 @@ void ExecuteEntries()
          if(trade.Buy(lot,InpSymbol,ask,sl,tp,"EMA_IFVG_BUY"))
          {
             fvg[k].traded=true;
-            // Arrow
-            string an=StringFormat("E_BUY_%d",(int)TimeCurrent());
-            if(ObjectCreate(0,an,OBJ_ARROW_BUY,0,iTime(InpSymbol,PERIOD_CURRENT,0),sl))
+            datetime et=iTime(InpSymbol,PERIOD_CURRENT,0);
+            // Arrow + "Buy entry" label (matches chart visual)
+            string an=StringFormat("E_BUY_%d",(int)et);
+            if(ObjectCreate(0,an,OBJ_ARROW_BUY,0,et,sl))
             { ObjectSetInteger(0,an,OBJPROP_COLOR,clrLime); ObjectSetInteger(0,an,OBJPROP_WIDTH,2); ObjectSetInteger(0,an,OBJPROP_SELECTABLE,false); }
+            string el=StringFormat("E_BUY_L_%d",(int)et);
+            if(ObjectCreate(0,el,OBJ_TEXT,0,et,ask))
+            { ObjectSetString(0,el,OBJPROP_TEXT,"Buy entry"); ObjectSetInteger(0,el,OBJPROP_COLOR,clrLime); ObjectSetInteger(0,el,OBJPROP_FONTSIZE,8); ObjectSetInteger(0,el,OBJPROP_SELECTABLE,false); }
          }
          break;
       }
 
       if(fvg[k].dir== 1)   // bullish FVG inverted → SELL
       {
-         double sl  = NormalizeDouble(fvg[k].invHigh + InpStopBuffer*pt, digs);
+         // SL = above the iFVG zone upper limit (UL = C3.Low of original bullish FVG)
+         // This is the top of the zone rectangle shown on the chart
+         double sl  = NormalizeDouble(fvg[k].ul + InpStopBuffer*pt, digs);
          double dist= (sl-bid)/pt;
          if(dist<=(double)stops){PrintFormat("[SKIP] SELL dist=%.0f",dist);continue;}
          double lot = CalcLot(dist);
@@ -266,9 +308,13 @@ void ExecuteEntries()
          if(trade.Sell(lot,InpSymbol,bid,sl,tp,"EMA_IFVG_SELL"))
          {
             fvg[k].traded=true;
-            string an=StringFormat("E_SELL_%d",(int)TimeCurrent());
-            if(ObjectCreate(0,an,OBJ_ARROW_SELL,0,iTime(InpSymbol,PERIOD_CURRENT,0),sl))
+            datetime et=iTime(InpSymbol,PERIOD_CURRENT,0);
+            string an=StringFormat("E_SELL_%d",(int)et);
+            if(ObjectCreate(0,an,OBJ_ARROW_SELL,0,et,sl))
             { ObjectSetInteger(0,an,OBJPROP_COLOR,clrOrangeRed); ObjectSetInteger(0,an,OBJPROP_WIDTH,2); ObjectSetInteger(0,an,OBJPROP_SELECTABLE,false); }
+            string el=StringFormat("E_SELL_L_%d",(int)et);
+            if(ObjectCreate(0,el,OBJ_TEXT,0,et,bid))
+            { ObjectSetString(0,el,OBJPROP_TEXT,"Sell entry"); ObjectSetInteger(0,el,OBJPROP_COLOR,clrOrangeRed); ObjectSetInteger(0,el,OBJPROP_FONTSIZE,8); ObjectSetInteger(0,el,OBJPROP_SELECTABLE,false); }
          }
          break;
       }
@@ -336,6 +382,7 @@ void OnDeinit(const int reason)
       string n=ObjectName(0,i);
       if(StringFind(n,"IFVG_")==0||StringFind(n,"E_BUY_")==0||StringFind(n,"E_SELL_")==0)
          ObjectDelete(0,n);
+      // Remove SL and label objects too (already prefixed IFVG_SL_ / IFVG_SLT_)
    }
 }
 
