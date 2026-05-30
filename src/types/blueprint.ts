@@ -206,5 +206,28 @@ export interface FourBrainConfig {
   direction?: BrainConfig;  // sets gBias = BUY / SELL / NEUTRAL
   setup?:     BrainConfig;  // sets gSetupActive + gSetupDir + gSetupSLHint
   execution:  BrainConfig;  // fires the trade when Direction + Setup agree
+  management?: ManagementBrainConfig;
+}
+
+/**
+ * Parameters for MQL5 code generation using the modular 4-brain system.
+ */
+export interface MQL5CodeGenParams {
+  eaName: string;
+  config: FourBrainConfig;
+  globalSymbol?: string;
+  globalMagic?: number;
+}
+
+/**
+ * Management Brain configuration: risk/exit settings.
+ */
+export interface ManagementBrainConfig {
+  riskPercent?: number;
+  rewardRisk?: number;
+  stopBuffer?: number;
+  breakEvenEnabled?: boolean;
+  breakEvenAtR?: number;
+  maxOpenTrades?: number;
 }
 
