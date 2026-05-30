@@ -11,10 +11,29 @@
  * Trade execution fires when the confluence gate passes.
  */
 
-import type { FourBrainConfig, MQL5CodeGenParams } from "@/types/blueprint";
-import { genDirectionBrain } from "./gen-direction-brain";
-import { genSetupBrain }     from "./gen-setup-brain";
-import { genExecutionBrain } from "./gen-execution-brain";
+import type { FourBrainConfig, MQL5CodeGenParams, BrainModuleType } from "@/types/blueprint";
+import { genDirectionBrain }      from "./gen-direction-brain";
+import { genSetupBrain }          from "./gen-setup-brain";
+import { genExecutionBrain }      from "./gen-execution-brain";
+import { genFvgInversionSM }      from "./gen-ifvg-state-machine";
+
+/** Collect all unique TFs that need an iFVG state machine instance. */
+function collectIfvgTFs(config: FourBrainConfig): Map<string, string> {
+  // Map: tf-label (e.g. "H1") → PERIOD constant
+  const result = new Map<string, string>();
+  const needs = (mods: BrainModuleType[] | undefined) =>
+    mods?.includes("fvg_inversion") ?? false;
+  const add = (tf: string) => {
+    if (!tf) return;
+    const u = tf.toUpperCase();
+    const c = u === "MN" ? "PERIOD_MN1" : `PERIOD_${u}`;
+    result.set(u, c);
+  };
+  if (needs(config.direction?.modules)) add(config.direction!.timeframe);
+  if (needs(config.setup?.modules))     add(config.setup!.timeframe);
+  if (needs(config.execution?.modules)) add(config.execution.timeframe);
+  return result;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -50,10 +69,31 @@ export function generateEA(params: MQL5CodeGenParams): string {
   const hasDirBrain   = Boolean(config.direction);
   const hasSetupBrain = Boolean(config.setup);
 
+  // Generate inline iFVG state machine instances for all TFs that need one
+  const ifvgTFs  = collectIfvgTFs(config);
+  const smCode   = [...ifvgTFs.entries()]
+    .map(([tf, TFconst]) => genFvgInversionSM(tf, TFconst, tf, 100))
+    .join("\n");
+
   // Generate brain function bodies from modular generators
   const dirCode   = genDirectionBrain(config.direction);
   const setupCode = genSetupBrain(config.setup);
   const execCode  = genExecutionBrain(config.execution);
+
+  // Build Tick() calls: each iFVG SM must be advanced BEFORE the brain that reads it.
+  // Direction brain runs first (HTF), then Setup, then Execution.
+  // If Setup/Exec share the same TF, only advance the SM once per bar.
+  const dirTFUpper   = (config.direction?.timeframe ?? "").toUpperCase();
+  const setupTFUpper = (config.setup?.timeframe ?? "").toUpperCase();
+  const execTFUpper  = (config.execution.timeframe).toUpperCase();
+
+  function smTickCall(tf: string): string {
+    return ifvgTFs.has(tf) ? `IFVGSM_${tf}_Tick(1);` : "";
+  }
+  const dirSmTick   = smTickCall(dirTFUpper);
+  const setupSmTick = smTickCall(setupTFUpper);
+  // Don't tick exec SM twice if it's the same TF as setup
+  const execSmTick  = (execTFUpper !== setupTFUpper) ? smTickCall(execTFUpper) : "";
 
   // Direction gate: if no direction brain, skip bias check
   const dirGate   = hasDirBrain
@@ -253,6 +293,10 @@ void DeleteAllChartObjects()
 }
 
 //+------------------------------------------------------------------+
+//| iFVG State Machine instances (Phase 3 inline, one per TF)       |
+//+------------------------------------------------------------------+
+${smCode}
+//+------------------------------------------------------------------+
 //| Brain implementations (generated from selected modules)         |
 //+------------------------------------------------------------------+
 ${dirCode}
@@ -266,6 +310,8 @@ int OnInit()
 {
    trade.SetExpertMagicNumber(InpMagic);
    trade.SetTypeFillingBySymbol(InpSymbol);
+   // Initialise all iFVG state machine instances
+   ${[...ifvgTFs.keys()].map(tf => `IFVGSM_${tf}_Reset();`).join(" ")}
    PrintFormat("[INIT] ${eaName} loaded");
    PrintFormat("[CONFIG] Direction: ${dirMods} @ ${dirTF}");
    PrintFormat("[CONFIG] Setup    : ${setupMods} @ ${setupTF}");
@@ -294,6 +340,7 @@ ${breakEvenCode}
    if(dBar != lastDirBar)
    {
       lastDirBar = dBar;
+      ${dirSmTick}
       Direction_Brain_Execute();
       PrintFormat("[D/${dirTF}] gBias=%d (%s)",
                   gBias, gBias>0 ? "BULL" : gBias<0 ? "BEAR" : "NEUTRAL");
@@ -304,6 +351,7 @@ ${breakEvenCode}
    if(sBar != lastSetupBar)
    {
       lastSetupBar = sBar;
+      ${setupSmTick}
       Setup_Brain_Execute();
       PrintFormat("[S/${setupTF}] gSetupActive=%d dir=%d SLhint=%.5f",
                   gSetupActive, gSetupDir, gSetupSLHint);
@@ -314,6 +362,7 @@ ${breakEvenCode}
    if(eBar != lastExecBar)
    {
       lastExecBar = eBar;
+      ${execSmTick}
       Execution_Brain_Execute();
       PrintFormat("[E/${execTF}] gExecSignal=%d dir=%d SL=%.5f",
                   gExecSignal, gExecDir, gExecSL);

@@ -100,100 +100,76 @@ void Setup_Brain_Execute()
       }
 
       case "fvg_inversion": {
-        // iFVG Setup: look for a recently inverted FVG in the bias direction.
-        // Bullish iFVG = bearish gap that price closed back above → setup for longs.
-        // Bearish iFVG = bullish gap that price closed back below → setup for shorts.
+        // Reads from the inline Phase 3 state machine (IFVGSM_${tf}_*).
+        // Setup is ACTIVE when ANY live iFVG exists in the bias direction
+        // (ACTIVE, RETESTED, or CONFIRMED — any non-terminal state).
+        // SLHint = zone boundary of the most recent live iFVG.
         parts.push(`
-   // iFVG Setup: scan for a recently inverted FVG aligned with gBias
+   // iFVG Setup: use Phase 3 state machine — active when live iFVG in bias direction
    if(!gSetupActive)
    {
-      for(int _i = 3; _i <= 30 && !gSetupActive; _i++)
+      if((gBias == 0 || gBias == 1) && IFVGSM_${tf}_HasActiveBull())
       {
-         double _cHigh = iHigh(InpSymbol, ${TF}, _i);
-         double _aLow  = iLow (InpSymbol, ${TF}, _i + 2);
-         double _cLow  = iLow (InpSymbol, ${TF}, _i);
-         double _aHigh = iHigh(InpSymbol, ${TF}, _i + 2);
-
-         // Bearish gap → bullish iFVG when price closes above _aLow
-         if(_cHigh < _aLow && (gBias == 0 || gBias == 1))
+         gSetupActive = true;
+         gSetupDir    = 1;
+         gSetupSLHint = IFVGSM_${tf}_LatestBullLL();
+         double _ul = IFVGSM_${tf}_LatestBullUL();
+         double _ll = IFVGSM_${tf}_LatestBullLL();
+         PrintFormat("[SETUP/${tf}] iFVG BULL active | ul=%.5f ll=%.5f", _ul, _ll);
+         // Draw zone
+         datetime _ft = IFVGSM_${tf}_LatestBullFvgTime();
+         if(_ft > 0)
          {
-            for(int _j = 1; _j < _i && !gSetupActive; _j++)
-            {
-               if(iClose(InpSymbol, ${TF}, _j) > _aLow)
-               {
-                  gSetupActive = true;
-                  gSetupDir    = 1;
-                  gSetupSLHint = _cHigh;  // Bottom of the bearish gap
-                  PrintFormat("[SETUP/${tf}] iFVG BULL inverted gap top=%.5f bot=%.5f",
-                              _aLow, _cHigh);
-                  // Draw setup zone rectangle (bearish gap now inverted → bullish support)
-                  {
-                     string _rn = StringFormat("4B_SETUP_%d", (int)TimeCurrent());
-                     datetime _rt1 = iTime(InpSymbol, ${TF}, _i + 2);
-                     datetime _rt2 = (datetime)(iTime(InpSymbol, PERIOD_CURRENT, 0)
-                                                + PeriodSeconds(PERIOD_CURRENT) * 30);
-                     if(ObjectCreate(0, _rn, OBJ_RECTANGLE, 0, _rt1, _aLow, _rt2, _cHigh))
-                     {
-                        ObjectSetInteger(0, _rn, OBJPROP_COLOR,     clrMediumSeaGreen);
-                        ObjectSetInteger(0, _rn, OBJPROP_STYLE,     STYLE_SOLID);
-                        ObjectSetInteger(0, _rn, OBJPROP_WIDTH,     1);
-                        ObjectSetInteger(0, _rn, OBJPROP_BACK,      true);
-                        ObjectSetInteger(0, _rn, OBJPROP_FILL,      false);
-                        ObjectSetInteger(0, _rn, OBJPROP_SELECTABLE,false);
-                     }
-                     string _ln = StringFormat("4B_SETUP_LBL_%d", (int)TimeCurrent());
-                     datetime _lt = iTime(InpSymbol, PERIOD_CURRENT, 0);
-                     if(ObjectCreate(0, _ln, OBJ_TEXT, 0, _lt, _aLow))
-                     {
-                        ObjectSetString (0, _ln, OBJPROP_TEXT,     StringFormat("${tf} SETUP: iFVG BULL [%.5f-%.5f]", _cHigh, _aLow));
-                        ObjectSetInteger(0, _ln, OBJPROP_COLOR,    clrMediumSeaGreen);
-                        ObjectSetInteger(0, _ln, OBJPROP_FONTSIZE, 8);
-                        ObjectSetInteger(0, _ln, OBJPROP_ANCHOR,   ANCHOR_UPPER);
-                        ObjectSetInteger(0, _ln, OBJPROP_SELECTABLE, false);
-                     }
-                  }
-               }
+            for(int _ci=ObjectsTotal(0)-1;_ci>=0;_ci--){string _cn=ObjectName(0,_ci);if(StringFind(_cn,"4B_SETUP_")==0)ObjectDelete(0,_cn);}
+            string _rn = StringFormat("4B_SETUP_%d",(int)TimeCurrent());
+            datetime _rt2=(datetime)(iTime(InpSymbol,PERIOD_CURRENT,0)+PeriodSeconds(PERIOD_CURRENT)*30);
+            if(ObjectCreate(0,_rn,OBJ_RECTANGLE,0,_ft,_ul,_rt2,_ll)){
+               ObjectSetInteger(0,_rn,OBJPROP_COLOR,clrMediumSeaGreen);
+               ObjectSetInteger(0,_rn,OBJPROP_STYLE,STYLE_SOLID);
+               ObjectSetInteger(0,_rn,OBJPROP_WIDTH,1);
+               ObjectSetInteger(0,_rn,OBJPROP_BACK,true);
+               ObjectSetInteger(0,_rn,OBJPROP_FILL,false);
+               ObjectSetInteger(0,_rn,OBJPROP_SELECTABLE,false);
+            }
+            string _ln=StringFormat("4B_SETUP_LBL_%d",(int)TimeCurrent());
+            if(ObjectCreate(0,_ln,OBJ_TEXT,0,iTime(InpSymbol,PERIOD_CURRENT,0),_ll)){
+               ObjectSetString(0,_ln,OBJPROP_TEXT,StringFormat("${tf} SETUP: iFVG BULL [%.5f-%.5f]",_ll,_ul));
+               ObjectSetInteger(0,_ln,OBJPROP_COLOR,clrMediumSeaGreen);
+               ObjectSetInteger(0,_ln,OBJPROP_FONTSIZE,8);
+               ObjectSetInteger(0,_ln,OBJPROP_ANCHOR,ANCHOR_UPPER);
+               ObjectSetInteger(0,_ln,OBJPROP_SELECTABLE,false);
             }
          }
-         // Bullish gap → bearish iFVG when price closes below _aHigh
-         else if(_cLow > _aHigh && (gBias == 0 || gBias == -1))
+      }
+      else if((gBias == 0 || gBias == -1) && IFVGSM_${tf}_HasActiveBear())
+      {
+         gSetupActive = true;
+         gSetupDir    = -1;
+         gSetupSLHint = IFVGSM_${tf}_LatestBearUL();
+         double _ul = IFVGSM_${tf}_LatestBearUL();
+         double _ll = IFVGSM_${tf}_LatestBearLL();
+         PrintFormat("[SETUP/${tf}] iFVG BEAR active | ul=%.5f ll=%.5f", _ul, _ll);
+         datetime _ft = IFVGSM_${tf}_LatestBearFvgTime();
+         if(_ft > 0)
          {
-            for(int _j = 1; _j < _i && !gSetupActive; _j++)
-            {
-               if(iClose(InpSymbol, ${TF}, _j) < _aHigh)
-               {
-                  gSetupActive = true;
-                  gSetupDir    = -1;
-                  gSetupSLHint = _cLow;   // Top of the bullish gap
-                  PrintFormat("[SETUP/${tf}] iFVG BEAR inverted gap top=%.5f bot=%.5f",
-                              _cLow, _aHigh);
-                  // Draw setup zone rectangle (bullish gap inverted → bearish resistance)
-                  {
-                     string _rn = StringFormat("4B_SETUP_%d", (int)TimeCurrent());
-                     datetime _rt1 = iTime(InpSymbol, ${TF}, _i + 2);
-                     datetime _rt2 = (datetime)(iTime(InpSymbol, PERIOD_CURRENT, 0)
-                                                + PeriodSeconds(PERIOD_CURRENT) * 30);
-                     if(ObjectCreate(0, _rn, OBJ_RECTANGLE, 0, _rt1, _cLow, _rt2, _aHigh))
-                     {
-                        ObjectSetInteger(0, _rn, OBJPROP_COLOR,     clrSalmon);
-                        ObjectSetInteger(0, _rn, OBJPROP_STYLE,     STYLE_SOLID);
-                        ObjectSetInteger(0, _rn, OBJPROP_WIDTH,     1);
-                        ObjectSetInteger(0, _rn, OBJPROP_BACK,      true);
-                        ObjectSetInteger(0, _rn, OBJPROP_FILL,      false);
-                        ObjectSetInteger(0, _rn, OBJPROP_SELECTABLE,false);
-                     }
-                     string _ln = StringFormat("4B_SETUP_LBL_%d", (int)TimeCurrent());
-                     datetime _lt = iTime(InpSymbol, PERIOD_CURRENT, 0);
-                     if(ObjectCreate(0, _ln, OBJ_TEXT, 0, _lt, _cLow))
-                     {
-                        ObjectSetString (0, _ln, OBJPROP_TEXT,     StringFormat("${tf} SETUP: iFVG BEAR [%.5f-%.5f]", _aHigh, _cLow));
-                        ObjectSetInteger(0, _ln, OBJPROP_COLOR,    clrSalmon);
-                        ObjectSetInteger(0, _ln, OBJPROP_FONTSIZE, 8);
-                        ObjectSetInteger(0, _ln, OBJPROP_ANCHOR,   ANCHOR_LOWER);
-                        ObjectSetInteger(0, _ln, OBJPROP_SELECTABLE, false);
-                     }
-                  }
-               }
+            for(int _ci=ObjectsTotal(0)-1;_ci>=0;_ci--){string _cn=ObjectName(0,_ci);if(StringFind(_cn,"4B_SETUP_")==0)ObjectDelete(0,_cn);}
+            string _rn = StringFormat("4B_SETUP_%d",(int)TimeCurrent());
+            datetime _rt2=(datetime)(iTime(InpSymbol,PERIOD_CURRENT,0)+PeriodSeconds(PERIOD_CURRENT)*30);
+            if(ObjectCreate(0,_rn,OBJ_RECTANGLE,0,_ft,_ul,_rt2,_ll)){
+               ObjectSetInteger(0,_rn,OBJPROP_COLOR,clrSalmon);
+               ObjectSetInteger(0,_rn,OBJPROP_STYLE,STYLE_SOLID);
+               ObjectSetInteger(0,_rn,OBJPROP_WIDTH,1);
+               ObjectSetInteger(0,_rn,OBJPROP_BACK,true);
+               ObjectSetInteger(0,_rn,OBJPROP_FILL,false);
+               ObjectSetInteger(0,_rn,OBJPROP_SELECTABLE,false);
+            }
+            string _ln=StringFormat("4B_SETUP_LBL_%d",(int)TimeCurrent());
+            if(ObjectCreate(0,_ln,OBJ_TEXT,0,iTime(InpSymbol,PERIOD_CURRENT,0),_ul)){
+               ObjectSetString(0,_ln,OBJPROP_TEXT,StringFormat("${tf} SETUP: iFVG BEAR [%.5f-%.5f]",_ul,_ll));
+               ObjectSetInteger(0,_ln,OBJPROP_COLOR,clrSalmon);
+               ObjectSetInteger(0,_ln,OBJPROP_FONTSIZE,8);
+               ObjectSetInteger(0,_ln,OBJPROP_ANCHOR,ANCHOR_LOWER);
+               ObjectSetInteger(0,_ln,OBJPROP_SELECTABLE,false);
             }
          }
       }

@@ -47,97 +47,59 @@ void Execution_Brain_Execute() { gExecSignal = false; gExecDir = 0; gExecSL = 0;
   for (const mod of modules) {
     switch (mod) {
       case "fvg_inversion": {
-        // iFVG Execution:
-        //   Detect the EXACT bar (shift=1) that inverts an existing FVG.
-        //   "A candle closes above/below the FVG" = the inverting bar.
-        //   SL = low of the inverting candle (for buy) / high (for sell).
-        //   This fires once per inversion event — the entry candle IS the signal.
+        // Reads from the inline Phase 3 state machine (IFVGSM_${tf}_*).
+        // Entry fires ONLY when iFVG reaches CONFIRMED (ACTIVE→RETESTED→CONFIRMED).
+        // SL = confirmSL (retestLow for bull, retestHigh for bear) — the worst
+        // wick during the retest phase, exactly as the state module tracks it.
         parts.push(`
-   // iFVG Execution: detect the bar that closes through an existing FVG (inversion event)
+   // iFVG Execution: entry on Phase 3 CONFIRMED signal (not just inversion)
    if(!gExecSignal)
    {
-      double _c1 = iClose(InpSymbol, ${TF}, 1);  // just-closed bar (inverting candidate)
-      double _h1 = iHigh (InpSymbol, ${TF}, 1);
-      double _l1 = iLow  (InpSymbol, ${TF}, 1);
-
-      // Scan for existing bearish gaps (C.high < A.low) that _c1 has closed through upward
-      for(int _i = 3; _i <= 30 && !gExecSignal; _i++)
+      // BULL iFVG CONFIRMED in bias+setup direction
+      if(IFVGSM_${tf}_BullJustConfirmed() && (gBias==0||gBias==1) && (gSetupDir==0||gSetupDir==1))
       {
-         double _gapBot = iHigh(InpSymbol, ${TF}, _i);        // C.high = gap bottom
-         double _gapTop = iLow (InpSymbol, ${TF}, _i + 2);   // A.low  = gap top
-         if(_gapBot >= _gapTop) continue;                     // Not a bearish gap
-         if(gBias != 0 && gBias != 1) continue;
-         if(gSetupDir != 0 && gSetupDir != 1) continue;
-
-         // Inversion: bar at shift _i is the gap's C candle (formed gap)
-         // bar at shift 1 closes ABOVE the gap top (_gapTop = A.low)
-         // Verify shift 1 is more recent than shift _i (always true since _i >= 3)
-         if(_c1 > _gapTop)
-         {
-            gExecSignal = true;
-            gExecDir    = 1;        // BUY — bearish gap inverted bullishly
-            gExecSL     = _l1;      // SL at low of the inverting candle
-            PrintFormat("[EXEC/${tf}] iFVG BULL: gap top=%.5f inverted by c1=%.5f SL=%.5f",
-                        _gapTop, _c1, _l1);
-            // Draw execution signal on chart
-            {
-               datetime _et = iTime(InpSymbol, ${TF}, 1);
-               string _ea = StringFormat("4B_EXEC_ARR_%d", (int)TimeCurrent());
-               if(ObjectCreate(0, _ea, OBJ_ARROW_BUY, 0, _et, _l1))
-               {
-                  ObjectSetInteger(0, _ea, OBJPROP_COLOR,     clrLime);
-                  ObjectSetInteger(0, _ea, OBJPROP_WIDTH,     2);
-                  ObjectSetInteger(0, _ea, OBJPROP_SELECTABLE,false);
-               }
-               string _el = StringFormat("4B_EXEC_LBL_%d", (int)TimeCurrent());
-               if(ObjectCreate(0, _el, OBJ_TEXT, 0, _et, _l1))
-               {
-                  ObjectSetString (0, _el, OBJPROP_TEXT,     StringFormat("${tf} iFVG BULL\\nSL %.5f", _l1));
-                  ObjectSetInteger(0, _el, OBJPROP_COLOR,    clrLime);
-                  ObjectSetInteger(0, _el, OBJPROP_FONTSIZE, 8);
-                  ObjectSetInteger(0, _el, OBJPROP_ANCHOR,   ANCHOR_UPPER);
-                  ObjectSetInteger(0, _el, OBJPROP_SELECTABLE, false);
-               }
-            }
+         gExecSignal = true;
+         gExecDir    = 1;
+         gExecSL     = IFVGSM_${tf}_BullConfirmSL();
+         PrintFormat("[EXEC/${tf}] iFVG BULL CONFIRMED | SL=%.5f", gExecSL);
+         // Chart arrow at confirmation bar
+         datetime _et = iTime(InpSymbol, ${TF}, 1);
+         string _ea = StringFormat("4B_EXEC_ARR_%d",(int)TimeCurrent());
+         if(ObjectCreate(0,_ea,OBJ_ARROW_BUY,0,_et,gExecSL)){
+            ObjectSetInteger(0,_ea,OBJPROP_COLOR,clrLime);
+            ObjectSetInteger(0,_ea,OBJPROP_WIDTH,2);
+            ObjectSetInteger(0,_ea,OBJPROP_SELECTABLE,false);
+         }
+         string _el=StringFormat("4B_EXEC_LBL_%d",(int)TimeCurrent());
+         if(ObjectCreate(0,_el,OBJ_TEXT,0,_et,gExecSL)){
+            ObjectSetString(0,_el,OBJPROP_TEXT,StringFormat("${tf} iFVG BULL-C SL %.5f",gExecSL));
+            ObjectSetInteger(0,_el,OBJPROP_COLOR,clrLime);
+            ObjectSetInteger(0,_el,OBJPROP_FONTSIZE,8);
+            ObjectSetInteger(0,_el,OBJPROP_ANCHOR,ANCHOR_UPPER);
+            ObjectSetInteger(0,_el,OBJPROP_SELECTABLE,false);
          }
       }
-
-      // Scan for existing bullish gaps (C.low > A.high) that _c1 has closed through downward
-      for(int _i = 3; _i <= 30 && !gExecSignal; _i++)
+      // BEAR iFVG CONFIRMED
+      else if(IFVGSM_${tf}_BearJustConfirmed() && (gBias==0||gBias==-1) && (gSetupDir==0||gSetupDir==-1))
       {
-         double _gapTop = iLow (InpSymbol, ${TF}, _i);        // C.low  = gap top
-         double _gapBot = iHigh(InpSymbol, ${TF}, _i + 2);   // A.high = gap bottom
-         if(_gapTop <= _gapBot) continue;                     // Not a bullish gap
-         if(gBias != 0 && gBias != -1) continue;
-         if(gSetupDir != 0 && gSetupDir != -1) continue;
-
-         if(_c1 < _gapBot)
-         {
-            gExecSignal = true;
-            gExecDir    = -1;       // SELL — bullish gap inverted bearishly
-            gExecSL     = _h1;      // SL at high of the inverting candle
-            PrintFormat("[EXEC/${tf}] iFVG BEAR: gap bot=%.5f inverted by c1=%.5f SL=%.5f",
-                        _gapBot, _c1, _h1);
-            // Draw execution signal on chart
-            {
-               datetime _et = iTime(InpSymbol, ${TF}, 1);
-               string _ea = StringFormat("4B_EXEC_ARR_%d", (int)TimeCurrent());
-               if(ObjectCreate(0, _ea, OBJ_ARROW_SELL, 0, _et, _h1))
-               {
-                  ObjectSetInteger(0, _ea, OBJPROP_COLOR,     clrOrangeRed);
-                  ObjectSetInteger(0, _ea, OBJPROP_WIDTH,     2);
-                  ObjectSetInteger(0, _ea, OBJPROP_SELECTABLE,false);
-               }
-               string _el = StringFormat("4B_EXEC_LBL_%d", (int)TimeCurrent());
-               if(ObjectCreate(0, _el, OBJ_TEXT, 0, _et, _h1))
-               {
-                  ObjectSetString (0, _el, OBJPROP_TEXT,     StringFormat("${tf} iFVG BEAR\\nSL %.5f", _h1));
-                  ObjectSetInteger(0, _el, OBJPROP_COLOR,    clrOrangeRed);
-                  ObjectSetInteger(0, _el, OBJPROP_FONTSIZE, 8);
-                  ObjectSetInteger(0, _el, OBJPROP_ANCHOR,   ANCHOR_LOWER);
-                  ObjectSetInteger(0, _el, OBJPROP_SELECTABLE, false);
-               }
-            }
+         gExecSignal = true;
+         gExecDir    = -1;
+         gExecSL     = IFVGSM_${tf}_BearConfirmSL();
+         PrintFormat("[EXEC/${tf}] iFVG BEAR CONFIRMED | SL=%.5f", gExecSL);
+         datetime _et = iTime(InpSymbol, ${TF}, 1);
+         string _ea = StringFormat("4B_EXEC_ARR_%d",(int)TimeCurrent());
+         if(ObjectCreate(0,_ea,OBJ_ARROW_SELL,0,_et,gExecSL)){
+            ObjectSetInteger(0,_ea,OBJPROP_COLOR,clrOrangeRed);
+            ObjectSetInteger(0,_ea,OBJPROP_WIDTH,2);
+            ObjectSetInteger(0,_ea,OBJPROP_SELECTABLE,false);
+         }
+         string _el=StringFormat("4B_EXEC_LBL_%d",(int)TimeCurrent());
+         if(ObjectCreate(0,_el,OBJ_TEXT,0,_et,gExecSL)){
+            ObjectSetString(0,_el,OBJPROP_TEXT,StringFormat("${tf} iFVG BEAR-C SL %.5f",gExecSL));
+            ObjectSetInteger(0,_el,OBJPROP_COLOR,clrOrangeRed);
+            ObjectSetInteger(0,_el,OBJPROP_FONTSIZE,8);
+            ObjectSetInteger(0,_el,OBJPROP_ANCHOR,ANCHOR_LOWER);
+            ObjectSetInteger(0,_el,OBJPROP_SELECTABLE,false);
          }
       }
    }`);

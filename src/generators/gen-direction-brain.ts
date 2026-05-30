@@ -51,41 +51,15 @@ function genModuleSignal(
     }
 
     case "fvg_inversion": {
-      // iFVG (Inverted FVG):
-      //   Bullish iFVG = a bearish gap (C.high < A.low) that price has
-      //                  inverted by closing ABOVE A.low (former resistance → support).
-      //   Bearish iFVG = a bullish gap (C.low > A.high) that price has
-      //                  inverted by closing BELOW A.high (former support → resistance).
-      //
-      // Index convention (shifts): C=newest at shift _i, A=oldest at shift _i+2.
-      // Inversion confirmed if any bar with shift _j < _i (more recent than the gap)
-      // has closed through the gap's far boundary.
+      // Uses the inline Phase 3 state machine (IFVGSM_${tf}_*).
+      // Signal fires when an iFVG reaches CONFIRMED state (ACTIVE→RETESTED→CONFIRMED).
+      // The state machine instance is named by TF so Direction and Execution brains
+      // can share the same machine when on the same timeframe.
       return `
-   // FVG Inversion: detect a recently inverted FVG (gap that price closed back through)
-   {
-      for(int _i = 3; _i <= 30 && ${varName} == 0; _i++)
-      {
-         double _cHigh = iHigh(InpSymbol, ${TF}, _i);      // C (newest candle of gap)
-         double _aLow  = iLow (InpSymbol, ${TF}, _i + 2);  // A (oldest candle of gap)
-         double _cLow  = iLow (InpSymbol, ${TF}, _i);
-         double _aHigh = iHigh(InpSymbol, ${TF}, _i + 2);
-
-         // Bearish gap: C.high < A.low → inversion = close above A.low
-         if(_cHigh < _aLow)
-         {
-            for(int _j = 1; _j < _i && ${varName} == 0; _j++)
-               if(iClose(InpSymbol, ${TF}, _j) > _aLow)
-                  ${varName} = 1;  // Bullish iFVG confirmed
-         }
-         // Bullish gap: C.low > A.high → inversion = close below A.high
-         else if(_cLow > _aHigh)
-         {
-            for(int _j = 1; _j < _i && ${varName} == 0; _j++)
-               if(iClose(InpSymbol, ${TF}, _j) < _aHigh)
-                  ${varName} = -1;  // Bearish iFVG confirmed
-         }
-      }
-   }`;
+   // FVG Inversion: read from the Phase 3 inline state machine (IFVGSM_${tf}_)
+   // CONFIRMED = price retested the iFVG zone and closed back outside → quality setup
+   if(IFVGSM_${tf}_BullJustConfirmed()) ${varName} = 1;
+   if(IFVGSM_${tf}_BearJustConfirmed()) ${varName} = -1;`;
     }
 
     case "fvg": {
