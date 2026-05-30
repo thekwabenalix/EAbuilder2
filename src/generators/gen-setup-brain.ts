@@ -126,6 +126,32 @@ void Setup_Brain_Execute()
                   gSetupSLHint = _cHigh;  // Bottom of the bearish gap
                   PrintFormat("[SETUP/${tf}] iFVG BULL inverted gap top=%.5f bot=%.5f",
                               _aLow, _cHigh);
+                  // Draw setup zone rectangle (bearish gap now inverted → bullish support)
+                  {
+                     string _rn = StringFormat("4B_SETUP_%d", (int)TimeCurrent());
+                     datetime _rt1 = iTime(InpSymbol, ${TF}, _i + 2);
+                     datetime _rt2 = (datetime)(iTime(InpSymbol, PERIOD_CURRENT, 0)
+                                                + PeriodSeconds(PERIOD_CURRENT) * 30);
+                     if(ObjectCreate(0, _rn, OBJ_RECTANGLE, 0, _rt1, _aLow, _rt2, _cHigh))
+                     {
+                        ObjectSetInteger(0, _rn, OBJPROP_COLOR,     clrMediumSeaGreen);
+                        ObjectSetInteger(0, _rn, OBJPROP_STYLE,     STYLE_SOLID);
+                        ObjectSetInteger(0, _rn, OBJPROP_WIDTH,     1);
+                        ObjectSetInteger(0, _rn, OBJPROP_BACK,      true);
+                        ObjectSetInteger(0, _rn, OBJPROP_FILL,      false);
+                        ObjectSetInteger(0, _rn, OBJPROP_SELECTABLE,false);
+                     }
+                     string _ln = StringFormat("4B_SETUP_LBL_%d", (int)TimeCurrent());
+                     datetime _lt = iTime(InpSymbol, PERIOD_CURRENT, 0);
+                     if(ObjectCreate(0, _ln, OBJ_TEXT, 0, _lt, _aLow))
+                     {
+                        ObjectSetString (0, _ln, OBJPROP_TEXT,     StringFormat("${tf} SETUP: iFVG BULL [%.5f-%.5f]", _cHigh, _aLow));
+                        ObjectSetInteger(0, _ln, OBJPROP_COLOR,    clrMediumSeaGreen);
+                        ObjectSetInteger(0, _ln, OBJPROP_FONTSIZE, 8);
+                        ObjectSetInteger(0, _ln, OBJPROP_ANCHOR,   ANCHOR_UPPER);
+                        ObjectSetInteger(0, _ln, OBJPROP_SELECTABLE, false);
+                     }
+                  }
                }
             }
          }
@@ -141,6 +167,32 @@ void Setup_Brain_Execute()
                   gSetupSLHint = _cLow;   // Top of the bullish gap
                   PrintFormat("[SETUP/${tf}] iFVG BEAR inverted gap top=%.5f bot=%.5f",
                               _cLow, _aHigh);
+                  // Draw setup zone rectangle (bullish gap inverted → bearish resistance)
+                  {
+                     string _rn = StringFormat("4B_SETUP_%d", (int)TimeCurrent());
+                     datetime _rt1 = iTime(InpSymbol, ${TF}, _i + 2);
+                     datetime _rt2 = (datetime)(iTime(InpSymbol, PERIOD_CURRENT, 0)
+                                                + PeriodSeconds(PERIOD_CURRENT) * 30);
+                     if(ObjectCreate(0, _rn, OBJ_RECTANGLE, 0, _rt1, _cLow, _rt2, _aHigh))
+                     {
+                        ObjectSetInteger(0, _rn, OBJPROP_COLOR,     clrSalmon);
+                        ObjectSetInteger(0, _rn, OBJPROP_STYLE,     STYLE_SOLID);
+                        ObjectSetInteger(0, _rn, OBJPROP_WIDTH,     1);
+                        ObjectSetInteger(0, _rn, OBJPROP_BACK,      true);
+                        ObjectSetInteger(0, _rn, OBJPROP_FILL,      false);
+                        ObjectSetInteger(0, _rn, OBJPROP_SELECTABLE,false);
+                     }
+                     string _ln = StringFormat("4B_SETUP_LBL_%d", (int)TimeCurrent());
+                     datetime _lt = iTime(InpSymbol, PERIOD_CURRENT, 0);
+                     if(ObjectCreate(0, _ln, OBJ_TEXT, 0, _lt, _cLow))
+                     {
+                        ObjectSetString (0, _ln, OBJPROP_TEXT,     StringFormat("${tf} SETUP: iFVG BEAR [%.5f-%.5f]", _aHigh, _cLow));
+                        ObjectSetInteger(0, _ln, OBJPROP_COLOR,    clrSalmon);
+                        ObjectSetInteger(0, _ln, OBJPROP_FONTSIZE, 8);
+                        ObjectSetInteger(0, _ln, OBJPROP_ANCHOR,   ANCHOR_LOWER);
+                        ObjectSetInteger(0, _ln, OBJPROP_SELECTABLE, false);
+                     }
+                  }
                }
             }
          }
@@ -380,8 +432,18 @@ void Setup_Brain_Execute()
 // ─── Setup Brain: ${modules.join(" + ").toUpperCase()} @ ${tf} ──────────────────────────────────
 void Setup_Brain_Execute()
 {
+   bool _wasActive = gSetupActive;
    gSetupActive = false;   // Reset — re-detect every bar
    gSetupDir    = 0;
+   // If setup just expired, remove stale zone rectangles
+   if(_wasActive)
+   {
+      for(int _ci = ObjectsTotal(0)-1; _ci >= 0; _ci--)
+      {
+         string _cn = ObjectName(0, _ci);
+         if(StringFind(_cn, "4B_SETUP_") == 0) ObjectDelete(0, _cn);
+      }
+   }
 ${detectionBody}
 }
 `;

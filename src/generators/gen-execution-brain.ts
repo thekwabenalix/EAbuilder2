@@ -79,6 +79,26 @@ void Execution_Brain_Execute() { gExecSignal = false; gExecDir = 0; gExecSL = 0;
             gExecSL     = _l1;      // SL at low of the inverting candle
             PrintFormat("[EXEC/${tf}] iFVG BULL: gap top=%.5f inverted by c1=%.5f SL=%.5f",
                         _gapTop, _c1, _l1);
+            // Draw execution signal on chart
+            {
+               datetime _et = iTime(InpSymbol, ${TF}, 1);
+               string _ea = StringFormat("4B_EXEC_ARR_%d", (int)TimeCurrent());
+               if(ObjectCreate(0, _ea, OBJ_ARROW_BUY, 0, _et, _l1))
+               {
+                  ObjectSetInteger(0, _ea, OBJPROP_COLOR,     clrLime);
+                  ObjectSetInteger(0, _ea, OBJPROP_WIDTH,     2);
+                  ObjectSetInteger(0, _ea, OBJPROP_SELECTABLE,false);
+               }
+               string _el = StringFormat("4B_EXEC_LBL_%d", (int)TimeCurrent());
+               if(ObjectCreate(0, _el, OBJ_TEXT, 0, _et, _l1))
+               {
+                  ObjectSetString (0, _el, OBJPROP_TEXT,     StringFormat("${tf} iFVG BULL\\nSL %.5f", _l1));
+                  ObjectSetInteger(0, _el, OBJPROP_COLOR,    clrLime);
+                  ObjectSetInteger(0, _el, OBJPROP_FONTSIZE, 8);
+                  ObjectSetInteger(0, _el, OBJPROP_ANCHOR,   ANCHOR_UPPER);
+                  ObjectSetInteger(0, _el, OBJPROP_SELECTABLE, false);
+               }
+            }
          }
       }
 
@@ -98,6 +118,26 @@ void Execution_Brain_Execute() { gExecSignal = false; gExecDir = 0; gExecSL = 0;
             gExecSL     = _h1;      // SL at high of the inverting candle
             PrintFormat("[EXEC/${tf}] iFVG BEAR: gap bot=%.5f inverted by c1=%.5f SL=%.5f",
                         _gapBot, _c1, _h1);
+            // Draw execution signal on chart
+            {
+               datetime _et = iTime(InpSymbol, ${TF}, 1);
+               string _ea = StringFormat("4B_EXEC_ARR_%d", (int)TimeCurrent());
+               if(ObjectCreate(0, _ea, OBJ_ARROW_SELL, 0, _et, _h1))
+               {
+                  ObjectSetInteger(0, _ea, OBJPROP_COLOR,     clrOrangeRed);
+                  ObjectSetInteger(0, _ea, OBJPROP_WIDTH,     2);
+                  ObjectSetInteger(0, _ea, OBJPROP_SELECTABLE,false);
+               }
+               string _el = StringFormat("4B_EXEC_LBL_%d", (int)TimeCurrent());
+               if(ObjectCreate(0, _el, OBJ_TEXT, 0, _et, _h1))
+               {
+                  ObjectSetString (0, _el, OBJPROP_TEXT,     StringFormat("${tf} iFVG BEAR\\nSL %.5f", _h1));
+                  ObjectSetInteger(0, _el, OBJPROP_COLOR,    clrOrangeRed);
+                  ObjectSetInteger(0, _el, OBJPROP_FONTSIZE, 8);
+                  ObjectSetInteger(0, _el, OBJPROP_ANCHOR,   ANCHOR_LOWER);
+                  ObjectSetInteger(0, _el, OBJPROP_SELECTABLE, false);
+               }
+            }
          }
       }
    }`);

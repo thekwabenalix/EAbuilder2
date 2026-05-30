@@ -200,6 +200,59 @@ bool SpreadOk()
 }
 
 //+------------------------------------------------------------------+
+//| Info panel — corner dashboard showing live brain states         |
+//+------------------------------------------------------------------+
+void DrawInfoPanel()
+{
+   string bias_txt   = (gBias > 0) ? "BULL ▲" : (gBias < 0) ? "BEAR ▼" : "NEUTRAL";
+   color  bias_clr   = (gBias > 0) ? clrDodgerBlue : (gBias < 0) ? clrOrangeRed : clrGray;
+   string setup_txt  = gSetupActive
+                       ? (gSetupDir > 0 ? "BULL ACTIVE ✓" : "BEAR ACTIVE ✓")
+                       : "waiting...";
+   color  setup_clr  = gSetupActive ? clrMediumSeaGreen : clrGray;
+   string exec_txt   = gExecSignal
+                       ? (gExecDir > 0 ? "BUY SIGNAL ✓" : "SELL SIGNAL ✓")
+                       : "watching...";
+   color  exec_clr   = gExecSignal ? clrLime : clrGray;
+
+   struct PanelRow { string name; string text; color clr; int y; };
+   PanelRow rows[] = {
+      { "4B_P0", "═══ 4-Brain EA ═══",          clrGold,      15 },
+      { "4B_P1", "DIR : " + bias_txt,            bias_clr,     30 },
+      { "4B_P2", "SETUP: " + setup_txt,          setup_clr,    45 },
+      { "4B_P3", "EXEC : " + exec_txt,           exec_clr,     60 },
+      { "4B_P4", StringFormat("Risk: %.1f%% | R:R %.1fx", InpRiskPercent, InpRewardRisk),
+                                                  clrSilver,   75 },
+   };
+
+   for(int _i = 0; _i < ArraySize(rows); _i++)
+   {
+      if(ObjectFind(0, rows[_i].name) < 0)
+         ObjectCreate(0, rows[_i].name, OBJ_LABEL, 0, 0, 0);
+      ObjectSetInteger(0, rows[_i].name, OBJPROP_CORNER,    CORNER_LEFT_UPPER);
+      ObjectSetInteger(0, rows[_i].name, OBJPROP_XDISTANCE, 8);
+      ObjectSetInteger(0, rows[_i].name, OBJPROP_YDISTANCE, rows[_i].y);
+      ObjectSetString (0, rows[_i].name, OBJPROP_TEXT,      rows[_i].text);
+      ObjectSetInteger(0, rows[_i].name, OBJPROP_COLOR,     rows[_i].clr);
+      ObjectSetInteger(0, rows[_i].name, OBJPROP_FONTSIZE,  9);
+      ObjectSetInteger(0, rows[_i].name, OBJPROP_SELECTABLE,false);
+   }
+}
+
+void DeleteAllChartObjects()
+{
+   string prefixes[] = { "4B_DIR_", "4B_SETUP_", "4B_EXEC_", "4B_P0", "4B_P1", "4B_P2", "4B_P3", "4B_P4" };
+   for(int _p = 0; _p < ArraySize(prefixes); _p++)
+   {
+      for(int _i = ObjectsTotal(0) - 1; _i >= 0; _i--)
+      {
+         string _n = ObjectName(0, _i);
+         if(StringFind(_n, prefixes[_p]) == 0) ObjectDelete(0, _n);
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
 //| Brain implementations (generated from selected modules)         |
 //+------------------------------------------------------------------+
 ${dirCode}
@@ -224,6 +277,7 @@ int OnInit()
 
 void OnDeinit(const int reason)
 {
+   DeleteAllChartObjects();
    PrintFormat("[DEINIT] ${eaName} removed (reason=%d)", reason);
 }
 
@@ -232,6 +286,7 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
 {
+   DrawInfoPanel();  // Update corner panel every tick
 ${breakEvenCode}
 
    // ── Direction Brain (${dirTF}) ──────────────────────────────────────────────

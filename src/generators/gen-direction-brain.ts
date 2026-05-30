@@ -275,10 +275,31 @@ void Direction_Brain_Execute()
 {
    int _sig = 0;
 ${sigCode}
-   if(_sig != 0)
+   if(_sig != 0 && gBias != _sig)
    {
-      if(gBias != _sig) PrintFormat("[DIR/${tf}] ${mod.toUpperCase()} %s", _sig>0?"BULL":"BEAR");
+      PrintFormat("[DIR/${tf}] ${mod.toUpperCase()} %s", _sig>0?"BULL":"BEAR");
       gBias = _sig;
+      // Draw direction label
+      for(int _oi=ObjectsTotal(0)-1;_oi>=0;_oi--) {
+         string _on=ObjectName(0,_oi);
+         if(StringFind(_on,"4B_DIR_")==0) ObjectDelete(0,_on);
+      }
+      string _dlbl=StringFormat("4B_DIR_LBL_%d",(int)TimeCurrent());
+      datetime _dt=iTime(InpSymbol,PERIOD_CURRENT,1);
+      double _dp=_sig>0?iLow(InpSymbol,PERIOD_CURRENT,1)*0.9997:iHigh(InpSymbol,PERIOD_CURRENT,1)*1.0003;
+      if(ObjectCreate(0,_dlbl,OBJ_TEXT,0,_dt,_dp)){
+         ObjectSetString(0,_dlbl,OBJPROP_TEXT,StringFormat("${tf} ${mod.toUpperCase()} %s ✓",_sig>0?"BULL":"BEAR"));
+         ObjectSetInteger(0,_dlbl,OBJPROP_COLOR,_sig>0?clrDodgerBlue:clrOrangeRed);
+         ObjectSetInteger(0,_dlbl,OBJPROP_FONTSIZE,9);
+         ObjectSetInteger(0,_dlbl,OBJPROP_ANCHOR,_sig>0?ANCHOR_UPPER:ANCHOR_LOWER);
+      }
+      string _dvl=StringFormat("4B_DIR_VL_%d",(int)TimeCurrent());
+      if(ObjectCreate(0,_dvl,OBJ_VLINE,0,_dt,0)){
+         ObjectSetInteger(0,_dvl,OBJPROP_COLOR,_sig>0?clrDodgerBlue:clrOrangeRed);
+         ObjectSetInteger(0,_dvl,OBJPROP_STYLE,STYLE_DOT);
+         ObjectSetInteger(0,_dvl,OBJPROP_BACK,true);
+         ObjectSetInteger(0,_dvl,OBJPROP_SELECTABLE,false);
+      }
    }
 }
 `;
@@ -310,8 +331,44 @@ ${detections}
    {
       int _combined = _sig0;
       if(gBias != _combined)
-         PrintFormat("[DIR/${tf}] ${modules.map(m => m.toUpperCase()).join("+")} %s all agree",
+      {
+         PrintFormat("[DIR/${tf}] ${modules.map(m => m.toUpperCase()).join("+")} %s confirmed",
                      _combined>0?"BULL":"BEAR");
+         gBias = _combined;
+
+         // ── Chart: draw direction label at current bar ────────────────────────
+         // Clean up old direction objects first
+         for(int _oi = ObjectsTotal(0) - 1; _oi >= 0; _oi--)
+         {
+            string _on = ObjectName(0, _oi);
+            if(StringFind(_on, "4B_DIR_") == 0) ObjectDelete(0, _on);
+         }
+         // Direction label
+         string _dlbl = StringFormat("4B_DIR_LBL_%d", (int)TimeCurrent());
+         datetime _dt = iTime(InpSymbol, PERIOD_CURRENT, 1);
+         double   _dp = _combined > 0
+                        ? iLow (InpSymbol, PERIOD_CURRENT, 1) * 0.9997
+                        : iHigh(InpSymbol, PERIOD_CURRENT, 1) * 1.0003;
+         if(ObjectCreate(0, _dlbl, OBJ_TEXT, 0, _dt, _dp))
+         {
+            string _dtxt = StringFormat("${tf} DIR: ${modules.map(m => m.toUpperCase()).join("+")} %s ✓",
+                                         _combined > 0 ? "BULL" : "BEAR");
+            ObjectSetString (0, _dlbl, OBJPROP_TEXT,     _dtxt);
+            ObjectSetInteger(0, _dlbl, OBJPROP_COLOR,    _combined>0 ? clrDodgerBlue : clrOrangeRed);
+            ObjectSetInteger(0, _dlbl, OBJPROP_FONTSIZE, 9);
+            ObjectSetInteger(0, _dlbl, OBJPROP_ANCHOR,   _combined>0 ? ANCHOR_UPPER : ANCHOR_LOWER);
+         }
+         // Vertical dashed line at the direction change bar
+         string _dvline = StringFormat("4B_DIR_VL_%d", (int)TimeCurrent());
+         if(ObjectCreate(0, _dvline, OBJ_VLINE, 0, _dt, 0))
+         {
+            ObjectSetInteger(0, _dvline, OBJPROP_COLOR,   _combined>0 ? clrDodgerBlue : clrOrangeRed);
+            ObjectSetInteger(0, _dvline, OBJPROP_STYLE,   STYLE_DOT);
+            ObjectSetInteger(0, _dvline, OBJPROP_WIDTH,   1);
+            ObjectSetInteger(0, _dvline, OBJPROP_BACK,    true);
+            ObjectSetInteger(0, _dvline, OBJPROP_SELECTABLE, false);
+         }
+      }
       gBias = _combined;
    }
 }
