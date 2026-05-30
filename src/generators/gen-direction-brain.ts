@@ -1,69 +1,83 @@
 /**
  * Direction Brain Generator
  *
- * Takes a BrainConfig and generates the complete Direction_Brain_Execute() function
- * that detects market bias and returns a DirectionBrainState.
+ * Generates Direction_Brain_Execute() function with module-specific detection logic.
+ * Returns inline MQL5 code (no templates).
  */
 
 import type { BrainConfig } from "@/types/blueprint";
-import { DIRECTION_BRAIN_TEMPLATE } from "@/templates/brain-direction.mql5";
 
 export function genDirectionBrain(brain: BrainConfig | undefined): string {
   if (!brain) {
     return `
-// No Direction Brain configured — gBias stays NEUTRAL
-DirectionBrainState gDirState = {0, 0, "No direction filter"};
-DirectionBrainState Direction_Brain_Execute() { return gDirState; }
+// Direction Brain disabled
+int gBias = 0;
+void Direction_Brain_Init() {}
+void Direction_Brain_Execute() { gBias = 0; }
 `;
   }
 
   const modules = brain.modules || [];
   const timeframe = brain.timeframe || "D1";
-  const modulesLabel = modules.map((m) => m.toUpperCase()).join(" + ");
 
-  // Build module-specific globals and detection logic
-  let globals = "";
-  let detectionLogic = "";
+  // Build module-specific logic
+  let detectionCode = "";
 
   for (const module of modules) {
-    if (module === "choch" || module === "bos") {
-      globals += `
-// ${module.toUpperCase()} globals
-double swH_${module} = 0, swL_${module} = 0;
-`;
-      detectionLogic += `
-   // ${module.toUpperCase()} detection
-   double swH = iHigh(InpSymbol, InpDirectionTF, 2), swL = iLow(InpSymbol, InpDirectionTF, 2);
+    if (module === "choch") {
+      detectionCode += `
+   // CHoCH Detection: Break of Previous Swing High/Low
+   double swH = iHigh(InpSymbol, InpDirectionTF, 2);
+   double swL = iLow(InpSymbol, InpDirectionTF, 2);
    for(int i = 3; i <= 20; i++) {
       swH = MathMax(swH, iHigh(InpSymbol, InpDirectionTF, i));
       swL = MathMin(swL, iLow(InpSymbol, InpDirectionTF, i));
    }
-   double c1 = iClose(InpSymbol, InpDirectionTF, 1);
-   if(c1 > swH) {
-      state.bias = 1;
-      state.reason = "${module.toUpperCase()} BULL break @ " + DoubleToString(swH, 5);
-   } else if(c1 < swL) {
-      state.bias = -1;
-      state.reason = "${module.toUpperCase()} BEAR break @ " + DoubleToString(swL, 5);
+   double close1 = iClose(InpSymbol, InpDirectionTF, 1);
+   if(close1 > swH) gBias = 1;      // BULL break
+   else if(close1 < swL) gBias = -1; // BEAR break
+`;
+    } else if (module === "bos") {
+      detectionCode += `
+   // BOS Detection: Break of Structure
+   double swH = iHigh(InpSymbol, InpDirectionTF, 2);
+   double swL = iLow(InpSymbol, InpDirectionTF, 2);
+   for(int i = 3; i <= 20; i++) {
+      swH = MathMax(swH, iHigh(InpSymbol, InpDirectionTF, i));
+      swL = MathMin(swL, iLow(InpSymbol, InpDirectionTF, i));
    }
+   double close1 = iClose(InpSymbol, InpDirectionTF, 1);
+   if(close1 > swH) gBias = 1;      // BULL break
+   else if(close1 < swL) gBias = -1; // BEAR break
 `;
-    } else if (module === "ema") {
-      globals += `
-// EMA globals
-int emaHandle9 = INVALID_HANDLE, emaHandle21 = INVALID_HANDLE;
-`;
-      detectionLogic += `
-   // EMA detection (placeholder — full logic in next phase)
-   state.reason = "EMA trend detection (not yet implemented)";
+    } else if (module === "fvg_inversion") {
+      detectionCode += `
+   // FVG Inversion Detection
+   double o0 = iOpen(InpSymbol, InpDirectionTF, 0);
+   double h1 = iHigh(InpSymbol, InpDirectionTF, 1);
+   double l1 = iLow(InpSymbol, InpDirectionTF, 1);
+   double h2 = iHigh(InpSymbol, InpDirectionTF, 2);
+   double l2 = iLow(InpSymbol, InpDirectionTF, 2);
+
+   // Bullish inversion: gap down (low0 > high2)
+   if(l1 > h2) gBias = 1;
+   // Bearish inversion: gap up (high0 < low2)
+   else if(o0 < l2) gBias = -1;
 `;
     }
   }
 
-  return DIRECTION_BRAIN_TEMPLATE.replace(
-    "{{ modulesLabel }}",
-    modulesLabel
-  )
-    .replace("{{ timeframe }}", timeframe)
-    .replace("{{ directionGlobals }}", globals)
-    .replace("{{ directionDetectionLogic }}", detectionLogic);
+  return `
+// Direction Brain: ${modules.join(" + ").toUpperCase()} @ ${timeframe}
+int gBias = 0;
+
+void Direction_Brain_Init() {
+   // Initialization if needed
+}
+
+void Direction_Brain_Execute() {
+   gBias = 0;  // Reset before detection
+${detectionCode}
+}
+`;
 }
