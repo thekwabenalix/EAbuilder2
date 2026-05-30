@@ -2263,13 +2263,13 @@ function ModulesPage() {
                 description:
                   "EMA 12 vs EMA 48 cross sets direction. The iFVG itself proves the pullback — " +
                   "no separate pullback detector needed. SL = lowest low of last 10 bars (pullback swing). " +
-                  "Trades skipped if SL > InpMaxSLPips (default 12 pips). TP 2R. BE 1R. " +
+                  "Trades skipped if SL > InpMaxSLPips (default 7 pips). TP 2R. BE 1R. " +
                   "Note: 'SL for −170' in MT5 = 170 points = 17 pips.",
                 rules: [
                   "EMA12 > EMA48 → BUY bias: bearish FVG inversion (close > FVG UL) → BUY next bar",
                   "EMA12 < EMA48 → SELL bias: bullish FVG inversion (close < FVG LL) → SELL next bar",
                   "SL = lowest low of last 10 bars − 20pts buffer (buy) | highest high + buffer (sell)",
-                  "Max SL filter: InpMaxSLPips = 12 → skip if pullback swing > 12 pips (120 pts)",
+                  "Max SL filter: InpMaxSLPips = 7 → skip if pullback swing > 7 pips (70 pts)",
                   "Invalidation: EMA flips between iFVG creation and entry → cancel trade",
                   "TP = 2R | BE at 1R | 1% risk | max spread 25pts",
                 ],
