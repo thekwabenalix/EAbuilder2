@@ -662,9 +662,16 @@ function FourBrainBuilderPage() {
 
   function buildName(cfg: FourBrainConfig): string {
     const parts: string[] = [];
-    if (cfg.direction) parts.push(`${cfg.direction.timeframe} ${cfg.direction.modules[0].replace("_", " ").toUpperCase()}`);
-    if (cfg.setup)     parts.push(`${cfg.setup.timeframe} ${cfg.setup.modules[0].replace("_", " ").toUpperCase()}`);
-    parts.push(`${cfg.execution.timeframe} ${cfg.execution.modules[0].replace("_", " ").toUpperCase()}`);
+    if (cfg.direction) {
+      const dirModules = cfg.direction.modules.map(m => m.replace("_", " ").toUpperCase()).join(" + ");
+      parts.push(`${cfg.direction.timeframe} ${dirModules}`);
+    }
+    if (cfg.setup) {
+      const setupModules = cfg.setup.modules.map(m => m.replace("_", " ").toUpperCase()).join(" + ");
+      parts.push(`${cfg.setup.timeframe} ${setupModules}`);
+    }
+    const execModules = cfg.execution.modules.map(m => m.replace("_", " ").toUpperCase()).join(" + ");
+    parts.push(`${cfg.execution.timeframe} ${execModules}`);
     return parts.join(" → ");
   }
 
