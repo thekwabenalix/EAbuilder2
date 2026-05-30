@@ -150,28 +150,88 @@ function TimeframePicker({ value, onChange, recommendAbove, recommendBelow }: {
   );
 }
 
-function ModuleCard({ def, selected, onClick }: {
-  def: ModuleDef;
-  selected: boolean;
-  onClick: () => void;
+function ModuleMultiSelect({
+  role,
+  selected,
+  onChange,
+}: {
+  role: BrainRole;
+  selected: BrainModuleType[];
+  onChange: (modules: BrainModuleType[]) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const modules = MODULES[role];
+  const selectedDefs = modules.filter((m) => selected.includes(m.id));
+
+  const toggleModule = (id: BrainModuleType) => {
+    if (selected.includes(id)) {
+      onChange(selected.filter((m) => m !== id));
+    } else {
+      onChange([...selected, id]);
+    }
+  };
+
   return (
-    <button
-      onClick={onClick}
-      className={[
-        "relative flex flex-col items-start gap-1.5 p-3 rounded-lg border text-left transition-all",
-        selected
-          ? "border-primary bg-primary/10 shadow-[0_0_0_1px] shadow-primary/30"
-          : "border-border hover:border-primary/40 hover:bg-muted/30",
-      ].join(" ")}
-    >
-      {selected && (
-        <CheckCircle2 className="absolute top-2 right-2 h-3.5 w-3.5 text-primary" />
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-border hover:border-primary/40 hover:bg-muted/20 transition-all text-left"
+      >
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {selectedDefs.length === 0 ? (
+            <span className="text-xs text-muted-foreground">Select modules…</span>
+          ) : (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {selectedDefs.map((def) => (
+                <span
+                  key={def.id}
+                  className="flex items-center gap-1 px-2 py-0.5 bg-primary/10 border border-primary/30 rounded text-[11px] font-medium text-primary"
+                >
+                  <span>{def.symbol}</span>
+                  <span>{def.label}</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <ChevronDown
+          className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 right-0 mt-2 z-10 rounded-lg border border-border bg-card shadow-xl">
+          <div className="max-h-64 overflow-y-auto p-2 space-y-1">
+            {modules.map((def) => (
+              <label
+                key={def.id}
+                className="flex items-start gap-3 p-2.5 rounded hover:bg-muted/30 cursor-pointer transition-colors"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.includes(def.id)}
+                  onChange={() => toggleModule(def.id)}
+                  className="mt-0.5"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-lg leading-none ${def.color}`}>
+                      {def.symbol}
+                    </span>
+                    <span className="text-xs font-semibold">{def.label}</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {def.desc}
+                  </p>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
       )}
-      <span className={`text-xl leading-none ${def.color}`}>{def.symbol}</span>
-      <span className="text-xs font-semibold text-foreground">{def.label}</span>
-      <span className="text-[10px] text-muted-foreground leading-tight">{def.desc}</span>
-    </button>
+    </div>
   );
 }
 
@@ -194,14 +254,14 @@ function AIParamExtractor({
   const hasParams = state?.params && Object.keys(state.params).filter(k => k !== "expiry" || state.params![k] !== 50).length > 0;
 
   async function onExtract() {
-    if (!state?.modules?.[0] || !state.timeframe || !hint.trim()) {
-      toast.error("Select a module and timeframe first, then describe what you want.");
+    if (!state?.modules || state.modules.length === 0 || !state.timeframe || !hint.trim()) {
+      toast.error("Select modules and timeframe first, then describe how they work together.");
       return;
     }
     setExtracting(true);
     setExtractSummary(null);
     try {
-      const result = await extractBrainParams(role, state.modules[0], state.timeframe, hint.trim());
+      const result = await extractBrainParams(role, state.modules, state.timeframe, hint.trim());
       onChange({ ...state, params: { ...(state.params ?? {}), ...result.params } });
       setExtractSummary(result.summary);
       toast.success("Params extracted");
@@ -339,11 +399,19 @@ function BrainCard({
               </span>
             )}
           </div>
-          {configured && selectedMod ? (
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className={`text-xs font-medium ${selectedMod.color}`}>
-                {selectedMod.symbol} {selectedMod.label}
-              </span>
+          {configured && state?.modules && state.modules.length > 0 ? (
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+              {state.modules.map((modId) => {
+                const mod = modules.find((m) => m.id === modId);
+                return mod ? (
+                  <span
+                    key={modId}
+                    className={`text-xs font-medium ${mod.color}`}
+                  >
+                    {mod.symbol} {mod.label}
+                  </span>
+                ) : null;
+              })}
               <span className="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
                 {state!.timeframe}
               </span>
@@ -369,26 +437,21 @@ function BrainCard({
       {/* Expanded config */}
       {open && (
         <div className="border-t border-border px-4 pb-4 pt-3 space-y-4">
-          {/* Module grid */}
+          {/* Module multi-select */}
           <div>
             <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              Module
+              Modules (select one or more)
             </p>
-            <div className="grid grid-cols-2 gap-2">
-              {modules.map((mod) => (
-                <ModuleCard
-                  key={mod.id}
-                  def={mod}
-                  selected={state?.modules?.[0] === mod.id}
-                  onClick={() =>
-                    onChange({
-                      ...(state ?? { modules: [mod.id], timeframe: "H1" }),
-                      modules: [mod.id],
-                    })
-                  }
-                />
-              ))}
-            </div>
+            <ModuleMultiSelect
+              role={role}
+              selected={state?.modules ?? []}
+              onChange={(mods) =>
+                onChange({
+                  ...(state ?? { modules: mods, timeframe: "H1" }),
+                  modules: mods,
+                })
+              }
+            />
           </div>
 
           {/* Timeframe */}
@@ -400,7 +463,7 @@ function BrainCard({
               value={state?.timeframe ?? ""}
               onChange={(tf) =>
                 onChange({
-                  ...(state ?? { modules: [modules[0].id], timeframe: tf }),
+                  ...(state ?? { modules: [], timeframe: tf }),
                   timeframe: tf,
                 })
               }
@@ -409,12 +472,29 @@ function BrainCard({
             />
           </div>
 
+          {/* Description — how modules work together */}
+          <div>
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
+              Description — how these modules work together
+            </p>
+            <Textarea
+              className="text-xs font-mono resize-none h-16"
+              placeholder={`e.g. "OB when price closes back outside the zone, FVG when it fills and retests, both trigger entry"`}
+              value={state?.description ?? ""}
+              onChange={(e) =>
+                onChange({ ...(state as BrainState), description: e.target.value })
+              }
+            />
+          </div>
+
           {/* AI param extraction */}
-          <AIParamExtractor
-            role={role}
-            state={state}
-            onChange={onChange}
-          />
+          {state?.modules && state.modules.length > 0 && (
+            <AIParamExtractor
+              role={role}
+              state={state}
+              onChange={onChange}
+            />
+          )}
 
           {/* Actions */}
           <div className="flex justify-between items-center pt-1">

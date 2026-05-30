@@ -226,21 +226,24 @@ export interface ExtractBrainParamsResult {
 
 /**
  * Focused Claude call: reads a plain-English description of one brain's
- * configuration and returns concrete parameters for that module.
+ * configuration and returns concrete parameters for the modules.
  *
- * Example: role="direction", module="choch", timeframe="D1",
+ * Example: role="direction", modules=["choch"], timeframe="D1",
  *   description="use 5-bar pivots, lookback 30 bars"
  *   → { params: { lookback: 30, swingLeft: 5, swingRight: 5 }, summary: "..." }
+ *
+ * Multiple modules: modules=["order_block", "fvg"], description="OB when closes outside, FVG when fills"
+ *   → params apply to both modules' shared logic
  */
 export async function extractBrainParams(
   role: string,
-  module: string,
+  modules: string[],
   timeframe: string,
   description: string,
 ): Promise<ExtractBrainParamsResult> {
   return post<ExtractBrainParamsResult>("/api/extract-brain-params", {
     role,
-    module,
+    modules,
     timeframe,
     description,
   });

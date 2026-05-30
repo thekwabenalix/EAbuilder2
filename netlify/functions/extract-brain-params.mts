@@ -60,13 +60,20 @@ const MODULE_PARAMS: Record<string, string> = {
 }`,
 };
 
-function buildSystem(role: string, module: string): string {
-  const schema = MODULE_PARAMS[module] ?? `{ "lookback": number }`;
+function buildSystem(role: string, modules: string[]): string {
+  const primaryModule = modules[0] ?? "fvg";
+  const schema = MODULE_PARAMS[primaryModule] ?? `{ "lookback": number }`;
+  const modulesDesc = modules.length === 1
+    ? `the "${modules[0]}" module`
+    : `the modules: ${modules.map(m => `"${m}"`).join(", ")}`;
+
   return `You are a parameter extractor for a forex EA builder.
 
-The user is configuring the ${role.toUpperCase()} BRAIN using the "${module}" module.
+The user is configuring the ${role.toUpperCase()} BRAIN using ${modulesDesc}.
 They will describe how they want it to behave in plain English.
 Your job is to extract ONLY the concrete numerical or boolean parameters and return them as JSON.
+
+When multiple modules are selected, extract parameters that apply to their shared logic.
 
 RULES:
 - Return ONLY valid JSON matching the schema below — no prose, no markdown fences.
@@ -118,13 +125,15 @@ export default async (req: Request): Promise<Response> => {
   catch { return Response.json({ error: "Invalid JSON body" }, { status: 400, headers: CORS }); }
 
   const role        = typeof body.role        === "string" ? body.role.trim()        : "";
-  const module      = typeof body.module      === "string" ? body.module.trim()      : "";
+  const modules     = Array.isArray(body.modules) && body.modules.every((m: unknown) => typeof m === "string")
+    ? body.modules.map((m: string) => m.trim())
+    : [];
   const timeframe   = typeof body.timeframe   === "string" ? body.timeframe.trim()   : "";
   const description = typeof body.description === "string" ? body.description.trim() : "";
 
-  if (!role || !module || !timeframe || !description) {
+  if (!role || modules.length === 0 || !timeframe || !description) {
     return Response.json(
-      { error: "role, module, timeframe, and description are required" },
+      { error: "role, modules (array), timeframe, and description are required" },
       { status: 400, headers: CORS },
     );
   }
@@ -140,11 +149,11 @@ export default async (req: Request): Promise<Response> => {
     const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 512,
-      system: buildSystem(role, module),
+      system: buildSystem(role, modules),
       messages: [
         {
           role: "user",
-          content: `${role} brain (${module} @ ${timeframe}) — extract params from:\n"${description}"`,
+          content: `${role} brain (${modules.join(" + ")} @ ${timeframe}) — extract params from:\n"${description}"`,
         },
         {
           role: "assistant",
