@@ -589,14 +589,20 @@ function FourBrainBuilderPage() {
   // ── Live summary ──────────────────────────────────────────────────────────
   function summary() {
     const parts: string[] = [];
-    if (direction?.modules?.[0] && direction.timeframe)
-      parts.push(`${direction.timeframe} ${direction.modules[0].toUpperCase().replace("_", " ")}`);
-    if (setup?.modules?.[0] && setup.timeframe)
-      parts.push(`${setup.timeframe} ${setup.modules[0].toUpperCase().replace("_", " ")}`);
-    if (execution?.modules?.[0] && execution.timeframe)
-      parts.push(`${execution.timeframe} ${execution.modules[0].toUpperCase().replace("_", " ")}`);
-    const chain  = parts.join(" → ");
-    const mgmt   = `${risk}% risk · ${rr}R TP${be ? ` · BE@${beAt}R` : ""}`;
+    if (direction?.modules?.[0] && direction.timeframe) {
+      const mods = direction.modules.map(m => m.replace(/_/g, " ").toUpperCase()).join(" + ");
+      parts.push(`${direction.timeframe} ${mods}`);
+    }
+    if (setup?.modules?.[0] && setup.timeframe) {
+      const mods = setup.modules.map(m => m.replace(/_/g, " ").toUpperCase()).join(" + ");
+      parts.push(`${setup.timeframe} ${mods}`);
+    }
+    if (execution?.modules?.[0] && execution.timeframe) {
+      const mods = execution.modules.map(m => m.replace(/_/g, " ").toUpperCase()).join(" + ");
+      parts.push(`${execution.timeframe} ${mods}`);
+    }
+    const chain = parts.join(" → ");
+    const mgmt  = `${risk}% risk · ${rr}R TP${be ? ` · BE@${beAt}R` : ""}`;
     return chain ? `${chain} | ${mgmt}` : mgmt;
   }
 
@@ -627,7 +633,7 @@ function FourBrainBuilderPage() {
         breakEvenEnabled: be,
         breakEvenAtR: 1,
         maxOpenTrades: maxTrades,
-        stopBuffer: stopBuffer / 100000,  // convert points to decimal
+        stopBuffer: stopBuffer,  // in points — gen-ea.ts uses as int (input int InpStopBuffer)
       },
     };
 

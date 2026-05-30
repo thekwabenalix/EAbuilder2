@@ -21,6 +21,12 @@
 
 import type { BrainConfig } from "@/types/blueprint";
 
+/** Read a numeric param from brain.params, falling back to the default. */
+function p(params: Record<string, unknown> | undefined, key: string, def: number): number {
+  const v = params?.[key];
+  return (typeof v === "number" && isFinite(v)) ? v : def;
+}
+
 function tfConst(tf: string): string {
   const map: Record<string, string> = {
     M1: "PERIOD_M1",  M5: "PERIOD_M5",  M15: "PERIOD_M15", M30: "PERIOD_M30",
@@ -41,6 +47,7 @@ void Execution_Brain_Execute() { gExecSignal = false; gExecDir = 0; gExecSL = 0;
   const modules = brain.modules ?? [];
   const tf = brain.timeframe ?? "H1";
   const TF = tfConst(tf);
+  const brainParams = brain.params as Record<string, unknown> | undefined;
 
   const parts: string[] = [];
 
@@ -275,15 +282,17 @@ void Execution_Brain_Execute() { gExecSignal = false; gExecDir = 0; gExecSL = 0;
       }
 
       case "bos":
-      case "choch": {
-        const label = mod === "bos" ? "BOS" : "CHoCH";
+      case "choch":
+      case "bos_choch": {
+        const label = mod === "bos" ? "BOS" : mod === "choch" ? "CHoCH" : "BOS+CHoCH";
+        const execLookback = p(brainParams, "lookback", 20);
         parts.push(`
    // ${label}: fresh structure break — fire entry on same bar
    if(!gExecSignal)
    {
       double swH = iHigh(InpSymbol, ${TF}, 2);
       double swL = iLow (InpSymbol, ${TF}, 2);
-      for(int i = 3; i <= 20; i++)
+      for(int i = 3; i <= ${execLookback}; i++)
       {
          double h = iHigh(InpSymbol, ${TF}, i);
          double l = iLow (InpSymbol, ${TF}, i);
@@ -291,8 +300,6 @@ void Execution_Brain_Execute() { gExecSignal = false; gExecDir = 0; gExecSL = 0;
          if(l < swL) swL = l;
       }
       double c1 = iClose(InpSymbol, ${TF}, 1);
-      double l1 = iLow  (InpSymbol, ${TF}, 1);
-      double h1 = iHigh (InpSymbol, ${TF}, 1);
       if(c1 > swH && (gBias==0||gBias==1) && (gSetupDir==0||gSetupDir==1))
       {
          gExecSignal = true; gExecDir = 1; gExecSL = swL;
@@ -369,6 +376,71 @@ void Execution_Brain_Execute() { gExecSignal = false; gExecDir = 0; gExecSL = 0;
       {
          gExecSignal = true; gExecDir = -1; gExecSL = h1;
          PrintFormat("[EXEC/${tf}] EMA DEATH CROSS fast=%.5f slow=%.5f SL=%.5f", fast1, slow1, h1);
+      }
+   }`);
+        break;
+      }
+
+      case "bb": {
+        const bbPer = p(brainParams, "period", 20);
+        const bbStd = p(brainParams, "stdDev",  2);
+        parts.push(`
+   // Bollinger Bands: entry on touch of upper/lower band
+   if(!gExecSignal)
+   {
+      double _bbSum = 0.0, _bbSq = 0.0;
+      for(int i = 1; i <= ${bbPer}; i++) {
+         double _cv = iClose(InpSymbol, ${TF}, i);
+         _bbSum += _cv; _bbSq += _cv * _cv;
+      }
+      double _bbMid  = _bbSum / ${bbPer}.0;
+      double _bbVar  = (_bbSq / ${bbPer}.0) - _bbMid * _bbMid;
+      double _bbSD   = (_bbVar > 0) ? MathSqrt(_bbVar) : 0.0;
+      double _bbUp   = _bbMid + ${bbStd}.0 * _bbSD;
+      double _bbLow  = _bbMid - ${bbStd}.0 * _bbSD;
+      double _c1 = iClose(InpSymbol, ${TF}, 1);
+      double _l1 = iLow  (InpSymbol, ${TF}, 1);
+      double _h1 = iHigh (InpSymbol, ${TF}, 1);
+      if(_l1 <= _bbLow && _c1 > _bbLow && (gBias==0||gBias==1) && (gSetupDir==0||gSetupDir==1))
+      {
+         gExecSignal = true; gExecDir = 1; gExecSL = _l1;
+         PrintFormat("[EXEC/${tf}] BB BULL lower band=%.5f SL=%.5f", _bbLow, _l1);
+      }
+      else if(_h1 >= _bbUp && _c1 < _bbUp && (gBias==0||gBias==-1) && (gSetupDir==0||gSetupDir==-1))
+      {
+         gExecSignal = true; gExecDir = -1; gExecSL = _h1;
+         PrintFormat("[EXEC/${tf}] BB BEAR upper band=%.5f SL=%.5f", _bbUp, _h1);
+      }
+   }`);
+        break;
+      }
+
+      case "swing_structure":
+      case "breakout":
+      case "gap_snr": {
+        const ssLb    = p(brainParams, "lookback", mod === "swing_structure" ? 50 : 20);
+        const ssLabel = mod === "swing_structure" ? "SWING" : mod === "breakout" ? "BO" : "GAP_SNR";
+        parts.push(`
+   // ${ssLabel}: close beyond ${ssLb}-bar range extreme fires entry
+   if(!gExecSignal)
+   {
+      double _rH = iHigh(InpSymbol, ${TF}, 2), _rL = iLow(InpSymbol, ${TF}, 2);
+      for(int i = 3; i <= ${ssLb}; i++) {
+         double _h = iHigh(InpSymbol, ${TF}, i);
+         double _l = iLow (InpSymbol, ${TF}, i);
+         if(_h > _rH) _rH = _h;
+         if(_l < _rL) _rL = _l;
+      }
+      double _c1 = iClose(InpSymbol, ${TF}, 1);
+      if(_c1 > _rH && (gBias==0||gBias==1) && (gSetupDir==0||gSetupDir==1))
+      {
+         gExecSignal = true; gExecDir = 1; gExecSL = _rL;
+         PrintFormat("[EXEC/${tf}] ${ssLabel} BULL break=%.5f SL=%.5f", _rH, _rL);
+      }
+      else if(_c1 < _rL && (gBias==0||gBias==-1) && (gSetupDir==0||gSetupDir==-1))
+      {
+         gExecSignal = true; gExecDir = -1; gExecSL = _rH;
+         PrintFormat("[EXEC/${tf}] ${ssLabel} BEAR break=%.5f SL=%.5f", _rL, _rH);
       }
    }`);
         break;

@@ -12,6 +12,12 @@
 
 import type { BrainConfig, BrainModuleType } from "@/types/blueprint";
 
+/** Read a numeric param from brain.params, falling back to the default. */
+function p(params: Record<string, unknown> | undefined, key: string, def: number): number {
+  const v = params?.[key];
+  return (typeof v === "number" && isFinite(v)) ? v : def;
+}
+
 function tfConst(tf: string): string {
   const map: Record<string, string> = {
     M1: "PERIOD_M1",  M5: "PERIOD_M5",  M15: "PERIOD_M15", M30: "PERIOD_M30",
@@ -26,19 +32,21 @@ function genModuleSignal(
   mod: BrainModuleType | string,
   tf: string,
   TF: string,
-  varName: string
+  varName: string,
+  params?: Record<string, unknown>
 ): string {
   switch (mod) {
     case "bos":
     case "choch":
     case "bos_choch": {
       const label = mod === "bos" ? "BOS" : mod === "choch" ? "CHoCH" : "BOS+CHoCH";
+      const lookback = p(params, "lookback", 20);
       return `
-   // ${label}: close beyond 20-bar swing high/low
+   // ${label}: close beyond ${lookback}-bar swing high/low
    {
       double _swH = iHigh(InpSymbol, ${TF}, 2);
       double _swL = iLow (InpSymbol, ${TF}, 2);
-      for(int _k = 3; _k <= 20; _k++) {
+      for(int _k = 3; _k <= ${lookback}; _k++) {
          double _h = iHigh(InpSymbol, ${TF}, _k);
          double _l = iLow (InpSymbol, ${TF}, _k);
          if(_h > _swH) _swH = _h;
@@ -115,16 +123,18 @@ function genModuleSignal(
     }
 
     case "ema": {
+      const fast = p(params, "fastPeriod", 21);
+      const slow = p(params, "slowPeriod", 50);
       return `
-   // EMA: fast(21) vs slow(50) alignment
+   // EMA: fast(${fast}) vs slow(${slow}) alignment
    {
       double _fast = 0.0, _slow = 0.0;
-      for(int _k = 1; _k <= 50; _k++) {
+      for(int _k = 1; _k <= ${slow}; _k++) {
          double _c = iClose(InpSymbol, ${TF}, _k);
-         if(_k <= 21) _fast += _c;
+         if(_k <= ${fast}) _fast += _c;
          _slow += _c;
       }
-      _fast /= 21.0; _slow /= 50.0;
+      _fast /= ${fast}.0; _slow /= ${slow}.0;
       ${varName} = (_fast > _slow) ? 1 : -1;
    }`;
     }
@@ -237,11 +247,13 @@ void Direction_Brain_Execute() {}
 `;
   }
 
+  const brainParams = brain.params as Record<string, unknown> | undefined;
+
   // Single module: detect directly into gBias
   if (modules.length === 1) {
     const mod = modules[0];
     // Reuse genModuleSignal but write to gBias directly
-    const sigCode = genModuleSignal(mod, tf, TF, "_sig");
+    const sigCode = genModuleSignal(mod, tf, TF, "_sig", brainParams);
     return `
 // ─── Direction Brain: ${mod.toUpperCase()} @ ${tf} ──────────────────────────────────────
 // gBias is PERSISTENT — only flips when opposite break detected.
@@ -281,7 +293,7 @@ ${sigCode}
 
   // Multiple modules: AND logic — all must agree on the same direction
   const varDecls = modules.map((m, i) => `   int _sig${i} = 0;  // ${m}`).join("\n");
-  const detections = modules.map((m, i) => genModuleSignal(m, tf, TF, `_sig${i}`)).join("\n");
+  const detections = modules.map((m, i) => genModuleSignal(m, tf, TF, `_sig${i}`, brainParams)).join("\n");
 
   // AND check: all non-zero and all equal
   const allVars = modules.map((_, i) => `_sig${i}`);

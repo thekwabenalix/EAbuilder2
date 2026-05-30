@@ -242,41 +242,40 @@ bool SpreadOk()
 //+------------------------------------------------------------------+
 //| Info panel — corner dashboard showing live brain states         |
 //+------------------------------------------------------------------+
+// Helper: upsert one OBJ_LABEL and set all properties in one call.
+void DrawPanelRow(const string name, const string text, color clr, int y)
+{
+   if(ObjectFind(0, name) < 0)
+      ObjectCreate(0, name, OBJ_LABEL, 0, 0, 0);
+   ObjectSetInteger(0, name, OBJPROP_CORNER,     CORNER_LEFT_UPPER);
+   ObjectSetInteger(0, name, OBJPROP_XDISTANCE,  8);
+   ObjectSetInteger(0, name, OBJPROP_YDISTANCE,  y);
+   ObjectSetString (0, name, OBJPROP_TEXT,       text);
+   ObjectSetInteger(0, name, OBJPROP_COLOR,      clr);
+   ObjectSetInteger(0, name, OBJPROP_FONTSIZE,   9);
+   ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
+}
+
 void DrawInfoPanel()
 {
-   string bias_txt   = (gBias > 0) ? "BULL ▲" : (gBias < 0) ? "BEAR ▼" : "NEUTRAL";
-   color  bias_clr   = (gBias > 0) ? clrDodgerBlue : (gBias < 0) ? clrOrangeRed : clrGray;
-   string setup_txt  = gSetupActive
-                       ? (gSetupDir > 0 ? "BULL ACTIVE ✓" : "BEAR ACTIVE ✓")
-                       : "waiting...";
-   color  setup_clr  = gSetupActive ? clrMediumSeaGreen : clrGray;
-   string exec_txt   = gExecSignal
-                       ? (gExecDir > 0 ? "BUY SIGNAL ✓" : "SELL SIGNAL ✓")
-                       : "watching...";
-   color  exec_clr   = gExecSignal ? clrLime : clrGray;
+   string bias_txt  = (gBias > 0) ? "BULL  ^" : (gBias < 0) ? "BEAR  v" : "NEUTRAL";
+   color  bias_clr  = (gBias > 0) ? clrDodgerBlue : (gBias < 0) ? clrOrangeRed : clrGray;
+   string setup_txt = gSetupActive
+                      ? (gSetupDir > 0 ? "BULL ACTIVE" : "BEAR ACTIVE")
+                      : "waiting...";
+   color  setup_clr = gSetupActive ? clrMediumSeaGreen : clrGray;
+   string exec_txt  = gExecSignal
+                      ? (gExecDir > 0 ? "BUY SIGNAL" : "SELL SIGNAL")
+                      : "watching...";
+   color  exec_clr  = gExecSignal ? clrLime : clrGray;
 
-   struct PanelRow { string name; string text; color clr; int y; };
-   PanelRow rows[] = {
-      { "4B_P0", "═══ 4-Brain EA ═══",          clrGold,      15 },
-      { "4B_P1", "DIR : " + bias_txt,            bias_clr,     30 },
-      { "4B_P2", "SETUP: " + setup_txt,          setup_clr,    45 },
-      { "4B_P3", "EXEC : " + exec_txt,           exec_clr,     60 },
-      { "4B_P4", StringFormat("Risk: %.1f%% | R:R %.1fx", InpRiskPercent, InpRewardRisk),
-                                                  clrSilver,   75 },
-   };
-
-   for(int _i = 0; _i < ArraySize(rows); _i++)
-   {
-      if(ObjectFind(0, rows[_i].name) < 0)
-         ObjectCreate(0, rows[_i].name, OBJ_LABEL, 0, 0, 0);
-      ObjectSetInteger(0, rows[_i].name, OBJPROP_CORNER,    CORNER_LEFT_UPPER);
-      ObjectSetInteger(0, rows[_i].name, OBJPROP_XDISTANCE, 8);
-      ObjectSetInteger(0, rows[_i].name, OBJPROP_YDISTANCE, rows[_i].y);
-      ObjectSetString (0, rows[_i].name, OBJPROP_TEXT,      rows[_i].text);
-      ObjectSetInteger(0, rows[_i].name, OBJPROP_COLOR,     rows[_i].clr);
-      ObjectSetInteger(0, rows[_i].name, OBJPROP_FONTSIZE,  9);
-      ObjectSetInteger(0, rows[_i].name, OBJPROP_SELECTABLE,false);
-   }
+   DrawPanelRow("4B_P0", "--- 4-Brain EA ---", clrGold, 15);
+   DrawPanelRow("4B_P1", "DIR : " + bias_txt,  bias_clr,  30);
+   DrawPanelRow("4B_P2", "SETUP: " + setup_txt, setup_clr, 45);
+   DrawPanelRow("4B_P3", "EXEC : " + exec_txt,  exec_clr,  60);
+   DrawPanelRow("4B_P4",
+      StringFormat("Risk: %.1f%% | R:R %.1fx", InpRiskPercent, InpRewardRisk),
+      clrSilver, 75);
 }
 
 void DeleteAllChartObjects()

@@ -22,6 +22,12 @@
 
 import type { BrainConfig } from "@/types/blueprint";
 
+/** Read a numeric param from brain.params, falling back to the default. */
+function p(params: Record<string, unknown> | undefined, key: string, def: number): number {
+  const v = params?.[key];
+  return (typeof v === "number" && isFinite(v)) ? v : def;
+}
+
 function tfConst(tf: string): string {
   const map: Record<string, string> = {
     M1: "PERIOD_M1",  M5: "PERIOD_M5",  M15: "PERIOD_M15", M30: "PERIOD_M30",
@@ -47,17 +53,20 @@ void Setup_Brain_Execute()
   const modules = brain.modules ?? [];
   const tf = brain.timeframe ?? "H4";
   const TF = tfConst(tf);
+  const brainParams = brain.params as Record<string, unknown> | undefined;
 
   const parts: string[] = [];
 
   for (const mod of modules) {
     switch (mod) {
       case "order_block": {
+        const obScanBack = p(brainParams, "scanBack", 5);
+        const obDispMult = p(brainParams, "dispMult", 0.6);
         parts.push(`
    // Order Block: detect OB zone — last opposing candle before a strong displacement
    if(!gSetupActive)
    {
-      // Check last 10 bars for a displacement candle (body >= 60% of range)
+      // Check last 10 bars for a displacement candle (body >= ${obDispMult.toFixed(1)}x range)
       for(int i = 1; i <= 10 && !gSetupActive; i++)
       {
          double dispO = iOpen (InpSymbol, ${TF}, i);
@@ -66,13 +75,13 @@ void Setup_Brain_Execute()
          double dispL = iLow  (InpSymbol, ${TF}, i);
          double dispBody  = MathAbs(dispC - dispO);
          double dispRange = dispH - dispL;
-         if(dispRange <= 0 || dispBody < dispRange * 0.6) continue;
+         if(dispRange <= 0 || dispBody < dispRange * ${obDispMult.toFixed(1)}) continue;
 
          int dispDir = (dispC > dispO) ? 1 : -1;
          if(gBias != 0 && dispDir != gBias) continue;  // wrong direction
 
-         // Find last opposing candle before displacement (up to 5 bars back)
-         for(int j = i + 1; j <= i + 5; j++)
+         // Find last opposing candle before displacement (up to ${obScanBack} bars back)
+         for(int j = i + 1; j <= i + ${obScanBack}; j++)
          {
             double obO = iOpen (InpSymbol, ${TF}, j);
             double obC = iClose(InpSymbol, ${TF}, j);
@@ -250,15 +259,17 @@ void Setup_Brain_Execute()
       }
 
       case "bos":
-      case "choch": {
-        const label = mod === "bos" ? "BOS" : "CHoCH";
+      case "choch":
+      case "bos_choch": {
+        const label = mod === "bos" ? "BOS" : mod === "choch" ? "CHoCH" : "BOS+CHoCH";
+        const lookback = p(brainParams, "lookback", 20);
         parts.push(`
    // ${label}: fresh break in bias direction creates setup
    if(!gSetupActive)
    {
       double swH = iHigh(InpSymbol, ${TF}, 2);
       double swL = iLow (InpSymbol, ${TF}, 2);
-      for(int i = 3; i <= 20; i++)
+      for(int i = 3; i <= ${lookback}; i++)
       {
          double h = iHigh(InpSymbol, ${TF}, i);
          double l = iLow (InpSymbol, ${TF}, i);
@@ -280,14 +291,17 @@ void Setup_Brain_Execute()
         break;
       }
 
-      case "snr": {
+      case "snr":
+      case "gap_snr": {
+        const snrLookback = p(brainParams, "lookback", 20);
+        const snrProx = p(brainParams, "expiry", 30);
         parts.push(`
-   // S/R: price touching a swing zone creates setup
+   // S/R: price within ${snrProx} pts of ${snrLookback}-bar swing zone creates setup
    if(!gSetupActive)
    {
       double swH = iHigh(InpSymbol, ${TF}, 2);
       double swL = iLow (InpSymbol, ${TF}, 2);
-      for(int i = 3; i <= 20; i++)
+      for(int i = 3; i <= ${snrLookback}; i++)
       {
          double h = iHigh(InpSymbol, ${TF}, i);
          double l = iLow (InpSymbol, ${TF}, i);
@@ -297,17 +311,15 @@ void Setup_Brain_Execute()
       double pt  = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
       double ask = SymbolInfoDouble(InpSymbol, SYMBOL_ASK);
       double bid = SymbolInfoDouble(InpSymbol, SYMBOL_BID);
-      // Bullish: price near swing low (within 30 points)
-      if(MathAbs(bid - swL) <= 30 * pt && (gBias == 0 || gBias == 1))
+      if(MathAbs(bid - swL) <= ${snrProx} * pt && (gBias == 0 || gBias == 1))
       {
          gSetupActive = true; gSetupDir = 1; gSetupSLHint = swL;
-         PrintFormat("[SETUP/${tf}] S/R near BULL support=%.5f", swL);
+         PrintFormat("[SETUP/${tf}] S/R BULL support=%.5f", swL);
       }
-      // Bearish: price near swing high (within 30 points)
-      else if(MathAbs(ask - swH) <= 30 * pt && (gBias == 0 || gBias == -1))
+      else if(MathAbs(ask - swH) <= ${snrProx} * pt && (gBias == 0 || gBias == -1))
       {
          gSetupActive = true; gSetupDir = -1; gSetupSLHint = swH;
-         PrintFormat("[SETUP/${tf}] S/R near BEAR resistance=%.5f", swH);
+         PrintFormat("[SETUP/${tf}] S/R BEAR resistance=%.5f", swH);
       }
    }`);
         break;
@@ -369,21 +381,22 @@ void Setup_Brain_Execute()
       }
 
       case "ema": {
+        const emaFast = p(brainParams, "fastPeriod", 21);
+        const emaSlow = p(brainParams, "slowPeriod", 50);
         parts.push(`
-   // EMA alignment: fast > slow in bias direction creates setup
+   // EMA alignment: fast(${emaFast}) > slow(${emaSlow}) in bias direction creates setup
    if(!gSetupActive)
    {
       double fastSum = 0.0, slowSum = 0.0;
-      for(int i = 1; i <= 50; i++) {
+      for(int i = 1; i <= ${emaSlow}; i++) {
          double c = iClose(InpSymbol, ${TF}, i);
-         if(i <= 21) fastSum += c;
+         if(i <= ${emaFast}) fastSum += c;
          slowSum += c;
       }
-      double fastMA = fastSum / 21.0;
-      double slowMA = slowSum / 50.0;
+      double fastMA = fastSum / ${emaFast}.0;
+      double slowMA = slowSum / ${emaSlow}.0;
       if(fastMA > slowMA && (gBias == 0 || gBias == 1))
       {
-         double c1 = iClose(InpSymbol, ${TF}, 1);
          gSetupActive = true; gSetupDir = 1; gSetupSLHint = fastMA;
          PrintFormat("[SETUP/${tf}] EMA BULL fast=%.5f slow=%.5f", fastMA, slowMA);
       }
@@ -391,6 +404,86 @@ void Setup_Brain_Execute()
       {
          gSetupActive = true; gSetupDir = -1; gSetupSLHint = fastMA;
          PrintFormat("[SETUP/${tf}] EMA BEAR fast=%.5f slow=%.5f", fastMA, slowMA);
+      }
+   }`);
+        break;
+      }
+
+      case "bb": {
+        // Bollinger Bands: price above/below 20-SMA midline in bias direction
+        const bbPeriod = p(brainParams, "period", 20);
+        parts.push(`
+   // Bollinger Bands: price relative to ${bbPeriod}-bar midline creates setup
+   if(!gSetupActive)
+   {
+      double _bbSum = 0.0;
+      for(int i = 1; i <= ${bbPeriod}; i++) _bbSum += iClose(InpSymbol, ${TF}, i);
+      double _bbMid = _bbSum / ${bbPeriod}.0;
+      double _c1 = iClose(InpSymbol, ${TF}, 1);
+      if(_c1 > _bbMid && (gBias == 0 || gBias == 1))
+      {
+         gSetupActive = true; gSetupDir = 1; gSetupSLHint = _bbMid;
+         PrintFormat("[SETUP/${tf}] BB BULL price above midline=%.5f", _bbMid);
+      }
+      else if(_c1 < _bbMid && (gBias == 0 || gBias == -1))
+      {
+         gSetupActive = true; gSetupDir = -1; gSetupSLHint = _bbMid;
+         PrintFormat("[SETUP/${tf}] BB BEAR price below midline=%.5f", _bbMid);
+      }
+   }`);
+        break;
+      }
+
+      case "swing_structure": {
+        const ssLookback = p(brainParams, "lookback", 50);
+        parts.push(`
+   // Swing Structure: price in upper/lower half of ${ssLookback}-bar range
+   if(!gSetupActive)
+   {
+      double _ssH = iHigh(InpSymbol, ${TF}, 1), _ssL = iLow(InpSymbol, ${TF}, 1);
+      for(int i = 2; i <= ${ssLookback}; i++) {
+         double _h = iHigh(InpSymbol, ${TF}, i), _l = iLow(InpSymbol, ${TF}, i);
+         if(_h > _ssH) _ssH = _h;
+         if(_l < _ssL) _ssL = _l;
+      }
+      double _ssMid = (_ssH + _ssL) / 2.0;
+      double _c1 = iClose(InpSymbol, ${TF}, 1);
+      if(_c1 > _ssMid && (gBias == 0 || gBias == 1))
+      {
+         gSetupActive = true; gSetupDir = 1; gSetupSLHint = _ssL;
+         PrintFormat("[SETUP/${tf}] SWING STRUCT BULL mid=%.5f", _ssMid);
+      }
+      else if(_c1 < _ssMid && (gBias == 0 || gBias == -1))
+      {
+         gSetupActive = true; gSetupDir = -1; gSetupSLHint = _ssH;
+         PrintFormat("[SETUP/${tf}] SWING STRUCT BEAR mid=%.5f", _ssMid);
+      }
+   }`);
+        break;
+      }
+
+      case "breakout": {
+        const boLookback = p(brainParams, "lookback", 20);
+        parts.push(`
+   // Breakout: price closed beyond ${boLookback}-bar range — momentum setup
+   if(!gSetupActive)
+   {
+      double _boH = iHigh(InpSymbol, ${TF}, 2), _boL = iLow(InpSymbol, ${TF}, 2);
+      for(int i = 3; i <= ${boLookback}; i++) {
+         double _h = iHigh(InpSymbol, ${TF}, i), _l = iLow(InpSymbol, ${TF}, i);
+         if(_h > _boH) _boH = _h;
+         if(_l < _boL) _boL = _l;
+      }
+      double _c1 = iClose(InpSymbol, ${TF}, 1);
+      if(_c1 > _boH && (gBias == 0 || gBias == 1))
+      {
+         gSetupActive = true; gSetupDir = 1; gSetupSLHint = _boL;
+         PrintFormat("[SETUP/${tf}] BREAKOUT BULL level=%.5f", _boH);
+      }
+      else if(_c1 < _boL && (gBias == 0 || gBias == -1))
+      {
+         gSetupActive = true; gSetupDir = -1; gSetupSLHint = _boH;
+         PrintFormat("[SETUP/${tf}] BREAKOUT BEAR level=%.5f", _boL);
       }
    }`);
         break;
