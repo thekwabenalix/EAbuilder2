@@ -173,14 +173,20 @@ export type Timeframe = (typeof TIMEFRAMES)[number];
 // three independent bar-open loops and confluence gating between brains.
 
 export type BrainModuleType =
-  | "bos" | "choch"      // structural break — bias detection
-  | "fvg"                // fair value gap — zone setup or execution trigger
-  | "order_block"        // order block  — zone setup or execution trigger
-  | "liqsweep"           // liquidity sweep — execution trigger
-  | "snr"                // classic S/R — zone setup
-  | "ema"                // EMA trend — direction bias
-  | "engulfing"          // candle pattern — execution trigger
-  | "pin_bar";           // candle pattern — execution trigger
+  | "bos" | "choch"           // structural break — bias detection
+  | "bos_choch"               // combined BOS + CHoCH detection
+  | "swing_structure"         // multi-bar swing structure
+  | "fvg"                     // fair value gap — zone setup or execution trigger
+  | "fvg_inversion"           // inverted FVG pattern
+  | "order_block"             // order block  — zone setup or execution trigger
+  | "liqsweep"                // liquidity sweep — execution trigger
+  | "breakout"                // price break beyond a defined level
+  | "snr"                     // classic S/R — zone setup
+  | "gap_snr"                 // S/R at gap edges
+  | "bb"                      // Bollinger Bands
+  | "ema"                     // EMA trend — direction bias
+  | "engulfing"               // candle pattern — execution trigger
+  | "pin_bar";                // candle pattern — execution trigger
 
 export interface BrainConfig {
   /**

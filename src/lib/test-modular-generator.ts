@@ -16,7 +16,7 @@
  * ✓ Logging statements output brain state
  */
 
-import { generateEA } from "./gen-ea";
+import { generateEA } from "@/generators/gen-ea";
 import type { FourBrainConfig, MQL5CodeGenParams } from "@/types/blueprint";
 
 export function testModularGenerator(): {
@@ -38,7 +38,7 @@ export function testModularGenerator(): {
         timeframe: "H4",
       },
       execution: {
-        modules: ["bullish_engulfing"],
+        modules: ["engulfing"],
         timeframe: "H1",
       },
       management: {

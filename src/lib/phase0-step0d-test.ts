@@ -40,10 +40,15 @@ export function generateClassicICTEA(): {
   try {
     // Step 1: Create Classic ICT blueprint
     const blueprint: StrategyBlueprint = {
-      id: "classic-ict-test",
+      version: "2.0",
       name: "Classic_ICT_CHoCH_OB_Engulfing",
-      symbol: "EURUSD",
-      magicNumber: 100001,
+      strategyType: ["SMC"],
+      marketPhilosophy: "ICT multi-timeframe",
+      compilable: true,
+      compilableRuleIds: [],
+      subjectiveRuleIds: [],
+      pendingClarifications: [],
+      confidence: 90,
 
       fourBrain: {
         direction: {
@@ -55,7 +60,7 @@ export function generateClassicICTEA(): {
           timeframe: "H4",
         },
         execution: {
-          modules: ["bullish_engulfing"],
+          modules: ["engulfing"],
           timeframe: "H1",
         },
         management: {
@@ -71,12 +76,26 @@ export function generateClassicICTEA(): {
       risk: {
         riskPercent: 1.0,
         rewardRisk: 1.5,
+        lotSizingMethod: "equity_percent" as const,
+        stopType: "candle_extreme" as const,
+        stopBufferPoints: 20,
+        trailingStop: false,
         breakevenEnabled: false,
+        partialClose: false,
         maxOpenTrades: 5,
       },
 
       rules: [],
-      modules: [],
+      execution: {
+        symbol: "EURUSD",
+        setupTimeframe: "H4",
+        entryTimeframe: "H1",
+        orderType: "market",
+        setupExpiryBars: 24,
+        sessionFilter: [],
+        spreadFilterPoints: 25,
+        magicNumber: 100001,
+      },
     };
 
     // Step 2: Generate EA using modular system

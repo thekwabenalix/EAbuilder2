@@ -21,7 +21,7 @@
  *   ✓ Maintainable: change one brain without affecting others
  */
 
-import type { StrategyBlueprint, NormalizedRule, FourBrainConfig, MQL5CodeGenParams } from "@/types/blueprint";
+import type { StrategyBlueprint, NormalizedRule, FourBrainConfig, BrainConfig, MQL5CodeGenParams } from "@/types/blueprint";
 import { generateEA } from "@/generators/gen-ea";
 
 // ─── Primitive registries (single source of truth) ───────────────────────────
@@ -2216,7 +2216,7 @@ function genRulesBlock(bp: StrategyBlueprint): string {
 // Each brain runs on its own bar-open loop using its own timeframe.
 // The EA is completely self-contained — no iCustom, no external indicators.
 
-import type { FourBrainConfig, BrainConfig } from "@/types/blueprint";
+// FourBrainConfig and BrainConfig already imported at the top of the file
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -3257,8 +3257,8 @@ function generateFourBrainEA(bp: StrategyBlueprint): string {
   const params: MQL5CodeGenParams = {
     eaName: safeName,
     config: config as FourBrainConfig,
-    globalSymbol: bp.symbol || "EURUSD",
-    globalMagic: bp.magicNumber || 123456,
+    globalSymbol: bp.execution?.symbol || "EURUSD",
+    globalMagic: bp.execution?.magicNumber || 990001,
   };
 
   // Use the new modular generator

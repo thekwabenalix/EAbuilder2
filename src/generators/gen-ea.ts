@@ -1,50 +1,110 @@
 /**
- * Main EA Generator (gen-ea.ts)
+ * 4-Brain EA Generator (gen-ea.ts)
  *
- * Orchestrates all modular brain generators and assembles them into
- * a complete, compilable 4-brain EA with real detection logic.
+ * Assembles a complete, always-compilable MQL5 EA from four brain generators:
+ *   Direction Brain  → gBias (persistent BULL/BEAR/NEUTRAL)
+ *   Setup Brain      → gSetupActive + gSetupDir + gSetupSLHint
+ *   Execution Brain  → gExecSignal + gExecDir + gExecSL
+ *   Management Brain → Risk%, R:R, Break-Even (static config, inputs)
  *
- * PHASE 0: Uses modular generators that produce inline MQL5 detection code
+ * The OnTick loop runs each brain on its own timeframe bar-open.
+ * Trade execution fires when the confluence gate passes.
  */
 
 import type { FourBrainConfig, MQL5CodeGenParams } from "@/types/blueprint";
 import { genDirectionBrain } from "./gen-direction-brain";
-import { genSetupBrain } from "./gen-setup-brain";
+import { genSetupBrain }     from "./gen-setup-brain";
 import { genExecutionBrain } from "./gen-execution-brain";
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function tfConst(tf: string): string {
+  const map: Record<string, string> = {
+    M1: "PERIOD_M1",  M5: "PERIOD_M5",  M15: "PERIOD_M15", M30: "PERIOD_M30",
+    H1: "PERIOD_H1",  H4: "PERIOD_H4",  D1: "PERIOD_D1",   W1: "PERIOD_W1",
+    MN: "PERIOD_MN1",
+  };
+  return map[(tf ?? "H1").toUpperCase()] ?? "PERIOD_H1";
+}
+
+// ─── Main generator ───────────────────────────────────────────────────────────
+
 export function generateEA(params: MQL5CodeGenParams): string {
-  const {
-    eaName,
-    config: fourBrainConfig,
-    globalSymbol = "EURUSD",
-    globalMagic = 123456,
-  } = params;
+  const { eaName, config, globalSymbol = "EURUSD", globalMagic = 990001 } = params;
 
-  // Generate all brain implementations using modular generators
-  const directionBrainCode = genDirectionBrain(fourBrainConfig.direction);
-  const setupBrainCode = genSetupBrain(fourBrainConfig.setup);
-  const executionBrainCode = genExecutionBrain(fourBrainConfig.execution);
+  const dirMods  = config.direction?.modules?.join(" + ").toUpperCase() ?? "NONE";
+  const dirTF    = config.direction?.timeframe ?? "D1";
+  const setupMods = config.setup?.modules?.join(" + ").toUpperCase() ?? "NONE";
+  const setupTF  = config.setup?.timeframe ?? "H4";
+  const execMods = config.execution?.modules?.join(" + ").toUpperCase() ?? "NONE";
+  const execTF   = config.execution?.timeframe ?? "H1";
 
-  const directionModules = fourBrainConfig.direction?.modules?.join(" + ").toUpperCase() || "NONE";
-  const directionTF = fourBrainConfig.direction?.timeframe || "D1";
-  const setupModules = fourBrainConfig.setup?.modules?.join(" + ").toUpperCase() || "NONE";
-  const setupTF = fourBrainConfig.setup?.timeframe || "H4";
-  const executionModules = fourBrainConfig.execution?.modules?.join(" + ").toUpperCase() || "NONE";
-  const executionTF = fourBrainConfig.execution?.timeframe || "H1";
+  const mgmt       = config.management;
+  const riskPct    = mgmt?.riskPercent   ?? 1.0;
+  const rrRatio    = mgmt?.rewardRisk    ?? 2.0;
+  const stopBuf    = mgmt?.stopBuffer    ?? 20;          // in POINTS (not price)
+  const beEnabled  = mgmt?.breakEvenEnabled ?? false;
+  const beAtR      = mgmt?.breakEvenAtR  ?? 1.0;
+  const maxTrades  = mgmt?.maxOpenTrades ?? 1;
 
-  const riskPercent = fourBrainConfig.management?.riskPercent || 1.0;
-  const rewardRisk = fourBrainConfig.management?.rewardRisk || 1.5;
-  const stopBuffer = fourBrainConfig.management?.stopBuffer || 0.001;
+  const hasDirBrain   = Boolean(config.direction);
+  const hasSetupBrain = Boolean(config.setup);
 
-  // Generate the complete EA with modular brain implementations
-  const ea = `//+------------------------------------------------------------------+
+  // Generate brain function bodies from modular generators
+  const dirCode   = genDirectionBrain(config.direction);
+  const setupCode = genSetupBrain(config.setup);
+  const execCode  = genExecutionBrain(config.execution);
+
+  // Direction gate: if no direction brain, skip bias check
+  const dirGate   = hasDirBrain
+    ? `if(gBias == 0) { PrintFormat("[GATE] BLOCKED: no bias"); return; }`
+    : `// Direction Brain disabled — no bias gate`;
+
+  // Setup gate: if no setup brain, bypass
+  const setupGate = hasSetupBrain
+    ? `if(!gSetupActive) { PrintFormat("[GATE] BLOCKED: no setup"); return; }`
+    : `// Setup Brain disabled — no zone gate`;
+
+  // Break-even management code
+  const breakEvenCode = beEnabled ? `
+   // Break-Even Management
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(!PositionSelectByTicket(ticket)) continue;
+      if(PositionGetString(POSITION_SYMBOL) != InpSymbol) continue;
+      if(PositionGetInteger(POSITION_MAGIC) != InpMagic)  continue;
+      double openPx = PositionGetDouble(POSITION_PRICE_OPEN);
+      double sl     = PositionGetDouble(POSITION_SL);
+      double tp     = PositionGetDouble(POSITION_TP);
+      if(openPx <= 0 || sl <= 0) continue;
+      double initRisk = MathAbs(openPx - sl);
+      if(initRisk < SymbolInfoDouble(InpSymbol, SYMBOL_POINT)) continue;
+      long   posType  = PositionGetInteger(POSITION_TYPE);
+      double bid      = SymbolInfoDouble(InpSymbol, SYMBOL_BID);
+      double ask      = SymbolInfoDouble(InpSymbol, SYMBOL_ASK);
+      if(posType == POSITION_TYPE_BUY)
+      {
+         if(sl >= openPx) continue;                                    // already at BE
+         if(bid - openPx >= initRisk * InpBEAtR)
+            trade.PositionModify(ticket, openPx, tp);
+      }
+      else
+      {
+         if(sl <= openPx) continue;
+         if(openPx - ask >= initRisk * InpBEAtR)
+            trade.PositionModify(ticket, openPx, tp);
+      }
+   }` : `   // Break-even management disabled`;
+
+  return `//+------------------------------------------------------------------+
 //| ${eaName}.mq5
-//| Generated by EAbuilder2 - 4-Brain Architecture
+//| Generated by EAbuilder2 — 4-Brain Architecture
 //|
-//| Direction : ${directionModules} @ ${directionTF}
-//| Setup     : ${setupModules} @ ${setupTF}
-//| Execution : ${executionModules} @ ${executionTF}
-//| Management: ${riskPercent}% risk - ${rewardRisk}R TP
+//| Direction : ${dirMods} @ ${dirTF}
+//| Setup     : ${setupMods} @ ${setupTF}
+//| Execution : ${execMods} @ ${execTF}
+//| Management: ${riskPct}% risk · ${rrRatio}R TP${beEnabled ? ` · BE@${beAtR}R` : ""}
 //+------------------------------------------------------------------+
 #property copyright "Generated by EAbuilder2"
 #property version   "1.00"
@@ -54,89 +114,203 @@ export function generateEA(params: MQL5CodeGenParams): string {
 CTrade trade;
 
 //--- Inputs
-input string   InpSymbol      = "${globalSymbol}";
-input ulong    InpMagic       = ${globalMagic};
-input ENUM_TIMEFRAMES InpDirectionTF = PERIOD_${directionTF};
-input ENUM_TIMEFRAMES InpSetupTF     = PERIOD_${setupTF};
-input ENUM_TIMEFRAMES InpExecTF      = PERIOD_${executionTF};
-input double   InpRiskPercent = ${riskPercent};
-input double   InpRewardRisk  = ${rewardRisk};
-input double   InpStopBuffer  = ${stopBuffer};
+input string          InpSymbol     = "${globalSymbol}";    // Trading symbol
+input ulong           InpMagic      = ${globalMagic};       // EA magic number
+input ENUM_TIMEFRAMES InpDirectionTF = ${tfConst(dirTF)};  // Direction Brain TF
+input ENUM_TIMEFRAMES InpSetupTF     = ${tfConst(setupTF)};  // Setup Brain TF
+input ENUM_TIMEFRAMES InpExecTF      = ${tfConst(execTF)};   // Execution Brain TF
+input double          InpRiskPercent = ${riskPct};           // Risk per trade (% equity)
+input double          InpRewardRisk  = ${rrRatio};           // Reward : Risk ratio
+input int             InpStopBuffer  = ${stopBuf};           // Stop buffer (points)
+input int             InpMaxSpread   = 25;                   // Max spread filter (0=off)
+input int             InpMaxTrades   = ${maxTrades};         // Max simultaneous positions
+${beEnabled ? `input double InpBEAtR = ${beAtR};  // Move SL to B/E at this R multiple` : ""}
 
-//--- Global state
-bool gSetupActive = false;  // Setup brain output: zone detected?
-bool gExecSignal = false;   // Execution brain output: entry signal ready?
+//--- Global brain state (shared across all brains)
+int    gBias        = 0;      // Direction Brain: 1=BULL, -1=BEAR, 0=NEUTRAL
+bool   gSetupActive = false;  // Setup Brain: true when a valid zone is active
+int    gSetupDir    = 0;      // Setup Brain: direction of active zone
+double gSetupSLHint = 0.0;    // Setup Brain: zone far edge (SL hint)
+bool   gExecSignal  = false;  // Execution Brain: true when entry pattern fires
+int    gExecDir     = 0;      // Execution Brain: 1=BUY, -1=SELL
+double gExecSL      = 0.0;    // Execution Brain: raw SL level from pattern
 
-// Brain implementations (auto-generated from modules)
-${directionBrainCode}
+static datetime lastDirBar   = 0;
+static datetime lastSetupBar = 0;
+static datetime lastExecBar  = 0;
 
-${setupBrainCode}
-
-${executionBrainCode}
-
-//--- OnInit
-int OnInit()
+//+------------------------------------------------------------------+
+//| Core helpers                                                     |
+//+------------------------------------------------------------------+
+double NormalizeVolume(double vol)
 {
-   trade.SetExpertMagicNumber((ulong)InpMagic);
-   trade.SetTypeFillingBySymbol(InpSymbol);
-
-   Direction_Brain_Init();
-   Print("[EA] ${eaName} initialized");
-   Print("[CONFIG] Direction: ${directionModules} @ ${directionTF}");
-   Print("[CONFIG] Setup: ${setupModules} @ ${setupTF}");
-   Print("[CONFIG] Execution: ${executionModules} @ ${executionTF}");
-
-   return INIT_SUCCEEDED;
+   double minL = SymbolInfoDouble(InpSymbol, SYMBOL_VOLUME_MIN);
+   double maxL = SymbolInfoDouble(InpSymbol, SYMBOL_VOLUME_MAX);
+   double step = SymbolInfoDouble(InpSymbol, SYMBOL_VOLUME_STEP);
+   if(step <= 0) step = 0.01;
+   vol = MathFloor(vol / step) * step;
+   if(vol < minL) vol = minL;
+   if(vol > maxL) vol = maxL;
+   return NormalizeDouble(vol, 2);
 }
 
-//--- OnTick (main event loop)
-void OnTick()
+double CalcLot(double slPoints)
 {
-   // Direction Brain: detect bias on its timeframe
-   static datetime lastDirBar = 0;
-   datetime dirBar = iTime(InpSymbol, InpDirectionTF, 0);
-   if(dirBar != lastDirBar)
+   if(slPoints <= 0) return 0.0;
+   double equity   = AccountInfoDouble(ACCOUNT_EQUITY);
+   double riskAmt  = equity * (InpRiskPercent / 100.0);
+   double tickVal  = SymbolInfoDouble(InpSymbol, SYMBOL_TRADE_TICK_VALUE);
+   double tickSz   = SymbolInfoDouble(InpSymbol, SYMBOL_TRADE_TICK_SIZE);
+   double pt       = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   if(tickVal <= 0 || tickSz <= 0 || pt <= 0) return 0.0;
+   double lossPerLot = (slPoints * pt / tickSz) * tickVal;
+   if(lossPerLot <= 0) return 0.0;
+   return NormalizeVolume(riskAmt / lossPerLot);
+}
+
+bool HasOpenPosition()
+{
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
    {
-      lastDirBar = dirBar;
-      Direction_Brain_Execute();
-      PrintFormat("[D${directionTF}] bias=%d", gBias);
+      ulong t = PositionGetTicket(i);
+      if(!PositionSelectByTicket(t)) continue;
+      if(PositionGetString(POSITION_SYMBOL) == InpSymbol &&
+         PositionGetInteger(POSITION_MAGIC)  == InpMagic) return true;
    }
+   return false;
+}
 
-   // Setup Brain: detect zone on its timeframe
-   static datetime lastSetupBar = 0;
-   datetime setupBar = iTime(InpSymbol, InpSetupTF, 0);
-   if(setupBar != lastSetupBar)
+int CountPositions()
+{
+   int cnt = 0;
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
    {
-      lastSetupBar = setupBar;
-      Setup_Brain_Execute();
-      PrintFormat("[S${setupTF}] setup_active=%d", gSetupActive ? 1 : 0);
+      ulong t = PositionGetTicket(i);
+      if(!PositionSelectByTicket(t)) continue;
+      if(PositionGetString(POSITION_SYMBOL) == InpSymbol &&
+         PositionGetInteger(POSITION_MAGIC)  == InpMagic) cnt++;
    }
+   return cnt;
+}
 
-   // Execution Brain: detect entry signal on its timeframe
-   static datetime lastExecBar = 0;
-   datetime execBar = iTime(InpSymbol, InpExecTF, 0);
-   if(execBar != lastExecBar)
-   {
-      lastExecBar = execBar;
-      Execution_Brain_Execute();
-      PrintFormat("[E${executionTF}] exec_signal=%d", gExecSignal ? 1 : 0);
+bool SpreadOk()
+{
+   if(InpMaxSpread <= 0) return true;
+   return (int)SymbolInfoInteger(InpSymbol, SYMBOL_SPREAD) <= InpMaxSpread;
+}
 
-      // Confluence gate: all must agree
-      bool canTrade = (gBias != 0) && (gSetupActive || ${fourBrainConfig.setup ? 'false' : 'true'}) && gExecSignal;
-      PrintFormat("[GATE] bias=%d setup=%d exec=%d -> %s", gBias, gSetupActive ? 1 : 0, gExecSignal ? 1 : 0, canTrade ? "TRADE" : "BLOCKED");
+//+------------------------------------------------------------------+
+//| Brain implementations (generated from selected modules)         |
+//+------------------------------------------------------------------+
+${dirCode}
+${setupCode}
+${execCode}
 
-      if(canTrade)
-      {
-         // TODO: Execute entry logic with proper risk management
-      }
-   }
+//+------------------------------------------------------------------+
+//| OnInit                                                           |
+//+------------------------------------------------------------------+
+int OnInit()
+{
+   trade.SetExpertMagicNumber(InpMagic);
+   trade.SetTypeFillingBySymbol(InpSymbol);
+   PrintFormat("[INIT] ${eaName} loaded");
+   PrintFormat("[CONFIG] Direction: ${dirMods} @ ${dirTF}");
+   PrintFormat("[CONFIG] Setup    : ${setupMods} @ ${setupTF}");
+   PrintFormat("[CONFIG] Execution: ${execMods} @ ${execTF}");
+   PrintFormat("[CONFIG] Risk: %.1f%% | R:R %.1f | StopBuf: %d pts",
+               InpRiskPercent, InpRewardRisk, InpStopBuffer);
+   return INIT_SUCCEEDED;
 }
 
 void OnDeinit(const int reason)
 {
-   Print("[EA] " + InpSymbol + " terminated");
+   PrintFormat("[DEINIT] ${eaName} removed (reason=%d)", reason);
+}
+
+//+------------------------------------------------------------------+
+//| OnTick — 4-Brain event loop                                     |
+//+------------------------------------------------------------------+
+void OnTick()
+{
+${breakEvenCode}
+
+   // ── Direction Brain (${dirTF}) ──────────────────────────────────────────────
+   datetime dBar = iTime(InpSymbol, InpDirectionTF, 0);
+   if(dBar != lastDirBar)
+   {
+      lastDirBar = dBar;
+      Direction_Brain_Execute();
+      PrintFormat("[D/${dirTF}] gBias=%d (%s)",
+                  gBias, gBias>0 ? "BULL" : gBias<0 ? "BEAR" : "NEUTRAL");
+   }
+
+   // ── Setup Brain (${setupTF}) ────────────────────────────────────────────────
+   datetime sBar = iTime(InpSymbol, InpSetupTF, 0);
+   if(sBar != lastSetupBar)
+   {
+      lastSetupBar = sBar;
+      Setup_Brain_Execute();
+      PrintFormat("[S/${setupTF}] gSetupActive=%d dir=%d SLhint=%.5f",
+                  gSetupActive, gSetupDir, gSetupSLHint);
+   }
+
+   // ── Execution Brain (${execTF}) ─────────────────────────────────────────────
+   datetime eBar = iTime(InpSymbol, InpExecTF, 0);
+   if(eBar != lastExecBar)
+   {
+      lastExecBar = eBar;
+      Execution_Brain_Execute();
+      PrintFormat("[E/${execTF}] gExecSignal=%d dir=%d SL=%.5f",
+                  gExecSignal, gExecDir, gExecSL);
+
+      // ── Confluence Gate ──────────────────────────────────────────────────────
+      ${dirGate}
+      ${setupGate}
+      if(!gExecSignal) { PrintFormat("[GATE] BLOCKED: no exec signal"); return; }
+      if(!SpreadOk())  { PrintFormat("[GATE] BLOCKED: spread too wide"); return; }
+      if(CountPositions() >= InpMaxTrades) { PrintFormat("[GATE] BLOCKED: max trades %d", InpMaxTrades); return; }
+
+      PrintFormat("[GATE] OPEN — bias=%d setup=%d execDir=%d SL=%.5f",
+                  gBias, gSetupActive, gExecDir, gExecSL);
+
+      // ── Trade Execution ──────────────────────────────────────────────────────
+      double pt      = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+      double ask     = SymbolInfoDouble(InpSymbol, SYMBOL_ASK);
+      double bid     = SymbolInfoDouble(InpSymbol, SYMBOL_BID);
+      int    digits  = (int)SymbolInfoInteger(InpSymbol, SYMBOL_DIGITS);
+      long   stops   = SymbolInfoInteger(InpSymbol, SYMBOL_TRADE_STOPS_LEVEL);
+      double buf     = InpStopBuffer * pt;
+
+      if(gExecDir == 1)   // ── BUY ──────────────────────────────────────────
+      {
+         // SL: raw level from execution brain, pushed further down by buffer
+         double sl   = (gExecSL > 0)
+                       ? NormalizeDouble(gExecSL - buf, digits)
+                       : NormalizeDouble(ask - 100 * pt, digits);  // fallback
+         double dist = (ask - sl) / pt;
+         if(dist < (double)stops) { PrintFormat("[EXEC] BUY rejected: stops_level=%d dist=%.0f", stops, dist); return; }
+         double lot  = CalcLot(dist);
+         if(lot <= 0) { PrintFormat("[EXEC] BUY rejected: lot=0"); return; }
+         double tp   = NormalizeDouble(ask + dist * InpRewardRisk * pt, digits);
+         PrintFormat("[EXEC] BUY lot=%.2f entry=%.5f SL=%.5f TP=%.5f dist=%.0f pts",
+                     lot, ask, sl, tp, dist);
+         trade.Buy(lot, InpSymbol, ask, sl, tp, StringFormat("4Brain:%s", "${execMods}"));
+      }
+      else if(gExecDir == -1)  // ── SELL ────────────────────────────────────
+      {
+         double sl   = (gExecSL > 0)
+                       ? NormalizeDouble(gExecSL + buf, digits)
+                       : NormalizeDouble(bid + 100 * pt, digits);  // fallback
+         double dist = (sl - bid) / pt;
+         if(dist < (double)stops) { PrintFormat("[EXEC] SELL rejected: stops_level=%d dist=%.0f", stops, dist); return; }
+         double lot  = CalcLot(dist);
+         if(lot <= 0) { PrintFormat("[EXEC] SELL rejected: lot=0"); return; }
+         double tp   = NormalizeDouble(bid - dist * InpRewardRisk * pt, digits);
+         PrintFormat("[EXEC] SELL lot=%.2f entry=%.5f SL=%.5f TP=%.5f dist=%.0f pts",
+                     lot, bid, sl, tp, dist);
+         trade.Sell(lot, InpSymbol, bid, sl, tp, StringFormat("4Brain:%s", "${execMods}"));
+      }
+   }
 }
 `;
-
-  return ea;
 }

@@ -22,6 +22,9 @@ export const Route = createFileRoute("/build")({
   component: FourBrainBuilderPage,
 });
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+type BrainRole = "direction" | "setup" | "execution";
+
 // ─── Module definitions ────────────────────────────────────────────────────────
 // IMPORTANT: ANY module can be used in ANY brain.
 // The brain role is determined by:

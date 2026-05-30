@@ -56,7 +56,7 @@ export interface SetupBrainState {
 
   /** Additional context (zone details, for debugging) */
   zoneHigh?: number;
-  zoneHigh?: number; // Note: typo fixed should be zoneLow
+  zoneLow?: number;
   zoneCount?: number; // how many zones active
 }
 
