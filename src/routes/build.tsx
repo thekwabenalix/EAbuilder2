@@ -62,9 +62,9 @@ interface Preset {
   name: string;
   tag: string;
   description: string;
-  direction?: { module: BrainModuleType; timeframe: string };
-  setup?:     { module: BrainModuleType; timeframe: string };
-  execution:  { module: BrainModuleType; timeframe: string };
+  direction?: { modules: BrainModuleType[]; timeframe: string };
+  setup?:     { modules: BrainModuleType[]; timeframe: string };
+  execution:  { modules: BrainModuleType[]; timeframe: string };
   rr: number; risk: number; be: boolean;
 }
 
@@ -73,27 +73,27 @@ const PRESETS: Preset[] = [
     name: "Classic ICT",
     tag: "Most popular",
     description: "D1 structure → H4 order block → M15 FVG",
-    direction: { module: "choch",       timeframe: "D1"  },
-    setup:     { module: "order_block", timeframe: "H4"  },
-    execution: { module: "fvg",         timeframe: "M15" },
+    direction: { modules: ["choch"],       timeframe: "D1"  },
+    setup:     { modules: ["order_block"], timeframe: "H4"  },
+    execution: { modules: ["fvg"],         timeframe: "M15" },
     rr: 2, risk: 1, be: true,
   },
   {
     name: "Sweep & Fill",
     tag: "Aggressive",
     description: "H4 BOS → H1 FVG setup → M5 liquidity sweep entry",
-    direction: { module: "bos",         timeframe: "H4"  },
-    setup:     { module: "fvg",         timeframe: "H1"  },
-    execution: { module: "liqsweep",    timeframe: "M5"  },
+    direction: { modules: ["bos"],         timeframe: "H4"  },
+    setup:     { modules: ["fvg"],         timeframe: "H1"  },
+    execution: { modules: ["liqsweep"],    timeframe: "M5"  },
     rr: 3, risk: 1, be: true,
   },
   {
     name: "Trend Rider",
     tag: "Long-term",
     description: "W1 BOS direction → D1 order block → H4 FVG entry",
-    direction: { module: "bos",         timeframe: "W1"  },
-    setup:     { module: "order_block", timeframe: "D1"  },
-    execution: { module: "fvg",         timeframe: "H4"  },
+    direction: { modules: ["bos"],         timeframe: "W1"  },
+    setup:     { modules: ["order_block"], timeframe: "D1"  },
+    execution: { modules: ["fvg"],         timeframe: "H4"  },
     rr: 3, risk: 0.5, be: true,
   },
   {
@@ -102,7 +102,7 @@ const PRESETS: Preset[] = [
     description: "No bias filter — H1 FVG retest entry, both directions",
     direction: undefined,
     setup:     undefined,
-    execution: { module: "fvg",         timeframe: "H1"  },
+    execution: { modules: ["fvg"],         timeframe: "H1"  },
     rr: 2, risk: 1, be: false,
   },
 ];
@@ -194,14 +194,14 @@ function AIParamExtractor({
   const hasParams = state?.params && Object.keys(state.params).filter(k => k !== "expiry" || state.params![k] !== 50).length > 0;
 
   async function onExtract() {
-    if (!state?.module || !state.timeframe || !hint.trim()) {
+    if (!state?.modules?.[0] || !state.timeframe || !hint.trim()) {
       toast.error("Select a module and timeframe first, then describe what you want.");
       return;
     }
     setExtracting(true);
     setExtractSummary(null);
     try {
-      const result = await extractBrainParams(role, state.module, state.timeframe, hint.trim());
+      const result = await extractBrainParams(role, state.modules[0], state.timeframe, hint.trim());
       onChange({ ...state, params: { ...(state.params ?? {}), ...result.params } });
       setExtractSummary(result.summary);
       toast.success("Params extracted");
@@ -306,10 +306,10 @@ function BrainCard({
 }) {
   const [open, setOpen] = useState(false);
   const modules = MODULES[role];
-  const configured = Boolean(state?.module && state?.timeframe);
+  const configured = Boolean(state?.modules?.[0] && state?.timeframe);
 
-  const selectedMod = state?.module
-    ? modules.find((m) => m.id === state.module)
+  const selectedMod = state?.modules?.[0]
+    ? modules.find((m) => m.id === state.modules[0])
     : undefined;
 
   return (
@@ -379,11 +379,11 @@ function BrainCard({
                 <ModuleCard
                   key={mod.id}
                   def={mod}
-                  selected={state?.module === mod.id}
+                  selected={state?.modules?.[0] === mod.id}
                   onClick={() =>
                     onChange({
-                      ...(state ?? { module: mod.id, timeframe: "H1" }),
-                      module: mod.id,
+                      ...(state ?? { modules: [mod.id], timeframe: "H1" }),
+                      modules: [mod.id],
                     })
                   }
                 />
@@ -400,7 +400,7 @@ function BrainCard({
               value={state?.timeframe ?? ""}
               onChange={(tf) =>
                 onChange({
-                  ...(state ?? { module: modules[0].id, timeframe: tf }),
+                  ...(state ?? { modules: [modules[0].id], timeframe: tf }),
                   timeframe: tf,
                 })
               }
@@ -484,12 +484,12 @@ function FourBrainBuilderPage() {
   // ── Live summary ──────────────────────────────────────────────────────────
   function summary() {
     const parts: string[] = [];
-    if (direction?.module && direction.timeframe)
-      parts.push(`${direction.timeframe} ${direction.module.toUpperCase().replace("_", " ")}`);
-    if (setup?.module && setup.timeframe)
-      parts.push(`${setup.timeframe} ${setup.module.toUpperCase().replace("_", " ")}`);
-    if (execution?.module && execution.timeframe)
-      parts.push(`${execution.timeframe} ${execution.module.toUpperCase().replace("_", " ")}`);
+    if (direction?.modules?.[0] && direction.timeframe)
+      parts.push(`${direction.timeframe} ${direction.modules[0].toUpperCase().replace("_", " ")}`);
+    if (setup?.modules?.[0] && setup.timeframe)
+      parts.push(`${setup.timeframe} ${setup.modules[0].toUpperCase().replace("_", " ")}`);
+    if (execution?.modules?.[0] && execution.timeframe)
+      parts.push(`${execution.timeframe} ${execution.modules[0].toUpperCase().replace("_", " ")}`);
     const chain  = parts.join(" → ");
     const mgmt   = `${risk}% risk · ${rr}R TP${be ? ` · BE@${beAt}R` : ""}`;
     return chain ? `${chain} | ${mgmt}` : mgmt;
@@ -498,20 +498,20 @@ function FourBrainBuilderPage() {
   // ── Generate ──────────────────────────────────────────────────────────────
   async function onGenerate() {
     if (!user) return;
-    if (!execution?.module || !execution.timeframe) {
+    if (!execution?.modules?.[0] || !execution.timeframe) {
       toast.error("Execution Brain is required — select a module and timeframe.");
       return;
     }
 
     const fourBrain: FourBrainConfig = {
-      direction: direction?.module && direction.timeframe
-        ? { module: direction.module, timeframe: direction.timeframe, params: {} }
+      direction: direction?.modules?.[0] && direction.timeframe
+        ? { modules: direction.modules, timeframe: direction.timeframe, params: {} }
         : undefined,
-      setup: setup?.module && setup.timeframe
-        ? { module: setup.module, timeframe: setup.timeframe, params: {} }
+      setup: setup?.modules?.[0] && setup.timeframe
+        ? { modules: setup.modules, timeframe: setup.timeframe, params: {} }
         : undefined,
       execution: {
-        module: execution.module,
+        modules: execution.modules,
         timeframe: execution.timeframe,
         params: { expiry: 50 },
       },
@@ -551,13 +551,13 @@ function FourBrainBuilderPage() {
 
   function buildName(cfg: FourBrainConfig): string {
     const parts: string[] = [];
-    if (cfg.direction) parts.push(`${cfg.direction.timeframe} ${cfg.direction.module.replace("_", " ").toUpperCase()}`);
-    if (cfg.setup)     parts.push(`${cfg.setup.timeframe} ${cfg.setup.module.replace("_", " ").toUpperCase()}`);
-    parts.push(`${cfg.execution.timeframe} ${cfg.execution.module.replace("_", " ").toUpperCase()}`);
+    if (cfg.direction) parts.push(`${cfg.direction.timeframe} ${cfg.direction.modules[0].replace("_", " ").toUpperCase()}`);
+    if (cfg.setup)     parts.push(`${cfg.setup.timeframe} ${cfg.setup.modules[0].replace("_", " ").toUpperCase()}`);
+    parts.push(`${cfg.execution.timeframe} ${cfg.execution.modules[0].replace("_", " ").toUpperCase()}`);
     return parts.join(" → ");
   }
 
-  const execConfigured = Boolean(execution?.module && execution.timeframe);
+  const execConfigured = Boolean(execution?.modules?.[0] && execution.timeframe);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -618,7 +618,7 @@ function FourBrainBuilderPage() {
               optional
               recommendBelow={setup?.timeframe ?? execution?.timeframe}
             />
-            <Arrow active={Boolean(direction?.module)} />
+            <Arrow active={Boolean(direction?.modules?.[0])} />
             <BrainCard
               role="setup"
               icon={Target}
@@ -631,7 +631,7 @@ function FourBrainBuilderPage() {
               recommendAbove={direction?.timeframe}
               recommendBelow={execution?.timeframe}
             />
-            <Arrow active={Boolean(setup?.module)} />
+            <Arrow active={Boolean(setup?.modules?.[0])} />
             <BrainCard
               role="execution"
               icon={Crosshair}

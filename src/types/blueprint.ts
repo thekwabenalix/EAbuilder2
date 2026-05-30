@@ -183,9 +183,18 @@ export type BrainModuleType =
   | "pin_bar";           // candle pattern — execution trigger
 
 export interface BrainConfig {
-  module: BrainModuleType;
+  /**
+   * One or more modules assigned to this brain.
+   * Multiple modules are combined with OR logic — any confirmed module
+   * activates the brain's output (gBias for direction, gSetupActive for setup,
+   * entry signal for execution). The user describes how they interact in
+   * the `description` field; AI extracts params from it.
+   */
+  modules: BrainModuleType[];
   timeframe: string;            // e.g. "D1", "H4", "M15"
   params?: Record<string, unknown>;
+  /** Plain-English description of how the selected modules work together. */
+  description?: string;
 }
 
 /**
