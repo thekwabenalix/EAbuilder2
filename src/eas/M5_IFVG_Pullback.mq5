@@ -9,7 +9,7 @@
 //| TP        : 2R  |  BE : 1R                                      |
 //+------------------------------------------------------------------+
 #property copyright "EAbuilder2"
-#property version   "1.00"
+#property version   "1.10"
 #property strict
 
 #include <Trade/Trade.mqh>
@@ -263,10 +263,16 @@ void ExecuteEntries(double emaFast, double emaSlow)
    {
       if(!fvgList[k].inverted)    continue;
       if(fvgList[k].traded)       continue;
-      // Entry is on the bar AFTER the inversion:
-      // inversionTime = bar1 from the PREVIOUS tick → now bar1 == inversionTime means
-      // we're on the bar IMMEDIATELY after (current bar opened after that close).
-      if(fvgList[k].inversionTime != bar1) continue;
+      // Entry fires on the bar WHOSE OPEN follows the inversion close.
+      // In OHLC mode: inversion detected at bar1's close → entry fires same iteration.
+      // Allow up to 3 bars grace so a valid signal isn't missed on slow moves.
+      datetime invT = fvgList[k].inversionTime;
+      if(invT == 0)       continue;  // not yet inverted
+      if(bar1 < invT)     continue;  // inversion bar not yet closed (shouldn't happen in OHLC)
+      // Allow entry within 3 bars of inversion (bars 0,1,2 after inversion close)
+      long barsSinceInv = (long)((long)iTime(InpSymbol,PERIOD_M5,0) - (long)invT)
+                          / PeriodSeconds(PERIOD_M5);
+      if(barsSinceInv < 0 || barsSinceInv > 3) continue;
 
       //--- BUY: bullish iFVG (was bearish FVG, dir=-1, inverted → bull signal)
       if(fvgList[k].dir == -1 &&
@@ -412,6 +418,52 @@ void DrawSwing(bool isBull, double price, datetime t)
 }
 
 //+------------------------------------------------------------------+
+//| Historical swing init — scans last 200 bars on startup          |
+//| Ensures gSellReady/gBuyReady are set before first tick.         |
+//+------------------------------------------------------------------+
+void InitSwingState()
+{
+   double emaF = EMAVal(hFast, 1);
+   double emaS = EMAVal(hSlow, 1);
+   int    maxBars = MathMin(iBars(InpSymbol, PERIOD_M5) - 8, 200);
+
+   // Find most recent qualifying peak (SELL context)
+   if(emaF < emaS)
+   {
+      for(int sh = 4; sh <= maxBars; sh++)
+      {
+         if(!IsSwingHigh(sh)) continue;
+         gPeakPrice  = iHigh(InpSymbol, PERIOD_M5, sh);
+         gPeakTime   = iTime(InpSymbol, PERIOD_M5, sh);
+         gSellReady  = true;
+         PrintFormat("[INIT] Peak found at %.5f | %s",
+                     gPeakPrice, TimeToString(gPeakTime, TIME_DATE|TIME_MINUTES));
+         DrawSwing(false, gPeakPrice, gPeakTime);
+         break; // most recent first (smallest sh)
+      }
+   }
+
+   // Find most recent qualifying bottom (BUY context)
+   if(emaF > emaS)
+   {
+      for(int sh = 4; sh <= maxBars; sh++)
+      {
+         if(!IsSwingLow(sh)) continue;
+         gBottomPrice = iLow(InpSymbol, PERIOD_M5, sh);
+         gBottomTime  = iTime(InpSymbol, PERIOD_M5, sh);
+         gBuyReady    = true;
+         PrintFormat("[INIT] Bottom found at %.5f | %s",
+                     gBottomPrice, TimeToString(gBottomTime, TIME_DATE|TIME_MINUTES));
+         DrawSwing(true, gBottomPrice, gBottomTime);
+         break;
+      }
+   }
+
+   PrintFormat("[INIT] Swing state: gSellReady=%d peak=%.5f | gBuyReady=%d bottom=%.5f",
+               gSellReady, gPeakPrice, gBuyReady, gBottomPrice);
+}
+
+//+------------------------------------------------------------------+
 //| OnInit                                                           |
 //+------------------------------------------------------------------+
 int OnInit()
@@ -428,6 +480,11 @@ int OnInit()
    Print("[INIT] M5 IFVG Pullback EA loaded");
    PrintFormat("[CONFIG] EMA %d/%d | Risk %.1f%% | RR %.1f | SL buf %d pts | BE at %.1fR",
                InpEMAFast, InpEMASlow, InpRiskPercent, InpRewardRisk, InpStopBuffer, InpBEAtR);
+
+   // Pre-populate swing state from historical bars
+   // (ensures gSellReady/gBuyReady are set when EA loads mid-trend)
+   InitSwingState();
+
    return INIT_SUCCEEDED;
 }
 
@@ -463,40 +520,54 @@ void OnTick()
    if(emaFast <= 0 || emaSlow <= 0) return;
 
    int totalBars = iBars(InpSymbol, PERIOD_M5);
-   if(totalBars < 8) return; // need at least 7 closed bars for swing detection
+   if(totalBars < 8) return;
 
    //-------------------------------------------------------------------
-   // 1. Swing detection — check bar at shift 4 as candidate
-   //    right side confirmed by shifts 1,2,3 (newer, all closed)
-   //    left  side confirmed by shifts 5,6,7 (older)
+   // 1. Swing detection — scan shifts 4..25 (wider range than just 4)
+   //    Stops at the FIRST (most recent) qualifying swing each direction.
+   //    A swing at shift N is confirmed by 3 newer bars (N-3..N-1) AND
+   //    3 older bars (N+1..N+3) all having lower highs / higher lows.
    //-------------------------------------------------------------------
-   if(emaFast > emaSlow && IsSwingLow(4))
+
+   // SELL context: find most recent swing HIGH
+   if(emaFast < emaSlow)
    {
-      datetime swT = iTime(InpSymbol, PERIOD_M5, 4);
-      double   swP = iLow (InpSymbol, PERIOD_M5, 4);
-      if(swT > gBottomTime) // newer swing → update
+      for(int sw = 4; sw <= 25; sw++)
       {
-         gBottomPrice = swP;
-         gBottomTime  = swT;
-         gBuyReady    = true;
-         PrintFormat("[SWING] BOTTOM | price=%.5f | %s",
-                     swP, TimeToString(swT, TIME_DATE|TIME_MINUTES));
-         DrawSwing(true, swP, swT);
+         if(!IsSwingHigh(sw)) continue;
+         datetime swT = iTime(InpSymbol, PERIOD_M5, sw);
+         double   swP = iHigh(InpSymbol, PERIOD_M5, sw);
+         if(swT > gPeakTime)  // only update if this is a NEWER peak
+         {
+            gPeakPrice = swP;
+            gPeakTime  = swT;
+            gSellReady = true;
+            PrintFormat("[SWING] PEAK (sh=%d) | price=%.5f | %s",
+                        sw, swP, TimeToString(swT, TIME_DATE|TIME_MINUTES));
+            DrawSwing(false, swP, swT);
+         }
+         break;  // use MOST RECENT qualifying swing only
       }
    }
 
-   if(emaFast < emaSlow && IsSwingHigh(4))
+   // BUY context: find most recent swing LOW
+   if(emaFast > emaSlow)
    {
-      datetime swT = iTime(InpSymbol, PERIOD_M5, 4);
-      double   swP = iHigh(InpSymbol, PERIOD_M5, 4);
-      if(swT > gPeakTime)
+      for(int sw = 4; sw <= 25; sw++)
       {
-         gPeakPrice  = swP;
-         gPeakTime   = swT;
-         gSellReady  = true;
-         PrintFormat("[SWING] PEAK | price=%.5f | %s",
-                     swP, TimeToString(swT, TIME_DATE|TIME_MINUTES));
-         DrawSwing(false, swP, swT);
+         if(!IsSwingLow(sw)) continue;
+         datetime swT = iTime(InpSymbol, PERIOD_M5, sw);
+         double   swP = iLow(InpSymbol, PERIOD_M5, sw);
+         if(swT > gBottomTime)
+         {
+            gBottomPrice = swP;
+            gBottomTime  = swT;
+            gBuyReady    = true;
+            PrintFormat("[SWING] BOTTOM (sh=%d) | price=%.5f | %s",
+                        sw, swP, TimeToString(swT, TIME_DATE|TIME_MINUTES));
+            DrawSwing(true, swP, swT);
+         }
+         break;
       }
    }
 
