@@ -1,12 +1,16 @@
 /**
  * 4-Brain EA Generator (gen-ea.ts)
  *
- * Assembles a complete, always-compilable MQL5 EA from four brain generators:
- *   Direction Brain  → gBias (persistent BULL/BEAR/NEUTRAL)
- *   Setup Brain      → gSetupActive + gSetupDir + gSetupSLHint
- *   Execution Brain  → gExecSignal + gExecDir + gExecSL
- *   Management Brain → Risk%, R:R, Break-Even (static config, inputs)
+ * TWO MODES:
  *
+ * 1. Template mode (default): brain functions generated from hardcoded switch-case
+ *    generators (fast, offline, no AI cost). Good for quick iteration.
+ *
+ * 2. AI mode (params.aiWiring set): brain functions written by Claude using the
+ *    module library. State machines are embedded based on aiWiring.sm_configs.
+ *    Better detection logic, respects the trader's description intent.
+ *
+ * Assembles a complete, always-compilable MQL5 EA.
  * The OnTick loop runs each brain on its own timeframe bar-open.
  * Trade execution fires when the confluence gate passes.
  */
@@ -16,6 +20,12 @@ import { genDirectionBrain }      from "./gen-direction-brain";
 import { genSetupBrain }          from "./gen-setup-brain";
 import { genExecutionBrain }      from "./gen-execution-brain";
 import { genFvgInversionSM }      from "./gen-ifvg-state-machine";
+import { genFvgSM }               from "./gen-fvg-sm";
+import { genBosSM }               from "./gen-bos-sm";
+import type { BosSmMode }         from "./gen-bos-sm";
+import { genObSM }                from "./gen-ob-sm";
+import { genLiqSweepSM }          from "./gen-liqsweep-sm";
+import type { AiBrainWiring }     from "@/lib/api-client";
 
 /** Collect all unique TFs that need an iFVG state machine instance. */
 function collectIfvgTFs(config: FourBrainConfig): Map<string, string> {
@@ -46,10 +56,51 @@ function tfConst(tf: string): string {
   return map[(tf ?? "H1").toUpperCase()] ?? "PERIOD_H1";
 }
 
+// ─── AI-mode: build state machine code from sm_configs ────────────────────────
+
+function buildAiStateMachines(aiWiring: AiBrainWiring): string {
+  const parts: string[] = [];
+  for (const [key, cfg] of Object.entries(aiWiring.sm_configs)) {
+    const { type, id, TF, tf, params: p = {} } = cfg;
+    switch (type) {
+      case "fvg":
+        parts.push(genFvgSM(id, TF, tf, (p.expiryBars as number) ?? 100));
+        break;
+      case "fvg_inversion":
+        parts.push(genFvgInversionSM(id, TF, tf, (p.expiryBars as number) ?? 100));
+        break;
+      case "ob":
+        parts.push(genObSM(id, TF, tf,
+          (p.dispMult   as number) ?? 0.6,
+          (p.scanBack   as number) ?? 5,
+          (p.expiryBars as number) ?? 100,
+        ));
+        break;
+      case "bos":
+      case "choch":
+      case "bos_choch":
+        parts.push(genBosSM(id, TF, tf, type as BosSmMode,
+          (p.swingLen as number) ?? 5,
+          (p.lookback as number) ?? 20,
+        ));
+        break;
+      case "liqsweep":
+        parts.push(genLiqSweepSM(id, TF, tf,
+          (p.swingLen as number) ?? 3,
+          (p.lookback as number) ?? 20,
+        ));
+        break;
+      default:
+        parts.push(`// Unknown SM type: ${type} (key=${key})`);
+    }
+  }
+  return parts.join("\n");
+}
+
 // ─── Main generator ───────────────────────────────────────────────────────────
 
 export function generateEA(params: MQL5CodeGenParams): string {
-  const { eaName, config, globalSymbol = "EURUSD", globalMagic = 990001 } = params;
+  const { eaName, config, globalSymbol = "EURUSD", globalMagic = 990001, aiWiring } = params;
 
   const dirMods  = config.direction?.modules?.join(" + ").toUpperCase() ?? "NONE";
   const dirTF    = config.direction?.timeframe ?? "D1";
@@ -69,31 +120,49 @@ export function generateEA(params: MQL5CodeGenParams): string {
   const hasDirBrain   = Boolean(config.direction);
   const hasSetupBrain = Boolean(config.setup);
 
-  // Generate inline iFVG state machine instances for all TFs that need one
-  const ifvgTFs  = collectIfvgTFs(config);
-  const smCode   = [...ifvgTFs.entries()]
-    .map(([tf, TFconst]) => genFvgInversionSM(tf, TFconst, tf, 100))
-    .join("\n");
+  // ── State machine code ──────────────────────────────────────────────────────
+  // AI mode: Claude specifies exactly which SMs to embed via sm_configs.
+  // Template mode: only embed iFVG SMs for TFs that use fvg_inversion.
+  let smCode: string;
+  if (aiWiring) {
+    smCode = buildAiStateMachines(aiWiring);
+  } else {
+    const ifvgTFs = collectIfvgTFs(config);
+    smCode = [...ifvgTFs.entries()]
+      .map(([tf, TFconst]) => genFvgInversionSM(tf, TFconst, tf, 100))
+      .join("\n");
+  }
 
-  // Generate brain function bodies from modular generators
-  const dirCode   = genDirectionBrain(config.direction);
-  const setupCode = genSetupBrain(config.setup);
-  const execCode  = genExecutionBrain(config.execution);
+  // ── Brain function bodies ───────────────────────────────────────────────────
+  // AI mode: use Claude's generated wiring.
+  // Template mode: use the hardcoded switch-case generators.
+  let dirCode: string, setupCode: string, execCode: string;
+  let aiModeLabel = "";
+  if (aiWiring) {
+    dirCode   = aiWiring.direction_brain;
+    setupCode = aiWiring.setup_brain;
+    execCode  = aiWiring.execution_brain;
+    aiModeLabel = `// Generated by Claude AI — module library wiring\n// ${aiWiring.notes ?? ""}`;
+  } else {
+    dirCode   = genDirectionBrain(config.direction);
+    setupCode = genSetupBrain(config.setup);
+    execCode  = genExecutionBrain(config.execution);
+  }
 
-  // Build Tick() calls: each iFVG SM must be advanced BEFORE the brain that reads it.
-  // Direction brain runs first (HTF), then Setup, then Execution.
-  // If Setup/Exec share the same TF, only advance the SM once per bar.
   const dirTFUpper   = (config.direction?.timeframe ?? "").toUpperCase();
   const setupTFUpper = (config.setup?.timeframe ?? "").toUpperCase();
   const execTFUpper  = (config.execution.timeframe).toUpperCase();
 
-  function smTickCall(tf: string): string {
-    return ifvgTFs.has(tf) ? `IFVGSM_${tf}_Tick(1);` : "";
+  // In AI mode: Claude's brain functions include their own Tick() calls inline.
+  // In template mode: only iFVG SMs need explicit pre-brain Tick() calls.
+  let dirSmTick = "", setupSmTick = "", execSmTick = "";
+  if (!aiWiring) {
+    const ifvgTFsForTick = collectIfvgTFs(config);
+    const smTickCall = (tf: string) => ifvgTFsForTick.has(tf) ? `IFVGSM_${tf}_Tick(1);` : "";
+    dirSmTick   = smTickCall(dirTFUpper);
+    setupSmTick = smTickCall(setupTFUpper);
+    execSmTick  = (execTFUpper !== setupTFUpper) ? smTickCall(execTFUpper) : "";
   }
-  const dirSmTick   = smTickCall(dirTFUpper);
-  const setupSmTick = smTickCall(setupTFUpper);
-  // Don't tick exec SM twice if it's the same TF as setup
-  const execSmTick  = (execTFUpper !== setupTFUpper) ? smTickCall(execTFUpper) : "";
 
   // Direction gate: if no direction brain, skip bias check
   const dirGate   = hasDirBrain
@@ -137,14 +206,33 @@ export function generateEA(params: MQL5CodeGenParams): string {
       }
    }` : `   // Break-even management disabled`;
 
+  // Build OnInit SM resets for AI mode
+  const aiSmResets = aiWiring
+    ? Object.entries(aiWiring.sm_configs)
+        .map(([, cfg]) => {
+          const P_map: Record<string, string> = {
+            fvg: `FVGSM_${cfg.id}_Reset();`,
+            fvg_inversion: `IFVGSM_${cfg.id}_Reset();`,
+            ob: `OBSM_${cfg.id}_Reset();`,
+            bos: `BOSSM_${cfg.id}_Reset();`,
+            choch: `BOSSM_${cfg.id}_Reset();`,
+            bos_choch: `BOSSM_${cfg.id}_Reset();`,
+            liqsweep: `LSSM_${cfg.id}_Reset();`,
+          };
+          return P_map[cfg.type] ?? `// unknown SM reset: ${cfg.type}`;
+        })
+        .join(" ")
+    : [...(collectIfvgTFs(config)).keys()].map(tf => `IFVGSM_${tf}_Reset();`).join(" ");
+
   return `//+------------------------------------------------------------------+
 //| ${eaName}.mq5
-//| Generated by EAbuilder2 — 4-Brain Architecture
+//| Generated by EAbuilder2 — 4-Brain Architecture${aiWiring ? " (AI mode)" : ""}
 //|
 //| Direction : ${dirMods} @ ${dirTF}
 //| Setup     : ${setupMods} @ ${setupTF}
 //| Execution : ${execMods} @ ${execTF}
 //| Management: ${riskPct}% risk · ${rrRatio}R TP${beEnabled ? ` · BE@${beAtR}R` : ""}
+${aiWiring ? `//| AI notes  : ${(aiWiring.notes ?? "").slice(0, 60)}` : ""}
 //+------------------------------------------------------------------+
 #property copyright "Generated by EAbuilder2"
 #property version   "1.00"
@@ -292,12 +380,13 @@ void DeleteAllChartObjects()
 }
 
 //+------------------------------------------------------------------+
-//| iFVG State Machine instances (Phase 3 inline, one per TF)       |
+//| Inline State Machine instances (embedded, zero dependencies)    |
 //+------------------------------------------------------------------+
 ${smCode}
 //+------------------------------------------------------------------+
-//| Brain implementations (generated from selected modules)         |
+//| Brain implementations${aiWiring ? " — AI-generated wiring" : " — template generators"}
 //+------------------------------------------------------------------+
+${aiModeLabel}
 ${dirCode}
 ${setupCode}
 ${execCode}
@@ -309,8 +398,8 @@ int OnInit()
 {
    trade.SetExpertMagicNumber(InpMagic);
    trade.SetTypeFillingBySymbol(InpSymbol);
-   // Initialise all iFVG state machine instances
-   ${[...ifvgTFs.keys()].map(tf => `IFVGSM_${tf}_Reset();`).join(" ")}
+   // Initialise all state machine instances
+   ${aiSmResets}
    PrintFormat("[INIT] ${eaName} loaded");
    PrintFormat("[CONFIG] Direction: ${dirMods} @ ${dirTF}");
    PrintFormat("[CONFIG] Setup    : ${setupMods} @ ${setupTF}");

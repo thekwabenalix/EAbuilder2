@@ -58,6 +58,7 @@ import type { StrategyBlueprint } from "@/types/blueprint";
 import { DEFAULT_BLUEPRINT } from "@/types/blueprint";
 import type { FourBrainConfig, BrainConfig, BrainModuleType } from "@/types/blueprint";
 import { ALL_BRAIN_MODULES, TIMEFRAMES as TF_LIST, formatBrainChain } from "@/lib/brain-modules";
+import { generateAiBrainWiring } from "@/lib/api-client";
 import {
   getLocalRunnerHealth,
   getMt5Status,
@@ -257,11 +258,12 @@ function StrategyPage() {
               onChange={(next) => {
                 onBlueprintChange(next);
               }}
-              onRegenerate={(next) => {
-                const code = generateMql5FromBlueprint(next);
+              onRegenerate={(next, aiCode) => {
+                // If AI provided the code directly, use it; otherwise generate from template
+                const code = aiCode ?? generateMql5FromBlueprint(next);
                 setGeneratedCode(code);
                 setDirty(true);
-                toast.success("EA regenerated from updated brain config");
+                if (!aiCode) toast.success("EA regenerated from template");
               }}
             />
           </TabsContent>
@@ -563,7 +565,7 @@ function FourBrainTab({
 }: {
   blueprint: StrategyBlueprint;
   onChange: (bp: StrategyBlueprint) => void;
-  onRegenerate: (bp: StrategyBlueprint) => void;
+  onRegenerate: (bp: StrategyBlueprint, aiCode?: string) => void;
 }) {
   const cfg = blueprint.fourBrain!;
   const mgmt = cfg.management;
@@ -602,11 +604,51 @@ function FourBrainTab({
   }
 
   const canRegenerate = execution.modules.length > 0 && execution.timeframe;
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiNotes, setAiNotes] = useState<string | null>(null);
+
+  async function onAiGenerate() {
+    if (!canRegenerate) {
+      toast.error("Execution Brain needs at least one module and a timeframe.");
+      return;
+    }
+    setAiGenerating(true);
+    setAiNotes(null);
+    const bp = buildUpdatedBp();
+    onChange(bp);
+    try {
+      const cfg = bp.fourBrain!;
+      const wiring = await generateAiBrainWiring(
+        {
+          direction: cfg.direction,
+          setup:     cfg.setup,
+          execution: cfg.execution,
+        },
+        bp.name,
+        [cfg.direction?.description, cfg.setup?.description, cfg.execution.description]
+          .filter(Boolean).join(". "),
+      );
+      setAiNotes(wiring.notes ?? null);
+      // Generate EA with AI wiring embedded
+      const { generateEA } = await import("@/generators/gen-ea");
+      const code = generateEA({
+        eaName: bp.name.replace(/[^\w\s-]/g, "").trim(),
+        config: cfg,
+        aiWiring: wiring,
+      });
+      toast.success("AI-powered EA generated — Claude wired the modules intelligently");
+      onRegenerate(bp, code);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "AI generation failed");
+    } finally {
+      setAiGenerating(false);
+    }
+  }
 
   return (
     <div className="max-w-2xl space-y-4">
       <p className="text-sm text-muted-foreground">
-        Edit your brain configuration below. Click <strong>Save & Regenerate</strong> to rebuild the EA with the new settings.
+        Edit your brain configuration below, then choose how to generate the EA.
       </p>
 
       {/* Direction brain */}
@@ -687,21 +729,45 @@ function FourBrainTab({
         </div>
       </div>
 
-      <Button
-        onClick={() => {
-          if (!canRegenerate) {
-            toast.error("Execution Brain needs at least one module and a timeframe.");
-            return;
+      {/* AI notes */}
+      {aiNotes && (
+        <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
+          <span className="font-medium text-primary">AI notes: </span>{aiNotes}
+        </div>
+      )}
+
+      {/* Two generation options */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Template — fast, offline */}
+        <Button
+          variant="outline"
+          onClick={() => {
+            if (!canRegenerate) { toast.error("Execution Brain needs at least one module and a timeframe."); return; }
+            const bp = buildUpdatedBp();
+            onChange(bp);
+            onRegenerate(bp);
+          }}
+          className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+        >
+          <Hammer className="h-4 w-4 mr-1.5" />
+          Template
+        </Button>
+
+        {/* AI — Claude interprets and wires */}
+        <Button
+          onClick={onAiGenerate}
+          disabled={aiGenerating}
+          className="bg-primary hover:bg-primary/90 text-primary-foreground"
+        >
+          {aiGenerating
+            ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Claude thinking…</>
+            : <><Sparkles className="h-4 w-4 mr-1.5" />Generate with AI</>
           }
-          const bp = buildUpdatedBp();
-          onChange(bp);
-          onRegenerate(bp);
-        }}
-        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white border-0"
-      >
-        <Hammer className="h-4 w-4 mr-1.5" />
-        Save & Regenerate EA
-      </Button>
+        </Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground text-center">
+        <strong>Template</strong> — fast, no API cost · <strong>AI</strong> — Claude reads your descriptions and wires the proven modules intelligently
+      </p>
     </div>
   );
 }

@@ -217,12 +217,18 @@ export interface FourBrainConfig {
 
 /**
  * Parameters for MQL5 code generation using the modular 4-brain system.
+ *
+ * When `aiWiring` is provided, the generator uses AI-written brain functions
+ * (from /api/gen-4brain-ai) and embeds only the state machines Claude selected.
+ * Without `aiWiring`, falls back to the template switch-case generators.
  */
 export interface MQL5CodeGenParams {
   eaName: string;
   config: FourBrainConfig;
   globalSymbol?: string;
   globalMagic?: number;
+  /** When set, use AI-generated brain wiring instead of template generators. */
+  aiWiring?: import("@/lib/api-client").AiBrainWiring;
 }
 
 /**

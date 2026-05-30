@@ -215,6 +215,39 @@ export async function applyFix(
   return { code: finalCode };
 }
 
+// ─── AI 4-Brain generator ─────────────────────────────────────────────────────
+
+export interface AiBrainWiring {
+  direction_brain: string;
+  setup_brain:     string;
+  execution_brain: string;
+  required_sms:    string[];
+  sm_configs:      Record<string, {
+    type: string;
+    id: string;
+    TF: string;
+    tf: string;
+    params: Record<string, unknown>;
+  }>;
+  notes: string;
+}
+
+/**
+ * Ask Claude to generate the 4-Brain wiring code using the module library.
+ * Returns the three brain function bodies + which state machines to embed.
+ */
+export async function generateAiBrainWiring(
+  config: {
+    direction?: { modules: string[]; timeframe: string; description?: string };
+    setup?:     { modules: string[]; timeframe: string; description?: string };
+    execution:  { modules: string[]; timeframe: string; description?: string };
+  },
+  eaName: string,
+  description?: string,
+): Promise<AiBrainWiring> {
+  return post<AiBrainWiring>("/api/gen-4brain-ai", { config, eaName, description });
+}
+
 // ─── Brain param extraction ───────────────────────────────────────────────────
 
 export interface ExtractBrainParamsResult {
