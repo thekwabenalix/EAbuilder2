@@ -607,15 +607,24 @@ function FourBrainBuilderPage() {
 
     const fourBrain: FourBrainConfig = {
       direction: direction?.modules?.[0] && direction.timeframe
-        ? { modules: direction.modules, timeframe: direction.timeframe, params: {} }
+        ? { modules: direction.modules, timeframe: direction.timeframe, description: direction.description, params: {} }
         : undefined,
       setup: setup?.modules?.[0] && setup.timeframe
-        ? { modules: setup.modules, timeframe: setup.timeframe, params: {} }
+        ? { modules: setup.modules, timeframe: setup.timeframe, description: setup.description, params: {} }
         : undefined,
       execution: {
         modules: execution.modules,
         timeframe: execution.timeframe,
+        description: execution.description,
         params: { expiry: 50 },
+      },
+      management: {
+        riskPercent: risk,
+        rewardRisk: rr,
+        breakEvenEnabled: be,
+        breakEvenAtR: 1,
+        maxOpenTrades: maxTrades,
+        stopBuffer: stopBuffer / 100000,  // convert points to decimal
       },
     };
 

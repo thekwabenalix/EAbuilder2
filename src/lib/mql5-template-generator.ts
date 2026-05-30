@@ -116,6 +116,20 @@ export interface BuildabilityResult {
  * so the user refines their spec rather than getting broken MQL5.
  */
 export function analyzeBuildability(bp: StrategyBlueprint): BuildabilityResult {
+  // PHASE 0 ENHANCEMENT: 4-Brain architecture is always buildable
+  if (bp.fourBrain && bp.fourBrain.execution) {
+    return {
+      buildable: true,  // 4-Brain config is always buildable
+      coverage: 100,
+      statuses: [],
+      supportedCount: 0,
+      unsupportedCount: 0,
+      unsupportedRules: [],
+      hasFvgMachine: false,
+    };
+  }
+
+  // Legacy rule-based system analysis
   const hasFvgMachine = bp.rules.some(
     (r) => r.type === "fair_value_gap_bullish" || r.type === "fair_value_gap_bearish",
   );
