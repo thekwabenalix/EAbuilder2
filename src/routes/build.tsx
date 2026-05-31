@@ -571,6 +571,7 @@ function FourBrainBuilderPage() {
   const [beAt,       setBeAt]       = useState(1.0);
   const [maxTrades,  setMaxTrades]  = useState(1);
   const [stopBuffer, setStopBuffer] = useState(20);
+  const [strategyNotes, setStrategyNotes] = useState("");
 
   const [saving, setSaving] = useState(false);
 
@@ -635,10 +636,11 @@ function FourBrainBuilderPage() {
       },
     };
 
-    const bp: StrategyBlueprint = {
+    const bp = {
       ...DEFAULT_BLUEPRINT,
       name: buildName(fourBrain),
       fourBrain,
+      strategyNotes,   // cross-brain conditions for AI generation
       risk: {
         ...DEFAULT_BLUEPRINT.risk,
         riskPercent: risk,
@@ -647,7 +649,7 @@ function FourBrainBuilderPage() {
         maxOpenTrades: maxTrades,
         stopBufferPoints: stopBuffer,
       },
-    };
+    } as StrategyBlueprint;
 
     setSaving(true);
     try {
@@ -856,6 +858,27 @@ function FourBrainBuilderPage() {
               />
             </div>
           </div>
+        </div>
+
+        {/* ── Strategy Rules — cross-brain conditions for AI ── */}
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-5 py-4 space-y-2">
+          <div>
+            <Label className="text-xs font-semibold text-amber-400">Strategy Rules</Label>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Conditions that apply across the whole strategy — max SL distance, required sequences,
+              invalidation rules, session filters. Claude reads this when generating with AI.
+            </p>
+          </div>
+          <Textarea
+            value={strategyNotes}
+            onChange={(e) => setStrategyNotes(e.target.value)}
+            rows={3}
+            className="text-xs font-mono resize-none"
+            placeholder={`• If opposite EMA cross fires, reset direction and cancel all pending setups
+• Only enter after price retests either EMA — ignore any IFVGs that formed before
+• Max stop loss = 7 pips (70 points) — skip trade if SL distance exceeds this
+• Breakeven at 1.5R, keep original TP active`}
+          />
         </div>
 
         {/* ── Summary + Generate ── */}

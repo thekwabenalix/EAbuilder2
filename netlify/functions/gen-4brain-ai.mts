@@ -152,9 +152,37 @@ CODE GENERATION RULES
     If a trader says "use 30-bar lookback", set lookback=30 in sm_configs params.
     If they say "strict 3-bar pivots", set swingLen=3.
     If they say "expire FVGs after 50 bars", set expiryBars=50.
+    If they say "fast EMA 12, slow EMA 48", set fastPeriod=12, slowPeriod=48 in sm_configs params.
 
 10. The same module can be used at different timeframes for different brains.
     E.g., FVG at H4 for setup AND FVG at M15 for execution — give them different keys.
+
+11. COMMON PATTERNS — generate these correctly when described:
+
+    MAX SL FILTER: "max stop loss = 7 pips" or "skip if SL > 70 points"
+    → Add this check INSIDE Execution_Brain_Execute() AFTER calculating gExecSL:
+      double _maxSLPoints = 70;  // 7 pips × 10 points/pip
+      double _pt = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+      if(gExecSL > 0 && MathAbs(SymbolInfoDouble(InpSymbol,SYMBOL_ASK) - gExecSL) / _pt > _maxSLPoints)
+      { gExecSignal = false; PrintFormat("[EXEC] SKIPPED: SL too wide"); }
+
+    REQUIRED SEQUENCE: "must retest EMA before entry" or "only after price touches EMA"
+    → Add a state variable (static bool _emaRetested = false) that:
+      - Resets to false when gBias changes
+      - Sets to true when price touches within N points of either EMA
+      - Blocks gExecSignal unless _emaRetested is true
+
+    INVALIDATION: "if opposite cross, reset direction and cancel pending"
+    → In Direction_Brain_Execute(): when gBias flips, also reset gSetupActive = false.
+      If using EMA, gBias flips every bar based on alignment — no extra logic needed.
+      If using BOS/CHoCH, detect the flip and reset the retest flag.
+
+    BREAKEVEN: "move SL to BE at 1.5R" → This is management brain logic.
+    Include a comment: // Management: breakeven at 1.5R handled by OnTick BE loop
+
+12. Add input parameters for any numeric threshold the trader mentioned:
+    → "max 7 pips SL" → add: input double InpMaxSLPoints = 70; // Max SL in points
+    → This makes the EA configurable, not hardcoded.
 
 Return ONLY the JSON object. No markdown. No explanation outside the "notes" field.`;
 }

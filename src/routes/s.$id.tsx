@@ -656,6 +656,10 @@ function FourBrainTab({
   const [direction, setDirection] = useState<BrainConfig | undefined>(cfg.direction);
   const [setup,     setSetup]     = useState<BrainConfig | undefined>(cfg.setup);
   const [execution, setExecution] = useState<BrainConfig>(cfg.execution);
+  /** Strategy-level rules that apply across all brains (filters, invalidation, special conditions) */
+  const [strategyNotes, setStrategyNotes] = useState<string>(
+    (blueprint as { strategyNotes?: string }).strategyNotes ?? ""
+  );
 
   const [riskPct,  setRiskPct]  = useState(mgmt?.riskPercent  ?? 1);
   const [rr,       setRr]       = useState(mgmt?.rewardRisk   ?? 2);
@@ -683,7 +687,10 @@ function FourBrainTab({
     if (newCfg.direction) parts.push(`${newCfg.direction.timeframe} ${newCfg.direction.modules.map(m => m.replace(/_/g, " ").toUpperCase()).join("+")}`);
     if (newCfg.setup)     parts.push(`${newCfg.setup.timeframe} ${newCfg.setup.modules.map(m => m.replace(/_/g, " ").toUpperCase()).join("+")}`);
     parts.push(`${newCfg.execution.timeframe} ${newCfg.execution.modules.map(m => m.replace(/_/g, " ").toUpperCase()).join("+")}`);
-    return { ...blueprint, name: parts.join(" → "), fourBrain: newCfg };
+    const newBp = { ...blueprint, name: parts.join(" → "), fourBrain: newCfg };
+    // Store strategy-level notes so they persist and flow into AI generation
+    (newBp as unknown as Record<string, unknown>).strategyNotes = strategyNotes;
+    return newBp;
   }
 
   const canRegenerate = execution.modules.length > 0 && execution.timeframe;
@@ -701,6 +708,14 @@ function FourBrainTab({
     onChange(bp);
     try {
       const cfg = bp.fourBrain!;
+      // Build description: strategy-level notes + per-brain notes combined
+      const brainNotes = [
+        cfg.direction?.description,
+        cfg.setup?.description,
+        cfg.execution.description,
+      ].filter(Boolean).join(". ");
+      const fullDescription = [strategyNotes, brainNotes].filter(Boolean).join("\n\nPer-brain notes: ");
+
       const wiring = await generateAiBrainWiring(
         {
           direction: cfg.direction,
@@ -708,8 +723,7 @@ function FourBrainTab({
           execution: cfg.execution,
         },
         bp.name,
-        [cfg.direction?.description, cfg.setup?.description, cfg.execution.description]
-          .filter(Boolean).join(". "),
+        fullDescription || undefined,
       );
       setAiNotes(wiring.notes ?? null);
       // Generate EA with AI wiring embedded
@@ -730,9 +744,29 @@ function FourBrainTab({
 
   return (
     <div className="max-w-2xl space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Edit your brain configuration below, then choose how to generate the EA.
-      </p>
+
+      {/* Strategy-level notes — cross-brain conditions, filters, invalidation rules */}
+      <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
+        <div>
+          <Label className="text-xs font-semibold text-amber-400">Strategy Rules</Label>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Describe conditions that apply across the whole strategy — max SL distance, invalidation rules,
+            required sequences (e.g. "must retest EMA before entry"), session filters. Claude reads this
+            when you click <strong>Generate with AI</strong>.
+          </p>
+        </div>
+        <textarea
+          value={strategyNotes}
+          onChange={(e) => setStrategyNotes(e.target.value)}
+          rows={4}
+          placeholder={`Examples:
+• If opposite EMA cross fires, reset direction and cancel all pending setups
+• Only enter after price retests either EMA — ignore IFVGs that form before the retest
+• Max stop loss = 7 pips (70 points) — skip trade if SL distance exceeds this
+• Breakeven at 1.5R, keep original TP active`}
+          className="w-full rounded border border-amber-500/20 bg-background px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-amber-500/60 resize-none"
+        />
+      </div>
 
       {/* Direction brain */}
       <BrainCard
