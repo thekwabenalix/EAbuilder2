@@ -47,6 +47,8 @@ import { generateMissDetector } from "@/lib/smc-modules/miss-detector";
 import { generateFvgStateModule }       from "@/lib/smc-modules/fvg-state-module";
 import { generateObStateModule }        from "@/lib/smc-modules/ob-state-module";
 import { generateBreakoutStateModule }  from "@/lib/smc-modules/breakout-state-module";
+import { generateRejectionStateModule } from "@/lib/smc-modules/rejection-state-module";
+import { generateMissStateModule }      from "@/lib/smc-modules/miss-state-module";
 import { generateBosStateModule }       from "@/lib/smc-modules/bos-state-module";
 import { generateBbStateModule }        from "@/lib/smc-modules/bb-state-module";
 import { generateLiqSweepStateModule }       from "@/lib/smc-modules/liqsweep-state-module";
@@ -653,6 +655,61 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         status: "ready",
         generate: generateBreakoutStateModule,
+      },
+      {
+        id: "rejection-state",
+        filename: "Rejection_State_Module.mq5",
+        name: "Rejection State Module",
+        description:
+          "Embeds Classic + Gap S/R level detection and fires a CONFIRMED signal when a " +
+          "candle's wick pierces a level but the close holds on the origin side (rejection). " +
+          "Same two-candle SNR guard as the Rejection Detector. Exposes 4 iCustom buffers " +
+          "so Phase 3 EAs can read bull/bear confirm events and their SL levels.",
+        rules: [
+          "Levels: Classic (Bull→Bear = Res, Bear→Bull = Sup) + Gap (same-dir pair); valid only AFTER Candle B",
+          "Bullish rejection: Low <= support AND Close > support AND lower wick >= InpMinWickRatio x range",
+          "Bearish rejection: High >= resistance AND Close < resistance AND upper wick >= InpMinWickRatio x range",
+          "Level broken when a candle closes through it (removed from tracking)",
+          "Levels expire after InpExpiryBars bars (0 = never)",
+        ],
+        output: [
+          "Buffer 0: BullConfirmBuf[sh]=1.0 at a bullish rejection bar (wick through support, close holds)",
+          "Buffer 1: BearConfirmBuf[sh]=1.0 at a bearish rejection bar (wick through resistance, close holds)",
+          "Buffer 2: BullSLBuf[sh]=rejection wick low — SL for bull entries",
+          "Buffer 3: BearSLBuf[sh]=rejection wick high — SL for bear entries",
+          "OBJ_TREND solid level line from SNR origin to rejection candle + TF label (DRD/WRW/4R4/1R1/MRM/Rej)",
+          "Journal: REJECTION_BULL | REJECTION_BEAR | label | level | sl | time",
+          "Inputs: min_wick_ratio · use_classic · use_gap · expiry_bars · draw · line_bars · colors",
+        ],
+        status: "ready",
+        generate: generateRejectionStateModule,
+      },
+      {
+        id: "miss-state",
+        filename: "Miss_State_Module.mq5",
+        name: "Miss State Module",
+        description:
+          "Embeds Classic + Gap S/R level detection and fires a CONFIRMED signal when a " +
+          "swing pivot lands NEAR a level without touching it (miss = liquidity / level " +
+          "validation). Same two-candle SNR guard. Exposes 4 iCustom buffers for Phase 3 EAs.",
+        rules: [
+          "Levels: Classic (Bull→Bear = Res, Bear→Bull = Sup) + Gap (same-dir pair); valid only AFTER Candle B",
+          "Pivot: swing high/low confirmed by InpSwingLen bars each side",
+          "Bullish miss: swing LOW stays ABOVE support, within InpNearPoints, without touching",
+          "Bearish miss: swing HIGH stays BELOW resistance, within InpNearPoints, without touching",
+          "Levels expire after InpExpiryBars bars (0 = never)",
+        ],
+        output: [
+          "Buffer 0: BullConfirmBuf[sh]=1.0 at a bullish miss pivot (swing low near support)",
+          "Buffer 1: BearConfirmBuf[sh]=1.0 at a bearish miss pivot (swing high near resistance)",
+          "Buffer 2: BullSLBuf[sh]=the swing low itself — SL for bull entries off the miss",
+          "Buffer 3: BearSLBuf[sh]=the swing high itself — SL for bear entries off the miss",
+          "Dotted OBJ_TREND level line from SNR origin to miss pivot + 'Miss' label on pivot",
+          "Journal: MISS_BULL | MISS_BEAR | level | pivot | time",
+          "Inputs: swing_len · near_points · use_classic · use_gap · expiry_bars · draw · line_bars · colors",
+        ],
+        status: "ready",
+        generate: generateMissStateModule,
       },
       {
         id: "choch-state",
