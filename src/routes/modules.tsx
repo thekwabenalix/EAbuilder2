@@ -49,6 +49,8 @@ import { generateObStateModule }        from "@/lib/smc-modules/ob-state-module"
 import { generateBreakoutStateModule }  from "@/lib/smc-modules/breakout-state-module";
 import { generateRejectionStateModule } from "@/lib/smc-modules/rejection-state-module";
 import { generateMissStateModule }      from "@/lib/smc-modules/miss-state-module";
+import { generateRssSrrDetector }       from "@/lib/smc-modules/rss-srr-detector";
+import { generateRssSrrStateModule }    from "@/lib/smc-modules/rss-srr-state-module";
 import { generateBosStateModule }       from "@/lib/smc-modules/bos-state-module";
 import { generateBbStateModule }        from "@/lib/smc-modules/bb-state-module";
 import { generateLiqSweepStateModule }       from "@/lib/smc-modules/liqsweep-state-module";
@@ -519,6 +521,34 @@ const TRADING_MODULES: ModuleCategory[] = [
         generate: generateMissDetector,
       },
       {
+        id: "rss-srr",
+        filename: "RSS_SRR_Detector.mq5",
+        name: "RSS / SRR Detector",
+        description:
+          "RSS (Resistance Sweeps Supports): Classic Resistance pushes price down to " +
+          "close-break at least two Classic Support levels. " +
+          "SRR (Support Rallies Resistances): Classic Support rallies price up to " +
+          "close-break at least two Classic Resistance levels. " +
+          "A single 'RSS' or 'SRR' label fires on the bar that completes the sweep.",
+        rules: [
+          "Levels: Classic SNR only — Bull→Bear pair = Resistance, Bear→Bull pair = Support (A close = level)",
+          "A level is BROKEN when a candle closes through it (wick break does NOT count)",
+          "RSS fires when InpMinBreaks (default 2) supports are broken within InpWindowBars bars",
+          "SRR fires when InpMinBreaks (default 2) resistances are broken within InpWindowBars bars",
+          "Cooldown: one signal per sweep — no re-fire until a full window has elapsed",
+          "Two-candle SNR guard: level not valid until after Candle B closes",
+          "Levels expire after InpExpiryBars bars (0 = never)",
+        ],
+        output: [
+          "'RSS' label below the signal bar low (bearish sweep complete)",
+          "'SRR' label above the signal bar high (bullish sweep complete)",
+          "Journal: RSS/SRR | breaks=N | level | time",
+          "Inputs: min_breaks · window_bars · expiry_bars · colors",
+        ],
+        status: "ready",
+        generate: generateRssSrrDetector,
+      },
+      {
         id: "multi-rejection",
         filename: "SNR_MultiReject_Detector.mq5",
         name: "Multiple Rejection",
@@ -714,6 +744,33 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         status: "ready",
         generate: generateMissStateModule,
+      },
+      {
+        id: "rss-srr-state",
+        filename: "RSS_SRR_State_Module.mq5",
+        name: "RSS / SRR State Module",
+        description:
+          "Embeds Classic SNR detection and fires buffers when a sweep completes — " +
+          "RSS (2+ supports broken) or SRR (2+ resistances broken) within the window. " +
+          "SL buffers carry the highest swept support (for RSS sells) and lowest swept " +
+          "resistance (for SRR buys) so Phase 3 EAs can size positions precisely.",
+        rules: [
+          "Levels: Classic SNR only — Bull→Bear = Resistance, Bear→Bull = Support",
+          "RSS fires when InpMinBreaks supports close-broken within InpWindowBars",
+          "SRR fires when InpMinBreaks resistances close-broken within InpWindowBars",
+          "Cooldown: one signal per sweep (no re-fire within same window)",
+          "Two-candle SNR guard applies; levels expire after InpExpiryBars bars",
+        ],
+        output: [
+          "Buffer 0: SRRBuf[sh]=1.0 at SRR signal bar (bullish sweep)",
+          "Buffer 1: RSSBuf[sh]=1.0 at RSS signal bar (bearish sweep)",
+          "Buffer 2: SRRSLBuf[sh]=lowest swept resistance — SL for buy entries",
+          "Buffer 3: RSSSLBuf[sh]=highest swept support — SL for sell entries",
+          "Journal: RSS/SRR | breaks=N | sl | time",
+          "Inputs: min_breaks · window_bars · expiry_bars · draw · colors",
+        ],
+        status: "ready",
+        generate: generateRssSrrStateModule,
       },
       {
         id: "choch-state",
