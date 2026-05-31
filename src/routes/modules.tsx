@@ -689,24 +689,28 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "Miss_State_Module.mq5",
         name: "Miss State Module",
         description:
-          "Embeds Classic + Gap S/R level detection and fires a CONFIRMED signal when a " +
-          "swing pivot lands NEAR a level without touching it (miss = liquidity / level " +
-          "validation). Same two-candle SNR guard. Exposes 4 iCustom buffers for Phase 3 EAs.",
+          "Embeds Classic + Gap S/R level detection and fires a signal when any candle " +
+          "comes within proximity of a level without its wick touching it. The candle with " +
+          "the MINIMUM wick distance to the level gets the signal — buffers update in-place " +
+          "if a closer candle appears. Any wick touch retires the level and clears buffers. " +
+          "Proximity threshold auto-scales to any instrument via ATR fraction.",
         rules: [
           "Levels: Classic (Bull→Bear = Res, Bear→Bull = Sup) + Gap (same-dir pair); valid only AFTER Candle B",
-          "Pivot: swing high/low confirmed by InpSwingLen bars each side",
-          "Bullish miss: swing LOW stays ABOVE support, within InpNearPoints, without touching",
-          "Bearish miss: swing HIGH stays BELOW resistance, within InpNearPoints, without touching",
+          "Every closed candle is evaluated — no swing-pivot requirement",
+          "Bullish miss: wick Low above support AND (Low - level) <= InpNearATR × ATR(14)",
+          "Bearish miss: wick High below resistance AND (level - High) <= InpNearATR × ATR(14)",
+          "Any wick TOUCH (Low <= support OR High >= resistance) kills the level — no miss possible",
+          "When a closer approach is found, old buffer entries are cleared and new ones written",
           "Levels expire after InpExpiryBars bars (0 = never)",
         ],
         output: [
-          "Buffer 0: BullConfirmBuf[sh]=1.0 at a bullish miss pivot (swing low near support)",
-          "Buffer 1: BearConfirmBuf[sh]=1.0 at a bearish miss pivot (swing high near resistance)",
-          "Buffer 2: BullSLBuf[sh]=the swing low itself — SL for bull entries off the miss",
-          "Buffer 3: BearSLBuf[sh]=the swing high itself — SL for bear entries off the miss",
-          "Dotted OBJ_TREND level line from SNR origin to miss pivot + 'Miss' label on pivot",
-          "Journal: MISS_BULL | MISS_BEAR | level | pivot | time",
-          "Inputs: swing_len · near_points · use_classic · use_gap · expiry_bars · draw · line_bars · colors",
+          "Buffer 0: BullConfirmBuf[sh]=1.0 at the closest bullish miss bar (wick stops above support)",
+          "Buffer 1: BearConfirmBuf[sh]=1.0 at the closest bearish miss bar (wick stops below resistance)",
+          "Buffer 2: BullSLBuf[sh]=wick Low of closest miss — SL for bull entries",
+          "Buffer 3: BearSLBuf[sh]=wick High of closest miss — SL for bear entries",
+          "'Ms' text label on the closest miss candle (updates if a closer bar appears)",
+          "Journal: MISS_BULL | MISS_BEAR | level | wick | dist pts | time",
+          "Inputs: InpNearATR (default 0.20) · InpATRPeriod (14) · InpNearPoints override · use_classic · use_gap · expiry_bars",
         ],
         status: "ready",
         generate: generateMissStateModule,
