@@ -1,20 +1,17 @@
 /**
- * SNR Module Library — Phase 2: RSS / SRR State Module v2.0.0
+ * SNR Module Library — Phase 2: RSS / SRR State Module v3.0.0
  *
- * Same detection as RSS_SRR_Detector v2 but exposes 4 iCustom buffers.
+ * Same detection and visuals as RSS_SRR_Detector v3.
+ * Plus 4 iCustom buffers for Phase 3 EAs.
  *
- * Phase 3 buffer contract (read via iCustom):
- *   0 : SRRBuf    — 1.0 at SRR signal bar (support drove 2+ resistance breaks above it)
- *   1 : RSSBuf    — 1.0 at RSS signal bar (resistance drove 2+ support breaks below it)
- *   2 : SRRSLBuf  — price of the driving SUPPORT level (SL for SRR buys)
- *   3 : RSSSLBuf  — price of the driving RESISTANCE level (SL for RSS sells)
- *
- * SL semantics:
- *   RSS sell SL = driving resistance level (if close > R, sweep failed)
- *   SRR buy SL  = driving support level    (if close < S, rally failed)
+ * Phase 3 buffer contract:
+ *   0 : SRRBuf    — 1.0 at SRR signal bar
+ *   1 : RSSBuf    — 1.0 at RSS signal bar
+ *   2 : SRRSLBuf  — driving Support level price (SL for SRR buys)
+ *   3 : RSSSLBuf  — driving Resistance level price (SL for RSS sells)
  */
 
-export const RSS_SRR_STATE_MODULE_VERSION = "2.0.0";
+export const RSS_SRR_STATE_MODULE_VERSION = "3.0.0";
 export const RSS_SRR_STATE_MODULE  = "RSS_SRR_State_Module";
 
 export function generateRssSrrStateModule(): string {
@@ -22,18 +19,19 @@ export function generateRssSrrStateModule(): string {
 //| RSS_SRR_State_Module.mq5                                       |
 //| SNR Module Library v${RSS_SRR_STATE_MODULE_VERSION} — Phase 2: State + Buffers|
 //|                                                                  |
-//| RSS: Resistance drives 2+ support breaks → sell setup.          |
-//| SRR: Support drives 2+ resistance breaks → buy setup.           |
-//| Each driving level owns its sweep counter — fires exactly once.  |
+//| RSS: R drives 2+ S breaks → RSSBuf=1.0, RSSSLBuf=R.level       |
+//| SRR: S drives 2+ R breaks → SRRBuf=1.0, SRRSLBuf=S.level       |
+//|                                                                  |
+//| Visuals: driving level "R"/"S" + "Possible Sell/Buy";           |
+//| swept levels drawn from origin with "S"/"R" labels.             |
 //+------------------------------------------------------------------+
 #property copyright "EA Builder — SNR Module Library"
-#property version   "2.00"
+#property version   "3.00"
 #property strict
 #property indicator_chart_window
 #property indicator_buffers 4
 #property indicator_plots   0
 
-//--- Buffers
 double SRRBuf[];
 double RSSBuf[];
 double SRRSLBuf[];
@@ -45,20 +43,21 @@ double RSSSLBuf[];
 #define MAX_SWEPT         10
 #define OBJ_PREFIX        "SMCRSS_"
 
-//--- Inputs — Detection
-input ENUM_TIMEFRAMES InpTF         = PERIOD_CURRENT; // Timeframe
-input int             InpLookback   = 500;            // Historical bars to scan
-input int             InpMinBreaks  = 2;              // Min opposite-side breaks to trigger
-input int             InpExpiryBars = 150;            // Level expiry bars (0 = never)
-input bool            InpIgnoreDoji = true;           // Skip doji candles
-//--- Inputs — Drawing
-input bool            InpDraw       = true;           // Draw visual labels
-input color           InpRSSColor   = clrTomato;           // RSS colour
-input color           InpSRRColor   = clrMediumSeaGreen;   // SRR colour
-input color           InpSweptColor = clrDimGray;          // Swept level dashes
-input int             InpExtBars    = 8;                   // Extension bars right of signal
-input int             InpFontSize   = 9;                   // Label font size
-input bool            InpShowLog    = true;           // Print to journal
+input ENUM_TIMEFRAMES InpTF         = PERIOD_CURRENT;
+input int             InpLookback   = 500;
+input int             InpMinBreaks  = 2;
+input int             InpExpiryBars = 150;
+input bool            InpIgnoreDoji = true;
+input bool            InpDraw       = true;
+input color           InpRSSColor   = clrTomato;
+input color           InpSRRColor   = clrMediumSeaGreen;
+input color           InpSweptColor = clrDimGray;
+input int             InpDrivWidth  = 2;
+input int             InpSwpWidth   = 1;
+input int             InpExtBars    = 20;
+input int             InpFontSize   = 9;
+input int             InpNoteFontSz = 7;
+input bool            InpShowLog    = true;
 
 //+------------------------------------------------------------------+
 struct LevelRec
@@ -74,6 +73,7 @@ struct LevelRec
    int      ageCounter;
    int      sweepCount;
    double   sweptPrices[MAX_SWEPT];
+   datetime sweptTimes [MAX_SWEPT];
    int      sweptN;
 };
 
@@ -83,8 +83,10 @@ int      nextId   = 0;
 
 //+------------------------------------------------------------------+
 string DrvLine(int id)        { return OBJ_PREFIX + IntegerToString(id) + "_rl"; }
+string DrvLbl (int id)        { return OBJ_PREFIX + IntegerToString(id) + "_lb"; }
+string DrvNote(int id)        { return OBJ_PREFIX + IntegerToString(id) + "_nt"; }
 string SwpLine(int id, int k) { return OBJ_PREFIX + IntegerToString(id) + "_sl" + IntegerToString(k); }
-string LblObj (int id)        { return OBJ_PREFIX + IntegerToString(id) + "_lb"; }
+string SwpLbl (int id, int k) { return OBJ_PREFIX + IntegerToString(id) + "_sb" + IntegerToString(k); }
 
 //+------------------------------------------------------------------+
 int CandleDir(int sh)
@@ -111,7 +113,6 @@ void AddLevel(int type, double level, datetime tA, datetime tB)
       if(levList[i].broken && !levList[i].swept) { idx = i; break; }
    if(idx < 0 && levTotal < LVL_MAX) idx = levTotal++;
    if(idx < 0) return;
-
    levList[idx].id          = nextId++;
    levList[idx].type        = type;
    levList[idx].level       = level;
@@ -133,57 +134,74 @@ void DetectLevels(int shA, int shB)
    int dirA = CandleDir(shA);
    int dirB = CandleDir(shB);
    if(dirA == 0 || dirB == 0) return;
-
    double   lvl = iClose(_Symbol, InpTF, shA);
    datetime tA  = iTime (_Symbol, InpTF, shA);
    datetime tB  = iTime (_Symbol, InpTF, shB);
-
    if(dirA > 0 && dirB < 0) AddLevel(TYPE_RESISTANCE, lvl, tA, tB);
    if(dirA < 0 && dirB > 0) AddLevel(TYPE_SUPPORT,    lvl, tA, tB);
 }
 
 //+------------------------------------------------------------------+
-void DrawSignal(int drivIdx, int dir, int sh, datetime t)
+void DrawSignal(int drivIdx, int dir, int sh, datetime sigT)
 {
    if(!InpDraw) return;
    int    id    = levList[drivIdx].id;
    double drivL = levList[drivIdx].level;
-   color  c     = (dir < 0) ? InpRSSColor : InpSRRColor;
-   string txt   = (dir < 0) ? "RSS" : "SRR";
+   color  drivC = (dir < 0) ? InpRSSColor : InpSRRColor;
 
-   datetime t1 = levList[drivIdx].levelTime;
-   datetime t2 = t + (datetime)(PeriodSeconds(InpTF) * InpExtBars);
-   if(ObjectCreate(0, DrvLine(id), OBJ_TREND, 0, t1, drivL, t2, drivL))
+   string drivLabelTxt = (dir < 0) ? "R"             : "S";
+   string noteTxt      = (dir < 0) ? "Possible Sell" : "Possible Buy";
+   string swpLabelTxt  = (dir < 0) ? "S"             : "R";
+
+   datetime tEnd = sigT + (datetime)(PeriodSeconds(InpTF) * InpExtBars);
+
+   if(ObjectCreate(0, DrvLine(id), OBJ_TREND, 0, levList[drivIdx].levelTime, drivL, tEnd, drivL))
    {
-      ObjectSetInteger(0, DrvLine(id), OBJPROP_COLOR,      c);
-      ObjectSetInteger(0, DrvLine(id), OBJPROP_WIDTH,      2);
+      ObjectSetInteger(0, DrvLine(id), OBJPROP_COLOR,      drivC);
+      ObjectSetInteger(0, DrvLine(id), OBJPROP_WIDTH,      InpDrivWidth);
       ObjectSetInteger(0, DrvLine(id), OBJPROP_STYLE,      STYLE_SOLID);
       ObjectSetInteger(0, DrvLine(id), OBJPROP_RAY_RIGHT,  false);
       ObjectSetInteger(0, DrvLine(id), OBJPROP_SELECTABLE, false);
    }
-   datetime dashL = t - (datetime)(PeriodSeconds(InpTF));
-   datetime dashR = t + (datetime)(PeriodSeconds(InpTF));
+   if(ObjectCreate(0, DrvLbl(id), OBJ_TEXT, 0, tEnd, drivL))
+   {
+      ObjectSetString (0, DrvLbl(id), OBJPROP_TEXT,       drivLabelTxt);
+      ObjectSetInteger(0, DrvLbl(id), OBJPROP_COLOR,      drivC);
+      ObjectSetInteger(0, DrvLbl(id), OBJPROP_FONTSIZE,   InpFontSize);
+      ObjectSetInteger(0, DrvLbl(id), OBJPROP_ANCHOR,
+         dir < 0 ? ANCHOR_LEFT_UPPER : ANCHOR_LEFT_LOWER);
+      ObjectSetInteger(0, DrvLbl(id), OBJPROP_SELECTABLE, false);
+   }
+   if(ObjectCreate(0, DrvNote(id), OBJ_TEXT, 0, tEnd, drivL))
+   {
+      ObjectSetString (0, DrvNote(id), OBJPROP_TEXT,       noteTxt);
+      ObjectSetInteger(0, DrvNote(id), OBJPROP_COLOR,      drivC);
+      ObjectSetInteger(0, DrvNote(id), OBJPROP_FONTSIZE,   InpNoteFontSz);
+      ObjectSetInteger(0, DrvNote(id), OBJPROP_ANCHOR,
+         dir < 0 ? ANCHOR_LEFT_LOWER : ANCHOR_LEFT_UPPER);
+      ObjectSetInteger(0, DrvNote(id), OBJPROP_SELECTABLE, false);
+   }
    for(int k = 0; k < levList[drivIdx].sweptN; k++)
    {
-      string nm = SwpLine(id, k);
-      double sp = levList[drivIdx].sweptPrices[k];
-      if(ObjectCreate(0, nm, OBJ_TREND, 0, dashL, sp, dashR, sp))
+      double   sp    = levList[drivIdx].sweptPrices[k];
+      datetime sTime = levList[drivIdx].sweptTimes[k];
+      if(ObjectCreate(0, SwpLine(id,k), OBJ_TREND, 0, sTime, sp, tEnd, sp))
       {
-         ObjectSetInteger(0, nm, OBJPROP_COLOR,      InpSweptColor);
-         ObjectSetInteger(0, nm, OBJPROP_WIDTH,      1);
-         ObjectSetInteger(0, nm, OBJPROP_STYLE,      STYLE_DOT);
-         ObjectSetInteger(0, nm, OBJPROP_RAY_RIGHT,  false);
-         ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
+         ObjectSetInteger(0, SwpLine(id,k), OBJPROP_COLOR,      InpSweptColor);
+         ObjectSetInteger(0, SwpLine(id,k), OBJPROP_WIDTH,      InpSwpWidth);
+         ObjectSetInteger(0, SwpLine(id,k), OBJPROP_STYLE,      STYLE_SOLID);
+         ObjectSetInteger(0, SwpLine(id,k), OBJPROP_RAY_RIGHT,  false);
+         ObjectSetInteger(0, SwpLine(id,k), OBJPROP_SELECTABLE, false);
       }
-   }
-   double labelPrice = (dir < 0) ? iLow(_Symbol, InpTF, sh) : iHigh(_Symbol, InpTF, sh);
-   if(ObjectCreate(0, LblObj(id), OBJ_TEXT, 0, t, labelPrice))
-   {
-      ObjectSetString (0, LblObj(id), OBJPROP_TEXT,       txt);
-      ObjectSetInteger(0, LblObj(id), OBJPROP_COLOR,      c);
-      ObjectSetInteger(0, LblObj(id), OBJPROP_FONTSIZE,   InpFontSize);
-      ObjectSetInteger(0, LblObj(id), OBJPROP_ANCHOR,     dir < 0 ? ANCHOR_UPPER : ANCHOR_LOWER);
-      ObjectSetInteger(0, LblObj(id), OBJPROP_SELECTABLE, false);
+      if(ObjectCreate(0, SwpLbl(id,k), OBJ_TEXT, 0, tEnd, sp))
+      {
+         ObjectSetString (0, SwpLbl(id,k), OBJPROP_TEXT,       swpLabelTxt);
+         ObjectSetInteger(0, SwpLbl(id,k), OBJPROP_COLOR,      InpSweptColor);
+         ObjectSetInteger(0, SwpLbl(id,k), OBJPROP_FONTSIZE,   InpFontSize);
+         ObjectSetInteger(0, SwpLbl(id,k), OBJPROP_ANCHOR,
+            dir < 0 ? ANCHOR_LEFT_LOWER : ANCHOR_LEFT_UPPER);
+         ObjectSetInteger(0, SwpLbl(id,k), OBJPROP_SELECTABLE, false);
+      }
    }
 }
 
@@ -194,87 +212,57 @@ void CheckSweeps(int sh)
    datetime t        = iTime (_Symbol, InpTF, sh);
    int      bufN     = ArraySize(SRRBuf);
 
-   // Pass 1: mark close-breaks
    for(int i = 0; i < levTotal; i++)
    {
       levList[i].justBroken = false;
       if(levList[i].broken) continue;
       if(levList[i].confirmTime >= t) continue;
-
       if(levList[i].type == TYPE_SUPPORT && barClose < levList[i].level)
-      {
-         levList[i].broken = true; levList[i].justBroken = true;
-      }
+         { levList[i].broken = true; levList[i].justBroken = true; }
       else if(levList[i].type == TYPE_RESISTANCE && barClose > levList[i].level)
-      {
-         levList[i].broken = true; levList[i].justBroken = true;
-      }
+         { levList[i].broken = true; levList[i].justBroken = true; }
    }
 
-   // Pass 2: update sweep counters on opposite active levels
    for(int i = 0; i < levTotal; i++)
    {
       if(!levList[i].justBroken) continue;
-
       if(levList[i].type == TYPE_SUPPORT)
       {
-         double brokenSup = levList[i].level;
+         double bSup = levList[i].level; datetime bTime = levList[i].levelTime;
          for(int j = 0; j < levTotal; j++)
          {
-            if(levList[j].type   != TYPE_RESISTANCE) continue;
-            if(levList[j].broken)                    continue;
-            if(levList[j].swept)                     continue;
-            if(levList[j].confirmTime >= t)          continue;
-            if(levList[j].level <= brokenSup)        continue;
-
+            if(levList[j].type != TYPE_RESISTANCE || levList[j].broken || levList[j].swept) continue;
+            if(levList[j].confirmTime >= t || levList[j].level <= bSup) continue;
             levList[j].sweepCount++;
             if(levList[j].sweptN < MAX_SWEPT)
-               levList[j].sweptPrices[levList[j].sweptN++] = brokenSup;
-
+               { levList[j].sweptPrices[levList[j].sweptN]=bSup; levList[j].sweptTimes[levList[j].sweptN]=bTime; levList[j].sweptN++; }
             if(levList[j].sweepCount >= InpMinBreaks)
             {
-               if(sh < bufN)
-               {
-                  RSSBuf[sh]   = 1.0;
-                  RSSSLBuf[sh] = levList[j].level; // SL = driving resistance
-               }
+               if(sh < bufN) { RSSBuf[sh]=1.0; RSSSLBuf[sh]=levList[j].level; }
                DrawSignal(j, -1, sh, t);
                levList[j].swept = true;
-               if(InpShowLog)
-                  PrintFormat("RSS | R=%.5f | swept=%d | time=%s",
-                     levList[j].level, levList[j].sweepCount,
-                     TimeToString(t, TIME_DATE|TIME_MINUTES));
+               if(InpShowLog) PrintFormat("RSS | R=%.5f | swept=%d | time=%s",
+                  levList[j].level, levList[j].sweepCount, TimeToString(t,TIME_DATE|TIME_MINUTES));
             }
          }
       }
-      else // TYPE_RESISTANCE broken
+      else
       {
-         double brokenRes = levList[i].level;
+         double bRes = levList[i].level; datetime bTime = levList[i].levelTime;
          for(int j = 0; j < levTotal; j++)
          {
-            if(levList[j].type   != TYPE_SUPPORT) continue;
-            if(levList[j].broken)                 continue;
-            if(levList[j].swept)                  continue;
-            if(levList[j].confirmTime >= t)       continue;
-            if(levList[j].level >= brokenRes)     continue;
-
+            if(levList[j].type != TYPE_SUPPORT || levList[j].broken || levList[j].swept) continue;
+            if(levList[j].confirmTime >= t || levList[j].level >= bRes) continue;
             levList[j].sweepCount++;
             if(levList[j].sweptN < MAX_SWEPT)
-               levList[j].sweptPrices[levList[j].sweptN++] = brokenRes;
-
+               { levList[j].sweptPrices[levList[j].sweptN]=bRes; levList[j].sweptTimes[levList[j].sweptN]=bTime; levList[j].sweptN++; }
             if(levList[j].sweepCount >= InpMinBreaks)
             {
-               if(sh < bufN)
-               {
-                  SRRBuf[sh]   = 1.0;
-                  SRRSLBuf[sh] = levList[j].level; // SL = driving support
-               }
+               if(sh < bufN) { SRRBuf[sh]=1.0; SRRSLBuf[sh]=levList[j].level; }
                DrawSignal(j, 1, sh, t);
                levList[j].swept = true;
-               if(InpShowLog)
-                  PrintFormat("SRR | S=%.5f | swept=%d | time=%s",
-                     levList[j].level, levList[j].sweepCount,
-                     TimeToString(t, TIME_DATE|TIME_MINUTES));
+               if(InpShowLog) PrintFormat("SRR | S=%.5f | swept=%d | time=%s",
+                  levList[j].level, levList[j].sweepCount, TimeToString(t,TIME_DATE|TIME_MINUTES));
             }
          }
       }
@@ -293,80 +281,52 @@ void AgeLevels()
    }
 }
 
-//+------------------------------------------------------------------+
 void ResetState()
 {
-   levTotal = 0;
-   nextId   = 0;
+   levTotal = 0; nextId = 0;
    ObjectsDeleteAll(0, OBJ_PREFIX);
-   ArrayInitialize(SRRBuf,   0.0);
-   ArrayInitialize(RSSBuf,   0.0);
-   ArrayInitialize(SRRSLBuf, 0.0);
-   ArrayInitialize(RSSSLBuf, 0.0);
+   ArrayInitialize(SRRBuf,0); ArrayInitialize(RSSBuf,0);
+   ArrayInitialize(SRRSLBuf,0); ArrayInitialize(RSSSLBuf,0);
 }
 
-//+------------------------------------------------------------------+
 int OnInit()
 {
-   SetIndexBuffer(0, SRRBuf,   INDICATOR_DATA);
-   SetIndexBuffer(1, RSSBuf,   INDICATOR_DATA);
-   SetIndexBuffer(2, SRRSLBuf, INDICATOR_DATA);
-   SetIndexBuffer(3, RSSSLBuf, INDICATOR_DATA);
-   ArraySetAsSeries(SRRBuf,   true);
-   ArraySetAsSeries(RSSBuf,   true);
-   ArraySetAsSeries(SRRSLBuf, true);
-   ArraySetAsSeries(RSSSLBuf, true);
-   IndicatorSetString(INDICATOR_SHORTNAME, "RSS_SRR_State v${RSS_SRR_STATE_MODULE_VERSION}");
+   SetIndexBuffer(0,SRRBuf,INDICATOR_DATA);   SetIndexBuffer(1,RSSBuf,INDICATOR_DATA);
+   SetIndexBuffer(2,SRRSLBuf,INDICATOR_DATA); SetIndexBuffer(3,RSSSLBuf,INDICATOR_DATA);
+   ArraySetAsSeries(SRRBuf,true); ArraySetAsSeries(RSSBuf,true);
+   ArraySetAsSeries(SRRSLBuf,true); ArraySetAsSeries(RSSSLBuf,true);
+   IndicatorSetString(INDICATOR_SHORTNAME,"RSS_SRR_State v${RSS_SRR_STATE_MODULE_VERSION}");
    return INIT_SUCCEEDED;
 }
 
 void OnDeinit(const int reason) { ObjectsDeleteAll(0, OBJ_PREFIX); }
 
-//+------------------------------------------------------------------+
-int OnCalculate(const int rates_total,
-                const int prev_calculated,
-                const datetime &time[],
-                const double &open[],
-                const double &high[],
-                const double &low[],
-                const double &close[],
-                const long &tick_volume[],
-                const long &volume[],
-                const int &spread[])
+int OnCalculate(const int rates_total, const int prev_calculated,
+                const datetime &time[], const double &open[],
+                const double &high[], const double &low[],
+                const double &close[], const long &tick_volume[],
+                const long &volume[], const int &spread[])
 {
    if(rates_total < 3) return 0;
-
    if(prev_calculated == 0)
    {
       ResetState();
-      int limit = (int)MathMin((long)(rates_total - 2), (long)InpLookback);
+      int limit = (int)MathMin((long)(rates_total-2),(long)InpLookback);
       if(limit < 1) return rates_total;
       for(int sh = limit; sh >= 1; sh--)
-      {
-         DetectLevels(sh + 1, sh);
-         CheckSweeps(sh);
-         AgeLevels();
-      }
+         { DetectLevels(sh+1,sh); CheckSweeps(sh); AgeLevels(); }
       return rates_total;
    }
-
-   if(sh1IsNewBar())
-   {
-      DetectLevels(2, 1);
-      CheckSweeps(1);
-      AgeLevels();
-   }
+   if(sh1IsNewBar()) { DetectLevels(2,1); CheckSweeps(1); AgeLevels(); }
    return rates_total;
 }
 
-//+------------------------------------------------------------------+
 bool sh1IsNewBar()
 {
-   static datetime last = 0;
-   datetime t = iTime(_Symbol, InpTF, 0);
-   if(t == last) return false;
-   last = t;
-   return true;
+   static datetime last=0;
+   datetime t=iTime(_Symbol,InpTF,0);
+   if(t==last) return false;
+   last=t; return true;
 }
 `;
 }
