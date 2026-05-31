@@ -12,7 +12,7 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
-import { buildModuleLibraryContext } from "../../src/lib/module-library.js";
+import { buildCompactModuleLibraryContext } from "../../src/lib/module-library.js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -36,7 +36,7 @@ THIS IS NOT A TEMPLATE SYSTEM.
 Every EA you generate must reflect the specific strategy the trader described.
 Do not force traders into predefined patterns. Understand their intent first.
 
-${buildModuleLibraryContext()}
+${buildCompactModuleLibraryContext()}
 
 ═══════════════════════════════════════════════════════════════════════
 ARCHITECTURE: 4-BRAIN CONFLUENCE SYSTEM
@@ -266,8 +266,8 @@ In "notes", explain how you mapped their module selections to state machines.`;
 
   try {
     const response = await client.messages.create({
-      model: "claude-opus-4-5",
-      max_tokens: 4096,
+      model: "claude-sonnet-4-5-20251015",
+      max_tokens: 3000,
       system: [
         {
           type: "text",
@@ -312,5 +312,5 @@ In "notes", explain how you mapped their module selections to state machines.`;
 
 export const config = {
   path: "/api/gen-4brain-ai",
-  timeout: 60,
+  timeout: 26,
 };

@@ -609,10 +609,52 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
   },
 ];
 
-// ─── Context builder for Claude ───────────────────────────────────────────────
+// ─── Context builders for Claude ─────────────────────────────────────────────
 
 /**
- * Builds the complete system-prompt context block injected into Claude.
+ * COMPACT version — ~40% fewer tokens, same critical data.
+ * Used in the generation prompt where latency matters.
+ * Keeps: aliases, primary roles, inline API, 2 example phrases.
+ * Drops: verbose descriptions, full role breakdowns, notSuitedFor, combinesWith.
+ */
+export function buildCompactModuleLibraryContext(): string {
+  const lines: string[] = [
+    "MODULE LIBRARY — map trader language to these modules and their APIs.",
+    "Replace {id} with the TF label (H4, D1, M15, etc.) in every function name.",
+    "",
+  ];
+
+  for (const m of MODULE_LIBRARY) {
+    // Header: id, label, concept in one line
+    lines.push(`[${m.id}] ${m.label}`);
+    lines.push(`  Concept: ${m.concept}`);
+    // Aliases — most critical for phrase matching
+    lines.push(`  Trader calls it: ${m.aliases.slice(0, 8).map(a => `"${a.phrase}"`).join(", ")}`);
+    // Primary roles
+    const primary = m.roles.filter(r => r.fit === "primary").map(r => r.role);
+    const secondary = m.roles.filter(r => r.fit !== "primary").map(r => r.role);
+    lines.push(`  Best role: ${primary.join(", ")}${secondary.length ? ` | also works as: ${secondary.join(", ")}` : ""}`);
+    // Params (compact)
+    if (m.params.length > 0) {
+      const pList = m.params.map(p => `${p.name}=${p.default}`).join(", ");
+      lines.push(`  Params: ${pList}`);
+    }
+    // Inline API
+    lines.push(`  Reset: ${m.inlineApi.reset}`);
+    lines.push(`  Tick:  ${m.inlineApi.tick}`);
+    for (const s of m.inlineApi.signals.slice(0, 6)) {
+      lines.push(`    ${s.fn} → ${s.meaning}`);
+    }
+    // 2 example phrases
+    lines.push(`  e.g.: "${m.examplePhrases[0]}"`);
+    if (m.examplePhrases[1]) lines.push(`        "${m.examplePhrases[1]}"`);
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Builds the FULL system-prompt context block injected into Claude.
  * This is the AI builder's vocabulary — not user documentation.
  */
 export function buildModuleLibraryContext(): string {
