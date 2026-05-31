@@ -59,7 +59,7 @@ input bool            InpUseGap     = true;           // Use Gap (continuation-p
 //--- Inputs — Drawing
 input int             InpLineBars   = 6;              // Level line right extension (bars)
 input int             InpLineWidth  = 2;              // Level line width
-input string          InpLabel      = "Miss";         // Label text
+input string          InpLabel      = "Ms";           // Label text
 input int             InpFontSize   = 8;              // Label font size
 input color           InpBullColor  = clrMediumSeaGreen; // Bullish miss (off support)
 input color           InpBearColor  = clrTomato;          // Bearish miss (off resistance)
@@ -148,6 +148,23 @@ void DetectLevels(int shA, int shB)
 }
 
 //+------------------------------------------------------------------+
+//| Mark any level broken if a candle closes through it.            |
+//+------------------------------------------------------------------+
+void CheckBreakouts(int sh)
+{
+   double   c = iClose(_Symbol, InpTF, sh);
+   datetime t = iTime (_Symbol, InpTF, sh);
+   for(int i = 0; i < levTotal; i++)
+   {
+      if(levList[i].dead) continue;
+      if(levList[i].confirmTime >= t) continue;
+      double lvl = levList[i].level;
+      if(levList[i].type == TYPE_SUPPORT    && c < lvl) levList[i].dead = true;
+      if(levList[i].type == TYPE_RESISTANCE && c > lvl) levList[i].dead = true;
+   }
+}
+
+//+------------------------------------------------------------------+
 //| Is bar sh a confirmed swing pivot? +1 high, -1 low, 0 none.     |
 //+------------------------------------------------------------------+
 int PivotDir(int sh)
@@ -196,6 +213,7 @@ void DrawMiss(int dir, double pivExtreme, datetime levelTime, datetime pivT, dou
       ObjectSetString (0, lbl, OBJPROP_TEXT, InpLabel);
       ObjectSetInteger(0, lbl, OBJPROP_COLOR, c);
       ObjectSetInteger(0, lbl, OBJPROP_FONTSIZE, InpFontSize);
+      // Bull miss: label below swing low (away from level above), Bear miss: label above swing high
       ObjectSetInteger(0, lbl, OBJPROP_ANCHOR, dir > 0 ? ANCHOR_UPPER : ANCHOR_LOWER);
       ObjectSetInteger(0, lbl, OBJPROP_SELECTABLE, false);
    }
@@ -268,7 +286,7 @@ void Rebuild()
    for(int sh = scan; sh >= 1; sh--)
    {
       DetectLevels(sh + 1, sh);
-      // A pivot at bar sh is only confirmable once InpSwingLen newer bars exist
+      CheckBreakouts(sh);   // invalidate levels price has already closed through
       if(sh >= InpSwingLen + 1) CheckMiss(sh);
       AgeLevels();
    }
@@ -303,7 +321,7 @@ int OnCalculate(const int rates_total,
    {
       lastBarTime = curBar;
       DetectLevels(2, 1);
-      // Newest pivot that just became confirmable
+      CheckBreakouts(1);
       CheckMiss(InpSwingLen + 1);
       AgeLevels();
    }
