@@ -162,20 +162,22 @@ void DetectLevels(int shA, int shB)
 }
 
 //+------------------------------------------------------------------+
-//| Draw a SHORT horizontal line at the rejected level (starting at  |
-//| the reject candle, extending right InpLineBars) + a label with   |
-//| the timeframe rejection name (DRD/WRW/4R4/1R1/Rej).              |
+//| Draw the SNR level line (from its origin to the reject candle)   |
+//| plus a rejection-name label ON the reject candle's wick.         |
 //+------------------------------------------------------------------+
-void DrawRejection(int dir, double wickExtreme, datetime t, double lvl)
+void DrawRejection(int dir, double wickExtreme, datetime levelTime, datetime rejTime, double lvl)
 {
    int id = nextId++;
    string ln  = ObjLine(id);
    string lbl = ObjLbl(id);
-   datetime tRight = t + (datetime)(PeriodSeconds(InpTF) * InpLineBars);
    color c = (dir > 0) ? InpBullColor : InpBearColor;
 
-   // Short horizontal segment AT the level (both endpoints = lvl)
-   if(ObjectCreate(0, ln, OBJ_TREND, 0, t, lvl, tRight, lvl))
+   // The actual SNR level line: horizontal at lvl, from the level's origin
+   // candle up to the reject candle. Bounded (no ray) so it stops at the
+   // rejection — not drawn to the end of the chart.
+   datetime tLeft  = (levelTime > 0 && levelTime < rejTime) ? levelTime : rejTime;
+   datetime tRight = rejTime + (datetime)(PeriodSeconds(InpTF) * InpLineBars);
+   if(ObjectCreate(0, ln, OBJ_TREND, 0, tLeft, lvl, tRight, lvl))
    {
       ObjectSetInteger(0, ln, OBJPROP_COLOR, c);
       ObjectSetInteger(0, ln, OBJPROP_WIDTH, InpLineWidth);
@@ -184,19 +186,20 @@ void DrawRejection(int dir, double wickExtreme, datetime t, double lvl)
       ObjectSetInteger(0, ln, OBJPROP_BACK, false);
       ObjectSetInteger(0, ln, OBJPROP_SELECTABLE, false);
    }
-   // Label at the right end with the TF rejection name
-   if(ObjectCreate(0, lbl, OBJ_TEXT, 0, tRight, lvl))
+   // Label ON the reject candle, at its piercing wick
+   //   bull (support): wick low → label below   bear (resistance): wick high → label above
+   if(ObjectCreate(0, lbl, OBJ_TEXT, 0, rejTime, wickExtreme))
    {
       ObjectSetString (0, lbl, OBJPROP_TEXT, RejName());
       ObjectSetInteger(0, lbl, OBJPROP_COLOR, c);
       ObjectSetInteger(0, lbl, OBJPROP_FONTSIZE, InpFontSize);
-      ObjectSetInteger(0, lbl, OBJPROP_ANCHOR, ANCHOR_LEFT);
+      ObjectSetInteger(0, lbl, OBJPROP_ANCHOR, dir > 0 ? ANCHOR_UPPER : ANCHOR_LOWER);
       ObjectSetInteger(0, lbl, OBJPROP_SELECTABLE, false);
    }
    if(InpShowLog)
       PrintFormat("REJECTION_%s | %s | level=%.5f | wick=%.5f | time=%s",
          dir > 0 ? "BULL" : "BEAR", RejName(), lvl, wickExtreme,
-         TimeToString(t, TIME_DATE|TIME_MINUTES));
+         TimeToString(rejTime, TIME_DATE|TIME_MINUTES));
 }
 
 //+------------------------------------------------------------------+
@@ -223,13 +226,13 @@ void CheckRejection(int sh)
       if(levList[i].type == TYPE_SUPPORT)
       {
          if(l <= lvl && c > lvl && lowerWick >= range * InpMinWickRatio)
-            DrawRejection(1, l, t, lvl);
+            DrawRejection(1, l, levList[i].levelTime, t, lvl);
          if(c < lvl) levList[i].broken = true;
       }
       else // RESISTANCE
       {
          if(h >= lvl && c < lvl && upperWick >= range * InpMinWickRatio)
-            DrawRejection(-1, h, t, lvl);
+            DrawRejection(-1, h, levList[i].levelTime, t, lvl);
          if(c > lvl) levList[i].broken = true;
       }
    }
