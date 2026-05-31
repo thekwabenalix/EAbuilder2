@@ -1,22 +1,22 @@
 /**
- * SNR Module Library — Phase 1: RSS / SRR Detector v3.0.0
+ * SNR Module Library — Phase 1: RSS / SRR Detector v4.0.0
  *
- * RSS (Resistance Sweeps Supports):
- *   A Classic Resistance R pushes price down to close-break ≥ InpMinBreaks
- *   Classic Supports below it.
+ * RSS: Classic Resistance R (wick high = R's Candle A high) drives price to
+ *      close-break ≥ InpMinBreaks Supports below it.
+ * SRR: Classic Support S (wick low = S's Candle A low) rallies price to
+ *      close-break ≥ InpMinBreaks Resistances above it.
  *
- *   Visual (matching the playbook diagram):
- *     ─── R ──────────────────────   ← driving resistance line, labeled "R"
- *                                        "Possible Sell" beneath it
- *     --- S ──────────────────────   ← each swept support line, labeled "S"
- *     --- S ──────────────────────
- *
- * SRR (Support Rallies Resistances): mirror.
- *   Driving support labeled "S" + "Possible Buy"
- *   Each swept resistance labeled "R"
+ * INVALIDATION:
+ *   An RSS setup is eliminated when price CLOSES ABOVE the wick high of the
+ *   driving Resistance R's formation candle.
+ *   An SRR setup is eliminated when price CLOSES BELOW the wick low of the
+ *   driving Support S's formation candle.
+ *   Invalidation works both before and after the sweep fires:
+ *   - Before: the level is excluded from sweep counting (drawings never appear)
+ *   - After:  existing drawings are deleted
  */
 
-export const RSS_SRR_DETECTOR_VERSION = "3.0.0";
+export const RSS_SRR_DETECTOR_VERSION = "4.0.0";
 export const RSS_SRR_DETECTOR_MODULE  = "RSS_SRR_Detector";
 
 export function generateRssSrrDetector(): string {
@@ -24,14 +24,13 @@ export function generateRssSrrDetector(): string {
 //| RSS_SRR_Detector.mq5                                           |
 //| SNR Module Library v${RSS_SRR_DETECTOR_VERSION} — Phase 1: Detection Only  |
 //|                                                                  |
-//| RSS: Classic R drives price to close-break 2+ Supports below.  |
-//| SRR: Classic S drives price to close-break 2+ Resistances above.|
-//|                                                                  |
-//| Visuals: driving level labeled "R"/"S" + "Possible Sell/Buy";  |
-//| each swept level drawn from its origin, labeled "S"/"R".        |
+//| RSS: R drives 2+ S close-breaks below it.                      |
+//| SRR: S drives 2+ R close-breaks above it.                      |
+//| Setups eliminated when price closes beyond the driving level's  |
+//| formation wick (above R wick high / below S wick low).          |
 //+------------------------------------------------------------------+
 #property copyright "EA Builder — SNR Module Library"
-#property version   "3.00"
+#property version   "4.00"
 #property strict
 #property indicator_chart_window
 #property indicator_plots 0
@@ -42,38 +41,39 @@ export function generateRssSrrDetector(): string {
 #define MAX_SWEPT         10
 #define OBJ_PREFIX        "SMCRSS_"
 
-//--- Inputs — Detection
-input ENUM_TIMEFRAMES InpTF          = PERIOD_CURRENT; // Timeframe
-input int             InpLookback    = 500;            // Historical bars to scan
-input int             InpMinBreaks   = 2;              // Min opposite-side breaks to trigger
-input int             InpExpiryBars  = 150;            // Level expiry bars (0 = never)
-input bool            InpIgnoreDoji  = true;           // Skip doji candles
-//--- Inputs — Drawing
-input color           InpRSSColor    = clrTomato;           // RSS colour (R line + label)
-input color           InpSRRColor    = clrMediumSeaGreen;   // SRR colour (S line + label)
-input color           InpSweptColor  = clrDimGray;          // Swept-level line colour
-input int             InpDrivWidth   = 2;                   // Driving level line width
-input int             InpSwpWidth    = 1;                   // Swept level line width
-input int             InpExtBars     = 20;                  // Extension bars right of signal
-input int             InpFontSize    = 9;                   // Label font size
-input int             InpNoteFontSz  = 7;                   // "Possible Sell/Buy" font size
-input bool            InpShowLog     = true;                // Print to journal
+input ENUM_TIMEFRAMES InpTF          = PERIOD_CURRENT;
+input int             InpLookback    = 500;
+input int             InpMinBreaks   = 2;
+input int             InpExpiryBars  = 150;
+input bool            InpIgnoreDoji  = true;
+input color           InpRSSColor    = clrTomato;
+input color           InpSRRColor    = clrMediumSeaGreen;
+input color           InpSweptColor  = clrDimGray;
+input int             InpDrivWidth   = 2;
+input int             InpSwpWidth    = 1;
+input int             InpExtBars     = 20;
+input int             InpFontSize    = 9;
+input int             InpNoteFontSz  = 7;
+input bool            InpShowLog     = true;
 
 //+------------------------------------------------------------------+
 struct LevelRec
 {
    int      id;
    int      type;
-   double   level;
+   double   level;          // Candle A close (the SNR price)
+   double   wickExtreme;    // Candle A high (for R) or low (for S)
+                            // Close beyond this → setup invalidated
    datetime levelTime;
    datetime confirmTime;
-   bool     broken;
+   bool     broken;         // close-broke the level price
    bool     justBroken;
-   bool     swept;
+   bool     swept;          // already fired RSS/SRR signal
+   bool     invalidated;    // wick extreme crossed → drawings removed
    int      ageCounter;
    int      sweepCount;
-   double   sweptPrices[MAX_SWEPT]; // prices of swept opposite levels
-   datetime sweptTimes [MAX_SWEPT]; // origin times of swept opposite levels
+   double   sweptPrices[MAX_SWEPT];
+   datetime sweptTimes [MAX_SWEPT];
    int      sweptN;
 };
 
@@ -105,7 +105,7 @@ int CandleDir(int sh)
 }
 
 //+------------------------------------------------------------------+
-void AddLevel(int type, double level, datetime tA, datetime tB)
+void AddLevel(int type, double level, double wickExt, datetime tA, datetime tB)
 {
    for(int i = 0; i < levTotal; i++)
       if(levList[i].levelTime == tA && levList[i].type == type) return;
@@ -114,17 +114,19 @@ void AddLevel(int type, double level, datetime tA, datetime tB)
       if(levList[i].broken && !levList[i].swept) { idx = i; break; }
    if(idx < 0 && levTotal < LVL_MAX) idx = levTotal++;
    if(idx < 0) return;
-   levList[idx].id          = nextId++;
-   levList[idx].type        = type;
-   levList[idx].level       = level;
-   levList[idx].levelTime   = tA;
-   levList[idx].confirmTime = tB;
-   levList[idx].broken      = false;
-   levList[idx].justBroken  = false;
-   levList[idx].swept       = false;
-   levList[idx].ageCounter  = 0;
-   levList[idx].sweepCount  = 0;
-   levList[idx].sweptN      = 0;
+   levList[idx].id           = nextId++;
+   levList[idx].type         = type;
+   levList[idx].level        = level;
+   levList[idx].wickExtreme  = wickExt;
+   levList[idx].levelTime    = tA;
+   levList[idx].confirmTime  = tB;
+   levList[idx].broken       = false;
+   levList[idx].justBroken   = false;
+   levList[idx].swept        = false;
+   levList[idx].invalidated  = false;
+   levList[idx].ageCounter   = 0;
+   levList[idx].sweepCount   = 0;
+   levList[idx].sweptN       = 0;
 }
 
 //+------------------------------------------------------------------+
@@ -135,17 +137,48 @@ void DetectLevels(int shA, int shB)
    int dirA = CandleDir(shA);
    int dirB = CandleDir(shB);
    if(dirA == 0 || dirB == 0) return;
-   double   lvl = iClose(_Symbol, InpTF, shA);
-   datetime tA  = iTime (_Symbol, InpTF, shA);
-   datetime tB  = iTime (_Symbol, InpTF, shB);
-   if(dirA > 0 && dirB < 0) AddLevel(TYPE_RESISTANCE, lvl, tA, tB);
-   if(dirA < 0 && dirB > 0) AddLevel(TYPE_SUPPORT,    lvl, tA, tB);
+   double   lvl  = iClose(_Symbol, InpTF, shA);
+   double   wick = (dirA > 0) ? iHigh(_Symbol, InpTF, shA)  // Bull A → R: wick = high
+                               : iLow (_Symbol, InpTF, shA); // Bear A → S: wick = low
+   datetime tA   = iTime (_Symbol, InpTF, shA);
+   datetime tB   = iTime (_Symbol, InpTF, shB);
+   if(dirA > 0 && dirB < 0) AddLevel(TYPE_RESISTANCE, lvl, wick, tA, tB);
+   if(dirA < 0 && dirB > 0) AddLevel(TYPE_SUPPORT,    lvl, wick, tA, tB);
 }
 
 //+------------------------------------------------------------------+
-// Draw the full RSS/SRR visual:
-//   dir = -1 → RSS: driving level is R (red), swept levels are S (gray)
-//   dir = +1 → SRR: driving level is S (green), swept levels are R (gray)
+void DeleteSignalObjects(int id, int sweptN)
+{
+   ObjectDelete(0, DrvLine(id));
+   ObjectDelete(0, DrvLbl (id));
+   ObjectDelete(0, DrvNote(id));
+   for(int k = 0; k < sweptN; k++)
+   { ObjectDelete(0, SwpLine(id,k)); ObjectDelete(0, SwpLbl(id,k)); }
+}
+
+//+------------------------------------------------------------------+
+// Mark levels invalid when price closes beyond their wick extreme.
+// Before sweep: just flag — prevents the signal from ever drawing.
+// After sweep:  flag + delete existing drawings.
+void CheckInvalidations(int sh)
+{
+   double   c = iClose(_Symbol, InpTF, sh);
+   datetime t = iTime (_Symbol, InpTF, sh);
+   for(int j = 0; j < levTotal; j++)
+   {
+      if(levList[j].invalidated) continue;
+      if(levList[j].confirmTime >= t) continue;
+      bool hit = false;
+      if(levList[j].type == TYPE_RESISTANCE && c > levList[j].wickExtreme) hit = true;
+      if(levList[j].type == TYPE_SUPPORT    && c < levList[j].wickExtreme) hit = true;
+      if(!hit) continue;
+      levList[j].invalidated = true;
+      if(levList[j].swept)   // drawings exist — delete them
+         DeleteSignalObjects(levList[j].id, levList[j].sweptN);
+   }
+}
+
+//+------------------------------------------------------------------+
 void FireSignal(int drivIdx, int dir, int sh, datetime sigT)
 {
    int    id    = levList[drivIdx].id;
@@ -158,9 +191,7 @@ void FireSignal(int drivIdx, int dir, int sh, datetime sigT)
 
    datetime tEnd = sigT + (datetime)(PeriodSeconds(InpTF) * InpExtBars);
 
-   // ── Driving level line (R for RSS / S for SRR) ────────────────────
-   datetime drivStart = levList[drivIdx].levelTime;
-   if(ObjectCreate(0, DrvLine(id), OBJ_TREND, 0, drivStart, drivL, tEnd, drivL))
+   if(ObjectCreate(0, DrvLine(id), OBJ_TREND, 0, levList[drivIdx].levelTime, drivL, tEnd, drivL))
    {
       ObjectSetInteger(0, DrvLine(id), OBJPROP_COLOR,      drivC);
       ObjectSetInteger(0, DrvLine(id), OBJPROP_WIDTH,      InpDrivWidth);
@@ -168,62 +199,46 @@ void FireSignal(int drivIdx, int dir, int sh, datetime sigT)
       ObjectSetInteger(0, DrvLine(id), OBJPROP_RAY_RIGHT,  false);
       ObjectSetInteger(0, DrvLine(id), OBJPROP_SELECTABLE, false);
    }
-   // "R" or "S" label at right end of driving line
    if(ObjectCreate(0, DrvLbl(id), OBJ_TEXT, 0, tEnd, drivL))
    {
       ObjectSetString (0, DrvLbl(id), OBJPROP_TEXT,       drivLabelTxt);
       ObjectSetInteger(0, DrvLbl(id), OBJPROP_COLOR,      drivC);
       ObjectSetInteger(0, DrvLbl(id), OBJPROP_FONTSIZE,   InpFontSize);
-      ObjectSetInteger(0, DrvLbl(id), OBJPROP_ANCHOR,
-         dir < 0 ? ANCHOR_LEFT_UPPER : ANCHOR_LEFT_LOWER);
+      ObjectSetInteger(0, DrvLbl(id), OBJPROP_ANCHOR,     dir < 0 ? ANCHOR_LEFT_UPPER : ANCHOR_LEFT_LOWER);
       ObjectSetInteger(0, DrvLbl(id), OBJPROP_SELECTABLE, false);
    }
-   // "Possible Sell" / "Possible Buy" in smaller text below/above label
    if(ObjectCreate(0, DrvNote(id), OBJ_TEXT, 0, tEnd, drivL))
    {
       ObjectSetString (0, DrvNote(id), OBJPROP_TEXT,       noteTxt);
       ObjectSetInteger(0, DrvNote(id), OBJPROP_COLOR,      drivC);
       ObjectSetInteger(0, DrvNote(id), OBJPROP_FONTSIZE,   InpNoteFontSz);
-      // Sell note sits below the label; Buy note sits above
-      ObjectSetInteger(0, DrvNote(id), OBJPROP_ANCHOR,
-         dir < 0 ? ANCHOR_LEFT_LOWER : ANCHOR_LEFT_UPPER);
+      ObjectSetInteger(0, DrvNote(id), OBJPROP_ANCHOR,     dir < 0 ? ANCHOR_LEFT_LOWER : ANCHOR_LEFT_UPPER);
       ObjectSetInteger(0, DrvNote(id), OBJPROP_SELECTABLE, false);
    }
-
-   // ── Swept level lines (S for RSS / R for SRR) ─────────────────────
    for(int k = 0; k < levList[drivIdx].sweptN; k++)
    {
-      double   sp    = levList[drivIdx].sweptPrices[k];
-      datetime sTime = levList[drivIdx].sweptTimes[k];
-      string   ln    = SwpLine(id, k);
-      string   lb    = SwpLbl (id, k);
-
-      if(ObjectCreate(0, ln, OBJ_TREND, 0, sTime, sp, tEnd, sp))
+      double sp = levList[drivIdx].sweptPrices[k]; datetime st = levList[drivIdx].sweptTimes[k];
+      if(ObjectCreate(0, SwpLine(id,k), OBJ_TREND, 0, st, sp, tEnd, sp))
       {
-         ObjectSetInteger(0, ln, OBJPROP_COLOR,      InpSweptColor);
-         ObjectSetInteger(0, ln, OBJPROP_WIDTH,      InpSwpWidth);
-         ObjectSetInteger(0, ln, OBJPROP_STYLE,      STYLE_SOLID);
-         ObjectSetInteger(0, ln, OBJPROP_RAY_RIGHT,  false);
-         ObjectSetInteger(0, ln, OBJPROP_SELECTABLE, false);
+         ObjectSetInteger(0, SwpLine(id,k), OBJPROP_COLOR,      InpSweptColor);
+         ObjectSetInteger(0, SwpLine(id,k), OBJPROP_WIDTH,      InpSwpWidth);
+         ObjectSetInteger(0, SwpLine(id,k), OBJPROP_STYLE,      STYLE_SOLID);
+         ObjectSetInteger(0, SwpLine(id,k), OBJPROP_RAY_RIGHT,  false);
+         ObjectSetInteger(0, SwpLine(id,k), OBJPROP_SELECTABLE, false);
       }
-      // "S" or "R" label at right end of swept line
-      if(ObjectCreate(0, lb, OBJ_TEXT, 0, tEnd, sp))
+      if(ObjectCreate(0, SwpLbl(id,k), OBJ_TEXT, 0, tEnd, sp))
       {
-         ObjectSetString (0, lb, OBJPROP_TEXT,       swpLabelTxt);
-         ObjectSetInteger(0, lb, OBJPROP_COLOR,      InpSweptColor);
-         ObjectSetInteger(0, lb, OBJPROP_FONTSIZE,   InpFontSize);
-         // Swept S labels: RSS sweeps down, so S is below R → anchor lower
-         // Swept R labels: SRR sweeps up, so R is above S → anchor upper
-         ObjectSetInteger(0, lb, OBJPROP_ANCHOR,
-            dir < 0 ? ANCHOR_LEFT_LOWER : ANCHOR_LEFT_UPPER);
-         ObjectSetInteger(0, lb, OBJPROP_SELECTABLE, false);
+         ObjectSetString (0, SwpLbl(id,k), OBJPROP_TEXT,       swpLabelTxt);
+         ObjectSetInteger(0, SwpLbl(id,k), OBJPROP_COLOR,      InpSweptColor);
+         ObjectSetInteger(0, SwpLbl(id,k), OBJPROP_FONTSIZE,   InpFontSize);
+         ObjectSetInteger(0, SwpLbl(id,k), OBJPROP_ANCHOR,     dir < 0 ? ANCHOR_LEFT_LOWER : ANCHOR_LEFT_UPPER);
+         ObjectSetInteger(0, SwpLbl(id,k), OBJPROP_SELECTABLE, false);
       }
    }
-
    if(InpShowLog)
-      PrintFormat("%s | driving=%.5f | swept=%d | time=%s",
-         dir < 0 ? "RSS" : "SRR", drivL, levList[drivIdx].sweepCount,
-         TimeToString(sigT, TIME_DATE|TIME_MINUTES));
+      PrintFormat("%s | driving=%.5f | wick=%.5f | swept=%d | time=%s",
+         dir < 0 ? "RSS" : "SRR", drivL, levList[drivIdx].wickExtreme,
+         levList[drivIdx].sweepCount, TimeToString(sigT, TIME_DATE|TIME_MINUTES));
 }
 
 //+------------------------------------------------------------------+
@@ -236,7 +251,7 @@ void CheckSweeps(int sh)
    for(int i = 0; i < levTotal; i++)
    {
       levList[i].justBroken = false;
-      if(levList[i].broken) continue;
+      if(levList[i].broken || levList[i].invalidated) continue;
       if(levList[i].confirmTime >= t) continue;
       if(levList[i].type == TYPE_SUPPORT && barClose < levList[i].level)
          { levList[i].broken = true; levList[i].justBroken = true; }
@@ -244,49 +259,36 @@ void CheckSweeps(int sh)
          { levList[i].broken = true; levList[i].justBroken = true; }
    }
 
-   // Pass 2: credit opposite active levels
+   // Pass 2: credit opposite active levels (not broken, not swept, not invalidated)
    for(int i = 0; i < levTotal; i++)
    {
       if(!levList[i].justBroken) continue;
-
       if(levList[i].type == TYPE_SUPPORT)
       {
-         double   bSup  = levList[i].level;
-         datetime bTime = levList[i].levelTime;
+         double bSup = levList[i].level; datetime bTime = levList[i].levelTime;
          for(int j = 0; j < levTotal; j++)
          {
-            if(levList[j].type   != TYPE_RESISTANCE) continue;
-            if(levList[j].broken || levList[j].swept) continue;
-            if(levList[j].confirmTime >= t)          continue;
-            if(levList[j].level <= bSup)             continue;
+            if(levList[j].type != TYPE_RESISTANCE) continue;
+            if(levList[j].broken || levList[j].swept || levList[j].invalidated) continue;
+            if(levList[j].confirmTime >= t || levList[j].level <= bSup) continue;
             levList[j].sweepCount++;
             if(levList[j].sweptN < MAX_SWEPT)
-            {
-               levList[j].sweptPrices[levList[j].sweptN] = bSup;
-               levList[j].sweptTimes [levList[j].sweptN] = bTime;
-               levList[j].sweptN++;
-            }
+               { levList[j].sweptPrices[levList[j].sweptN]=bSup; levList[j].sweptTimes[levList[j].sweptN]=bTime; levList[j].sweptN++; }
             if(levList[j].sweepCount >= InpMinBreaks)
                { FireSignal(j, -1, sh, t); levList[j].swept = true; }
          }
       }
       else
       {
-         double   bRes  = levList[i].level;
-         datetime bTime = levList[i].levelTime;
+         double bRes = levList[i].level; datetime bTime = levList[i].levelTime;
          for(int j = 0; j < levTotal; j++)
          {
-            if(levList[j].type   != TYPE_SUPPORT) continue;
-            if(levList[j].broken || levList[j].swept) continue;
-            if(levList[j].confirmTime >= t)       continue;
-            if(levList[j].level >= bRes)          continue;
+            if(levList[j].type != TYPE_SUPPORT) continue;
+            if(levList[j].broken || levList[j].swept || levList[j].invalidated) continue;
+            if(levList[j].confirmTime >= t || levList[j].level >= bRes) continue;
             levList[j].sweepCount++;
             if(levList[j].sweptN < MAX_SWEPT)
-            {
-               levList[j].sweptPrices[levList[j].sweptN] = bRes;
-               levList[j].sweptTimes [levList[j].sweptN] = bTime;
-               levList[j].sweptN++;
-            }
+               { levList[j].sweptPrices[levList[j].sweptN]=bRes; levList[j].sweptTimes[levList[j].sweptN]=bTime; levList[j].sweptN++; }
             if(levList[j].sweepCount >= InpMinBreaks)
                { FireSignal(j, 1, sh, t); levList[j].swept = true; }
          }
@@ -300,7 +302,7 @@ void AgeLevels()
    if(InpExpiryBars <= 0) return;
    for(int i = 0; i < levTotal; i++)
    {
-      if(levList[i].broken || levList[i].swept) continue;
+      if(levList[i].broken || levList[i].swept || levList[i].invalidated) continue;
       levList[i].ageCounter++;
       if(levList[i].ageCounter >= InpExpiryBars) levList[i].broken = true;
    }
@@ -314,7 +316,12 @@ void Rebuild()
    int scan = MathMin(InpLookback, iBars(_Symbol, InpTF) - 2);
    if(scan < 2) return;
    for(int sh = scan; sh >= 1; sh--)
-   { DetectLevels(sh + 1, sh); CheckSweeps(sh); AgeLevels(); }
+   {
+      DetectLevels(sh + 1, sh);
+      CheckInvalidations(sh);   // must run before CheckSweeps
+      CheckSweeps(sh);
+      AgeLevels();
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -329,7 +336,13 @@ int OnCalculate(const int rates_total, const int prev_calculated,
 {
    datetime curBar = iTime(_Symbol, InpTF, 0);
    if(curBar != lastBarTime)
-   { lastBarTime = curBar; DetectLevels(2, 1); CheckSweeps(1); AgeLevels(); }
+   {
+      lastBarTime = curBar;
+      DetectLevels(2, 1);
+      CheckInvalidations(1);
+      CheckSweeps(1);
+      AgeLevels();
+   }
    return rates_total;
 }
 `;
