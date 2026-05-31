@@ -139,36 +139,49 @@ lastBarTime = currentBarTime;
 // ... rest of logic on bar[1] (the closed bar)
 
 ══════════════════════════════════════════════
-STRICT MQL5-ONLY — NEVER USE MQL4 SYNTAX
+STRICT MQL5-ONLY — COPY THESE PATTERNS EXACTLY
 ══════════════════════════════════════════════
-PRICES — use SymbolInfoDouble, never bare globals:
-  ❌ Ask, Bid
-  ✅ SymbolInfoDouble(_Symbol, SYMBOL_ASK)
-  ✅ SymbolInfoDouble(_Symbol, SYMBOL_BID)
+
+PRICE DATA — ALWAYS use iClose/iOpen/iHigh/iLow/iTime with symbol+timeframe:
+  ❌ Close[0], Close[1], High[1], Low[1]       ← MQL4 arrays, do NOT exist in MQL5
+  ✅ iClose(_Symbol, PERIOD_CURRENT, 1)
+  ✅ iHigh(_Symbol, PERIOD_H4, 1)
+  ✅ iLow(_Symbol, InpTimeframe, 2)
+
+CURRENT PRICES — ALWAYS use SymbolInfoDouble:
+  ❌ Ask, Bid                                  ← MQL4 globals, do NOT exist in MQL5
+  ✅ double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+  ✅ double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+
+MOVING AVERAGES — create handle in OnInit, read with IndicatorValue():
+  ❌ double ema = iMA(_Symbol, PERIOD_H1, 12, 0, MODE_EMA);     ← wrong: not a value
+  ❌ iMA(_Symbol, PERIOD_H1, 12, MODE_EMA, PRICE_CLOSE)         ← wrong: missing shift param
+  ✅ // In globals:  int hEMA12 = INVALID_HANDLE;
+  ✅ // In OnInit(): hEMA12 = iMA(_Symbol, PERIOD_H1, 12, 0, MODE_EMA, PRICE_CLOSE);
+  ✅ // In OnTick(): double ema12 = IndicatorValue(hEMA12, 0, 1);  // bar 1
+
+iMA SIGNATURE (6 params — memorise this):
+  int iMA(string symbol, ENUM_TIMEFRAMES tf, int period, int ma_shift, ENUM_MA_METHOD method, int applied_price)
+  Example: hEMA = iMA(_Symbol, PERIOD_H4, 21, 0, MODE_EMA, PRICE_CLOSE);
+
+OTHER INDICATORS — same handle pattern:
+  hRSI  = iRSI (_Symbol, PERIOD_CURRENT, InpRsiPeriod, PRICE_CLOSE);
+  hBBH  = iBands(_Symbol, PERIOD_CURRENT, InpBBPeriod, 0, InpBBDev, PRICE_CLOSE);
 
 MAGIC NUMBER:
-  ❌ trade.SetMagicNumber(InpMagic)   ← does not exist
-  ✅ trade.SetExpertMagicNumber((ulong)InpMagic)
+  ❌ trade.SetMagicNumber(InpMagic)   ← method does not exist
+  ✅ trade.SetExpertMagicNumber((ulong)InpMagic);
 
 ACCOUNT INFO:
   ❌ AccountBalance(), AccountEquity()   ← MQL4 functions
-  ✅ AccountInfoDouble(ACCOUNT_BALANCE)
   ✅ AccountInfoDouble(ACCOUNT_EQUITY)
 
-SYMBOL INFO:
-  ❌ MarketInfo()   ← MQL4 only
-  ✅ SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN/MAX/STEP/POINT)
-  ✅ SymbolInfoInteger(_Symbol, SYMBOL_SPREAD/DIGITS/TRADE_STOPS_LEVEL)
-
 ORDERS:
-  ❌ OrderSend() with simple args   ← MQL4 style
-  ✅ trade.Buy(lot, _Symbol, 0, sl, tp, "comment")
-  ✅ trade.Sell(lot, _Symbol, 0, sl, tp, "comment")
-  ✅ trade.PositionClose(ticket)
+  ✅ trade.Buy(lot, _Symbol, 0, sl, tp, "comment");
+  ✅ trade.Sell(lot, _Symbol, 0, sl, tp, "comment");
 
-INDICATOR READING:
-  ❌ Reading from iMA() return value directly
-  ✅ Create handle in OnInit(), read with CopyBuffer() or use IndicatorValue() above
+DO NOT INVENT VARIABLES. Every variable you use must be declared in this file.
+DO NOT USE MQL4 ARRAYS. Close[], Open[], High[], Low[], Time[] do not exist in MQL5.
 
 ══════════════════════════════════════════════
 RULES
