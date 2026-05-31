@@ -66,7 +66,6 @@ struct LevelRec
    datetime confirmTime;
    bool     broken;
    bool     justBroken;
-   bool     priorTouched;   // wick reached level before close-through → not fresh
    bool     swept;
    bool     invalidated;
    int      ageCounter;
@@ -119,9 +118,8 @@ void AddLevel(int type, double level, double wickExt, datetime tA, datetime tB)
    levList[idx].wickExtreme = wickExt;
    levList[idx].levelTime   = tA;
    levList[idx].confirmTime = tB;
-   levList[idx].broken        = false;
+   levList[idx].broken       = false;
    levList[idx].justBroken   = false;
-   levList[idx].priorTouched = false;
    levList[idx].swept        = false;
    levList[idx].invalidated  = false;
    levList[idx].ageCounter  = 0;
@@ -256,34 +254,20 @@ void CheckSweeps(int sh)
    datetime t        = iTime (_Symbol, InpTF, sh);
    int      bufN     = ArraySize(SRRBuf);
 
-   double barHigh = iHigh(_Symbol, InpTF, sh);
-   double barLow  = iLow (_Symbol, InpTF, sh);
-
    for(int i = 0; i < levTotal; i++)
    {
       levList[i].justBroken = false;
       if(levList[i].broken || levList[i].invalidated) continue;
       if(levList[i].confirmTime >= t) continue;
-      if(levList[i].type == TYPE_SUPPORT)
-      {
-         if(barClose < levList[i].level)
-            { levList[i].broken = true; levList[i].justBroken = true; }
-         else if(barLow <= levList[i].level)
-            levList[i].priorTouched = true;
-      }
-      else
-      {
-         if(barClose > levList[i].level)
-            { levList[i].broken = true; levList[i].justBroken = true; }
-         else if(barHigh >= levList[i].level)
-            levList[i].priorTouched = true;
-      }
+      if(levList[i].type == TYPE_SUPPORT && barClose < levList[i].level)
+         { levList[i].broken = true; levList[i].justBroken = true; }
+      else if(levList[i].type == TYPE_RESISTANCE && barClose > levList[i].level)
+         { levList[i].broken = true; levList[i].justBroken = true; }
    }
 
    for(int i = 0; i < levTotal; i++)
    {
       if(!levList[i].justBroken) continue;
-      if(levList[i].priorTouched) continue;  // not fresh — skip
       if(levList[i].type == TYPE_SUPPORT)
       {
          double bSup = levList[i].level; datetime bTime = levList[i].levelTime;
