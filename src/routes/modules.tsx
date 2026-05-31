@@ -38,6 +38,8 @@ import { generateBbDetector } from "@/lib/smc-modules/bb-detector";
 import { generateFvgLiquidityDetector } from "@/lib/smc-modules/fvg-liquidity-detector";
 import { generateObLiquidityDetector } from "@/lib/smc-modules/ob-liquidity-detector";
 import { generateBbLiquidityDetector } from "@/lib/smc-modules/bb-liquidity-detector";
+import { generateObFvgDetector } from "@/lib/smc-modules/ob-fvg-detector";
+import { generateUnicornDetector } from "@/lib/smc-modules/unicorn-detector";
 import { generateLiqSweepDetector } from "@/lib/smc-modules/liqsweep-detector";
 import { generateSwingStructureDetector } from "@/lib/smc-modules/swing-structure-detector";
 import { generateBosDetector } from "@/lib/smc-modules/bos-detector";
@@ -450,6 +452,56 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         status: "ready",
         generate: generateBbLiquidityDetector,
+      },
+      {
+        id: "ob-fvg",
+        filename: "OB_FVG_Detector.mq5",
+        name: "OB + FVG",
+        description:
+          "Combination setup — an Order Block paired with a Fair Value Gap created " +
+          "by the SAME displacement. A bullish OB has a bullish FVG above it; a " +
+          "bearish OB has a bearish FVG below it. High-probability confluence with " +
+          "entry at the BODY of the OB.",
+        rules: [
+          "One displacement (body >= InpDispMult × ATR) must produce BOTH components",
+          "OB candle = last opposing candle before the displacement (Bull OB = last bearish)",
+          "Displacement FVG: C1=d+1, C3=d-1 — Bull high(d+1)<low(d-1), Bear low(d+1)>high(d-1)",
+          "Setup created only when the OB and the FVG both exist",
+          "Entry zone = OB body; MITIGATED when price taps the body",
+          "INVALIDATED when price closes through the OB (below OB low / above OB high)",
+        ],
+        output: [
+          "Solid filled box on the OB body + dotted box on the FVG (extend to live bar)",
+          "'OB+FVG' label at the OB; both removed on invalidation/expiry",
+          "Journal: OBFVG_BULL/BEAR | obBody | fvg | time  ·  OBFVG_*_ENTRY on body tap",
+          "Inputs: disp_mult · ob_scan_back · expiry_bars · colors",
+        ],
+        status: "ready",
+        generate: generateObFvgDetector,
+      },
+      {
+        id: "unicorn",
+        filename: "Unicorn_Detector.mq5",
+        name: "Unicorn (BB + FVG)",
+        description:
+          "The ICT Unicorn — a Breaker Block whose zone overlaps a Fair Value Gap of " +
+          "the same (flipped) direction. The breaker∩FVG overlap is a high-probability " +
+          "entry pocket. Combines Order Block → Breaker tracking with FVG detection.",
+        rules: [
+          "Detect OB via displacement; track until price CLOSES through → flips to a Breaker",
+          "Bullish Unicorn: bull Breaker (bearish OB broken up) overlapping a bullish FVG",
+          "Bearish Unicorn: bear Breaker (bullish OB broken down) overlapping a bearish FVG",
+          "Match requires same direction, price overlap, and proximity within InpPairWindow bars",
+          "Entry pocket = overlap [max(lo), min(top)] of breaker zone and FVG gap",
+          "INVALIDATED when price closes back through the breaker zone",
+        ],
+        output: [
+          "Dashed breaker box + solid width-2 overlap pocket + 'Unicorn' label",
+          "Journal: UNICORN_BULL | UNICORN_BEAR | overlap | time",
+          "Inputs: disp_mult · ob_scan_back · InpPairWindow · ob_expiry · uni_expiry · colors",
+        ],
+        status: "ready",
+        generate: generateUnicornDetector,
       },
     ],
   },
