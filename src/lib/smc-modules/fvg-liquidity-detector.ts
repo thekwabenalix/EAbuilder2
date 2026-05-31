@@ -1,28 +1,24 @@
 /**
- * SMC Liquidity Detector — FVG Liquidity Build-up v1.0.0
+ * SMC Liquidity Detector — FVG Liquidity Build-up v1.1.0
  *
  * A candle or series of candles come close to a Fair Value Gap (FVG)
  * without entering it. That creates liquidity (clustered stops) around
  * the gap, which makes the FVG a higher-probability trade level.
  *
- * LEVEL SOURCE (embedded):
- *   3-candle FVG pattern:
- *   Bullish FVG: C1.high < C3.low  → gap = [C1.high, C3.low]
- *   Bearish FVG: C1.low  > C3.high → gap = [C3.high, C1.low]
+ * The FVG itself is drawn as a filled rectangle so the trader can see the
+ * level the liquidity is building around. The closest-approach candle is
+ * labeled "FLq". Entering the gap consumes the liquidity (zone + label removed).
  *
- * NEAR EDGE (the side price approaches from):
- *   Bullish FVG: gap_top  = C3.low  (price approaches from above)
- *   Bearish FVG: gap_bottom = C3.high (price approaches from below)
+ * LEVEL SOURCE:
+ *   Bullish FVG: C1.high < C3.low  → gap = [C1.high, C3.low], near edge = C3.low
+ *   Bearish FVG: C1.low  > C3.high → gap = [C3.high, C1.low], near edge = C3.high
  *
- * TOUCH (kills the level — liquidity consumed):
- *   Bullish FVG: wick low <= gap_top  (candle enters the gap)
- *   Bearish FVG: wick high >= gap_bottom
- *
- * LIQUIDITY LABEL: "FLq" on the candle with the minimum distance to the gap.
- *   The label updates if a closer candle appears. Wick touch deletes it.
+ * TOUCH (kills the level):
+ *   Bullish FVG: wick low  <= gap top (C3.low)
+ *   Bearish FVG: wick high >= gap bottom (C3.high)
  */
 
-export const FVG_LIQUIDITY_DETECTOR_VERSION = "1.0.0";
+export const FVG_LIQUIDITY_DETECTOR_VERSION = "1.1.0";
 export const FVG_LIQUIDITY_DETECTOR_MODULE  = "FVG_Liquidity_Detector";
 
 export function generateFvgLiquidityDetector(): string {
@@ -30,11 +26,12 @@ export function generateFvgLiquidityDetector(): string {
 //| FVG_Liquidity_Detector.mq5                                     |
 //| SMC Liquidity v${FVG_LIQUIDITY_DETECTOR_VERSION} — FVG Liquidity Build-up   |
 //|                                                                  |
-//| Price approaches an FVG without entering it — stops accumulate. |
-//| Closest approach candle labeled "FLq". Wick entry kills level.  |
+//| The FVG is drawn as a filled box. Price approaches it without   |
+//| entering — stops accumulate. Closest approach labeled "FLq".    |
+//| Entering the gap removes the zone + label (liquidity consumed). |
 //+------------------------------------------------------------------+
 #property copyright "EA Builder — SMC Liquidity"
-#property version   "1.00"
+#property version   "1.10"
 #property strict
 #property indicator_chart_window
 #property indicator_plots 0
@@ -51,6 +48,7 @@ input int             InpATRPeriod  = 14;
 input int             InpNearPoints = 0;
 input int             InpExpiryBars = 200;
 input bool            InpDraw       = true;
+input bool            InpDrawZone   = true;            // Draw the FVG rectangle
 input string          InpLabel      = "FLq";
 input int             InpFontSize   = 8;
 input color           InpBullColor  = clrMediumSeaGreen;
@@ -62,11 +60,14 @@ struct LevelRec
    int      id;
    int      dir;          // DIR_BULL or DIR_BEAR
    double   nearEdge;     // gap edge price approaches
-   double   farEdge;      // opposite edge (for reference)
+   double   farEdge;      // opposite gap edge
+   double   zoneTop;      // max(near,far)
+   double   zoneBot;      // min(near,far)
+   datetime zoneStart;    // C1 time — left edge of the gap box
    datetime levelTime;    // C3 close time — level valid after this
    bool     dead;
    int      ageCounter;
-   double   bestLiqDist;  // smallest approach distance (DBL_MAX = none)
+   double   bestLiqDist;
 };
 
 LevelRec levList[LVL_MAX];
@@ -75,7 +76,8 @@ int      nextId      = 0;
 datetime lastBarTime = 0;
 
 //+------------------------------------------------------------------+
-string LiqLb(int id) { return OBJ_PREFIX + IntegerToString(id) + "_lb"; }
+string LiqLb(int id)  { return OBJ_PREFIX + IntegerToString(id) + "_lb"; }
+string ZoneNm(int id) { return OBJ_PREFIX + IntegerToString(id) + "_zn"; }
 
 double CalcATR(int sh)
 {
@@ -92,7 +94,41 @@ double CalcATR(int sh)
 }
 
 //+------------------------------------------------------------------+
-void AddLevel(int dir, double nearEdge, double farEdge, datetime t)
+void DrawZone(int i)
+{
+   if(!InpDrawZone) return;
+   string nm = ZoneNm(levList[i].id);
+   color  c  = (levList[i].dir == DIR_BULL) ? InpBullColor : InpBearColor;
+   if(ObjectCreate(0, nm, OBJ_RECTANGLE, 0,
+                   levList[i].zoneStart, levList[i].zoneTop,
+                   levList[i].levelTime, levList[i].zoneBot))
+   {
+      ObjectSetInteger(0, nm, OBJPROP_COLOR,      c);
+      ObjectSetInteger(0, nm, OBJPROP_STYLE,      STYLE_SOLID);
+      ObjectSetInteger(0, nm, OBJPROP_WIDTH,      1);
+      ObjectSetInteger(0, nm, OBJPROP_FILL,       true);
+      ObjectSetInteger(0, nm, OBJPROP_BACK,       true);
+      ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, nm, OBJPROP_HIDDEN,     true);
+   }
+}
+
+void ExtendZone(int i, datetime t)
+{
+   if(!InpDrawZone) return;
+   string nm = ZoneNm(levList[i].id);
+   if(ObjectFind(0, nm) >= 0) ObjectSetInteger(0, nm, OBJPROP_TIME, 1, t);
+}
+
+void KillLevel(int i)
+{
+   ObjectDelete(0, LiqLb(levList[i].id));
+   ObjectDelete(0, ZoneNm(levList[i].id));
+   levList[i].dead = true;
+}
+
+//+------------------------------------------------------------------+
+void AddLevel(int dir, double nearEdge, double farEdge, datetime zoneStart, datetime t)
 {
    for(int i = 0; i < levTotal; i++)
       if(MathAbs(levList[i].nearEdge - nearEdge) < _Point && levList[i].dir == dir) return;
@@ -101,14 +137,18 @@ void AddLevel(int dir, double nearEdge, double farEdge, datetime t)
       if(levList[i].dead) { idx = i; break; }
    if(idx < 0 && levTotal < LVL_MAX) idx = levTotal++;
    if(idx < 0) return;
-   levList[idx].id           = nextId++;
-   levList[idx].dir          = dir;
-   levList[idx].nearEdge     = nearEdge;
-   levList[idx].farEdge      = farEdge;
-   levList[idx].levelTime    = t;
-   levList[idx].dead         = false;
-   levList[idx].ageCounter   = 0;
-   levList[idx].bestLiqDist  = DBL_MAX;
+   levList[idx].id          = nextId++;
+   levList[idx].dir         = dir;
+   levList[idx].nearEdge    = nearEdge;
+   levList[idx].farEdge     = farEdge;
+   levList[idx].zoneTop     = MathMax(nearEdge, farEdge);
+   levList[idx].zoneBot     = MathMin(nearEdge, farEdge);
+   levList[idx].zoneStart   = zoneStart;
+   levList[idx].levelTime   = t;
+   levList[idx].dead        = false;
+   levList[idx].ageCounter  = 0;
+   levList[idx].bestLiqDist = DBL_MAX;
+   DrawZone(idx);
 }
 
 //+------------------------------------------------------------------+
@@ -120,11 +160,10 @@ void DetectFVGs(int sh)
    double c1l = iLow (_Symbol, InpTF, sh + 2);
    double c3l = iLow (_Symbol, InpTF, sh);
    double c3h = iHigh(_Symbol, InpTF, sh);
-   datetime t = iTime(_Symbol, InpTF, sh);
-   // Bullish FVG: gap between C1 high and C3 low
-   if(c1h < c3l) AddLevel(DIR_BULL, c3l, c1h, t);
-   // Bearish FVG: gap between C3 high and C1 low
-   if(c1l > c3h) AddLevel(DIR_BEAR, c3h, c1l, t);
+   datetime t1 = iTime(_Symbol, InpTF, sh + 2);  // C1 time = box left edge
+   datetime t3 = iTime(_Symbol, InpTF, sh);      // C3 time = level confirm
+   if(c1h < c3l) AddLevel(DIR_BULL, c3l, c1h, t1, t3);  // bullish gap
+   if(c1l > c3h) AddLevel(DIR_BEAR, c3h, c1l, t1, t3);  // bearish gap
 }
 
 //+------------------------------------------------------------------+
@@ -152,17 +191,18 @@ void CheckLiquidity(int sh)
    datetime t = iTime(_Symbol, InpTF, sh);
    double atr  = CalcATR(sh);
    double near = (InpNearPoints > 0) ? InpNearPoints * _Point : InpNearATR * atr;
-   if(near <= 0) return;
 
    for(int i = 0; i < levTotal; i++)
    {
       if(levList[i].dead) continue;
       if(levList[i].levelTime >= t) continue;
+      ExtendZone(i, t);                       // grow the box to the live bar
       double edge = levList[i].nearEdge;
+      if(near <= 0) continue;
 
       if(levList[i].dir == DIR_BULL)
       {
-         if(lo <= edge) { ObjectDelete(0, LiqLb(levList[i].id)); levList[i].dead = true; continue; }
+         if(lo <= edge) { KillLevel(i); continue; }
          double dist = lo - edge;
          if(dist <= near && dist < levList[i].bestLiqDist)
          { levList[i].bestLiqDist = dist; UpdateLiqLabel(i, DIR_BULL, lo, t);
@@ -170,7 +210,7 @@ void CheckLiquidity(int sh)
       }
       else
       {
-         if(hi >= edge) { ObjectDelete(0, LiqLb(levList[i].id)); levList[i].dead = true; continue; }
+         if(hi >= edge) { KillLevel(i); continue; }
          double dist = edge - hi;
          if(dist <= near && dist < levList[i].bestLiqDist)
          { levList[i].bestLiqDist = dist; UpdateLiqLabel(i, DIR_BEAR, hi, t);
@@ -187,8 +227,7 @@ void AgeLevels()
    {
       if(levList[i].dead) continue;
       levList[i].ageCounter++;
-      if(levList[i].ageCounter >= InpExpiryBars)
-         { ObjectDelete(0, LiqLb(levList[i].id)); levList[i].dead = true; }
+      if(levList[i].ageCounter >= InpExpiryBars) KillLevel(i);
    }
 }
 

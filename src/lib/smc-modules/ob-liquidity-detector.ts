@@ -1,28 +1,29 @@
 /**
- * SMC Liquidity Detector — OB Liquidity Build-up v1.0.0
+ * SMC Liquidity Detector — OB Liquidity Build-up v1.1.0
  *
  * A candle or series of candles come close to an Order Block (OB) without
  * touching its BODY. That accumulates liquidity (resting stops) around the
  * OB, turning it into a higher-probability reaction level.
  *
- * LEVEL SOURCE (embedded, displacement-based):
+ * The OB BODY is drawn as a filled rectangle so the trader sees the level.
+ * The closest-approach candle is labeled "OLq". Touching the body consumes
+ * the liquidity (zone + label removed).
+ *
+ * LEVEL SOURCE (displacement-based):
  *   Bullish OB: last BEARISH candle before a bullish displacement (body >= mult x ATR).
  *   Bearish OB: last BULLISH candle before a bearish displacement.
  *
- * BODY NEAR-EDGE (the side price approaches, body not wick):
- *   Bullish OB (support below): body top = OB candle OPEN  (bearish candle: open > close)
- *   Bearish OB (resistance above): body bottom = OB candle OPEN (bullish candle: open < close)
- *   → In both cases the body edge price approaches = the OB candle's OPEN.
+ * BODY NEAR-EDGE:
+ *   Bullish OB (support below): body top = OB candle OPEN
+ *   Bearish OB (resistance above): body bottom = OB candle OPEN
+ *   → near edge = OB candle OPEN in both cases.
  *
- * TOUCH (kills the level — body entered, liquidity consumed):
- *   Bullish OB: wick low <= obOpen
+ * TOUCH (kills the level — body entered):
+ *   Bullish OB: wick low  <= obOpen
  *   Bearish OB: wick high >= obOpen
- *
- * LIQUIDITY LABEL: "OLq" on the candle with the minimum distance to the body.
- *   Updates to a closer candle if one appears. Body touch deletes it.
  */
 
-export const OB_LIQUIDITY_DETECTOR_VERSION = "1.0.0";
+export const OB_LIQUIDITY_DETECTOR_VERSION = "1.1.0";
 export const OB_LIQUIDITY_DETECTOR_MODULE  = "OB_Liquidity_Detector";
 
 export function generateObLiquidityDetector(): string {
@@ -30,12 +31,12 @@ export function generateObLiquidityDetector(): string {
 //| OB_Liquidity_Detector.mq5                                      |
 //| SMC Liquidity v${OB_LIQUIDITY_DETECTOR_VERSION} — OB Liquidity Build-up    |
 //|                                                                  |
-//| Price approaches an Order Block BODY without touching it —      |
-//| stops accumulate. Closest approach labeled "OLq". Body entry    |
-//| kills the level.                                                |
+//| The OB body is drawn as a filled box. Price approaches it       |
+//| without touching the body — stops accumulate. Closest approach  |
+//| labeled "OLq". Body entry removes the zone + label.             |
 //+------------------------------------------------------------------+
 #property copyright "EA Builder — SMC Liquidity"
-#property version   "1.00"
+#property version   "1.10"
 #property strict
 #property indicator_chart_window
 #property indicator_plots 0
@@ -55,6 +56,7 @@ input int             InpNearAtrPer  = 14;             // ATR period for proximi
 input int             InpNearPoints  = 0;              // Override: fixed points (0 = ATR)
 input int             InpExpiryBars  = 200;
 input bool            InpDraw        = true;
+input bool            InpDrawZone    = true;           // Draw the OB body rectangle
 input string          InpLabel       = "OLq";
 input int             InpFontSize    = 8;
 input color           InpBullColor   = clrMediumSeaGreen;
@@ -66,7 +68,10 @@ struct LevelRec
    int      id;
    int      dir;          // DIR_BULL or DIR_BEAR
    double   bodyEdge;     // OB candle OPEN — the body edge price approaches
-   datetime obTime;       // OB candle time (dedup key)
+   double   bodyFar;      // OB candle CLOSE — opposite body edge (for the box)
+   double   zoneTop;      // max(open,close)
+   double   zoneBot;      // min(open,close)
+   datetime obTime;       // OB candle time (dedup key + box left edge)
    datetime confirmTime;  // displacement candle time — valid only after this
    bool     dead;
    int      ageCounter;
@@ -79,7 +84,8 @@ int      nextId      = 0;
 datetime lastBarTime = 0;
 
 //+------------------------------------------------------------------+
-string LiqLb(int id) { return OBJ_PREFIX + IntegerToString(id) + "_lb"; }
+string LiqLb(int id)  { return OBJ_PREFIX + IntegerToString(id) + "_lb"; }
+string ZoneNm(int id) { return OBJ_PREFIX + IntegerToString(id) + "_zn"; }
 
 double CalcATR(int sh, int period)
 {
@@ -96,7 +102,41 @@ double CalcATR(int sh, int period)
 }
 
 //+------------------------------------------------------------------+
-void AddLevel(int dir, double bodyEdge, datetime obT, datetime confT)
+void DrawZone(int i)
+{
+   if(!InpDrawZone) return;
+   string nm = ZoneNm(levList[i].id);
+   color  c  = (levList[i].dir == DIR_BULL) ? InpBullColor : InpBearColor;
+   if(ObjectCreate(0, nm, OBJ_RECTANGLE, 0,
+                   levList[i].obTime,      levList[i].zoneTop,
+                   levList[i].confirmTime, levList[i].zoneBot))
+   {
+      ObjectSetInteger(0, nm, OBJPROP_COLOR,      c);
+      ObjectSetInteger(0, nm, OBJPROP_STYLE,      STYLE_SOLID);
+      ObjectSetInteger(0, nm, OBJPROP_WIDTH,      1);
+      ObjectSetInteger(0, nm, OBJPROP_FILL,       true);
+      ObjectSetInteger(0, nm, OBJPROP_BACK,       true);
+      ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, nm, OBJPROP_HIDDEN,     true);
+   }
+}
+
+void ExtendZone(int i, datetime t)
+{
+   if(!InpDrawZone) return;
+   string nm = ZoneNm(levList[i].id);
+   if(ObjectFind(0, nm) >= 0) ObjectSetInteger(0, nm, OBJPROP_TIME, 1, t);
+}
+
+void KillLevel(int i)
+{
+   ObjectDelete(0, LiqLb(levList[i].id));
+   ObjectDelete(0, ZoneNm(levList[i].id));
+   levList[i].dead = true;
+}
+
+//+------------------------------------------------------------------+
+void AddLevel(int dir, double bodyEdge, double bodyFar, datetime obT, datetime confT)
 {
    for(int i = 0; i < levTotal; i++)
       if(levList[i].obTime == obT && levList[i].dir == dir) return;
@@ -108,15 +148,18 @@ void AddLevel(int dir, double bodyEdge, datetime obT, datetime confT)
    levList[idx].id          = nextId++;
    levList[idx].dir         = dir;
    levList[idx].bodyEdge    = bodyEdge;
+   levList[idx].bodyFar     = bodyFar;
+   levList[idx].zoneTop     = MathMax(bodyEdge, bodyFar);
+   levList[idx].zoneBot     = MathMin(bodyEdge, bodyFar);
    levList[idx].obTime      = obT;
    levList[idx].confirmTime = confT;
    levList[idx].dead        = false;
    levList[idx].ageCounter  = 0;
    levList[idx].bestLiqDist = DBL_MAX;
+   DrawZone(idx);
 }
 
 //+------------------------------------------------------------------+
-// Scan bar dispShift as a displacement candle; if confirmed, find the OB.
 void DetectOB(int dispShift)
 {
    if(dispShift < 1) return;
@@ -135,16 +178,16 @@ void DetectOB(int dispShift)
    {
       double jOpn = iOpen (_Symbol, InpTF, j);
       double jCls = iClose(_Symbol, InpTF, j);
-      // Bullish displacement → last bearish candle = Bull OB; body edge = open (body top)
+      // Bull OB: last bearish candle. body edge=open (top), far=close (bottom)
       if(dispDir == DIR_BULL && jCls < jOpn)
       {
-         AddLevel(DIR_BULL, jOpn, iTime(_Symbol, InpTF, j), iTime(_Symbol, InpTF, dispShift));
+         AddLevel(DIR_BULL, jOpn, jCls, iTime(_Symbol, InpTF, j), iTime(_Symbol, InpTF, dispShift));
          break;
       }
-      // Bearish displacement → last bullish candle = Bear OB; body edge = open (body bottom)
+      // Bear OB: last bullish candle. body edge=open (bottom), far=close (top)
       if(dispDir == DIR_BEAR && jCls > jOpn)
       {
-         AddLevel(DIR_BEAR, jOpn, iTime(_Symbol, InpTF, j), iTime(_Symbol, InpTF, dispShift));
+         AddLevel(DIR_BEAR, jOpn, jCls, iTime(_Symbol, InpTF, j), iTime(_Symbol, InpTF, dispShift));
          break;
       }
    }
@@ -175,17 +218,18 @@ void CheckLiquidity(int sh)
    datetime t = iTime(_Symbol, InpTF, sh);
    double atr  = CalcATR(sh, InpNearAtrPer);
    double near = (InpNearPoints > 0) ? InpNearPoints * _Point : InpNearATR * atr;
-   if(near <= 0) return;
 
    for(int i = 0; i < levTotal; i++)
    {
       if(levList[i].dead) continue;
       if(levList[i].confirmTime >= t) continue;
+      ExtendZone(i, t);
       double edge = levList[i].bodyEdge;
+      if(near <= 0) continue;
 
       if(levList[i].dir == DIR_BULL)
       {
-         if(lo <= edge) { ObjectDelete(0, LiqLb(levList[i].id)); levList[i].dead = true; continue; }
+         if(lo <= edge) { KillLevel(i); continue; }
          double dist = lo - edge;
          if(dist <= near && dist < levList[i].bestLiqDist)
          { levList[i].bestLiqDist = dist; UpdateLiqLabel(i, DIR_BULL, lo, t);
@@ -193,7 +237,7 @@ void CheckLiquidity(int sh)
       }
       else
       {
-         if(hi >= edge) { ObjectDelete(0, LiqLb(levList[i].id)); levList[i].dead = true; continue; }
+         if(hi >= edge) { KillLevel(i); continue; }
          double dist = edge - hi;
          if(dist <= near && dist < levList[i].bestLiqDist)
          { levList[i].bestLiqDist = dist; UpdateLiqLabel(i, DIR_BEAR, hi, t);
@@ -210,8 +254,7 @@ void AgeLevels()
    {
       if(levList[i].dead) continue;
       levList[i].ageCounter++;
-      if(levList[i].ageCounter >= InpExpiryBars)
-         { ObjectDelete(0, LiqLb(levList[i].id)); levList[i].dead = true; }
+      if(levList[i].ageCounter >= InpExpiryBars) KillLevel(i);
    }
 }
 

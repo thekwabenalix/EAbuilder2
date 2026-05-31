@@ -1,26 +1,27 @@
 /**
- * SMC Liquidity Detector — BB (Breaker Block) Liquidity Build-up v1.0.0
+ * SMC Liquidity Detector — BB (Breaker Block) Liquidity Build-up v1.1.0
  *
  * Price does not touch the BODY of a Breaker Block but builds up around it.
  * That liquidity makes the breaker a higher-probability reaction level.
  *
- * LEVEL SOURCE (embedded):
- *   1. Detect an OB via displacement (same as OB module).
- *   2. The OB becomes a BREAKER when price CLOSES through the OB zone:
+ * The breaker BODY is drawn as a filled rectangle (only after the OB flips
+ * to a breaker). The closest-approach candle is labeled "BLq". Touching the
+ * body consumes the liquidity (zone + label removed).
+ *
+ * LEVEL SOURCE:
+ *   1. Detect an OB via displacement.
+ *   2. OB becomes a BREAKER when price CLOSES through the OB zone:
  *        Bullish OB broken DOWN (close < obLow)  → Bear Breaker (resistance above).
  *        Bearish OB broken UP   (close > obHigh) → Bull Breaker (support below).
- *      The breaker keeps the OB's price range but FLIPS polarity.
  *
- * BODY NEAR-EDGE of the breaker (body, not wick):
- *   The breaker's relevant body edge = the original OB candle's CLOSE.
+ * BODY NEAR-EDGE of the breaker:
+ *   The breaker's body edge = the original OB candle's CLOSE.
  *   (Polarity flips, so the body edge flips from OPEN to CLOSE vs a fresh OB.)
- *   Bull Breaker (support below): touch = wick low  <= obClose
- *   Bear Breaker (resistance above): touch = wick high >= obClose
- *
- * LIQUIDITY LABEL: "BLq" on the closest-approach candle. Body touch kills it.
+ *   Bull Breaker (support): touch = wick low  <= obClose
+ *   Bear Breaker (resistance): touch = wick high >= obClose
  */
 
-export const BB_LIQUIDITY_DETECTOR_VERSION = "1.0.0";
+export const BB_LIQUIDITY_DETECTOR_VERSION = "1.1.0";
 export const BB_LIQUIDITY_DETECTOR_MODULE  = "BB_Liquidity_Detector";
 
 export function generateBbLiquidityDetector(): string {
@@ -28,12 +29,12 @@ export function generateBbLiquidityDetector(): string {
 //| BB_Liquidity_Detector.mq5                                      |
 //| SMC Liquidity v${BB_LIQUIDITY_DETECTOR_VERSION} — Breaker Block Liquidity  |
 //|                                                                  |
-//| Price approaches a Breaker Block BODY without touching it —     |
-//| stops accumulate. Closest approach labeled "BLq". Body entry    |
-//| kills the level.                                                |
+//| The breaker body is drawn as a filled box once the OB flips.    |
+//| Price approaches the body without touching — stops accumulate.  |
+//| Closest approach labeled "BLq". Body entry removes zone+label.  |
 //+------------------------------------------------------------------+
 #property copyright "EA Builder — SMC Liquidity"
-#property version   "1.00"
+#property version   "1.10"
 #property strict
 #property indicator_chart_window
 #property indicator_plots 0
@@ -56,6 +57,7 @@ input int             InpNearPoints  = 0;              // Override: fixed points
 input int             InpObExpiry    = 300;            // Bars an unbroken OB waits before expiry
 input int             InpBBExpiry    = 200;            // Bars a breaker lives before expiry
 input bool            InpDraw        = true;
+input bool            InpDrawZone    = true;           // Draw the breaker body rectangle
 input string          InpLabel       = "BLq";
 input int             InpFontSize    = 8;
 input color           InpBullColor   = clrMediumSeaGreen;
@@ -69,13 +71,17 @@ struct LevelRec
    int      dir;          // OB dir while PHASE_OB; FLIPPED breaker dir while PHASE_BB
    double   obHi;         // OB candle high (break detection)
    double   obLo;         // OB candle low  (break detection)
-   double   obClose;      // OB candle close → breaker body edge
-   double   bodyEdge;     // active body edge once PHASE_BB
-   datetime obTime;       // OB candle time (dedup key)
+   double   obOpen;       // OB candle open  (body box edge)
+   double   obClose;      // OB candle close (breaker body edge + box)
+   double   bodyEdge;     // active body edge once PHASE_BB (= obClose)
+   double   zoneTop;      // max(open,close)
+   double   zoneBot;      // min(open,close)
+   datetime obTime;       // OB candle time (dedup key + box left edge)
    datetime confirmTime;  // displacement candle time
+   datetime breakTime;    // time the breaker formed (box left edge)
    bool     dead;
-   int      obAge;        // bars since OB confirmed (PHASE_OB expiry)
-   int      bbAge;        // bars since breaker formed (PHASE_BB expiry)
+   int      obAge;
+   int      bbAge;
    double   bestLiqDist;
 };
 
@@ -85,7 +91,8 @@ int      nextId      = 0;
 datetime lastBarTime = 0;
 
 //+------------------------------------------------------------------+
-string LiqLb(int id) { return OBJ_PREFIX + IntegerToString(id) + "_lb"; }
+string LiqLb(int id)  { return OBJ_PREFIX + IntegerToString(id) + "_lb"; }
+string ZoneNm(int id) { return OBJ_PREFIX + IntegerToString(id) + "_zn"; }
 
 double CalcATR(int sh, int period)
 {
@@ -102,7 +109,41 @@ double CalcATR(int sh, int period)
 }
 
 //+------------------------------------------------------------------+
-void AddOB(int dir, double hi, double lo, double cls, datetime obT, datetime confT)
+void DrawZone(int i)
+{
+   if(!InpDrawZone) return;
+   string nm = ZoneNm(levList[i].id);
+   color  c  = (levList[i].dir == DIR_BULL) ? InpBullColor : InpBearColor;
+   if(ObjectCreate(0, nm, OBJ_RECTANGLE, 0,
+                   levList[i].obTime,    levList[i].zoneTop,
+                   levList[i].breakTime, levList[i].zoneBot))
+   {
+      ObjectSetInteger(0, nm, OBJPROP_COLOR,      c);
+      ObjectSetInteger(0, nm, OBJPROP_STYLE,      STYLE_DASH);  // breaker = dashed border
+      ObjectSetInteger(0, nm, OBJPROP_WIDTH,      1);
+      ObjectSetInteger(0, nm, OBJPROP_FILL,       true);
+      ObjectSetInteger(0, nm, OBJPROP_BACK,       true);
+      ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, nm, OBJPROP_HIDDEN,     true);
+   }
+}
+
+void ExtendZone(int i, datetime t)
+{
+   if(!InpDrawZone) return;
+   string nm = ZoneNm(levList[i].id);
+   if(ObjectFind(0, nm) >= 0) ObjectSetInteger(0, nm, OBJPROP_TIME, 1, t);
+}
+
+void KillLevel(int i)
+{
+   ObjectDelete(0, LiqLb(levList[i].id));
+   ObjectDelete(0, ZoneNm(levList[i].id));
+   levList[i].dead = true;
+}
+
+//+------------------------------------------------------------------+
+void AddOB(int dir, double hi, double lo, double opn, double cls, datetime obT, datetime confT)
 {
    for(int i = 0; i < levTotal; i++)
       if(levList[i].obTime == obT && !levList[i].dead) return;
@@ -116,10 +157,14 @@ void AddOB(int dir, double hi, double lo, double cls, datetime obT, datetime con
    levList[idx].dir         = dir;
    levList[idx].obHi        = hi;
    levList[idx].obLo        = lo;
+   levList[idx].obOpen      = opn;
    levList[idx].obClose     = cls;
    levList[idx].bodyEdge    = 0.0;
+   levList[idx].zoneTop     = 0.0;
+   levList[idx].zoneBot     = 0.0;
    levList[idx].obTime      = obT;
    levList[idx].confirmTime = confT;
+   levList[idx].breakTime   = 0;
    levList[idx].dead        = false;
    levList[idx].obAge       = 0;
    levList[idx].bbAge       = 0;
@@ -145,15 +190,15 @@ void DetectOB(int dispShift)
    {
       double jOpn = iOpen (_Symbol, InpTF, j);
       double jCls = iClose(_Symbol, InpTF, j);
-      if(dispDir == DIR_BULL && jCls < jOpn)  // bullish disp → bullish OB (last bearish candle)
+      if(dispDir == DIR_BULL && jCls < jOpn)
       {
-         AddOB(DIR_BULL, iHigh(_Symbol,InpTF,j), iLow(_Symbol,InpTF,j), jCls,
+         AddOB(DIR_BULL, iHigh(_Symbol,InpTF,j), iLow(_Symbol,InpTF,j), jOpn, jCls,
                iTime(_Symbol,InpTF,j), iTime(_Symbol,InpTF,dispShift));
          break;
       }
-      if(dispDir == DIR_BEAR && jCls > jOpn)  // bearish disp → bearish OB (last bullish candle)
+      if(dispDir == DIR_BEAR && jCls > jOpn)
       {
-         AddOB(DIR_BEAR, iHigh(_Symbol,InpTF,j), iLow(_Symbol,InpTF,j), jCls,
+         AddOB(DIR_BEAR, iHigh(_Symbol,InpTF,j), iLow(_Symbol,InpTF,j), jOpn, jCls,
                iTime(_Symbol,InpTF,j), iTime(_Symbol,InpTF,dispShift));
          break;
       }
@@ -161,7 +206,7 @@ void DetectOB(int dispShift)
 }
 
 //+------------------------------------------------------------------+
-// Check tracked OBs for a close-through break → flip to breaker.
+// Tracked OBs that close through their zone flip into breakers.
 void CheckBreaks(int sh)
 {
    double barClose = iClose(_Symbol, InpTF, sh);
@@ -170,18 +215,19 @@ void CheckBreaks(int sh)
    {
       if(levList[i].dead || levList[i].phase != PHASE_OB) continue;
       if(levList[i].confirmTime >= t) continue;
-      bool broke = false;
-      int  newDir = 0;
-      if(levList[i].dir == DIR_BULL && barClose < levList[i].obLo)   // bullish OB broken down
-         { broke = true; newDir = DIR_BEAR; }
-      else if(levList[i].dir == DIR_BEAR && barClose > levList[i].obHi) // bearish OB broken up
-         { broke = true; newDir = DIR_BULL; }
+      bool broke = false; int newDir = 0;
+      if(levList[i].dir == DIR_BULL && barClose < levList[i].obLo)   { broke = true; newDir = DIR_BEAR; }
+      else if(levList[i].dir == DIR_BEAR && barClose > levList[i].obHi) { broke = true; newDir = DIR_BULL; }
       if(!broke) continue;
       levList[i].phase    = PHASE_BB;
       levList[i].dir      = newDir;
-      levList[i].bodyEdge = levList[i].obClose;  // breaker body edge = OB close
+      levList[i].bodyEdge = levList[i].obClose;
+      levList[i].zoneTop  = MathMax(levList[i].obOpen, levList[i].obClose);
+      levList[i].zoneBot  = MathMin(levList[i].obOpen, levList[i].obClose);
+      levList[i].breakTime = t;
       levList[i].bbAge    = 0;
       levList[i].bestLiqDist = DBL_MAX;
+      DrawZone(i);
       if(InpShowLog)
          PrintFormat("BB_FORMED | dir=%d | bodyEdge=%.5f | %s",
             newDir, levList[i].bodyEdge, TimeToString(t,TIME_DATE|TIME_MINUTES));
@@ -206,7 +252,6 @@ void UpdateLiqLabel(int i, int dir, double wickExtreme, datetime t)
 }
 
 //+------------------------------------------------------------------+
-// Liquidity check only for PHASE_BB levels (active breakers).
 void CheckLiquidity(int sh)
 {
    double hi = iHigh(_Symbol, InpTF, sh);
@@ -214,16 +259,17 @@ void CheckLiquidity(int sh)
    datetime t = iTime(_Symbol, InpTF, sh);
    double atr  = CalcATR(sh, InpNearAtrPer);
    double near = (InpNearPoints > 0) ? InpNearPoints * _Point : InpNearATR * atr;
-   if(near <= 0) return;
 
    for(int i = 0; i < levTotal; i++)
    {
       if(levList[i].dead || levList[i].phase != PHASE_BB) continue;
+      ExtendZone(i, t);
       double edge = levList[i].bodyEdge;
+      if(near <= 0) continue;
 
       if(levList[i].dir == DIR_BULL)   // bull breaker = support below
       {
-         if(lo <= edge) { ObjectDelete(0, LiqLb(levList[i].id)); levList[i].dead = true; continue; }
+         if(lo <= edge) { KillLevel(i); continue; }
          double dist = lo - edge;
          if(dist <= near && dist < levList[i].bestLiqDist)
          { levList[i].bestLiqDist = dist; UpdateLiqLabel(i, DIR_BULL, lo, t);
@@ -231,7 +277,7 @@ void CheckLiquidity(int sh)
       }
       else                              // bear breaker = resistance above
       {
-         if(hi >= edge) { ObjectDelete(0, LiqLb(levList[i].id)); levList[i].dead = true; continue; }
+         if(hi >= edge) { KillLevel(i); continue; }
          double dist = edge - hi;
          if(dist <= near && dist < levList[i].bestLiqDist)
          { levList[i].bestLiqDist = dist; UpdateLiqLabel(i, DIR_BEAR, hi, t);
@@ -250,14 +296,13 @@ void AgeLevels()
       {
          if(InpObExpiry <= 0) continue;
          levList[i].obAge++;
-         if(levList[i].obAge >= InpObExpiry) levList[i].dead = true;  // never broke — discard
+         if(levList[i].obAge >= InpObExpiry) levList[i].dead = true;  // never broke — discard (no objects drawn yet)
       }
       else
       {
          if(InpBBExpiry <= 0) continue;
          levList[i].bbAge++;
-         if(levList[i].bbAge >= InpBBExpiry)
-            { ObjectDelete(0, LiqLb(levList[i].id)); levList[i].dead = true; }
+         if(levList[i].bbAge >= InpBBExpiry) KillLevel(i);
       }
    }
 }
