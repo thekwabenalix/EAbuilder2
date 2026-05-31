@@ -183,6 +183,8 @@ export type BrainModuleType =
   | "breakout"                // price break beyond a defined level
   | "snr"                     // classic S/R — zone setup
   | "gap_snr"                 // S/R at gap edges
+  | "rejection"               // Reactive SNR — wick rejection off a level
+  | "miss"                    // Reactive SNR — price misses a level (liquidity)
   | "bb"                      // Bollinger Bands
   | "ema"                     // EMA trend — direction bias
   | "engulfing"               // candle pattern — execution trigger

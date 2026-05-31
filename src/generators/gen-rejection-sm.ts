@@ -1,0 +1,184 @@
+/**
+ * Inline Rejection State Machine Generator
+ *
+ * Playbook definition (Reactive/Malaysian SNR, Rule 2):
+ *   "A rejection is a candle that closes below a resistance or above a support."
+ *   The wick pierces the level, but the candle CLOSES BACK on the origin side —
+ *   confirming the level held.
+ *
+ * This SM embeds S/R level detection (Classic reversal pairs + Gap continuation
+ * pairs) and fires a confirmation when a strong-wick candle rejects from a level:
+ *   Bullish rejection (off SUPPORT):  Low pierces the support, Close stays above.
+ *   Bearish rejection (off RESISTANCE): High pierces the resistance, Close stays below.
+ *
+ * A minimum wick ratio filters weak touches (a real rejection has a long wick).
+ *
+ * Standard API:
+ *   REJSM_{id}_Reset()
+ *   REJSM_{id}_Tick(lookback)
+ *   REJSM_{id}_BullJustConfirmed()  — bullish rejection off support this bar
+ *   REJSM_{id}_BearJustConfirmed()  — bearish rejection off resistance this bar
+ *   REJSM_{id}_BullConfirmSL()      — wick low of the rejection candle
+ *   REJSM_{id}_BearConfirmSL()      — wick high of the rejection candle
+ *   REJSM_{id}_HasActiveBull()      — a live support level exists
+ *   REJSM_{id}_HasActiveBear()      — a live resistance level exists
+ */
+
+export function genRejectionSM(
+  id: string,
+  TF: string,
+  tf: string,
+  lookback = 30,        // bars scanned for S/R levels each tick
+  minWickRatio = 0.5,   // rejection wick must be >= this fraction of candle range
+  expiryBars = 150,
+): string {
+  const P = `REJSM_${id}_`;
+
+  return `
+//+------------------------------------------------------------------+
+//| Rejection State Machine — ${tf} (${id})                         |
+//| Wick pierces level + close back on origin side = rejection      |
+//| Levels: Classic (reversal pair) + Gap (continuation pair)       |
+//+------------------------------------------------------------------+
+struct ${P}LevelRec
+{
+   int      dir;        //  1=support  -1=resistance
+   double   level;
+   datetime levelTime;
+   bool     broken;
+   int      barsAlive;
+};
+
+#define ${P}MAX_LEVELS 120
+${P}LevelRec ${P}levels[${P}MAX_LEVELS];
+int         ${P}levelCount     = 0;
+bool        ${P}_bullConfirmed = false;
+bool        ${P}_bearConfirmed = false;
+double      ${P}_bullSL = 0.0;
+double      ${P}_bearSL = 0.0;
+
+void ${P}Reset()
+{
+   ${P}levelCount     = 0;
+   ${P}_bullConfirmed = false;
+   ${P}_bearConfirmed = false;
+   ${P}_bullSL = 0.0;
+   ${P}_bearSL = 0.0;
+}
+
+// ── Register a level (dedup by time, recycle broken slots) ────────────
+void ${P}AddLevel(int dir, double level, datetime lvlT)
+{
+   for(int _k = 0; _k < ${P}levelCount; _k++)
+      if(${P}levels[_k].levelTime == lvlT) return;
+   int idx = -1;
+   for(int _k = 0; _k < ${P}levelCount; _k++)
+      if(${P}levels[_k].broken) { idx = _k; break; }
+   if(idx < 0) {
+      if(${P}levelCount >= ${P}MAX_LEVELS) return;
+      idx = ${P}levelCount++;
+   }
+   ${P}levels[idx].dir       = dir;
+   ${P}levels[idx].level     = level;
+   ${P}levels[idx].levelTime = lvlT;
+   ${P}levels[idx].broken    = false;
+   ${P}levels[idx].barsAlive = 0;
+}
+
+// ── Detect Classic + Gap S/R levels from the candle pair at (sh+1, sh) ─
+void ${P}Detect(int sh)
+{
+   int total = iBars(InpSymbol, ${TF});
+   if(sh + 1 >= total) return;
+
+   double aO = iOpen (InpSymbol, ${TF}, sh + 1);
+   double aC = iClose(InpSymbol, ${TF}, sh + 1);
+   double bO = iOpen (InpSymbol, ${TF}, sh);
+   double bC = iClose(InpSymbol, ${TF}, sh);
+   bool aBull = aC > aO, aBear = aC < aO;
+   bool bBull = bC > bO, bBear = bC < bO;
+   datetime lvlT = iTime(InpSymbol, ${TF}, sh + 1);
+
+   // Classic SNR (reversal pair)
+   if(aBull && bBear) ${P}AddLevel(-1, aC, lvlT);  // resistance
+   else if(aBear && bBull) ${P}AddLevel(1, aC, lvlT);  // support
+   // Gap SNR (continuation pair)
+   else if(aBull && bBull) ${P}AddLevel(1, aC, lvlT);  // gap support
+   else if(aBear && bBear) ${P}AddLevel(-1, aC, lvlT);  // gap resistance
+}
+
+// ── Check bar sh for a rejection off any live level ───────────────────
+void ${P}CheckRejection(int sh)
+{
+   double o = iOpen (InpSymbol, ${TF}, sh);
+   double c = iClose(InpSymbol, ${TF}, sh);
+   double h = iHigh (InpSymbol, ${TF}, sh);
+   double l = iLow  (InpSymbol, ${TF}, sh);
+   double range = h - l;
+   if(range <= 0) return;
+   double lowerWick = MathMin(o, c) - l;
+   double upperWick = h - MathMax(o, c);
+
+   for(int _k = 0; _k < ${P}levelCount; _k++)
+   {
+      if(${P}levels[_k].broken) continue;
+      double lvl = ${P}levels[_k].level;
+
+      if(${P}levels[_k].dir == 1)  // SUPPORT → look for bullish rejection
+      {
+         // Wick pierced support, close stayed above, long lower wick
+         if(l <= lvl && c > lvl && lowerWick >= range * ${minWickRatio})
+         {
+            ${P}_bullConfirmed = true;
+            ${P}_bullSL = l;
+            PrintFormat("[REJSM_${tf}] BULL REJECTION off support=%.5f SL=%.5f", lvl, l);
+         }
+         // close below support = level broken
+         if(c < lvl) ${P}levels[_k].broken = true;
+      }
+      else  // RESISTANCE → look for bearish rejection
+      {
+         if(h >= lvl && c < lvl && upperWick >= range * ${minWickRatio})
+         {
+            ${P}_bearConfirmed = true;
+            ${P}_bearSL = h;
+            PrintFormat("[REJSM_${tf}] BEAR REJECTION off resistance=%.5f SL=%.5f", lvl, h);
+         }
+         if(c > lvl) ${P}levels[_k].broken = true;
+      }
+   }
+}
+
+void ${P}Tick(int lookback)
+{
+   ${P}_bullConfirmed = false;
+   ${P}_bearConfirmed = false;
+   for(int sh = lookback; sh >= 1; sh--) ${P}Detect(sh);
+   // age + expire
+   for(int _k = 0; _k < ${P}levelCount; _k++)
+   {
+      if(${P}levels[_k].broken) continue;
+      ${P}levels[_k].barsAlive++;
+      if(${P}levels[_k].barsAlive >= ${expiryBars}) ${P}levels[_k].broken = true;
+   }
+   ${P}CheckRejection(1);
+}
+
+bool   ${P}BullJustConfirmed() { return ${P}_bullConfirmed; }
+bool   ${P}BearJustConfirmed() { return ${P}_bearConfirmed; }
+double ${P}BullConfirmSL()     { return ${P}_bullSL; }
+double ${P}BearConfirmSL()     { return ${P}_bearSL; }
+bool   ${P}HasActiveBull()
+{
+   for(int _k=0;_k<${P}levelCount;_k++)
+      if(${P}levels[_k].dir==1 && !${P}levels[_k].broken) return true;
+   return false;
+}
+bool   ${P}HasActiveBear()
+{
+   for(int _k=0;_k<${P}levelCount;_k++)
+      if(${P}levels[_k].dir==-1 && !${P}levels[_k].broken) return true;
+   return false;
+}
+`;
+}

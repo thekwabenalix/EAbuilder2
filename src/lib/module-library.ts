@@ -518,6 +518,166 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     combinesWith: ["bos", "ema", "fvg", "engulfing", "pin_bar"],
   },
 
+  // ─── Gap SNR (continuation S/R) ───────────────────────────────────────────────
+  {
+    id: "gap_snr",
+    label: "Gap S/R",
+    aliases: [
+      { phrase: "gap S/R" },
+      { phrase: "gap support resistance" },
+      { phrase: "open-close level" },
+      { phrase: "kissing candle" },
+      { phrase: "DMB", notes: "Drop-Momentum-Base / open-close S/R" },
+      { phrase: "momentum level" },
+      { phrase: "continuation level" },
+    ],
+    concept: "Horizontal levels from candle-pair CONTINUATION (same-direction pair). Same lifecycle as Classic S/R, different detection.",
+    detectionLogic: "Two consecutive bullish candles mark the first candle's close as SUPPORT (gap support). Two consecutive bearish candles mark it as RESISTANCE. Tracks each level ACTIVE→RETESTED→CONFIRMED, BROKEN when a close pushes through.",
+    roles: [
+      { role: "setup",     fit: "primary",   usage: "Active gap level near price = momentum setup zone in bias direction." },
+      { role: "execution", fit: "primary",   usage: "Gap level CONFIRMED = momentum level held → entry." },
+    ],
+    lifecycle: "Same-direction candle pair forms level → ACTIVE → RETESTED → CONFIRMED | BROKEN | EXPIRED",
+    params: [
+      { name: "lookback",   type: "int", default: 20,  range: [5, 200],  description: "Bars scanned for new levels each tick", traderPhrases: ["recent levels only"] },
+      { name: "expiryBars", type: "int", default: 100, range: [10, 500], description: "Bars before an untouched level expires", traderPhrases: ["keep levels for 200 bars"] },
+    ],
+    outputStates: [
+      { name: "HasActiveBull()",     meaning: "A live gap support level exists",   tradingImplication: "Watch for a momentum bounce" },
+      { name: "HasActiveBear()",     meaning: "A live gap resistance level exists", tradingImplication: "Watch for a momentum rejection" },
+      { name: "BullJustConfirmed()", meaning: "Gap support held this bar",          tradingImplication: "ENTRY LONG" },
+      { name: "BearJustConfirmed()", meaning: "Gap resistance held this bar",       tradingImplication: "ENTRY SHORT" },
+      { name: "BullConfirmSL()",     meaning: "Retest low — SL below support",      tradingImplication: "SL under the level" },
+      { name: "BearConfirmSL()",     meaning: "Retest high — SL above resistance",  tradingImplication: "SL above the level" },
+    ],
+    inlineApi: {
+      tick: "GSNRSM_{id}_Tick(lookback)",
+      signals: [
+        { fn: "GSNRSM_{id}_HasActiveBull()",     returns: "bool",   meaning: "Live gap support level" },
+        { fn: "GSNRSM_{id}_HasActiveBear()",     returns: "bool",   meaning: "Live gap resistance level" },
+        { fn: "GSNRSM_{id}_BullJustConfirmed()", returns: "bool",   meaning: "Gap support held — entry" },
+        { fn: "GSNRSM_{id}_BearJustConfirmed()", returns: "bool",   meaning: "Gap resistance held — entry" },
+        { fn: "GSNRSM_{id}_BullConfirmSL()",     returns: "double", meaning: "SL below gap support" },
+        { fn: "GSNRSM_{id}_BearConfirmSL()",     returns: "double", meaning: "SL above gap resistance" },
+      ],
+      reset: "GSNRSM_{id}_Reset()",
+    },
+    examplePhrases: [
+      "Trade open-close levels on H1",
+      "Use kissing candle support for entries",
+      "Gap S/R for setup, engulfing for execution",
+    ],
+    notSuitedFor: ["Strong trends that ignore momentum levels"],
+    combinesWith: ["bos", "ema", "fvg", "engulfing"],
+  },
+
+  // ─── Rejection ───────────────────────────────────────────────────────────────
+  {
+    id: "rejection",
+    label: "Rejection",
+    aliases: [
+      { phrase: "rejection" },
+      { phrase: "rejection candle" },
+      { phrase: "wick rejection" },
+      { phrase: "reject off support" },
+      { phrase: "reject off resistance" },
+      { phrase: "candle closed below resistance" },
+      { phrase: "candle closed above support" },
+      { phrase: "respected the level" },
+    ],
+    concept: "A candle whose wick pierces an S/R level but CLOSES BACK on the origin side — the level held. (Reactive SNR Rule 2.)",
+    detectionLogic: "Embeds Classic + Gap S/R level detection. A bullish rejection fires when a candle's low pierces a support but the close stays above it, with a long lower wick (≥ minWickRatio of range). A bearish rejection fires when the high pierces a resistance but the close stays below it. SL = the rejection candle's wick extreme.",
+    roles: [
+      { role: "execution", fit: "primary",   usage: "Rejection candle off a level in the bias direction = entry. SL at the wick." },
+      { role: "setup",     fit: "secondary", usage: "A rejection validates the level as an active setup zone." },
+    ],
+    lifecycle: "Point-in-time — fires on the bar a rejection completes at a live S/R level",
+    params: [
+      { name: "lookback",     type: "int",    default: 30,  range: [10, 200], description: "Bars scanned for S/R levels", traderPhrases: ["recent levels"] },
+      { name: "minWickRatio", type: "double", default: 0.5, range: [0.3, 0.8], description: "Rejection wick must be ≥ this fraction of candle range", traderPhrases: ["strong rejection only", "long wick"] },
+      { name: "expiryBars",   type: "int",    default: 150, range: [20, 500], description: "Bars before a level expires", traderPhrases: [] },
+    ],
+    outputStates: [
+      { name: "BullJustConfirmed()", meaning: "Bullish rejection off support",   tradingImplication: "ENTRY LONG — support held with a wick" },
+      { name: "BearJustConfirmed()", meaning: "Bearish rejection off resistance", tradingImplication: "ENTRY SHORT — resistance held with a wick" },
+      { name: "BullConfirmSL()",     meaning: "Wick low of rejection candle",     tradingImplication: "Tight SL below the wick" },
+      { name: "BearConfirmSL()",     meaning: "Wick high of rejection candle",    tradingImplication: "Tight SL above the wick" },
+    ],
+    inlineApi: {
+      tick: "REJSM_{id}_Tick(lookback)",
+      signals: [
+        { fn: "REJSM_{id}_HasActiveBull()",     returns: "bool",   meaning: "Live support level" },
+        { fn: "REJSM_{id}_HasActiveBear()",     returns: "bool",   meaning: "Live resistance level" },
+        { fn: "REJSM_{id}_BullJustConfirmed()", returns: "bool",   meaning: "Bullish rejection — entry" },
+        { fn: "REJSM_{id}_BearJustConfirmed()", returns: "bool",   meaning: "Bearish rejection — entry" },
+        { fn: "REJSM_{id}_BullConfirmSL()",     returns: "double", meaning: "SL below rejection wick" },
+        { fn: "REJSM_{id}_BearConfirmSL()",     returns: "double", meaning: "SL above rejection wick" },
+      ],
+      reset: "REJSM_{id}_Reset()",
+    },
+    examplePhrases: [
+      "Enter on a rejection off support",
+      "Sell when price rejects resistance with a wick",
+      "Use rejection candles at key levels for entry",
+      "S/R for setup, rejection candle for execution",
+    ],
+    notSuitedFor: ["Direction bias — this is a reactive entry trigger"],
+    combinesWith: ["snr", "gap_snr", "bos", "ema"],
+  },
+
+  // ─── Miss ────────────────────────────────────────────────────────────────────
+  {
+    id: "miss",
+    label: "Miss",
+    aliases: [
+      { phrase: "miss" },
+      { phrase: "missed the level" },
+      { phrase: "came close but didn't touch" },
+      { phrase: "failed to reach the level" },
+      { phrase: "liquidity miss" },
+      { phrase: "near miss" },
+    ],
+    concept: "Price turns away NEAR an S/R level without touching it — the level is respected/validated and the miss leaves liquidity behind. (Reactive SNR, Slide 27.)",
+    detectionLogic: "Embeds Classic + Gap S/R level detection and swing-pivot detection. A bullish miss fires when a confirmed swing LOW forms within nearPoints ABOVE a support without its low reaching the level. A bearish miss fires when a swing HIGH forms within nearPoints BELOW a resistance without its high reaching the level. SL = the missed swing extreme.",
+    roles: [
+      { role: "execution", fit: "primary",   usage: "A miss is a strong reversal entry — price respected the level without testing it." },
+      { role: "setup",     fit: "secondary", usage: "A miss validates the level; the next approach is higher probability." },
+    ],
+    lifecycle: "Point-in-time — fires when a swing pivot is confirmed near (but not touching) a live level",
+    params: [
+      { name: "lookback",   type: "int", default: 40, range: [10, 200], description: "Bars scanned for S/R levels", traderPhrases: [] },
+      { name: "swingLen",   type: "int", default: 3,  range: [1, 10],   description: "Pivot confirmation bars each side", traderPhrases: ["3-bar pivots"] },
+      { name: "nearPoints", type: "int", default: 50, range: [10, 300], description: "Max distance (points) the pivot can be from the level to count as a miss", traderPhrases: ["within 30 points", "very close to the level"] },
+      { name: "expiryBars", type: "int", default: 200, range: [20, 600], description: "Bars before a level expires", traderPhrases: [] },
+    ],
+    outputStates: [
+      { name: "BullJustConfirmed()", meaning: "Swing low missed support (stayed above)",   tradingImplication: "ENTRY LONG — strong demand respected the level" },
+      { name: "BearJustConfirmed()", meaning: "Swing high missed resistance (stayed below)", tradingImplication: "ENTRY SHORT — strong supply respected the level" },
+      { name: "BullConfirmSL()",     meaning: "The missed swing low",   tradingImplication: "SL below the turning point" },
+      { name: "BearConfirmSL()",     meaning: "The missed swing high",  tradingImplication: "SL above the turning point" },
+    ],
+    inlineApi: {
+      tick: "MISSSM_{id}_Tick(lookback)",
+      signals: [
+        { fn: "MISSSM_{id}_HasActiveBull()",     returns: "bool",   meaning: "Live support level" },
+        { fn: "MISSSM_{id}_HasActiveBear()",     returns: "bool",   meaning: "Live resistance level" },
+        { fn: "MISSSM_{id}_BullJustConfirmed()", returns: "bool",   meaning: "Bullish miss — entry" },
+        { fn: "MISSSM_{id}_BearJustConfirmed()", returns: "bool",   meaning: "Bearish miss — entry" },
+        { fn: "MISSSM_{id}_BullConfirmSL()",     returns: "double", meaning: "SL below missed swing low" },
+        { fn: "MISSSM_{id}_BearConfirmSL()",     returns: "double", meaning: "SL above missed swing high" },
+      ],
+      reset: "MISSSM_{id}_Reset()",
+    },
+    examplePhrases: [
+      "Enter when price misses support and turns up",
+      "Trade the miss off resistance",
+      "Buy the near-miss of a key level",
+      "S/R miss on H4 for entry",
+    ],
+    notSuitedFor: ["Direction bias — reactive entry trigger"],
+    combinesWith: ["snr", "gap_snr", "bos", "ema"],
+  },
+
   // ─── Breakout ──────────────────────────────────────────────────────────────
   {
     id: "breakout",
@@ -779,6 +939,18 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
   ],
   snr: [
     { key: "lookback",  label: "Level Lookback (bars)", type: "number", default: 20, min: 5,  max: 200, step: 5,  hint: "How many bars back to identify S/R levels" },
+  ],
+  gap_snr: [
+    { key: "lookback",  label: "Level Lookback (bars)", type: "number", default: 20, min: 5,  max: 200, step: 5,  hint: "How many bars back to identify gap S/R levels" },
+  ],
+  rejection: [
+    { key: "lookback",     label: "Level Lookback (bars)", type: "number", default: 30,  min: 10, max: 200, step: 5,    hint: "Bars back to identify S/R levels to react from" },
+    { key: "minWickRatio", label: "Min Wick %",            type: "number", default: 0.5, min: 0.3, max: 0.8, step: 0.05, hint: "Rejection wick as fraction of candle range (0.5 = 50%)" },
+  ],
+  miss: [
+    { key: "lookback",   label: "Level Lookback (bars)", type: "number", default: 40, min: 10, max: 200, step: 5, hint: "Bars back to identify S/R levels" },
+    { key: "swingLen",   label: "Pivot Strength (bars)", type: "number", default: 3,  min: 1,  max: 10,  step: 1, hint: "Bars each side to confirm the swing turning point" },
+    { key: "nearPoints", label: "Near Distance (points)", type: "number", default: 50, min: 10, max: 300, step: 5, hint: "How close (points) the pivot must be to the level to count as a miss" },
   ],
   bb: [
     { key: "period",    label: "Period",      type: "number", default: 20, min: 5,  max: 100, step: 1, hint: "Moving average period for the Bollinger midline" },

@@ -27,6 +27,8 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
   // S/R
   { id: "snr",             label: "Classic S/R",     desc: "Horizontal support and resistance levels",         symbol: "─", color: "text-sky-400",    category: "Level"      },
   { id: "gap_snr",         label: "Gap S/R",         desc: "Support/resistance at gap edges",                  symbol: "⋮", color: "text-slate-400",  category: "Level"      },
+  { id: "rejection",       label: "Rejection",       desc: "Wick rejects a level, close holds (Reactive SNR)", symbol: "↩", color: "text-sky-300",    category: "Level"      },
+  { id: "miss",            label: "Miss",            desc: "Price turns near a level without touching it",     symbol: "⊘", color: "text-slate-300",  category: "Level"      },
   // Volatility
   { id: "bb",              label: "Bollinger Bands", desc: "Volatility envelope at 2 standard deviations",     symbol: "≈", color: "text-orange-400", category: "Volatility" },
   // Momentum

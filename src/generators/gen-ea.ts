@@ -26,7 +26,10 @@ import type { BosSmMode }         from "./gen-bos-sm";
 import { genObSM }                from "./gen-ob-sm";
 import { genLiqSweepSM }          from "./gen-liqsweep-sm";
 import { genSnrSM }               from "./gen-snr-sm";
+import { genGapSnrSM }            from "./gen-gap-snr-sm";
 import { genBreakoutSM }          from "./gen-breakout-sm";
+import { genRejectionSM }         from "./gen-rejection-sm";
+import { genMissSM }              from "./gen-miss-sm";
 import type { AiBrainWiring }     from "@/lib/api-client";
 
 /** Collect all unique TFs that need an iFVG state machine instance. */
@@ -68,7 +71,10 @@ const SM_PREFIX_TYPE: Record<string, string> = {
   BOSSM:  "bos",
   LSSM:   "liqsweep",
   SNRSM:  "snr",
+  GSNRSM: "gap_snr",
   BRKSM:  "breakout",
+  REJSM:  "rejection",
+  MISSSM: "miss",
 };
 
 /** Map an sm_config type to its function-name prefix. */
@@ -79,7 +85,10 @@ function smPrefixForType(type: string): string {
     case "ob":            return "OBSM";
     case "liqsweep":      return "LSSM";
     case "snr":           return "SNRSM";
+    case "gap_snr":       return "GSNRSM";
     case "breakout":      return "BRKSM";
+    case "rejection":     return "REJSM";
+    case "miss":          return "MISSSM";
     case "bos":
     case "choch":
     case "bos_choch":     return "BOSSM";
@@ -119,7 +128,7 @@ function reconcileStateMachines(aiWiring: AiBrainWiring): AiBrainWiring["sm_conf
 
   // Match  PREFIX_ID_  where PREFIX is a known SM prefix and ID is the TF label.
   // IFVGSM must precede FVGSM in the alternation so the longer prefix wins.
-  const re = /\b(IFVGSM|FVGSM|OBSM|BOSSM|LSSM|SNRSM|BRKSM)_([A-Za-z0-9]+)_/g;
+  const re = /\b(IFVGSM|FVGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM)_([A-Za-z0-9]+)_/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(allCode)) !== null) {
     const prefix = m[1];
@@ -190,10 +199,31 @@ function buildAiStateMachines(configs: AiBrainWiring["sm_configs"]): string {
           (p.expiryBars as number) ?? 100,
         ));
         break;
+      case "gap_snr":
+        parts.push(genGapSnrSM(id, TF, tf,
+          (p.lookback   as number) ?? 20,
+          (p.expiryBars as number) ?? 100,
+        ));
+        break;
       case "breakout":
         parts.push(genBreakoutSM(id, TF, tf,
           (p.lookback   as number) ?? 20,
           (p.expiryBars as number) ?? 100,
+        ));
+        break;
+      case "rejection":
+        parts.push(genRejectionSM(id, TF, tf,
+          (p.lookback     as number) ?? 30,
+          (p.minWickRatio as number) ?? 0.5,
+          (p.expiryBars   as number) ?? 150,
+        ));
+        break;
+      case "miss":
+        parts.push(genMissSM(id, TF, tf,
+          (p.lookback   as number) ?? 40,
+          (p.swingLen   as number) ?? 3,
+          (p.nearPoints as number) ?? 50,
+          (p.expiryBars as number) ?? 200,
         ));
         break;
       default:
