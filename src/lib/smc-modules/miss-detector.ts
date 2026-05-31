@@ -48,7 +48,9 @@ export function generateMissDetector(): string {
 //--- Inputs — Detection
 input ENUM_TIMEFRAMES InpTF         = PERIOD_CURRENT; // Timeframe
 input int             InpLookback   = 500;            // Historical bars to scan
-input int             InpNearPoints = 50;             // Max distance to level (points)
+input double          InpNearATR    = 0.20;           // Proximity as ATR fraction (auto-scales to any instrument)
+input int             InpATRPeriod  = 14;             // ATR lookback period
+input int             InpNearPoints = 0;              // Override: fixed distance in points (0 = use ATR)
 input int             InpExpiryBars = 200;            // Bars until a level expires (0 = never)
 input bool            InpUseClassic = true;           // Use Classic (reversal-pair) levels
 input bool            InpUseGap     = true;           // Use Gap (continuation-pair) levels
@@ -163,6 +165,25 @@ void UpdateMissLabel(int i, int dir, double wickExtreme, datetime pivT)
 }
 
 //+------------------------------------------------------------------+
+// Simple ATR (mean true range) over InpATRPeriod bars before sh.
+// Used to scale the proximity threshold to any instrument / timeframe.
+double CalcATR(int sh)
+{
+   int avail = iBars(_Symbol, InpTF);
+   if(avail < sh + InpATRPeriod + 2) return 0.0;
+   double sum = 0.0;
+   for(int k = sh + 1; k <= sh + InpATRPeriod; k++)
+   {
+      double h  = iHigh (_Symbol, InpTF, k);
+      double l  = iLow  (_Symbol, InpTF, k);
+      double pc = iClose(_Symbol, InpTF, k + 1);
+      double tr = MathMax(h - l, MathMax(MathAbs(h - pc), MathAbs(l - pc)));
+      sum += tr;
+   }
+   return sum / (double)InpATRPeriod;
+}
+
+//+------------------------------------------------------------------+
 // Check bar sh against all live levels.
 // Touch → level dead + label removed.
 // Closer approach → label updated to this bar.
@@ -171,7 +192,9 @@ void CheckMiss(int sh)
    double   hi   = iHigh (_Symbol, InpTF, sh);
    double   lo   = iLow  (_Symbol, InpTF, sh);
    datetime t    = iTime (_Symbol, InpTF, sh);
-   double   near = InpNearPoints * _Point;
+   double   atr  = CalcATR(sh);
+   double   near = (InpNearPoints > 0) ? InpNearPoints * _Point
+                                       : InpNearATR * atr;
 
    for(int i = 0; i < levTotal; i++)
    {
