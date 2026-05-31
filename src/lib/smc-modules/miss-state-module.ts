@@ -98,6 +98,26 @@ int CandleDir(int sh)
 }
 
 //+------------------------------------------------------------------+
+//| Mark a level dead the moment any wick touches it.               |
+//| Once touched (even a rejection wick) it is no longer a fresh    |
+//| miss zone — price already reached it.                           |
+//+------------------------------------------------------------------+
+void CheckActivity(int sh)
+{
+   double   hi = iHigh(_Symbol, InpTF, sh);
+   double   lo = iLow (_Symbol, InpTF, sh);
+   datetime t  = iTime(_Symbol, InpTF, sh);
+   for(int i = 0; i < levTotal; i++)
+   {
+      if(levList[i].broken) continue;
+      if(levList[i].confirmTime >= t) continue;
+      double lvl = levList[i].level;
+      if(levList[i].type == TYPE_SUPPORT    && lo <= lvl) levList[i].broken = true;
+      if(levList[i].type == TYPE_RESISTANCE && hi >= lvl) levList[i].broken = true;
+   }
+}
+
+//+------------------------------------------------------------------+
 //| Is bar sh a confirmed swing pivot? +1 high, -1 low, 0 none.     |
 //+------------------------------------------------------------------+
 int PivotDir(int sh)
@@ -226,6 +246,7 @@ void CheckMiss(int sh)
             if(InpShowLog)
                PrintFormat("MISS_BULL | level=%.5f | pivot=%.5f | time=%s",
                   lvl, pivLo, TimeToString(pivT, TIME_DATE|TIME_MINUTES));
+            levList[i].broken = true;  // one miss per level
          }
       }
       else if(pd == 1 && levList[i].type == TYPE_RESISTANCE)
@@ -237,6 +258,7 @@ void CheckMiss(int sh)
             if(InpShowLog)
                PrintFormat("MISS_BEAR | level=%.5f | pivot=%.5f | time=%s",
                   lvl, pivHi, TimeToString(pivT, TIME_DATE|TIME_MINUTES));
+            levList[i].broken = true;  // one miss per level
          }
       }
    }
@@ -309,6 +331,7 @@ int OnCalculate(const int rates_total,
       for(int sh = limit; sh >= InpSwingLen + 1; sh--)
       {
          DetectLevels(sh + 1, sh);
+         CheckActivity(sh);
          CheckMiss(sh);
          AgeLevels();
       }
@@ -319,7 +342,7 @@ int OnCalculate(const int rates_total,
    if(sh1IsNewBar())
    {
       DetectLevels(2, 1);
-      // Pivot at InpSwingLen+1 just became fully confirmable
+      CheckActivity(1);
       CheckMiss(InpSwingLen + 1);
       AgeLevels();
    }

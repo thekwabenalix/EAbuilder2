@@ -148,19 +148,22 @@ void DetectLevels(int shA, int shB)
 }
 
 //+------------------------------------------------------------------+
-//| Mark any level broken if a candle closes through it.            |
+//| Mark a level dead the moment any wick touches it.               |
+//| Once touched (even a rejection wick) it is no longer a fresh    |
+//| miss zone — price already reached it.                           |
 //+------------------------------------------------------------------+
-void CheckBreakouts(int sh)
+void CheckActivity(int sh)
 {
-   double   c = iClose(_Symbol, InpTF, sh);
-   datetime t = iTime (_Symbol, InpTF, sh);
+   double   hi = iHigh(_Symbol, InpTF, sh);
+   double   lo = iLow (_Symbol, InpTF, sh);
+   datetime t  = iTime(_Symbol, InpTF, sh);
    for(int i = 0; i < levTotal; i++)
    {
       if(levList[i].dead) continue;
       if(levList[i].confirmTime >= t) continue;
       double lvl = levList[i].level;
-      if(levList[i].type == TYPE_SUPPORT    && c < lvl) levList[i].dead = true;
-      if(levList[i].type == TYPE_RESISTANCE && c > lvl) levList[i].dead = true;
+      if(levList[i].type == TYPE_SUPPORT    && lo <= lvl) levList[i].dead = true;
+      if(levList[i].type == TYPE_RESISTANCE && hi >= lvl) levList[i].dead = true;
    }
 }
 
@@ -246,12 +249,18 @@ void CheckMiss(int sh)
       if(pd == -1 && levList[i].type == TYPE_SUPPORT)
       {
          if(pivLo > lvl && (pivLo - lvl) <= near)
+         {
             DrawMiss(1, pivLo, levList[i].levelTime, pivT, lvl);
+            levList[i].dead = true;  // one miss per level
+         }
       }
       else if(pd == 1 && levList[i].type == TYPE_RESISTANCE)
       {
          if(pivHi < lvl && (lvl - pivHi) <= near)
+         {
             DrawMiss(-1, pivHi, levList[i].levelTime, pivT, lvl);
+            levList[i].dead = true;  // one miss per level
+         }
       }
    }
 }
@@ -286,7 +295,7 @@ void Rebuild()
    for(int sh = scan; sh >= 1; sh--)
    {
       DetectLevels(sh + 1, sh);
-      CheckBreakouts(sh);   // invalidate levels price has already closed through
+      CheckActivity(sh);   // invalidate levels price has already closed through
       if(sh >= InpSwingLen + 1) CheckMiss(sh);
       AgeLevels();
    }
@@ -321,7 +330,7 @@ int OnCalculate(const int rates_total,
    {
       lastBarTime = curBar;
       DetectLevels(2, 1);
-      CheckBreakouts(1);
+      CheckActivity(1);
       CheckMiss(InpSwingLen + 1);
       AgeLevels();
    }
