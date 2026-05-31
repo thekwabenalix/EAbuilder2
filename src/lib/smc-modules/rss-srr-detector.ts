@@ -68,6 +68,7 @@ struct LevelRec
    datetime confirmTime;
    bool     broken;         // close-broke the level price
    bool     justBroken;
+   bool     priorTouched;   // wick reached level on a previous bar → level no longer fresh
    bool     swept;          // already fired RSS/SRR signal
    bool     invalidated;    // wick extreme crossed → drawings removed
    int      ageCounter;
@@ -120,8 +121,9 @@ void AddLevel(int type, double level, double wickExt, datetime tA, datetime tB)
    levList[idx].wickExtreme  = wickExt;
    levList[idx].levelTime    = tA;
    levList[idx].confirmTime  = tB;
-   levList[idx].broken       = false;
+   levList[idx].broken        = false;
    levList[idx].justBroken   = false;
+   levList[idx].priorTouched = false;
    levList[idx].swept        = false;
    levList[idx].invalidated  = false;
    levList[idx].ageCounter   = 0;
@@ -247,22 +249,38 @@ void CheckSweeps(int sh)
    double   barClose = iClose(_Symbol, InpTF, sh);
    datetime t        = iTime (_Symbol, InpTF, sh);
 
-   // Pass 1: mark close-breaks
+   double barHigh = iHigh(_Symbol, InpTF, sh);
+   double barLow  = iLow (_Symbol, InpTF, sh);
+
+   // Pass 1: mark close-breaks AND prior wick touches (makes level non-fresh)
    for(int i = 0; i < levTotal; i++)
    {
       levList[i].justBroken = false;
       if(levList[i].broken || levList[i].invalidated) continue;
       if(levList[i].confirmTime >= t) continue;
-      if(levList[i].type == TYPE_SUPPORT && barClose < levList[i].level)
-         { levList[i].broken = true; levList[i].justBroken = true; }
-      else if(levList[i].type == TYPE_RESISTANCE && barClose > levList[i].level)
-         { levList[i].broken = true; levList[i].justBroken = true; }
+
+      if(levList[i].type == TYPE_SUPPORT)
+      {
+         if(barClose < levList[i].level)
+            { levList[i].broken = true; levList[i].justBroken = true; }
+         else if(barLow <= levList[i].level)        // wick touched support — no longer fresh
+            levList[i].priorTouched = true;
+      }
+      else // TYPE_RESISTANCE
+      {
+         if(barClose > levList[i].level)
+            { levList[i].broken = true; levList[i].justBroken = true; }
+         else if(barHigh >= levList[i].level)       // wick touched resistance — no longer fresh
+            levList[i].priorTouched = true;
+      }
    }
 
-   // Pass 2: credit opposite active levels (not broken, not swept, not invalidated)
+   // Pass 2: credit opposite active levels (not broken, not swept, not invalidated, not prior-touched)
    for(int i = 0; i < levTotal; i++)
    {
       if(!levList[i].justBroken) continue;
+      // Broken level must be FRESH — never wicked before this bar
+      if(levList[i].priorTouched) continue;
       if(levList[i].type == TYPE_SUPPORT)
       {
          double bSup = levList[i].level; datetime bTime = levList[i].levelTime;
