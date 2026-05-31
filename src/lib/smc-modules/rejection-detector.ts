@@ -54,11 +54,13 @@ input double          InpMinWickRatio = 0.5;            // Rejection wick >= thi
 input int             InpExpiryBars   = 150;            // Bars until a level expires (0 = never)
 input bool            InpUseClassic   = true;           // Use Classic (reversal-pair) levels
 input bool            InpUseGap       = true;           // Use Gap (continuation-pair) levels
-input int             InpLineBars     = 4;               // Rejection line length (bars)
+input int             InpLineBars     = 6;               // Rejection line length (bars)
+input string          InpLabelOverride= "";              // Custom label ("" = auto DRD/WRW/4R4/1R1)
 //--- Inputs — Colours
-input color           InpBullColor    = clrMediumSeaGreen; // Bullish rejection
-input color           InpBearColor    = clrTomato;          // Bearish rejection
+input color           InpBullColor    = clrMediumSeaGreen; // Bullish rejection (support held)
+input color           InpBearColor    = clrTomato;          // Bearish rejection (resistance held)
 input int             InpLineWidth    = 2;               // Rejection line width
+input int             InpFontSize     = 8;               // Label font size
 input bool            InpShowLog      = true;            // Print events to journal
 
 //+------------------------------------------------------------------+
@@ -79,6 +81,26 @@ datetime lastBarTime = 0;
 
 //+------------------------------------------------------------------+
 string ObjLine(int id) { return "SMCREJ_" + IntegerToString(id) + "_ln"; }
+string ObjLbl (int id) { return "SMCREJ_" + IntegerToString(id) + "_lb"; }
+
+//+------------------------------------------------------------------+
+//| Timeframe-based rejection name (playbook):                      |
+//|   H1 → 1R1, H4 → 4R4, D1 → DRD, W1 → WRW, MN → MRM, else → Rej  |
+//+------------------------------------------------------------------+
+string RejName()
+{
+   if(StringLen(InpLabelOverride) > 0) return InpLabelOverride;
+   ENUM_TIMEFRAMES tf = (InpTF == PERIOD_CURRENT) ? (ENUM_TIMEFRAMES)Period() : InpTF;
+   switch(tf)
+   {
+      case PERIOD_H1:  return "1R1";
+      case PERIOD_H4:  return "4R4";
+      case PERIOD_D1:  return "DRD";
+      case PERIOD_W1:  return "WRW";
+      case PERIOD_MN1: return "MRM";
+      default:         return "Rej";
+   }
+}
 
 int CandleDir(int sh)
 {
@@ -140,19 +162,20 @@ void DetectLevels(int shA, int shB)
 }
 
 //+------------------------------------------------------------------+
-//| Draw a short slanted rejection line: from the wick extreme back  |
-//| toward the level. Bull slants up-right, bear slants down-right.  |
-//| Not a horizontal level line — it marks the rejection itself.     |
+//| Draw a SHORT horizontal line at the rejected level (starting at  |
+//| the reject candle, extending right InpLineBars) + a label with   |
+//| the timeframe rejection name (DRD/WRW/4R4/1R1/Rej).              |
 //+------------------------------------------------------------------+
 void DrawRejection(int dir, double wickExtreme, datetime t, double lvl)
 {
    int id = nextId++;
-   string ln = ObjLine(id);
-   // Right end projected InpLineBars into the future, anchored at the level price
+   string ln  = ObjLine(id);
+   string lbl = ObjLbl(id);
    datetime tRight = t + (datetime)(PeriodSeconds(InpTF) * InpLineBars);
    color c = (dir > 0) ? InpBullColor : InpBearColor;
 
-   if(ObjectCreate(0, ln, OBJ_TREND, 0, t, wickExtreme, tRight, lvl))
+   // Short horizontal segment AT the level (both endpoints = lvl)
+   if(ObjectCreate(0, ln, OBJ_TREND, 0, t, lvl, tRight, lvl))
    {
       ObjectSetInteger(0, ln, OBJPROP_COLOR, c);
       ObjectSetInteger(0, ln, OBJPROP_WIDTH, InpLineWidth);
@@ -161,9 +184,18 @@ void DrawRejection(int dir, double wickExtreme, datetime t, double lvl)
       ObjectSetInteger(0, ln, OBJPROP_BACK, false);
       ObjectSetInteger(0, ln, OBJPROP_SELECTABLE, false);
    }
+   // Label at the right end with the TF rejection name
+   if(ObjectCreate(0, lbl, OBJ_TEXT, 0, tRight, lvl))
+   {
+      ObjectSetString (0, lbl, OBJPROP_TEXT, RejName());
+      ObjectSetInteger(0, lbl, OBJPROP_COLOR, c);
+      ObjectSetInteger(0, lbl, OBJPROP_FONTSIZE, InpFontSize);
+      ObjectSetInteger(0, lbl, OBJPROP_ANCHOR, ANCHOR_LEFT);
+      ObjectSetInteger(0, lbl, OBJPROP_SELECTABLE, false);
+   }
    if(InpShowLog)
-      PrintFormat("REJECTION_%s | level=%.5f | wick=%.5f | time=%s",
-         dir > 0 ? "BULL" : "BEAR", lvl, wickExtreme,
+      PrintFormat("REJECTION_%s | %s | level=%.5f | wick=%.5f | time=%s",
+         dir > 0 ? "BULL" : "BEAR", RejName(), lvl, wickExtreme,
          TimeToString(t, TIME_DATE|TIME_MINUTES));
 }
 
