@@ -35,6 +35,9 @@ import { generateFvgDetector } from "@/lib/smc-modules/fvg-detector";
 import { generateFvgInversionDetector } from "@/lib/smc-modules/fvg-inversion-detector";
 import { generateObDetector } from "@/lib/smc-modules/ob-detector";
 import { generateBbDetector } from "@/lib/smc-modules/bb-detector";
+import { generateFvgLiquidityDetector } from "@/lib/smc-modules/fvg-liquidity-detector";
+import { generateObLiquidityDetector } from "@/lib/smc-modules/ob-liquidity-detector";
+import { generateBbLiquidityDetector } from "@/lib/smc-modules/bb-liquidity-detector";
 import { generateLiqSweepDetector } from "@/lib/smc-modules/liqsweep-detector";
 import { generateSwingStructureDetector } from "@/lib/smc-modules/swing-structure-detector";
 import { generateBosDetector } from "@/lib/smc-modules/bos-detector";
@@ -369,6 +372,81 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Journal: MB_CREATED | MB_MITIGATED | id | dir | level | bar",
         ],
         status: "pending",
+      },
+      {
+        id: "fvg-liquidity",
+        filename: "FVG_Liquidity_Detector.mq5",
+        name: "FVG Liquidity Detector",
+        description:
+          "Liquidity build-up around a Fair Value Gap — one or more candles come " +
+          "close to an FVG but fail to enter it. The resting stops that accumulate " +
+          "turn the gap into a higher-probability reaction level. The closest-approach " +
+          "candle is labeled 'FLq'; entering the gap kills the level.",
+        rules: [
+          "FVG: 3-candle gap — Bullish C1.high<C3.low (near edge=C3.low), Bearish C1.low>C3.high (near edge=C3.high)",
+          "Proximity auto-scales: InpNearATR × ATR(14), or fixed InpNearPoints override",
+          "Liquidity = wick within proximity of the gap edge WITHOUT entering the gap",
+          "Touch (wick low<=gap top for bull / high>=gap bottom for bear) kills the level",
+          "Closest approach wins — label moves to a nearer candle if one appears",
+          "Levels expire after InpExpiryBars bars (0 = never)",
+        ],
+        output: [
+          "'FLq' label on the closest-approach candle (above wick for bear, below for bull)",
+          "Journal: FVG_LIQ_BULL | FVG_LIQ_BEAR | gap | wick | dist pts | time",
+          "Inputs: InpNearATR (0.20) · InpATRPeriod (14) · InpNearPoints override · expiry_bars",
+        ],
+        status: "ready",
+        generate: generateFvgLiquidityDetector,
+      },
+      {
+        id: "ob-liquidity",
+        filename: "OB_Liquidity_Detector.mq5",
+        name: "OB Liquidity Detector",
+        description:
+          "Liquidity build-up around an Order Block — candles approach the OB but " +
+          "fail to touch its BODY. The accumulated liquidity makes the OB a stronger " +
+          "reaction level. The closest-approach candle is labeled 'OLq'; touching the " +
+          "OB body kills the level.",
+        rules: [
+          "OB: displacement-based (body>=InpDispMult×ATR); Bull OB=last bearish candle, Bear OB=last bullish candle",
+          "Body near-edge = the OB candle's OPEN (body top for bull OB, body bottom for bear OB)",
+          "Liquidity = wick within proximity of the body edge WITHOUT touching the body",
+          "Touch (wick low<=obOpen for bull / high>=obOpen for bear) kills the level",
+          "Proximity = InpNearATR × ATR(14), or fixed InpNearPoints override",
+          "Levels expire after InpExpiryBars bars (0 = never)",
+        ],
+        output: [
+          "'OLq' label on the closest-approach candle",
+          "Journal: OB_LIQ_BULL | OB_LIQ_BEAR | body | wick | dist pts | time",
+          "Inputs: disp_mult · ob_scan_back · InpNearATR (0.20) · near_points override · expiry_bars",
+        ],
+        status: "ready",
+        generate: generateObLiquidityDetector,
+      },
+      {
+        id: "bb-liquidity",
+        filename: "BB_Liquidity_Detector.mq5",
+        name: "BB Liquidity Detector",
+        description:
+          "Liquidity build-up around a Breaker Block — price does not touch the " +
+          "breaker's BODY but accumulates around it. An OB that gets closed through " +
+          "flips polarity into a breaker; liquidity then builds on its flipped body. " +
+          "The closest-approach candle is labeled 'BLq'; touching the body kills it.",
+        rules: [
+          "OB detected via displacement, then becomes a BREAKER when price CLOSES through its zone",
+          "Bullish OB broken DOWN → Bear Breaker (resistance); Bearish OB broken UP → Bull Breaker (support)",
+          "Breaker body near-edge = the original OB candle's CLOSE (polarity flips the edge from open to close)",
+          "Liquidity = wick within proximity of the breaker body edge WITHOUT touching it",
+          "Touch (low<=obClose for bull breaker / high>=obClose for bear breaker) kills the level",
+          "Unbroken OBs expire after InpObExpiry bars; breakers expire after InpBBExpiry bars",
+        ],
+        output: [
+          "'BLq' label on the closest-approach candle",
+          "Journal: BB_FORMED | BB_LIQ_BULL | BB_LIQ_BEAR | body | wick | dist pts | time",
+          "Inputs: disp_mult · ob_scan_back · InpNearATR (0.20) · near_points override · ob_expiry · bb_expiry",
+        ],
+        status: "ready",
+        generate: generateBbLiquidityDetector,
       },
     ],
   },
