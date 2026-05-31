@@ -40,6 +40,8 @@ import { generateObLiquidityDetector } from "@/lib/smc-modules/ob-liquidity-dete
 import { generateBbLiquidityDetector } from "@/lib/smc-modules/bb-liquidity-detector";
 import { generateObFvgDetector } from "@/lib/smc-modules/ob-fvg-detector";
 import { generateUnicornDetector } from "@/lib/smc-modules/unicorn-detector";
+import { generateRsiHiddenDivergenceDetector } from "@/lib/indicator-modules/rsi-hidden-divergence-detector";
+import { generateRsiHiddenDivergenceStateModule } from "@/lib/indicator-modules/rsi-hidden-divergence-state-module";
 import { generateLiqSweepDetector } from "@/lib/smc-modules/liqsweep-detector";
 import { generateSwingStructureDetector } from "@/lib/smc-modules/swing-structure-detector";
 import { generateBosDetector } from "@/lib/smc-modules/bos-detector";
@@ -900,6 +902,32 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         status: "ready",
         generate: generateRssSrrStateModule,
+      },
+      {
+        id: "rsi-hd-state",
+        filename: "RSI_Hidden_Divergence_State_Module.mq5",
+        name: "RSI Hidden Divergence State Module",
+        description:
+          "Phase 2 state machine for RSI Hidden Divergence (trend-continuation SETUP). " +
+          "Detects the divergence then tracks ACTIVE → CONFIRMED → INVALIDATED / EXPIRED, " +
+          "exposing the standard 4-buffer iCustom contract for the Setup Brain / Phase 3 EAs.",
+        rules: [
+          "Bullish HD: price HL + RSI LL; Bearish HD: price LH + RSI HH",
+          "ACTIVE: divergence detected on the second confirmed pivot",
+          "CONFIRMED: price closes beyond the swing between the two swings (above intervening high for bull)",
+          "INVALIDATED: price closes beyond the second swing (below 2nd low for bull / above 2nd high for bear)",
+          "EXPIRED: InpExpiryBars pass with no confirmation",
+        ],
+        output: [
+          "Buffer 0: BullConfirmBuf[sh]=1.0 at bullish HD confirmation",
+          "Buffer 1: BearConfirmBuf[sh]=1.0 at bearish HD confirmation",
+          "Buffer 2: BullSLBuf[sh]=second swing low — SL for bull continuation",
+          "Buffer 3: BearSLBuf[sh]=second swing high — SL for bear continuation",
+          "Journal: RSI_HD_*_ACTIVE | _CONFIRMED | _INVALID | sl | time",
+          "Inputs: rsi_period · pivot_left/right · min_bars · max_bars · expiry_bars",
+        ],
+        status: "ready",
+        generate: generateRsiHiddenDivergenceStateModule,
       },
       {
         id: "choch-state",
@@ -1915,6 +1943,33 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Relative Strength Index with overbought/oversold level alerts and " +
           "hidden/regular divergence detection.",
         status: "planned",
+      },
+      {
+        id: "rsi-hidden-divergence",
+        filename: "RSI_Hidden_Divergence_Detector.mq5",
+        name: "RSI Hidden Divergence",
+        description:
+          "Trend-CONTINUATION setup. Bullish HD: price makes a Higher Low while RSI " +
+          "makes a Lower Low. Bearish HD: price makes a Lower High while RSI makes a " +
+          "Higher High. A SETUP module only — it does not decide direction; pair it " +
+          "with a Direction Brain (BOS / EMA) and an Execution module (IFVG / OB).",
+        rules: [
+          "Bullish HD: Price Low2 > Low1 (HL) AND RSI Low2 < Low1 (LL)",
+          "Bearish HD: Price High2 < High1 (LH) AND RSI High2 > High1 (HH)",
+          "Swings = pivots (InpPivotLeft/Right bars each side); RSI read at the pivot bar",
+          "Two swings must be InpMinBars..InpMaxBars apart",
+          "Confirmed only after the second swing pivot completes",
+        ],
+        output: [
+          "Buffer 0: BullHiddenDivBuf[bar]=1.0 at the second (newer) swing low",
+          "Buffer 1: BearHiddenDivBuf[bar]=1.0 at the second (newer) swing high",
+          "Green line connecting the two price lows + 'Bull HD' label",
+          "Red line connecting the two price highs + 'Bear HD' label",
+          "Journal: RSI_HD_BULL | RSI_HD_BEAR | price/RSI swings | time",
+          "Inputs: rsi_period · pivot_left · pivot_right · min_bars · max_bars",
+        ],
+        status: "ready",
+        generate: generateRsiHiddenDivergenceDetector,
       },
       {
         id: "macd",
