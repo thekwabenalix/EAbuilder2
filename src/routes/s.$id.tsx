@@ -58,6 +58,8 @@ import type { StrategyBlueprint } from "@/types/blueprint";
 import { DEFAULT_BLUEPRINT } from "@/types/blueprint";
 import type { FourBrainConfig, BrainConfig, BrainModuleType } from "@/types/blueprint";
 import { ALL_BRAIN_MODULES, TIMEFRAMES as TF_LIST, formatBrainChain } from "@/lib/brain-modules";
+import { MODULE_UI_PARAMS } from "@/lib/module-library";
+import type { UIParam } from "@/lib/module-library";
 import { generateAiBrainWiring, generateAiEaFromDescription } from "@/lib/api-client";
 import {
   getLocalRunnerHealth,
@@ -508,6 +510,62 @@ const BRAIN_META: Record<BrainRole, { label: string; icon: ReactNode; color: str
   },
 };
 
+// ─── Per-module parameter inputs ─────────────────────────────────────────────
+
+function ModuleParamEditor({
+  modules,
+  params,
+  onChange,
+}: {
+  modules: BrainModuleType[];
+  params: Record<string, unknown>;
+  onChange: (p: Record<string, unknown>) => void;
+}) {
+  // Collect the union of all UI params across all selected modules (deduped by key)
+  const seen = new Set<string>();
+  const allParams: UIParam[] = [];
+  for (const mod of modules) {
+    const uiParams = MODULE_UI_PARAMS[mod] ?? [];
+    for (const p of uiParams) {
+      if (!seen.has(p.key)) { seen.add(p.key); allParams.push(p); }
+    }
+  }
+
+  if (allParams.length === 0) return null;
+
+  return (
+    <div className="space-y-2 pt-1">
+      <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">Parameters</Label>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+        {allParams.map((p) => {
+          const current = typeof params[p.key] === "number" ? params[p.key] as number : p.default;
+          return (
+            <div key={p.key} className="space-y-0.5">
+              <Label className="text-[11px] text-muted-foreground">{p.label}</Label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={p.min}
+                  max={p.max}
+                  step={p.step}
+                  value={current}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (!isNaN(v)) onChange({ ...params, [p.key]: v });
+                  }}
+                  className="w-full h-7 rounded border border-border bg-background px-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                  title={p.hint}
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground/60 leading-tight">{p.hint}</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function BrainCard({
   role,
   config,
@@ -553,6 +611,29 @@ function BrainCard({
           <div className="space-y-1">
             <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">Timeframe</Label>
             <TfPicker value={config.timeframe} onChange={(tf) => onChange({ ...config, timeframe: tf })} />
+          </div>
+
+          {/* Per-module parameter inputs — e.g. EMA periods, lookback bars */}
+          {config.modules.length > 0 && (
+            <ModuleParamEditor
+              modules={config.modules}
+              params={(config.params as Record<string, unknown>) ?? {}}
+              onChange={(p) => onChange({ ...config, params: p })}
+            />
+          )}
+
+          {/* Optional notes for AI — describe any nuance Claude should know */}
+          <div className="space-y-1">
+            <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">
+              Notes for AI <span className="normal-case font-normal">(optional — describe any specific behaviour)</span>
+            </Label>
+            <textarea
+              value={config.description ?? ""}
+              onChange={(e) => onChange({ ...config, description: e.target.value })}
+              rows={2}
+              placeholder={`e.g. "Only trigger after price pulls back to the EMA zone, not on the cross itself"`}
+              className="w-full rounded border border-border bg-background px-2.5 py-1.5 text-xs text-muted-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+            />
           </div>
         </>
       )}

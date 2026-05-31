@@ -609,6 +609,70 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
   },
 ];
 
+// ─── UI param definitions ─────────────────────────────────────────────────────
+
+/**
+ * UI-facing parameter definitions per module.
+ * These drive the input fields shown in the brain config editor.
+ * Each entry maps module id → array of user-facing inputs.
+ */
+export interface UIParam {
+  key: string;          // matches ConfigParam.name in the library + key in brain.params
+  label: string;        // user-facing label  e.g. "Fast EMA Period"
+  type: "number";
+  default: number;
+  min: number;
+  max: number;
+  step: number;
+  hint: string;         // one-line tooltip  e.g. "12 = faster, more responsive"
+}
+
+export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
+  ema: [
+    { key: "fastPeriod", label: "Fast EMA Period",  type: "number", default: 21, min: 2,  max: 200,  step: 1, hint: "e.g. 9, 12, 21 — shorter = faster response" },
+    { key: "slowPeriod", label: "Slow EMA Period",  type: "number", default: 50, min: 5,  max: 500,  step: 1, hint: "e.g. 48, 50, 200 — longer = stronger trend filter" },
+  ],
+  bos: [
+    { key: "lookback",  label: "Structure Lookback (bars)", type: "number", default: 20, min: 5,  max: 200, step: 1, hint: "How many bars back to scan for swing levels" },
+    { key: "swingLen",  label: "Pivot Strength (bars each side)", type: "number", default: 5, min: 1, max: 20, step: 1, hint: "Bars each side needed to confirm a pivot high/low" },
+  ],
+  choch: [
+    { key: "lookback",  label: "Structure Lookback (bars)", type: "number", default: 20, min: 5,  max: 200, step: 1, hint: "How many bars back to scan for swing levels" },
+    { key: "swingLen",  label: "Pivot Strength (bars each side)", type: "number", default: 5, min: 1, max: 20, step: 1, hint: "Bars each side needed to confirm a pivot" },
+  ],
+  bos_choch: [
+    { key: "lookback",  label: "Structure Lookback (bars)", type: "number", default: 20, min: 5,  max: 200, step: 1, hint: "How many bars back to scan for swing levels" },
+    { key: "swingLen",  label: "Pivot Strength (bars each side)", type: "number", default: 5, min: 1, max: 20, step: 1, hint: "Bars each side needed to confirm a pivot" },
+  ],
+  fvg: [
+    { key: "expiryBars", label: "Zone Expiry (bars)", type: "number", default: 100, min: 10, max: 500, step: 10, hint: "How many bars before an untouched FVG expires" },
+  ],
+  fvg_inversion: [
+    { key: "expiryBars", label: "Zone Expiry (bars)", type: "number", default: 100, min: 10, max: 500, step: 10, hint: "How many bars before an untouched iFVG expires" },
+  ],
+  order_block: [
+    { key: "dispMult",   label: "Displacement Body %", type: "number", default: 0.6, min: 0.4, max: 0.9, step: 0.05, hint: "Minimum body as fraction of candle range (0.6 = 60%)" },
+    { key: "scanBack",   label: "OB Scan Lookback (bars)", type: "number", default: 5,   min: 1,   max: 15,  step: 1,    hint: "Bars before displacement to look for the OB candle" },
+    { key: "expiryBars", label: "Zone Expiry (bars)",  type: "number", default: 100, min: 10,  max: 500, step: 10,   hint: "How many bars before an untouched OB expires" },
+  ],
+  liqsweep: [
+    { key: "swingLen",  label: "Pivot Strength (bars each side)", type: "number", default: 3, min: 1, max: 10, step: 1, hint: "Bars each side needed to confirm a swing pivot" },
+    { key: "lookback",  label: "Swing Lookback (bars)", type: "number", default: 20, min: 5, max: 100, step: 1, hint: "How many bars back to scan for swing levels to sweep" },
+  ],
+  snr: [
+    { key: "lookback",  label: "Level Lookback (bars)", type: "number", default: 20, min: 5,  max: 200, step: 5,  hint: "How many bars back to identify S/R levels" },
+  ],
+  bb: [
+    { key: "period",    label: "Period",      type: "number", default: 20, min: 5,  max: 100, step: 1, hint: "Moving average period for the Bollinger midline" },
+  ],
+  swing_structure: [
+    { key: "lookback",  label: "Range Lookback (bars)", type: "number", default: 50, min: 10, max: 200, step: 5, hint: "Bar range used to define the swing structure" },
+  ],
+  breakout: [
+    { key: "lookback",  label: "Range Lookback (bars)", type: "number", default: 20, min: 5,  max: 100, step: 5, hint: "Bar range whose high/low defines the breakout level" },
+  ],
+};
+
 // ─── Context builders for Claude ─────────────────────────────────────────────
 
 /**

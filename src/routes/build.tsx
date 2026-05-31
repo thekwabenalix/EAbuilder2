@@ -19,6 +19,8 @@ import type { StrategyBlueprint } from "@/types/blueprint";
 import { DEFAULT_BLUEPRINT } from "@/types/blueprint";
 import { ALL_BRAIN_MODULES, TIMEFRAMES as TF_LIST } from "@/lib/brain-modules";
 import type { BrainModuleDef } from "@/lib/brain-modules";
+import { MODULE_UI_PARAMS } from "@/lib/module-library";
+import type { UIParam } from "@/lib/module-library";
 
 export const Route = createFileRoute("/build")({
   component: FourBrainBuilderPage,
@@ -448,14 +450,59 @@ function BrainCard({
             />
           </div>
 
-          {/* Description — how modules work together */}
+          {/* Per-module parameter inputs */}
+          {state?.modules && state.modules.length > 0 && (() => {
+            const seen = new Set<string>();
+            const allUiParams: UIParam[] = [];
+            for (const mod of state.modules) {
+              for (const p of MODULE_UI_PARAMS[mod] ?? []) {
+                if (!seen.has(p.key)) { seen.add(p.key); allUiParams.push(p); }
+              }
+            }
+            if (allUiParams.length === 0) return null;
+            return (
+              <div>
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                  Parameters
+                </p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                  {allUiParams.map((p) => {
+                    const current = typeof state?.params?.[p.key] === "number"
+                      ? state.params![p.key] as number : p.default;
+                    return (
+                      <div key={p.key} className="space-y-0.5">
+                        <label className="text-[11px] text-muted-foreground">{p.label}</label>
+                        <input
+                          type="number"
+                          min={p.min} max={p.max} step={p.step}
+                          value={current}
+                          onChange={(e) => {
+                            const v = parseFloat(e.target.value);
+                            if (!isNaN(v)) onChange({
+                              ...(state as BrainState),
+                              params: { ...(state?.params ?? {}), [p.key]: v },
+                            });
+                          }}
+                          className="w-full h-7 rounded border border-border bg-background px-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                          title={p.hint}
+                        />
+                        <p className="text-[10px] text-muted-foreground/60">{p.hint}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Notes for AI */}
           <div>
             <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              Description — how these modules work together
+              Notes for AI <span className="normal-case font-normal text-muted-foreground/60">(optional)</span>
             </p>
             <Textarea
-              className="text-xs font-mono resize-none h-16"
-              placeholder={`e.g. "OB when price closes back outside the zone, FVG when it fills and retests, both trigger entry"`}
+              className="text-xs font-mono resize-none h-14"
+              placeholder={`Describe any specific behaviour, e.g. "only enter after EMA retest, not on the cross itself"`}
               value={state?.description ?? ""}
               onChange={(e) =>
                 onChange({ ...(state as BrainState), description: e.target.value })
@@ -463,7 +510,7 @@ function BrainCard({
             />
           </div>
 
-          {/* AI param extraction */}
+          {/* AI param extraction — kept as optional advanced tool */}
           {state?.modules && state.modules.length > 0 && (
             <AIParamExtractor
               role={role}
