@@ -25,6 +25,8 @@ import { genBosSM }               from "./gen-bos-sm";
 import type { BosSmMode }         from "./gen-bos-sm";
 import { genObSM }                from "./gen-ob-sm";
 import { genLiqSweepSM }          from "./gen-liqsweep-sm";
+import { genSnrSM }               from "./gen-snr-sm";
+import { genBreakoutSM }          from "./gen-breakout-sm";
 import type { AiBrainWiring }     from "@/lib/api-client";
 
 /** Collect all unique TFs that need an iFVG state machine instance. */
@@ -65,7 +67,25 @@ const SM_PREFIX_TYPE: Record<string, string> = {
   OBSM:   "ob",
   BOSSM:  "bos",
   LSSM:   "liqsweep",
+  SNRSM:  "snr",
+  BRKSM:  "breakout",
 };
+
+/** Map an sm_config type to its function-name prefix. */
+function smPrefixForType(type: string): string {
+  switch (type) {
+    case "fvg_inversion": return "IFVGSM";
+    case "fvg":           return "FVGSM";
+    case "ob":            return "OBSM";
+    case "liqsweep":      return "LSSM";
+    case "snr":           return "SNRSM";
+    case "breakout":      return "BRKSM";
+    case "bos":
+    case "choch":
+    case "bos_choch":     return "BOSSM";
+    default:              return "BOSSM";
+  }
+}
 
 /** Build the PERIOD_ constant from a TF id like "M5", "H1", "MN". */
 function periodConst(id: string): string {
@@ -97,8 +117,9 @@ function reconcileStateMachines(aiWiring: AiBrainWiring): AiBrainWiring["sm_conf
     aiWiring.execution_brain ?? "",
   ].join("\n");
 
-  // Match  PREFIX_ID_  where PREFIX is a known SM prefix and ID is the TF label
-  const re = /\b(IFVGSM|FVGSM|OBSM|BOSSM|LSSM)_([A-Za-z0-9]+)_/g;
+  // Match  PREFIX_ID_  where PREFIX is a known SM prefix and ID is the TF label.
+  // IFVGSM must precede FVGSM in the alternation so the longer prefix wins.
+  const re = /\b(IFVGSM|FVGSM|OBSM|BOSSM|LSSM|SNRSM|BRKSM)_([A-Za-z0-9]+)_/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(allCode)) !== null) {
     const prefix = m[1];
@@ -130,11 +151,7 @@ function buildAiStateMachines(configs: AiBrainWiring["sm_configs"]): string {
 
   for (const [key, cfg] of Object.entries(configs)) {
     const { type, id, TF, tf, params: p = {} } = cfg;
-    const prefix =
-      type === "fvg_inversion" ? "IFVGSM" :
-      type === "fvg"           ? "FVGSM"  :
-      type === "ob"            ? "OBSM"   :
-      type === "liqsweep"      ? "LSSM"   : "BOSSM";
+    const prefix = smPrefixForType(type);
     const emitKey = `${prefix}|${id.toUpperCase()}`;
     if (emitted.has(emitKey)) continue;   // same machine already emitted
     emitted.add(emitKey);
@@ -165,6 +182,18 @@ function buildAiStateMachines(configs: AiBrainWiring["sm_configs"]): string {
         parts.push(genLiqSweepSM(id, TF, tf,
           (p.swingLen as number) ?? 3,
           (p.lookback as number) ?? 20,
+        ));
+        break;
+      case "snr":
+        parts.push(genSnrSM(id, TF, tf,
+          (p.lookback   as number) ?? 20,
+          (p.expiryBars as number) ?? 100,
+        ));
+        break;
+      case "breakout":
+        parts.push(genBreakoutSM(id, TF, tf,
+          (p.lookback   as number) ?? 20,
+          (p.expiryBars as number) ?? 100,
         ));
         break;
       default:
@@ -294,11 +323,7 @@ export function generateEA(params: MQL5CodeGenParams): string {
         const seen = new Set<string>();
         const resets: string[] = [];
         for (const cfg of Object.values(reconciledConfigs)) {
-          const prefix =
-            cfg.type === "fvg_inversion" ? "IFVGSM" :
-            cfg.type === "fvg"           ? "FVGSM"  :
-            cfg.type === "ob"            ? "OBSM"   :
-            cfg.type === "liqsweep"      ? "LSSM"   : "BOSSM";
+          const prefix = smPrefixForType(cfg.type);
           const key = `${prefix}_${cfg.id}`;
           if (seen.has(key)) continue;
           seen.add(key);

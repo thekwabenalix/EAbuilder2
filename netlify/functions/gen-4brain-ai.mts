@@ -89,7 +89,7 @@ Return a JSON object with EXACTLY this structure:
   "execution_brain": "void Execution_Brain_Execute()\\n{\\n  ...\\n}",
   "sm_configs": {
     "<unique_key>": {
-      "type":   "<module_id>",     // fvg | fvg_inversion | ob | bos | choch | bos_choch | liqsweep
+      "type":   "<module_id>",     // fvg | fvg_inversion | ob | bos | choch | bos_choch | liqsweep | snr | breakout
       "id":     "<tf_label>",      // e.g. "D1", "H4", "M15" — used as SM prefix
       "TF":     "<PERIOD_const>",  // e.g. "PERIOD_D1"
       "tf":     "<label>",         // same as id, used in log messages
@@ -161,7 +161,9 @@ CODE GENERATION RULES
     Pin Bar and Engulfing are also INLINE (no SM, no sm_config).
 
     State machines that DO need an sm_config entry: fvg, fvg_inversion, ob, bos,
-    choch, bos_choch, liqsweep. Only these.
+    choch, bos_choch, liqsweep, snr, breakout. Only these.
+    Prefixes: fvg→FVGSM, fvg_inversion→IFVGSM, ob→OBSM, bos/choch/bos_choch→BOSSM,
+    liqsweep→LSSM, snr→SNRSM, breakout→BRKSM.
 
 6.  Include one PrintFormat() log per state transition. Use prefix [DIR], [SETUP], [EXEC].
 
