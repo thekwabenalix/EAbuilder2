@@ -43,6 +43,7 @@ import { generateClassicSnrDetector } from "@/lib/smc-modules/classic-snr-detect
 import { generateGapSnrDetector } from "@/lib/smc-modules/gap-snr-detector";
 import { generateBreakoutDetector } from "@/lib/smc-modules/breakout-detector";
 import { generateRejectionDetector } from "@/lib/smc-modules/rejection-detector";
+import { generateMissDetector } from "@/lib/smc-modules/miss-detector";
 import { generateFvgStateModule }       from "@/lib/smc-modules/fvg-state-module";
 import { generateObStateModule }        from "@/lib/smc-modules/ob-state-module";
 import { generateBreakoutStateModule }  from "@/lib/smc-modules/breakout-state-module";
@@ -492,12 +493,28 @@ const TRADING_MODULES: ModuleCategory[] = [
       },
       {
         id: "miss",
-        filename: "SNR_Miss_Detector.mq5",
+        filename: "Miss_Detector.mq5",
         name: "Miss",
         description:
-          "Identifies candles that approached but failed to reach a key level — " +
-          "the classic 'miss' setup where orders were filled before price touched.",
-        status: "planned",
+          "Reactive SNR (Slide 27) — a swing turning point lands NEAR an S/R " +
+          "level without touching it. Price respected the level (it serves as " +
+          "liquidity). Embeds Classic + Gap level detection, with the two-candle " +
+          "SNR guard so the formation itself is never counted as a miss.",
+        rules: [
+          "Levels: Classic (Bull→Bear = Res, Bear→Bull = Sup) + Gap (same-dir pair); valid only AFTER Candle B",
+          "Pivot: swing high/low confirmed by InpSwingLen bars each side",
+          "Bullish miss: swing LOW stays ABOVE support, within InpNearPoints, without touching",
+          "Bearish miss: swing HIGH stays BELOW resistance, within InpNearPoints, without touching",
+          "Levels expire after InpExpiryBars bars (0 = never)",
+        ],
+        output: [
+          "Dotted level line from the SNR origin to the miss pivot",
+          "'Miss' label on the swing turning point",
+          "Journal: MISS_BULL | MISS_BEAR | level | pivot | time",
+          "Inputs: swing_len · near_points · use_classic · use_gap · expiry_bars · colors",
+        ],
+        status: "ready",
+        generate: generateMissDetector,
       },
       {
         id: "multi-rejection",
