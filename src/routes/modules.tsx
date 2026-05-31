@@ -525,25 +525,27 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "RSS_SRR_Detector.mq5",
         name: "RSS / SRR Detector",
         description:
-          "RSS (Resistance Sweeps Supports): Classic Resistance pushes price down to " +
-          "close-break at least two Classic Support levels. " +
-          "SRR (Support Rallies Resistances): Classic Support rallies price up to " +
-          "close-break at least two Classic Resistance levels. " +
-          "A single 'RSS' or 'SRR' label fires on the bar that completes the sweep.",
+          "RSS (Resistance Sweeps Supports): a specific Classic Resistance R pushes price " +
+          "down to close-break at least 2 Classic Support levels that sit below R. " +
+          "SRR (Support Rallies Resistances): a specific Classic Support S rallies price " +
+          "up to close-break at least 2 Classic Resistance levels that sit above S. " +
+          "Each R/S owns its sweep counter and fires exactly once. " +
+          "The driving level line is drawn as the entry reference.",
         rules: [
-          "Levels: Classic SNR only — Bull→Bear pair = Resistance, Bear→Bull pair = Support (A close = level)",
-          "A level is BROKEN when a candle closes through it (wick break does NOT count)",
-          "RSS fires when InpMinBreaks (default 2) supports are broken within InpWindowBars bars",
-          "SRR fires when InpMinBreaks (default 2) resistances are broken within InpWindowBars bars",
-          "Cooldown: one signal per sweep — no re-fire until a full window has elapsed",
+          "Classic SNR only — Bull→Bear pair = Resistance, Bear→Bull pair = Support (A close = level)",
+          "A level is BROKEN when a candle CLOSES through it (wick break does NOT count)",
+          "Each resistance R owns a sweep counter — increments each time a support below R is close-broken",
+          "RSS fires for R when R's sweep counter reaches InpMinBreaks (default 2)",
+          "Mirror: each support S fires SRR when InpMinBreaks resistances above S are broken",
+          "R/S fires exactly once (swept flag set) — no duplicate signals for the same level",
           "Two-candle SNR guard: level not valid until after Candle B closes",
-          "Levels expire after InpExpiryBars bars (0 = never)",
         ],
         output: [
-          "'RSS' label below the signal bar low (bearish sweep complete)",
-          "'SRR' label above the signal bar high (bullish sweep complete)",
-          "Journal: RSS/SRR | breaks=N | level | time",
-          "Inputs: min_breaks · window_bars · expiry_bars · colors",
+          "Solid horizontal line at the driving R (RSS) or S (SRR) — this is the entry reference",
+          "Dotted dashes at each swept support/resistance price at the signal bar",
+          "'RSS' label below the signal bar | 'SRR' label above",
+          "Journal: RSS/SRR | R or S level | swept count | time",
+          "Inputs: min_breaks · expiry_bars · colors · ext_bars",
         ],
         status: "ready",
         generate: generateRssSrrDetector,
@@ -564,15 +566,6 @@ const TRADING_MODULES: ModuleCategory[] = [
         description:
           "Marks the 50% midpoint (equilibrium) of a swing range — the key " +
           "boundary between premium and discount zones.",
-        status: "planned",
-      },
-      {
-        id: "rss-srr",
-        filename: "SNR_RSS_SRR_Detector.mq5",
-        name: "RSS / SRR",
-        description:
-          "Resistance Stays Resistance / Support Stays Resistance — tracks levels " +
-          "that have been tested multiple times without flipping polarity.",
         status: "planned",
       },
     ],
@@ -750,16 +743,17 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "RSS_SRR_State_Module.mq5",
         name: "RSS / SRR State Module",
         description:
-          "Embeds Classic SNR detection and fires buffers when a sweep completes — " +
-          "RSS (2+ supports broken) or SRR (2+ resistances broken) within the window. " +
-          "SL buffers carry the highest swept support (for RSS sells) and lowest swept " +
-          "resistance (for SRR buys) so Phase 3 EAs can size positions precisely.",
+          "Same sweep detection as the RSS/SRR Detector. Each Classic Resistance R owns " +
+          "a sweep counter — RSS fires for R when InpMinBreaks supports below R are " +
+          "close-broken. Mirror for SRR on each support S. SL buffers carry the driving " +
+          "level price so Phase 3 EAs know exactly where to put the stop.",
         rules: [
-          "Levels: Classic SNR only — Bull→Bear = Resistance, Bear→Bull = Support",
-          "RSS fires when InpMinBreaks supports close-broken within InpWindowBars",
-          "SRR fires when InpMinBreaks resistances close-broken within InpWindowBars",
-          "Cooldown: one signal per sweep (no re-fire within same window)",
-          "Two-candle SNR guard applies; levels expire after InpExpiryBars bars",
+          "Classic SNR only — Bull→Bear = Resistance, Bear→Bull = Support (A close = level)",
+          "Each R/S owns a sweep counter that increments on every opposite-side close-break in the correct direction",
+          "RSS fires for R when sweepCount >= InpMinBreaks (supports below R broken)",
+          "SRR fires for S when sweepCount >= InpMinBreaks (resistances above S broken)",
+          "Each level fires exactly once (swept flag) — no duplicate signals",
+          "Two-candle SNR guard; levels expire after InpExpiryBars bars",
         ],
         output: [
           "Buffer 0: SRRBuf[sh]=1.0 at SRR signal bar (bullish sweep)",
