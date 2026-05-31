@@ -188,11 +188,13 @@ void DetectObFvg(int sh)
 }
 
 //+------------------------------------------------------------------+
+// Fresh-zone rule: a setup is shown only while price has NOT returned to the OB.
+// The instant price tests the OB body (wick into it) or trades through it, the
+// zone is consumed and removed.
 void Lifecycle(int sh)
 {
    double hi = iHigh (_Symbol, InpTF, sh);
    double lo = iLow  (_Symbol, InpTF, sh);
-   double cl = iClose(_Symbol, InpTF, sh);
    datetime t = iTime(_Symbol, InpTF, sh);
 
    for(int i = 0; i < cmbTotal; i++)
@@ -201,23 +203,17 @@ void Lifecycle(int sh)
       if(cmb[i].confirmTime >= t) continue;
       ExtendCombo(i, t);
 
-      if(cmb[i].dir == DIR_BULL)
+      // Bull OB sits below: first contact is a wick reaching the body top.
+      if(cmb[i].dir == DIR_BULL && lo <= cmb[i].obTop)
       {
-         if(cl < cmb[i].obLo) { KillCombo(i); continue; }          // OB violated
-         if(cmb[i].state == ST_ACTIVE && lo <= cmb[i].obTop)        // tapped OB body
-         {
-            cmb[i].state = ST_MITIG;
-            if(InpShowLog) PrintFormat("OBFVG_BULL_ENTRY | body=%.5f | %s", cmb[i].obTop, TimeToString(t,TIME_DATE|TIME_MINUTES));
-         }
+         if(InpShowLog) PrintFormat("OBFVG_BULL_TESTED | body=%.5f | %s", cmb[i].obTop, TimeToString(t,TIME_DATE|TIME_MINUTES));
+         KillCombo(i); continue;
       }
-      else
+      // Bear OB sits above: first contact is a wick reaching the body bottom.
+      if(cmb[i].dir == DIR_BEAR && hi >= cmb[i].obBot)
       {
-         if(cl > cmb[i].obHi) { KillCombo(i); continue; }
-         if(cmb[i].state == ST_ACTIVE && hi >= cmb[i].obBot)
-         {
-            cmb[i].state = ST_MITIG;
-            if(InpShowLog) PrintFormat("OBFVG_BEAR_ENTRY | body=%.5f | %s", cmb[i].obBot, TimeToString(t,TIME_DATE|TIME_MINUTES));
-         }
+         if(InpShowLog) PrintFormat("OBFVG_BEAR_TESTED | body=%.5f | %s", cmb[i].obBot, TimeToString(t,TIME_DATE|TIME_MINUTES));
+         KillCombo(i); continue;
       }
    }
 }
