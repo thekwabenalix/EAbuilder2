@@ -1,25 +1,23 @@
 /**
- * SMC Combination Detector — OB + FVG v1.0.0
+ * SMC Combination Detector — OB + FVG v2.0.0
  *
- * A high-probability confluence: an Order Block that has a Fair Value Gap
- * created by the SAME displacement.
- *   Bullish OB → bullish FVG sits ABOVE the OB.
- *   Bearish OB → bearish FVG sits BELOW the OB.
- * Entry is at the BODY of the OB.
+ * An OB+FVG is simply a Fair Value Gap whose FIRST candle is the opposite
+ * colour to the gap direction — that first candle IS the order block.
  *
- * DETECTION (single displacement produces both):
- *   1. Displacement candle d: |close-open| >= InpDispMult x ATR.
- *   2. OB candle = last opposing candle before d (Bull OB = last bearish, etc.).
- *   3. FVG of the displacement: C1=d+1, C3=d-1
- *        Bullish: high(d+1) < low(d-1)  → gap = [high(d+1), low(d-1)]
- *        Bearish: low(d+1)  > high(d-1) → gap = [high(d-1), low(d+1)]
- *   Only when BOTH the OB and the FVG exist is a setup created.
+ *   Bullish OB+FVG: a BULLISH FVG whose first candle (C1) is BEARISH.
+ *   Bearish OB+FVG: a BEARISH FVG whose first candle (C1) is BULLISH.
+ *
+ * 3-candle FVG (C1 = oldest, C3 = newest):
+ *   Bullish FVG: high(C1) < low(C3)  → gap = [high(C1), low(C3)]
+ *   Bearish FVG: low(C1)  > high(C3) → gap = [high(C3), low(C1)]
+ *
+ * The OB is C1's body; entry is at the OB body.
  *
  * LIFECYCLE:
  *   ACTIVE → MITIGATED (price taps OB body) → INVALIDATED (close through OB) / EXPIRED
  */
 
-export const OB_FVG_DETECTOR_VERSION = "1.0.0";
+export const OB_FVG_DETECTOR_VERSION = "2.0.0";
 export const OB_FVG_DETECTOR_MODULE  = "OB_FVG_Detector";
 
 export function generateObFvgDetector(): string {
@@ -27,11 +25,12 @@ export function generateObFvgDetector(): string {
 //| OB_FVG_Detector.mq5                                            |
 //| SMC Combination v${OB_FVG_DETECTOR_VERSION} — Order Block + FVG          |
 //|                                                                  |
-//| An OB paired with an FVG from the same displacement.           |
-//| Bull: FVG above OB. Bear: FVG below OB. Entry at OB body.       |
+//| An FVG whose first candle is the opposite colour = the OB.     |
+//| Bull OB+FVG: bullish FVG, bearish C1. Bear: bearish FVG, bull C1.|
+//| Entry at the OB (C1) body.                                     |
 //+------------------------------------------------------------------+
 #property copyright "EA Builder — SMC Combination"
-#property version   "1.00"
+#property version   "2.00"
 #property strict
 #property indicator_chart_window
 #property indicator_plots 0
@@ -45,9 +44,6 @@ export function generateObFvgDetector(): string {
 
 input ENUM_TIMEFRAMES InpTF          = PERIOD_CURRENT;
 input int             InpLookback    = 500;
-input double          InpDispMult    = 1.5;            // Displacement body >= N x ATR
-input int             InpDispAtrPer  = 14;
-input int             InpObScanBack  = 5;              // Bars back from displacement for OB candle
 input int             InpExpiryBars  = 250;
 input bool            InpDraw        = true;
 input string          InpLabel       = "OB+FVG";
@@ -62,13 +58,13 @@ struct ComboRec
    int      id;
    int      dir;
    int      state;
-   double   obTop;        // OB body top
-   double   obBot;        // OB body bottom (entry zone = body)
-   double   obLo;         // OB candle low  (invalidation ref)
-   double   obHi;         // OB candle high (invalidation ref)
+   double   obTop;        // OB (C1) body top
+   double   obBot;        // OB (C1) body bottom (entry zone)
+   double   obLo;         // C1 low  (invalidation ref)
+   double   obHi;         // C1 high (invalidation ref)
    double   fvgTop;
    double   fvgBot;
-   datetime obTime;       // OB candle time (box left edge)
+   datetime obTime;       // C1 time (box left edge)
    datetime confirmTime;  // C3 time — valid only after this
    bool     dead;
    int      ageCounter;
@@ -83,20 +79,6 @@ datetime lastBarTime = 0;
 string ObBox(int id) { return OBJ_PREFIX + IntegerToString(id) + "_ob"; }
 string FvBox(int id) { return OBJ_PREFIX + IntegerToString(id) + "_fv"; }
 string Lbl  (int id) { return OBJ_PREFIX + IntegerToString(id) + "_lb"; }
-
-double CalcATR(int sh, int period)
-{
-   int avail = iBars(_Symbol, InpTF);
-   if(avail < sh + period + 2) return 0.0;
-   double sum = 0.0;
-   for(int k = sh + 1; k <= sh + period; k++)
-   {
-      double h = iHigh(_Symbol, InpTF, k), l = iLow(_Symbol, InpTF, k);
-      double pc = iClose(_Symbol, InpTF, k + 1);
-      sum += MathMax(h - l, MathMax(MathAbs(h - pc), MathAbs(l - pc)));
-   }
-   return sum / (double)period;
-}
 
 //+------------------------------------------------------------------+
 void Rect(string nm, datetime t1, double p1, datetime t2, double p2, color c, int style, bool fill)
@@ -177,49 +159,32 @@ void AddCombo(int dir, double obTop, double obBot, double obLo, double obHi,
 }
 
 //+------------------------------------------------------------------+
-// Treat bar d as a displacement candle; require BOTH an OB and an FVG.
-void DetectAtDisplacement(int d)
+// 3-candle FVG at C3 = sh (C2 = sh+1, C1 = sh+2).
+// OB+FVG = FVG whose first candle C1 is the opposite colour.
+void DetectObFvg(int sh)
 {
-   if(d < 2) return;                  // need C3 = d-1 closed
-   double atr = CalcATR(d, InpDispAtrPer);
-   if(atr <= 0.0) return;
-   double dOpn = iOpen (_Symbol, InpTF, d);
-   double dCls = iClose(_Symbol, InpTF, d);
-   if(MathAbs(dCls - dOpn) < InpDispMult * atr) return;
-   int dispDir = (dCls > dOpn) ? DIR_BULL : DIR_BEAR;
+   int avail = iBars(_Symbol, InpTF);
+   if(sh + 2 >= avail) return;
 
-   // ── FVG of the displacement (C1=d+1, C3=d-1) ──────────────────
-   double c1h = iHigh(_Symbol, InpTF, d + 1);
-   double c1l = iLow (_Symbol, InpTF, d + 1);
-   double c3h = iHigh(_Symbol, InpTF, d - 1);
-   double c3l = iLow (_Symbol, InpTF, d - 1);
-   double fvgTop = 0, fvgBot = 0;
-   bool   hasFvg = false;
-   if(dispDir == DIR_BULL && c1h < c3l) { fvgTop = c3l; fvgBot = c1h; hasFvg = true; }
-   if(dispDir == DIR_BEAR && c1l > c3h) { fvgTop = c1l; fvgBot = c3h; hasFvg = true; }
-   if(!hasFvg) return;
+   double c1o = iOpen (_Symbol, InpTF, sh + 2);
+   double c1c = iClose(_Symbol, InpTF, sh + 2);
+   double c1h = iHigh (_Symbol, InpTF, sh + 2);
+   double c1l = iLow  (_Symbol, InpTF, sh + 2);
+   double c3h = iHigh (_Symbol, InpTF, sh);
+   double c3l = iLow  (_Symbol, InpTF, sh);
+   datetime t1 = iTime(_Symbol, InpTF, sh + 2);  // C1 time
+   datetime t3 = iTime(_Symbol, InpTF, sh);      // C3 time
 
-   // ── OB candle: last opposing candle before d ──────────────────
-   int available = iBars(_Symbol, InpTF);
-   int scanEnd   = d + InpObScanBack;
-   if(scanEnd >= available - 1) scanEnd = available - 2;
-   for(int j = d + 1; j <= scanEnd; j++)
-   {
-      double jOpn = iOpen (_Symbol, InpTF, j);
-      double jCls = iClose(_Symbol, InpTF, j);
-      if(dispDir == DIR_BULL && jCls < jOpn)   // bull OB = last bearish candle
-      {
-         AddCombo(DIR_BULL, jOpn, jCls, iLow(_Symbol,InpTF,j), iHigh(_Symbol,InpTF,j),
-                  fvgTop, fvgBot, iTime(_Symbol,InpTF,j), iTime(_Symbol,InpTF,d - 1));
-         return;
-      }
-      if(dispDir == DIR_BEAR && jCls > jOpn)   // bear OB = last bullish candle
-      {
-         AddCombo(DIR_BEAR, jCls, jOpn, iLow(_Symbol,InpTF,j), iHigh(_Symbol,InpTF,j),
-                  fvgTop, fvgBot, iTime(_Symbol,InpTF,j), iTime(_Symbol,InpTF,d - 1));
-         return;
-      }
-   }
+   bool c1Bear = (c1c < c1o);
+   bool c1Bull = (c1c > c1o);
+
+   // Bullish OB+FVG: bullish FVG (gap up) with a BEARISH first candle
+   if(c1h < c3l && c1Bear)
+      AddCombo(DIR_BULL, c1o, c1c, c1l, c1h, c3l, c1h, t1, t3);
+
+   // Bearish OB+FVG: bearish FVG (gap down) with a BULLISH first candle
+   if(c1l > c3h && c1Bull)
+      AddCombo(DIR_BEAR, c1c, c1o, c1l, c1h, c1l, c3h, t1, t3);
 }
 
 //+------------------------------------------------------------------+
@@ -274,10 +239,10 @@ void Rebuild()
 {
    ObjectsDeleteAll(0, OBJ_PREFIX);
    cmbTotal = 0; nextId = 0;
-   int scan = MathMin(InpLookback, iBars(_Symbol, InpTF) - InpObScanBack - 2);
+   int scan = MathMin(InpLookback, iBars(_Symbol, InpTF) - 3);
    if(scan < 3) return;
    for(int sh = scan; sh >= 1; sh--)
-      { DetectAtDisplacement(sh); Lifecycle(sh); AgeLevels(); }
+      { DetectObFvg(sh); Lifecycle(sh); AgeLevels(); }
 }
 
 int OnInit()  { lastBarTime = 0; Rebuild(); return INIT_SUCCEEDED; }
@@ -291,7 +256,7 @@ int OnCalculate(const int rates_total, const int prev_calculated,
 {
    datetime curBar = iTime(_Symbol, InpTF, 0);
    if(curBar != lastBarTime)
-      { lastBarTime = curBar; DetectAtDisplacement(2); Lifecycle(1); AgeLevels(); }
+      { lastBarTime = curBar; DetectObFvg(1); Lifecycle(1); AgeLevels(); }
    return rates_total;
 }
 `;

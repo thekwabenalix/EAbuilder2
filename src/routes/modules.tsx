@@ -460,23 +460,22 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "OB_FVG_Detector.mq5",
         name: "OB + FVG",
         description:
-          "Combination setup — an Order Block paired with a Fair Value Gap created " +
-          "by the SAME displacement. A bullish OB has a bullish FVG above it; a " +
-          "bearish OB has a bearish FVG below it. High-probability confluence with " +
-          "entry at the BODY of the OB.",
+          "Combination setup — a Fair Value Gap whose FIRST candle is the opposite " +
+          "colour to the gap. That first candle IS the order block. A bullish OB+FVG " +
+          "is a bullish FVG with a bearish first candle; a bearish OB+FVG is a bearish " +
+          "FVG with a bullish first candle. Entry at the OB (first candle) body.",
         rules: [
-          "One displacement (body >= InpDispMult × ATR) must produce BOTH components",
-          "OB candle = last opposing candle before the displacement (Bull OB = last bearish)",
-          "Displacement FVG: C1=d+1, C3=d-1 — Bull high(d+1)<low(d-1), Bear low(d+1)>high(d-1)",
-          "Setup created only when the OB and the FVG both exist",
-          "Entry zone = OB body; MITIGATED when price taps the body",
-          "INVALIDATED when price closes through the OB (below OB low / above OB high)",
+          "3-candle FVG: C1 = oldest, C3 = newest",
+          "Bullish OB+FVG: high(C1) < low(C3) (bullish gap) AND C1 is bearish",
+          "Bearish OB+FVG: low(C1) > high(C3) (bearish gap) AND C1 is bullish",
+          "The OB = C1's body; entry zone = OB body",
+          "MITIGATED when price taps the OB body; INVALIDATED when price closes through C1 (below C1 low / above C1 high)",
         ],
         output: [
-          "Solid filled box on the OB body + dotted box on the FVG (extend to live bar)",
+          "Solid filled box on the OB (C1) body + dotted box on the FVG (extend to live bar)",
           "'OB+FVG' label at the OB; both removed on invalidation/expiry",
           "Journal: OBFVG_BULL/BEAR | obBody | fvg | time  ·  OBFVG_*_ENTRY on body tap",
-          "Inputs: disp_mult · ob_scan_back · expiry_bars · colors",
+          "Inputs: expiry_bars · colors",
         ],
         status: "ready",
         generate: generateObFvgDetector,
