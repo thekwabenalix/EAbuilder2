@@ -58,10 +58,87 @@ function tfConst(tf: string): string {
 
 // ─── AI-mode: build state machine code from sm_configs ────────────────────────
 
-function buildAiStateMachines(aiWiring: AiBrainWiring): string {
+/** Map an SM function-name prefix back to its generator type. */
+const SM_PREFIX_TYPE: Record<string, string> = {
+  IFVGSM: "fvg_inversion",
+  FVGSM:  "fvg",
+  OBSM:   "ob",
+  BOSSM:  "bos",
+  LSSM:   "liqsweep",
+};
+
+/** Build the PERIOD_ constant from a TF id like "M5", "H1", "MN". */
+function periodConst(id: string): string {
+  const u = id.toUpperCase();
+  return u === "MN" ? "PERIOD_MN1" : `PERIOD_${u}`;
+}
+
+/**
+ * RECONCILE: scan the AI-generated brain code for every state-machine function
+ * it references (e.g. BOSSM_M5_Tick, FVGSM_H4_BullJustConfirmed), and make sure
+ * each referenced (prefix, id) pair has a matching entry in sm_configs.
+ *
+ * This is the safety net for the common failure where Claude calls a function
+ * but forgets to declare its sm_config — which caused "undeclared identifier"
+ * compile errors. After this runs, every referenced SM is guaranteed embedded.
+ */
+function reconcileStateMachines(aiWiring: AiBrainWiring): AiBrainWiring["sm_configs"] {
+  const configs: AiBrainWiring["sm_configs"] = { ...(aiWiring.sm_configs ?? {}) };
+
+  // Index existing configs by (type, id) so we can detect duplicates
+  const haveKey = new Set<string>();
+  for (const c of Object.values(configs)) {
+    haveKey.add(`${c.type}|${c.id.toUpperCase()}`);
+  }
+
+  const allCode = [
+    aiWiring.direction_brain ?? "",
+    aiWiring.setup_brain ?? "",
+    aiWiring.execution_brain ?? "",
+  ].join("\n");
+
+  // Match  PREFIX_ID_  where PREFIX is a known SM prefix and ID is the TF label
+  const re = /\b(IFVGSM|FVGSM|OBSM|BOSSM|LSSM)_([A-Za-z0-9]+)_/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(allCode)) !== null) {
+    const prefix = m[1];
+    const id = m[2];
+    const type = SM_PREFIX_TYPE[prefix];
+    if (!type) continue;
+    const dedupKey = `${type}|${id.toUpperCase()}`;
+    if (haveKey.has(dedupKey)) continue;
+
+    // Auto-add the missing config so the SM gets embedded
+    haveKey.add(dedupKey);
+    const autoKey = `${type}_${id}`;
+    configs[autoKey] = {
+      type,
+      id,
+      TF: periodConst(id),
+      tf: id.toUpperCase(),
+      params: {},
+    };
+    console.warn(`[reconcile] Auto-added missing SM config: ${autoKey} (referenced but undeclared)`);
+  }
+
+  return configs;
+}
+
+function buildAiStateMachines(configs: AiBrainWiring["sm_configs"]): string {
   const parts: string[] = [];
-  for (const [key, cfg] of Object.entries(aiWiring.sm_configs)) {
+  const emitted = new Set<string>();   // prevent duplicate SM emission (same prefix+id)
+
+  for (const [key, cfg] of Object.entries(configs)) {
     const { type, id, TF, tf, params: p = {} } = cfg;
+    const prefix =
+      type === "fvg_inversion" ? "IFVGSM" :
+      type === "fvg"           ? "FVGSM"  :
+      type === "ob"            ? "OBSM"   :
+      type === "liqsweep"      ? "LSSM"   : "BOSSM";
+    const emitKey = `${prefix}|${id.toUpperCase()}`;
+    if (emitted.has(emitKey)) continue;   // same machine already emitted
+    emitted.add(emitKey);
+
     switch (type) {
       case "fvg":
         parts.push(genFvgSM(id, TF, tf, (p.expiryBars as number) ?? 100));
@@ -123,9 +200,13 @@ export function generateEA(params: MQL5CodeGenParams): string {
   // ── State machine code ──────────────────────────────────────────────────────
   // AI mode: Claude specifies exactly which SMs to embed via sm_configs.
   // Template mode: only embed iFVG SMs for TFs that use fvg_inversion.
+  // In AI mode, reconcile sm_configs with the functions Claude actually
+  // referenced — auto-adding any it forgot to declare. Use this everywhere.
+  const reconciledConfigs = aiWiring ? reconcileStateMachines(aiWiring) : {};
+
   let smCode: string;
   if (aiWiring) {
-    smCode = buildAiStateMachines(aiWiring);
+    smCode = buildAiStateMachines(reconciledConfigs);
   } else {
     const ifvgTFs = collectIfvgTFs(config);
     smCode = [...ifvgTFs.entries()]
@@ -206,22 +287,24 @@ export function generateEA(params: MQL5CodeGenParams): string {
       }
    }` : `   // Break-even management disabled`;
 
-  // Build OnInit SM resets for AI mode
+  // Build OnInit SM resets from the RECONCILED configs (dedup by prefix+id)
   const aiSmResets = aiWiring
-    ? Object.entries(aiWiring.sm_configs)
-        .map(([, cfg]) => {
-          const P_map: Record<string, string> = {
-            fvg: `FVGSM_${cfg.id}_Reset();`,
-            fvg_inversion: `IFVGSM_${cfg.id}_Reset();`,
-            ob: `OBSM_${cfg.id}_Reset();`,
-            bos: `BOSSM_${cfg.id}_Reset();`,
-            choch: `BOSSM_${cfg.id}_Reset();`,
-            bos_choch: `BOSSM_${cfg.id}_Reset();`,
-            liqsweep: `LSSM_${cfg.id}_Reset();`,
-          };
-          return P_map[cfg.type] ?? `// unknown SM reset: ${cfg.type}`;
-        })
-        .join(" ")
+    ? (() => {
+        const seen = new Set<string>();
+        const resets: string[] = [];
+        for (const cfg of Object.values(reconciledConfigs)) {
+          const prefix =
+            cfg.type === "fvg_inversion" ? "IFVGSM" :
+            cfg.type === "fvg"           ? "FVGSM"  :
+            cfg.type === "ob"            ? "OBSM"   :
+            cfg.type === "liqsweep"      ? "LSSM"   : "BOSSM";
+          const key = `${prefix}_${cfg.id}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          resets.push(`${key}_Reset();`);
+        }
+        return resets.join(" ");
+      })()
     : [...(collectIfvgTFs(config)).keys()].map(tf => `IFVGSM_${tf}_Reset();`).join(" ");
 
   return `//+------------------------------------------------------------------+

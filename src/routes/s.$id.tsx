@@ -1758,9 +1758,11 @@ function BacktestTab({
 
         {/* Compile error banner */}
         {compileResult && !compileResult.success && compileResult.errors > 0 && (() => {
-          // Template-generated code should never have compile errors — the right fix is to
-          // regenerate from the template (which is always up-to-date) rather than have an AI
-          // rewrite a file it may get wrong. Detect by the fixed header comment.
+          // 4-Brain EAs are assembled from proven inline state machines + AI wiring.
+          // A freeform AI rewrite would destroy the structure (it rewrites 800+ lines
+          // and truncates). The correct fix is to regenerate — template or AI Rebuild
+          // from the Brains tab — NOT a freeform rewrite.
+          const isFourBrain   = Boolean(blueprint.fourBrain);
           const isTemplateCode = code.includes("template mode — always compiles");
           return (
             <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 flex items-start gap-3">
@@ -1772,15 +1774,17 @@ function BacktestTab({
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {fixingAi
                     ? "Generating fixed code — this takes 15–30 seconds…"
-                    : isTemplateCode
-                      ? "This is template-generated code. Regenerating from the template is faster and safer than AI rewrite."
-                      : "Click Fix with AI to automatically correct all errors in one step."}
+                    : isFourBrain
+                      ? "This is a 4-Brain EA. Regenerate from Template (instant, deterministic) or use AI Rebuild on the Brains tab. Do NOT use freeform AI fix — it rewrites the whole file."
+                      : isTemplateCode
+                        ? "This is template-generated code. Regenerating from the template is faster and safer than AI rewrite."
+                        : "Click Fix with AI to automatically correct all errors in one step."}
                 </p>
               </div>
               {onApplyCode && (
                 <div className="flex items-center gap-2 shrink-0">
-                  {/* For template code: primary action is regen from template */}
-                  {isTemplateCode && (
+                  {/* 4-Brain or template: primary action is deterministic template regen */}
+                  {(isFourBrain || isTemplateCode) && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -1798,32 +1802,34 @@ function BacktestTab({
                       <Hammer className="h-3.5 w-3.5 mr-1.5" /> Regen from Template
                     </Button>
                   )}
-                  {/* AI fix — always available but secondary for template code */}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={fixingAi}
-                    onClick={async () => {
-                      if (!compileResult.log) return;
-                      setFixingAi(true);
-                      try {
-                        const result = await fixCompileErrors(blueprint, code, compileResult.log);
-                        onApplyCode(result.code);
-                        toast.success("AI fixed the code — recompile to verify");
-                      } catch (e: unknown) {
-                        toast.error(e instanceof Error ? e.message : "Fix failed — please try again");
-                      } finally {
-                        setFixingAi(false);
-                      }
-                    }}
-                    className="shrink-0"
-                  >
-                    {fixingAi ? (
-                      <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Fixing…</>
-                    ) : (
-                      <><Bot className="h-3.5 w-3.5 mr-1.5" /> Fix with AI</>
-                    )}
-                  </Button>
+                  {/* Freeform AI fix — ONLY for non-4-brain, raw AI-generated code */}
+                  {!isFourBrain && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={fixingAi}
+                      onClick={async () => {
+                        if (!compileResult.log) return;
+                        setFixingAi(true);
+                        try {
+                          const result = await fixCompileErrors(blueprint, code, compileResult.log);
+                          onApplyCode(result.code);
+                          toast.success("AI fixed the code — recompile to verify");
+                        } catch (e: unknown) {
+                          toast.error(e instanceof Error ? e.message : "Fix failed — please try again");
+                        } finally {
+                          setFixingAi(false);
+                        }
+                      }}
+                      className="shrink-0"
+                    >
+                      {fixingAi ? (
+                        <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Fixing…</>
+                      ) : (
+                        <><Bot className="h-3.5 w-3.5 mr-1.5" /> Fix with AI</>
+                      )}
+                    </Button>
+                  )}
                 </div>
               )}
             </div>

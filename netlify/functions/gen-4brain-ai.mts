@@ -141,6 +141,28 @@ CODE GENERATION RULES
 5.  Use EXACT function names from the module API (e.g. FVGSM_H4_BullJustConfirmed())
     Replace {id} with the SM's id value (e.g. "H4").
 
+    ★ CRITICAL — SM DECLARATION RULE:
+    EVERY state-machine function you call MUST have a matching entry in sm_configs.
+    If your brain code calls FVGSM_M15_BullJustConfirmed(), then sm_configs MUST
+    contain an entry with type "fvg" and id "M15". A function call with no matching
+    config = "undeclared identifier" compile error. Before finishing, check every
+    XXXSM_ID_ call against your sm_configs.
+
+    ★ EMA HAS NO STATE MACHINE — it is INLINE code only.
+    Do NOT call BOSSM/FVGSM/etc for EMA. For EMA direction, write inline:
+      void Direction_Brain_Execute() {
+        double fast=0, slow=0;
+        for(int i=1;i<=48;i++){ double c=iClose(InpSymbol,PERIOD_M5,i); if(i<=12) fast+=c; slow+=c; }
+        fast/=12.0; slow/=48.0;
+        gBias = (fast>slow) ? 1 : (fast<slow ? -1 : 0);
+        PrintFormat("[DIR] EMA fast=%.5f slow=%.5f gBias=%d", fast, slow, gBias);
+      }
+    EMA needs NO sm_config entry — it uses no state machine.
+    Pin Bar and Engulfing are also INLINE (no SM, no sm_config).
+
+    State machines that DO need an sm_config entry: fvg, fvg_inversion, ob, bos,
+    choch, bos_choch, liqsweep. Only these.
+
 6.  Include one PrintFormat() log per state transition. Use prefix [DIR], [SETUP], [EXEC].
 
 7.  If direction is disabled: set gBias = 1 always (trade both directions) or
