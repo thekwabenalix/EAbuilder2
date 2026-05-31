@@ -133,60 +133,59 @@ void ${P}Advance(int sh)
 
    for(int _k = 0; _k < ${P}zoneCount; _k++)
    {
-      ${P}OBRec *z = GetPointer(${P}zones[_k]);
-      if(z.state >= ${P}MITIGATED) continue;
-      z.barsAlive++;
-      z.justConfirmed = false;
+      if(${P}zones[_k].state >= ${P}MITIGATED) continue;
+      ${P}zones[_k].barsAlive++;
+      ${P}zones[_k].justConfirmed = false;
 
-      if(z.barsAlive >= ${expiryBars}) { z.state = ${P}EXPIRED; continue; }
+      if(${P}zones[_k].barsAlive >= ${expiryBars}) { ${P}zones[_k].state = ${P}EXPIRED; continue; }
 
-      if(z.dir == 1)  // ── BULL OB ─────────────────────────────────
+      if(${P}zones[_k].dir == 1)  // ── BULL OB ─────────────────────────────────
       {
-         if(cl < z.lo)  { z.state = ${P}INVALIDATED; continue; }
-         if(cl >= z.lo && cl <= z.hi) { z.state = ${P}MITIGATED; continue; }
-         if(z.state == ${P}ACTIVE && lo <= z.hi)
+         if(cl < ${P}zones[_k].lo)  { ${P}zones[_k].state = ${P}INVALIDATED; continue; }
+         if(cl >= ${P}zones[_k].lo && cl <= ${P}zones[_k].hi) { ${P}zones[_k].state = ${P}MITIGATED; continue; }
+         if(${P}zones[_k].state == ${P}ACTIVE && lo <= ${P}zones[_k].hi)
          {
-            z.state = ${P}RETESTED;
-            z.retestLow = lo;
+            ${P}zones[_k].state = ${P}RETESTED;
+            ${P}zones[_k].retestLow = lo;
          }
-         if(z.state == ${P}RETESTED)
+         if(${P}zones[_k].state == ${P}RETESTED)
          {
-            if(lo < z.retestLow) z.retestLow = lo;
-            if(cl > z.hi) {
-               z.state = ${P}CONFIRMED;
-               z.justConfirmed = true;
-               z.confirmSL = z.retestLow;
+            if(lo < ${P}zones[_k].retestLow) ${P}zones[_k].retestLow = lo;
+            if(cl > ${P}zones[_k].hi) {
+               ${P}zones[_k].state = ${P}CONFIRMED;
+               ${P}zones[_k].justConfirmed = true;
+               ${P}zones[_k].confirmSL = ${P}zones[_k].retestLow;
                ${P}_bullConfirmed = true;
-               ${P}_bullSL = z.retestLow;
-               PrintFormat("[OBSM_${tf}] BULL CONFIRMED hi=%.5f SL=%.5f", z.hi, z.retestLow);
+               ${P}_bullSL = ${P}zones[_k].retestLow;
+               PrintFormat("[OBSM_${tf}] BULL CONFIRMED hi=%.5f SL=%.5f", ${P}zones[_k].hi, ${P}zones[_k].retestLow);
             }
          }
-         if(z.state == ${P}CONFIRMED && lo <= z.hi)
-         { z.state = ${P}RETESTED; z.retestLow = lo; }
+         if(${P}zones[_k].state == ${P}CONFIRMED && lo <= ${P}zones[_k].hi)
+         { ${P}zones[_k].state = ${P}RETESTED; ${P}zones[_k].retestLow = lo; }
       }
       else  // ── BEAR OB ─────────────────────────────────────────
       {
-         if(cl > z.hi)  { z.state = ${P}INVALIDATED; continue; }
-         if(cl >= z.lo && cl <= z.hi) { z.state = ${P}MITIGATED; continue; }
-         if(z.state == ${P}ACTIVE && hi >= z.lo)
+         if(cl > ${P}zones[_k].hi)  { ${P}zones[_k].state = ${P}INVALIDATED; continue; }
+         if(cl >= ${P}zones[_k].lo && cl <= ${P}zones[_k].hi) { ${P}zones[_k].state = ${P}MITIGATED; continue; }
+         if(${P}zones[_k].state == ${P}ACTIVE && hi >= ${P}zones[_k].lo)
          {
-            z.state = ${P}RETESTED;
-            z.retestHigh = hi;
+            ${P}zones[_k].state = ${P}RETESTED;
+            ${P}zones[_k].retestHigh = hi;
          }
-         if(z.state == ${P}RETESTED)
+         if(${P}zones[_k].state == ${P}RETESTED)
          {
-            if(hi > z.retestHigh) z.retestHigh = hi;
-            if(cl < z.lo) {
-               z.state = ${P}CONFIRMED;
-               z.justConfirmed = true;
-               z.confirmSL = z.retestHigh;
+            if(hi > ${P}zones[_k].retestHigh) ${P}zones[_k].retestHigh = hi;
+            if(cl < ${P}zones[_k].lo) {
+               ${P}zones[_k].state = ${P}CONFIRMED;
+               ${P}zones[_k].justConfirmed = true;
+               ${P}zones[_k].confirmSL = ${P}zones[_k].retestHigh;
                ${P}_bearConfirmed = true;
-               ${P}_bearSL = z.retestHigh;
-               PrintFormat("[OBSM_${tf}] BEAR CONFIRMED lo=%.5f SL=%.5f", z.lo, z.retestHigh);
+               ${P}_bearSL = ${P}zones[_k].retestHigh;
+               PrintFormat("[OBSM_${tf}] BEAR CONFIRMED lo=%.5f SL=%.5f", ${P}zones[_k].lo, ${P}zones[_k].retestHigh);
             }
          }
-         if(z.state == ${P}CONFIRMED && hi >= z.lo)
-         { z.state = ${P}RETESTED; z.retestHigh = hi; }
+         if(${P}zones[_k].state == ${P}CONFIRMED && hi >= ${P}zones[_k].lo)
+         { ${P}zones[_k].state = ${P}RETESTED; ${P}zones[_k].retestHigh = hi; }
       }
    }
 }

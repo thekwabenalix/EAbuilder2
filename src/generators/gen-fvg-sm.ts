@@ -115,72 +115,71 @@ void ${P}Advance(int sh)
 
    for(int _k = 0; _k < ${P}zoneCount; _k++)
    {
-      ${P}FvgRec *z = GetPointer(${P}zones[_k]);
-      if(z.state >= ${P}MITIGATED) continue;
+      if(${P}zones[_k].state >= ${P}MITIGATED) continue;
 
-      z.barsAlive++;
-      z.justConfirmed = false;
+      ${P}zones[_k].barsAlive++;
+      ${P}zones[_k].justConfirmed = false;
 
       // Expiry
-      if(z.barsAlive >= ${expiryBars}) { z.state = ${P}EXPIRED; continue; }
+      if(${P}zones[_k].barsAlive >= ${expiryBars}) { ${P}zones[_k].state = ${P}EXPIRED; continue; }
 
-      if(z.dir == 1)  // ── BULL FVG ─────────────────────────────────
+      if(${P}zones[_k].dir == 1)  // ── BULL FVG ─────────────────────────────────
       {
          // MITIGATED: close inside zone
-         if(cl >= z.ll && cl <= z.ul) { z.state = ${P}MITIGATED; continue; }
+         if(cl >= ${P}zones[_k].ll && cl <= ${P}zones[_k].ul) { ${P}zones[_k].state = ${P}MITIGATED; continue; }
          // INVALIDATED: close below far edge
-         if(cl < z.ll) { z.state = ${P}INVALIDATED; continue; }
+         if(cl < ${P}zones[_k].ll) { ${P}zones[_k].state = ${P}INVALIDATED; continue; }
          // RETESTED: wick enters zone from above
-         if(z.state == ${P}ACTIVE && lo <= z.ul)
+         if(${P}zones[_k].state == ${P}ACTIVE && lo <= ${P}zones[_k].ul)
          {
-            z.state = ${P}RETESTED;
-            z.retestLow = lo;
+            ${P}zones[_k].state = ${P}RETESTED;
+            ${P}zones[_k].retestLow = lo;
          }
-         if(z.state == ${P}RETESTED)
+         if(${P}zones[_k].state == ${P}RETESTED)
          {
-            if(lo < z.retestLow) z.retestLow = lo;   // track worst wick
+            if(lo < ${P}zones[_k].retestLow) ${P}zones[_k].retestLow = lo;   // track worst wick
             // CONFIRMED: close back above UL
-            if(cl > z.ul) {
-               z.state = ${P}CONFIRMED;
-               z.justConfirmed = true;
-               z.confirmSL = z.retestLow;
+            if(cl > ${P}zones[_k].ul) {
+               ${P}zones[_k].state = ${P}CONFIRMED;
+               ${P}zones[_k].justConfirmed = true;
+               ${P}zones[_k].confirmSL = ${P}zones[_k].retestLow;
                ${P}_bullConfirmed = true;
-               ${P}_bullSL = z.retestLow;
-               PrintFormat("[FVGSM_${tf}] BULL CONFIRMED UL=%.5f SL=%.5f", z.ul, z.retestLow);
+               ${P}_bullSL = ${P}zones[_k].retestLow;
+               PrintFormat("[FVGSM_${tf}] BULL CONFIRMED UL=%.5f SL=%.5f", ${P}zones[_k].ul, ${P}zones[_k].retestLow);
             }
          }
          // Post-CONFIRMED: allow cycling
-         if(z.state == ${P}CONFIRMED && lo <= z.ul)
+         if(${P}zones[_k].state == ${P}CONFIRMED && lo <= ${P}zones[_k].ul)
          {
-            z.state = ${P}RETESTED;
-            z.retestLow = lo;
+            ${P}zones[_k].state = ${P}RETESTED;
+            ${P}zones[_k].retestLow = lo;
          }
       }
       else  // ── BEAR FVG ─────────────────────────────────────────
       {
-         if(cl >= z.ll && cl <= z.ul) { z.state = ${P}MITIGATED; continue; }
-         if(cl > z.ul) { z.state = ${P}INVALIDATED; continue; }
-         if(z.state == ${P}ACTIVE && hi >= z.ll)
+         if(cl >= ${P}zones[_k].ll && cl <= ${P}zones[_k].ul) { ${P}zones[_k].state = ${P}MITIGATED; continue; }
+         if(cl > ${P}zones[_k].ul) { ${P}zones[_k].state = ${P}INVALIDATED; continue; }
+         if(${P}zones[_k].state == ${P}ACTIVE && hi >= ${P}zones[_k].ll)
          {
-            z.state = ${P}RETESTED;
-            z.retestHigh = hi;
+            ${P}zones[_k].state = ${P}RETESTED;
+            ${P}zones[_k].retestHigh = hi;
          }
-         if(z.state == ${P}RETESTED)
+         if(${P}zones[_k].state == ${P}RETESTED)
          {
-            if(hi > z.retestHigh) z.retestHigh = hi;
-            if(cl < z.ll) {
-               z.state = ${P}CONFIRMED;
-               z.justConfirmed = true;
-               z.confirmSL = z.retestHigh;
+            if(hi > ${P}zones[_k].retestHigh) ${P}zones[_k].retestHigh = hi;
+            if(cl < ${P}zones[_k].ll) {
+               ${P}zones[_k].state = ${P}CONFIRMED;
+               ${P}zones[_k].justConfirmed = true;
+               ${P}zones[_k].confirmSL = ${P}zones[_k].retestHigh;
                ${P}_bearConfirmed = true;
-               ${P}_bearSL = z.retestHigh;
-               PrintFormat("[FVGSM_${tf}] BEAR CONFIRMED LL=%.5f SL=%.5f", z.ll, z.retestHigh);
+               ${P}_bearSL = ${P}zones[_k].retestHigh;
+               PrintFormat("[FVGSM_${tf}] BEAR CONFIRMED LL=%.5f SL=%.5f", ${P}zones[_k].ll, ${P}zones[_k].retestHigh);
             }
          }
-         if(z.state == ${P}CONFIRMED && hi >= z.ll)
+         if(${P}zones[_k].state == ${P}CONFIRMED && hi >= ${P}zones[_k].ll)
          {
-            z.state = ${P}RETESTED;
-            z.retestHigh = hi;
+            ${P}zones[_k].state = ${P}RETESTED;
+            ${P}zones[_k].retestHigh = hi;
          }
       }
    }
