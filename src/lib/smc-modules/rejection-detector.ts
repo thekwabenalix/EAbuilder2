@@ -54,9 +54,11 @@ input double          InpMinWickRatio = 0.5;            // Rejection wick >= thi
 input int             InpExpiryBars   = 150;            // Bars until a level expires (0 = never)
 input bool            InpUseClassic   = true;           // Use Classic (reversal-pair) levels
 input bool            InpUseGap       = true;           // Use Gap (continuation-pair) levels
+input int             InpLineBars     = 4;               // Rejection line length (bars)
 //--- Inputs — Colours
 input color           InpBullColor    = clrMediumSeaGreen; // Bullish rejection
 input color           InpBearColor    = clrTomato;          // Bearish rejection
+input int             InpLineWidth    = 2;               // Rejection line width
 input bool            InpShowLog      = true;            // Print events to journal
 
 //+------------------------------------------------------------------+
@@ -76,8 +78,7 @@ int      nextId      = 0;
 datetime lastBarTime = 0;
 
 //+------------------------------------------------------------------+
-string ObjArr(int id) { return "SMCREJ_" + IntegerToString(id) + "_ar"; }
-string ObjLbl(int id) { return "SMCREJ_" + IntegerToString(id) + "_lb"; }
+string ObjLine(int id) { return "SMCREJ_" + IntegerToString(id) + "_ln"; }
 
 int CandleDir(int sh)
 {
@@ -139,30 +140,30 @@ void DetectLevels(int shA, int shB)
 }
 
 //+------------------------------------------------------------------+
-//| Draw a rejection arrow + label at bar sh.                       |
+//| Draw a short slanted rejection line: from the wick extreme back  |
+//| toward the level. Bull slants up-right, bear slants down-right.  |
+//| Not a horizontal level line — it marks the rejection itself.     |
 //+------------------------------------------------------------------+
-void DrawRejection(int dir, double price, datetime t, double lvl)
+void DrawRejection(int dir, double wickExtreme, datetime t, double lvl)
 {
    int id = nextId++;
-   string arr = ObjArr(id);
-   string lbl = ObjLbl(id);
-   if(ObjectCreate(0, arr, OBJ_ARROW, 0, t, price))
+   string ln = ObjLine(id);
+   // Right end projected InpLineBars into the future, anchored at the level price
+   datetime tRight = t + (datetime)(PeriodSeconds(InpTF) * InpLineBars);
+   color c = (dir > 0) ? InpBullColor : InpBearColor;
+
+   if(ObjectCreate(0, ln, OBJ_TREND, 0, t, wickExtreme, tRight, lvl))
    {
-      ObjectSetInteger(0, arr, OBJPROP_ARROWCODE, dir > 0 ? 233 : 234);
-      ObjectSetInteger(0, arr, OBJPROP_COLOR, dir > 0 ? InpBullColor : InpBearColor);
-      ObjectSetInteger(0, arr, OBJPROP_WIDTH, 2);
-      ObjectSetInteger(0, arr, OBJPROP_ANCHOR, dir > 0 ? ANCHOR_TOP : ANCHOR_BOTTOM);
-   }
-   if(ObjectCreate(0, lbl, OBJ_TEXT, 0, t, price))
-   {
-      ObjectSetString (0, lbl, OBJPROP_TEXT, dir > 0 ? "REJ UP" : "REJ DN");
-      ObjectSetInteger(0, lbl, OBJPROP_COLOR, dir > 0 ? InpBullColor : InpBearColor);
-      ObjectSetInteger(0, lbl, OBJPROP_FONTSIZE, 8);
-      ObjectSetInteger(0, lbl, OBJPROP_ANCHOR, dir > 0 ? ANCHOR_UPPER : ANCHOR_LOWER);
+      ObjectSetInteger(0, ln, OBJPROP_COLOR, c);
+      ObjectSetInteger(0, ln, OBJPROP_WIDTH, InpLineWidth);
+      ObjectSetInteger(0, ln, OBJPROP_RAY_RIGHT, false);
+      ObjectSetInteger(0, ln, OBJPROP_RAY_LEFT,  false);
+      ObjectSetInteger(0, ln, OBJPROP_BACK, false);
+      ObjectSetInteger(0, ln, OBJPROP_SELECTABLE, false);
    }
    if(InpShowLog)
-      PrintFormat("REJECTION_%s | level=%.5f | price=%.5f | time=%s",
-         dir > 0 ? "BULL" : "BEAR", lvl, price,
+      PrintFormat("REJECTION_%s | level=%.5f | wick=%.5f | time=%s",
+         dir > 0 ? "BULL" : "BEAR", lvl, wickExtreme,
          TimeToString(t, TIME_DATE|TIME_MINUTES));
 }
 
