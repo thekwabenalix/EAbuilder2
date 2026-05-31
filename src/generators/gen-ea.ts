@@ -193,6 +193,7 @@ export function generateEA(params: MQL5CodeGenParams): string {
   const beEnabled  = mgmt?.breakEvenEnabled ?? false;
   const beAtR      = mgmt?.breakEvenAtR  ?? 1.0;
   const maxTrades  = mgmt?.maxOpenTrades ?? 1;
+  const maxStopPts = mgmt?.maxStopPoints ?? 0;          // 0 = no limit
 
   const hasDirBrain   = Boolean(config.direction);
   const hasSetupBrain = Boolean(config.setup);
@@ -334,6 +335,7 @@ input double          InpRiskPercent = ${riskPct};           // Risk per trade (
 input double          InpRewardRisk  = ${rrRatio};           // Reward : Risk ratio
 input int             InpStopBuffer  = ${stopBuf};           // Stop buffer (points)
 input int             InpMaxSpread   = 25;                   // Max spread filter (0=off)
+input int             InpMaxStopPts  = ${maxStopPts};         // Max SL distance (points, 0=no limit)
 input int             InpMaxTrades   = ${maxTrades};         // Max simultaneous positions
 ${beEnabled ? `input double InpBEAtR = ${beAtR};  // Move SL to B/E at this R multiple` : ""}
 
@@ -564,6 +566,7 @@ ${breakEvenCode}
                        : NormalizeDouble(ask - 100 * pt, digits);  // fallback
          double dist = (ask - sl) / pt;
          if(dist < (double)stops) { PrintFormat("[EXEC] BUY rejected: stops_level=%d dist=%.0f", stops, dist); return; }
+         if(InpMaxStopPts > 0 && dist > InpMaxStopPts) { PrintFormat("[EXEC] BUY skipped: SL %.0f pts > max %d pts", dist, InpMaxStopPts); return; }
          double lot  = CalcLot(dist);
          if(lot <= 0) { PrintFormat("[EXEC] BUY rejected: lot=0"); return; }
          double tp   = NormalizeDouble(ask + dist * InpRewardRisk * pt, digits);
@@ -578,6 +581,7 @@ ${breakEvenCode}
                        : NormalizeDouble(bid + 100 * pt, digits);  // fallback
          double dist = (sl - bid) / pt;
          if(dist < (double)stops) { PrintFormat("[EXEC] SELL rejected: stops_level=%d dist=%.0f", stops, dist); return; }
+         if(InpMaxStopPts > 0 && dist > InpMaxStopPts) { PrintFormat("[EXEC] SELL skipped: SL %.0f pts > max %d pts", dist, InpMaxStopPts); return; }
          double lot  = CalcLot(dist);
          if(lot <= 0) { PrintFormat("[EXEC] SELL rejected: lot=0"); return; }
          double tp   = NormalizeDouble(bid - dist * InpRewardRisk * pt, digits);

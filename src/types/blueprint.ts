@@ -241,5 +241,8 @@ export interface ManagementBrainConfig {
   breakEvenEnabled?: boolean;
   breakEvenAtR?: number;
   maxOpenTrades?: number;
+  /** Maximum allowed SL distance in POINTS. 0 = no limit. Trades whose SL
+   *  distance exceeds this are skipped (e.g. 70 points = 7 pips on a 5-digit pair). */
+  maxStopPoints?: number;
 }
 

@@ -664,6 +664,7 @@ function FourBrainTab({
   const [riskPct,  setRiskPct]  = useState(mgmt?.riskPercent  ?? 1);
   const [rr,       setRr]       = useState(mgmt?.rewardRisk   ?? 2);
   const [stopBuf,  setStopBuf]  = useState(mgmt?.stopBuffer   ?? 20);
+  const [maxStopPts, setMaxStopPts] = useState(mgmt?.maxStopPoints ?? 0);
   const [beOn,     setBeOn]     = useState(mgmt?.breakEvenEnabled ?? false);
   const [beAtR,    setBeAtR]    = useState(mgmt?.breakEvenAtR ?? 1);
   const [maxTrades,setMaxTrades]= useState(mgmt?.maxOpenTrades ?? 1);
@@ -677,6 +678,7 @@ function FourBrainTab({
         riskPercent:      riskPct,
         rewardRisk:       rr,
         stopBuffer:       stopBuf,
+        maxStopPoints:    maxStopPts,
         breakEvenEnabled: beOn,
         breakEvenAtR:     beAtR,
         maxOpenTrades:    maxTrades,
@@ -822,6 +824,18 @@ function FourBrainTab({
               <Slider value={[stopBuf]} min={0} max={100} step={5} onValueChange={([v]) => setStopBuf(v)} className="flex-1" />
               <span className="text-xs font-mono w-10 text-right">{stopBuf}</span>
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Max stop loss</Label>
+            <div className="flex items-center gap-2">
+              <Slider value={[maxStopPts]} min={0} max={300} step={10} onValueChange={([v]) => setMaxStopPts(v)} className="flex-1" />
+              <span className="text-xs font-mono w-16 text-right">
+                {maxStopPts === 0 ? "off" : `${maxStopPts}pt`}
+              </span>
+            </div>
+            <p className="text-[10px] text-muted-foreground/60">
+              {maxStopPts === 0 ? "No SL limit" : `Skip trades with SL > ${(maxStopPts / 10).toFixed(0)} pips`}
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Max trades</Label>

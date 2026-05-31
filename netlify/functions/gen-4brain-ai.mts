@@ -182,11 +182,11 @@ CODE GENERATION RULES
 11. COMMON PATTERNS — generate these correctly when described:
 
     MAX SL FILTER: "max stop loss = 7 pips" or "skip if SL > 70 points"
-    → Add this check INSIDE Execution_Brain_Execute() AFTER calculating gExecSL:
-      double _maxSLPoints = 70;  // 7 pips × 10 points/pip
-      double _pt = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
-      if(gExecSL > 0 && MathAbs(SymbolInfoDouble(InpSymbol,SYMBOL_ASK) - gExecSL) / _pt > _maxSLPoints)
-      { gExecSignal = false; PrintFormat("[EXEC] SKIPPED: SL too wide"); }
+    → DO NOT generate this — the assembler already handles it via the
+      InpMaxStopPts input and skips any trade whose SL distance exceeds it.
+      Just make sure gExecSL is set correctly; the management layer enforces the cap.
+      (If the trader gives a number, it is captured in the Max stop loss management
+       input, not in your brain code.)
 
     REQUIRED SEQUENCE: "must retest EMA before entry" or "only after price touches EMA"
     → Add a state variable (static bool _emaRetested = false) that:

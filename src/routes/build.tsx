@@ -571,6 +571,7 @@ function FourBrainBuilderPage() {
   const [beAt,       setBeAt]       = useState(1.0);
   const [maxTrades,  setMaxTrades]  = useState(1);
   const [stopBuffer, setStopBuffer] = useState(20);
+  const [maxStopPts, setMaxStopPts] = useState(0);   // 0 = no limit
   const [strategyNotes, setStrategyNotes] = useState("");
 
   const [saving, setSaving] = useState(false);
@@ -633,6 +634,7 @@ function FourBrainBuilderPage() {
         breakEvenAtR: 1,
         maxOpenTrades: maxTrades,
         stopBuffer: stopBuffer,  // in points — gen-ea.ts uses as int (input int InpStopBuffer)
+        maxStopPoints: maxStopPts,
       },
     };
 
@@ -821,6 +823,24 @@ function FourBrainBuilderPage() {
                 value={[stopBuffer]}
                 onValueChange={([v]) => setStopBuffer(v)}
               />
+            </div>
+
+            {/* Max SL */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <Label className="text-xs">Max stop loss</Label>
+                <span className="text-xs font-mono text-primary">
+                  {maxStopPts === 0 ? "no limit" : `${maxStopPts} pts (${(maxStopPts / 10).toFixed(0)} pips)`}
+                </span>
+              </div>
+              <Slider
+                min={0} max={300} step={10}
+                value={[maxStopPts]}
+                onValueChange={([v]) => setMaxStopPts(v)}
+              />
+              <p className="text-[10px] text-muted-foreground/60">
+                Skip trades whose SL distance exceeds this. 0 = no limit.
+              </p>
             </div>
 
             {/* Break-even */}
