@@ -266,7 +266,7 @@ In "notes", explain how you mapped their module selections to state machines.`;
 
   try {
     const response = await client.messages.create({
-      model: "claude-sonnet-4-5-20251015",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 3000,
       system: [
         {
