@@ -42,6 +42,7 @@ import { generateChochDetector } from "@/lib/smc-modules/choch-detector";
 import { generateClassicSnrDetector } from "@/lib/smc-modules/classic-snr-detector";
 import { generateGapSnrDetector } from "@/lib/smc-modules/gap-snr-detector";
 import { generateBreakoutDetector } from "@/lib/smc-modules/breakout-detector";
+import { generateRejectionDetector } from "@/lib/smc-modules/rejection-detector";
 import { generateFvgStateModule }       from "@/lib/smc-modules/fvg-state-module";
 import { generateObStateModule }        from "@/lib/smc-modules/ob-state-module";
 import { generateBreakoutStateModule }  from "@/lib/smc-modules/breakout-state-module";
@@ -467,12 +468,27 @@ const TRADING_MODULES: ModuleCategory[] = [
       },
       {
         id: "rejection",
-        filename: "SNR_Rejection_Detector.mq5",
+        filename: "Rejection_Detector.mq5",
         name: "Rejection",
         description:
-          "Detects strong wicks rejecting from a key level. The candle tests the " +
-          "level but the close back inside confirms the rejection.",
-        status: "planned",
+          "Reactive SNR Rule 2 — a candle whose wick pierces an S/R level but " +
+          "closes back on the origin side, confirming the level held. Embeds both " +
+          "Classic (reversal-pair) and Gap (continuation-pair) level detection.",
+        rules: [
+          "Levels: Classic (Bull→Bear = Resistance, Bear→Bull = Support) + Gap (same-dir pair)",
+          "Bullish rejection: Low <= support AND Close > support AND lower wick >= InpMinWickRatio x range",
+          "Bearish rejection: High >= resistance AND Close < resistance AND upper wick >= InpMinWickRatio x range",
+          "Level broken when a candle closes through it (removed from tracking)",
+          "Levels expire after InpExpiryBars bars (0 = never)",
+        ],
+        output: [
+          "Up/down arrow (codes 233/234) at the rejection candle wick",
+          "Label 'REJ UP' / 'REJ DN' at the rejection",
+          "Journal: REJECTION_BULL | REJECTION_BEAR | level | price | time",
+          "Inputs: min_wick_ratio · use_classic · use_gap · expiry_bars · colors",
+        ],
+        status: "ready",
+        generate: generateRejectionDetector,
       },
       {
         id: "miss",
