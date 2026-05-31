@@ -44,9 +44,10 @@ export function genMissSM(
 //+------------------------------------------------------------------+
 struct ${P}LevelRec
 {
-   int      dir;        //  1=support  -1=resistance
-   double   level;
-   datetime levelTime;
+   int      dir;         //  1=support  -1=resistance
+   double   level;       // candle A close — the SNR price
+   datetime levelTime;   // candle A time
+   datetime confirmTime; // candle B time — SNR valid only AFTER this
    bool     dead;
    int      barsAlive;
 };
@@ -68,10 +69,10 @@ void ${P}Reset()
    ${P}_bearSL = 0.0;
 }
 
-void ${P}AddLevel(int dir, double level, datetime lvlT)
+void ${P}AddLevel(int dir, double level, datetime tA, datetime tB)
 {
    for(int _k = 0; _k < ${P}levelCount; _k++)
-      if(${P}levels[_k].levelTime == lvlT) return;
+      if(${P}levels[_k].levelTime == tA) return;
    int idx = -1;
    for(int _k = 0; _k < ${P}levelCount; _k++)
       if(${P}levels[_k].dead) { idx = _k; break; }
@@ -79,14 +80,16 @@ void ${P}AddLevel(int dir, double level, datetime lvlT)
       if(${P}levelCount >= ${P}MAX_LEVELS) return;
       idx = ${P}levelCount++;
    }
-   ${P}levels[idx].dir       = dir;
-   ${P}levels[idx].level     = level;
-   ${P}levels[idx].levelTime = lvlT;
-   ${P}levels[idx].dead      = false;
-   ${P}levels[idx].barsAlive = 0;
+   ${P}levels[idx].dir         = dir;
+   ${P}levels[idx].level       = level;
+   ${P}levels[idx].levelTime   = tA;
+   ${P}levels[idx].confirmTime = tB;   // candle B — valid only after this
+   ${P}levels[idx].dead        = false;
+   ${P}levels[idx].barsAlive   = 0;
 }
 
 // ── Detect Classic + Gap S/R levels from candle pair (sh+1, sh) ────────
+// SNR is a TWO-candle pattern: A close = level, B defines the type.
 void ${P}Detect(int sh)
 {
    int total = iBars(InpSymbol, ${TF});
@@ -97,11 +100,12 @@ void ${P}Detect(int sh)
    double bC = iClose(InpSymbol, ${TF}, sh);
    bool aBull = aC > aO, aBear = aC < aO;
    bool bBull = bC > bO, bBear = bC < bO;
-   datetime lvlT = iTime(InpSymbol, ${TF}, sh + 1);
-   if(aBull && bBear)      ${P}AddLevel(-1, aC, lvlT);
-   else if(aBear && bBull) ${P}AddLevel( 1, aC, lvlT);
-   else if(aBull && bBull) ${P}AddLevel( 1, aC, lvlT);
-   else if(aBear && bBear) ${P}AddLevel(-1, aC, lvlT);
+   datetime tA = iTime(InpSymbol, ${TF}, sh + 1);
+   datetime tB = iTime(InpSymbol, ${TF}, sh);
+   if(aBull && bBear)      ${P}AddLevel(-1, aC, tA, tB);
+   else if(aBear && bBull) ${P}AddLevel( 1, aC, tA, tB);
+   else if(aBull && bBull) ${P}AddLevel( 1, aC, tA, tB);
+   else if(aBear && bBear) ${P}AddLevel(-1, aC, tA, tB);
 }
 
 // ── Is bar sh a confirmed swing pivot? Returns 1=high, -1=low, 0=none ──
@@ -134,10 +138,13 @@ void ${P}CheckMiss()
    double pivHi = iHigh(InpSymbol, ${TF}, sh);
    double pt    = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
    double near  = ${nearPoints} * pt;
+   datetime pivT = iTime(InpSymbol, ${TF}, sh);
 
    for(int _k = 0; _k < ${P}levelCount; _k++)
    {
       if(${P}levels[_k].dead) continue;
+      // The pivot must be after candle B (SNR not valid until B closes).
+      if(pivT <= ${P}levels[_k].confirmTime) continue;
       double lvl = ${P}levels[_k].level;
 
       if(pd == -1 && ${P}levels[_k].dir == 1)   // swing LOW near SUPPORT

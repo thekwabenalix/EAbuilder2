@@ -68,8 +68,9 @@ struct LevelRec
 {
    int      id;
    int      type;        // TYPE_SUPPORT or TYPE_RESISTANCE
-   double   level;
-   datetime levelTime;
+   double   level;       // Candle A close — the SNR price
+   datetime levelTime;   // Candle A time (price origin / line left anchor)
+   datetime confirmTime; // Candle B time — the SNR is only valid AFTER this
    bool     broken;
    int      ageCounter;
 };
@@ -114,10 +115,10 @@ int CandleDir(int sh)
 //+------------------------------------------------------------------+
 //| Register a level (dedup by time+type). Recycle broken slots.    |
 //+------------------------------------------------------------------+
-void AddLevel(int type, double level, datetime lvlT)
+void AddLevel(int type, double level, datetime tA, datetime tB)
 {
    for(int i = 0; i < levTotal; i++)
-      if(levList[i].levelTime == lvlT && levList[i].type == type) return;
+      if(levList[i].levelTime == tA && levList[i].type == type) return;
 
    int idx = -1;
    for(int i = 0; i < levTotal; i++)
@@ -127,16 +128,19 @@ void AddLevel(int type, double level, datetime lvlT)
       if(levTotal >= LVL_MAX) return;
       idx = levTotal++;
    }
-   levList[idx].id         = nextId++;
-   levList[idx].type       = type;
-   levList[idx].level      = level;
-   levList[idx].levelTime  = lvlT;
-   levList[idx].broken     = false;
-   levList[idx].ageCounter = 0;
+   levList[idx].id          = nextId++;
+   levList[idx].type        = type;
+   levList[idx].level       = level;
+   levList[idx].levelTime   = tA;   // Candle A — price origin
+   levList[idx].confirmTime = tB;   // Candle B — SNR valid only AFTER this
+   levList[idx].broken      = false;
+   levList[idx].ageCounter  = 0;
 }
 
 //+------------------------------------------------------------------+
 //| Detect Classic + Gap levels from candle pair (shA older, shB).  |
+//| An SNR is a TWO-candle pattern: Candle A close = level price,   |
+//| Candle B defines the type. Not valid until Candle B closes.     |
 //+------------------------------------------------------------------+
 void DetectLevels(int shA, int shB)
 {
@@ -148,16 +152,17 @@ void DetectLevels(int shA, int shB)
 
    double   lvl  = iClose(_Symbol, InpTF, shA);
    datetime tA   = iTime (_Symbol, InpTF, shA);
+   datetime tB   = iTime (_Symbol, InpTF, shB);
 
    if(InpUseClassic)
    {
-      if(dirA > 0 && dirB < 0) AddLevel(TYPE_RESISTANCE, lvl, tA);
-      if(dirA < 0 && dirB > 0) AddLevel(TYPE_SUPPORT,    lvl, tA);
+      if(dirA > 0 && dirB < 0) AddLevel(TYPE_RESISTANCE, lvl, tA, tB);
+      if(dirA < 0 && dirB > 0) AddLevel(TYPE_SUPPORT,    lvl, tA, tB);
    }
    if(InpUseGap)
    {
-      if(dirA > 0 && dirB > 0) AddLevel(TYPE_SUPPORT,    lvl, tA);
-      if(dirA < 0 && dirB < 0) AddLevel(TYPE_RESISTANCE, lvl, tA);
+      if(dirA > 0 && dirB > 0) AddLevel(TYPE_SUPPORT,    lvl, tA, tB);
+      if(dirA < 0 && dirB < 0) AddLevel(TYPE_RESISTANCE, lvl, tA, tB);
    }
 }
 
@@ -220,7 +225,10 @@ void CheckRejection(int sh)
    for(int i = 0; i < levTotal; i++)
    {
       if(levList[i].broken) continue;
-      if(levList[i].levelTime >= t) continue;
+      // A rejection must be on a candle AFTER Candle B — the SNR is not
+      // valid until its second candle has closed. This prevents the
+      // formation's own Candle B from being mislabeled as a rejection.
+      if(levList[i].confirmTime >= t) continue;
       double lvl = levList[i].level;
 
       if(levList[i].type == TYPE_SUPPORT)

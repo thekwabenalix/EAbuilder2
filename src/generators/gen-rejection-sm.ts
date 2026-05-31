@@ -42,9 +42,10 @@ export function genRejectionSM(
 //+------------------------------------------------------------------+
 struct ${P}LevelRec
 {
-   int      dir;        //  1=support  -1=resistance
-   double   level;
-   datetime levelTime;
+   int      dir;         //  1=support  -1=resistance
+   double   level;       // candle A close — the SNR price
+   datetime levelTime;   // candle A time
+   datetime confirmTime; // candle B time — SNR valid only AFTER this
    bool     broken;
    int      barsAlive;
 };
@@ -67,10 +68,10 @@ void ${P}Reset()
 }
 
 // ── Register a level (dedup by time, recycle broken slots) ────────────
-void ${P}AddLevel(int dir, double level, datetime lvlT)
+void ${P}AddLevel(int dir, double level, datetime tA, datetime tB)
 {
    for(int _k = 0; _k < ${P}levelCount; _k++)
-      if(${P}levels[_k].levelTime == lvlT) return;
+      if(${P}levels[_k].levelTime == tA) return;
    int idx = -1;
    for(int _k = 0; _k < ${P}levelCount; _k++)
       if(${P}levels[_k].broken) { idx = _k; break; }
@@ -78,14 +79,16 @@ void ${P}AddLevel(int dir, double level, datetime lvlT)
       if(${P}levelCount >= ${P}MAX_LEVELS) return;
       idx = ${P}levelCount++;
    }
-   ${P}levels[idx].dir       = dir;
-   ${P}levels[idx].level     = level;
-   ${P}levels[idx].levelTime = lvlT;
-   ${P}levels[idx].broken    = false;
-   ${P}levels[idx].barsAlive = 0;
+   ${P}levels[idx].dir         = dir;
+   ${P}levels[idx].level       = level;
+   ${P}levels[idx].levelTime   = tA;
+   ${P}levels[idx].confirmTime = tB;   // candle B — valid only after this
+   ${P}levels[idx].broken      = false;
+   ${P}levels[idx].barsAlive   = 0;
 }
 
 // ── Detect Classic + Gap S/R levels from the candle pair at (sh+1, sh) ─
+// SNR is a TWO-candle pattern: A close = level, B defines the type.
 void ${P}Detect(int sh)
 {
    int total = iBars(InpSymbol, ${TF});
@@ -97,14 +100,15 @@ void ${P}Detect(int sh)
    double bC = iClose(InpSymbol, ${TF}, sh);
    bool aBull = aC > aO, aBear = aC < aO;
    bool bBull = bC > bO, bBear = bC < bO;
-   datetime lvlT = iTime(InpSymbol, ${TF}, sh + 1);
+   datetime tA = iTime(InpSymbol, ${TF}, sh + 1);
+   datetime tB = iTime(InpSymbol, ${TF}, sh);
 
    // Classic SNR (reversal pair)
-   if(aBull && bBear) ${P}AddLevel(-1, aC, lvlT);  // resistance
-   else if(aBear && bBull) ${P}AddLevel(1, aC, lvlT);  // support
+   if(aBull && bBear) ${P}AddLevel(-1, aC, tA, tB);  // resistance
+   else if(aBear && bBull) ${P}AddLevel(1, aC, tA, tB);  // support
    // Gap SNR (continuation pair)
-   else if(aBull && bBull) ${P}AddLevel(1, aC, lvlT);  // gap support
-   else if(aBear && bBear) ${P}AddLevel(-1, aC, lvlT);  // gap resistance
+   else if(aBull && bBull) ${P}AddLevel(1, aC, tA, tB);  // gap support
+   else if(aBear && bBear) ${P}AddLevel(-1, aC, tA, tB);  // gap resistance
 }
 
 // ── Check bar sh for a rejection off any live level ───────────────────
@@ -118,10 +122,13 @@ void ${P}CheckRejection(int sh)
    if(range <= 0) return;
    double lowerWick = MathMin(o, c) - l;
    double upperWick = h - MathMax(o, c);
+   datetime bt = iTime(InpSymbol, ${TF}, sh);
 
    for(int _k = 0; _k < ${P}levelCount; _k++)
    {
       if(${P}levels[_k].broken) continue;
+      // Rejection must be on a candle AFTER candle B (SNR not yet valid on B).
+      if(bt <= ${P}levels[_k].confirmTime) continue;
       double lvl = ${P}levels[_k].level;
 
       if(${P}levels[_k].dir == 1)  // SUPPORT → look for bullish rejection

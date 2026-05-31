@@ -49,9 +49,10 @@ export function genSnrSM(
 
 struct ${P}LevelRec
 {
-   int      dir;        //  1=support  -1=resistance
-   double   level;      // price line
-   datetime levelTime;  // candle A time
+   int      dir;         //  1=support  -1=resistance
+   double   level;       // candle A close — the SNR price
+   datetime levelTime;   // candle A time (price origin)
+   datetime confirmTime; // candle B time — SNR valid only AFTER this bar
    int      state;
    int      barsAlive;
    double   retestHigh;
@@ -116,6 +117,7 @@ void ${P}Detect(int sh)
    ${P}levels[idx].dir           = dir;
    ${P}levels[idx].level         = level;
    ${P}levels[idx].levelTime     = lvlT;
+   ${P}levels[idx].confirmTime   = iTime(InpSymbol, ${TF}, sh);  // candle B time
    ${P}levels[idx].state         = ${P}ACTIVE;
    ${P}levels[idx].barsAlive     = 0;
    ${P}levels[idx].retestHigh    = 0;
@@ -129,10 +131,13 @@ void ${P}Advance(int sh)
    double lo = iLow  (InpSymbol, ${TF}, sh);
    double hi = iHigh (InpSymbol, ${TF}, sh);
    double cl = iClose(InpSymbol, ${TF}, sh);
+   datetime bt = iTime(InpSymbol, ${TF}, sh);
 
    for(int _k = 0; _k < ${P}levelCount; _k++)
    {
       if(${P}levels[_k].state >= ${P}BROKEN) continue;
+      // SNR is a two-candle pattern — do not test it until AFTER candle B.
+      if(bt <= ${P}levels[_k].confirmTime) continue;
       ${P}levels[_k].barsAlive++;
       ${P}levels[_k].justConfirmed = false;
 
