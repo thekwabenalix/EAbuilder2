@@ -126,16 +126,13 @@ function genModuleSignal(
       const fast = p(params, "fastPeriod", 21);
       const slow = p(params, "slowPeriod", 50);
       return `
-   // EMA: fast(${fast}) vs slow(${slow}) alignment
+   // EMA: fast(${fast}) vs slow(${slow}) alignment — real iMA, drawn on chart
    {
-      double _fast = 0.0, _slow = 0.0;
-      for(int _k = 1; _k <= ${slow}; _k++) {
-         double _c = iClose(InpSymbol, ${TF}, _k);
-         if(_k <= ${fast}) _fast += _c;
-         _slow += _c;
-      }
-      _fast /= ${fast}.0; _slow /= ${slow}.0;
-      ${varName} = (_fast > _slow) ? 1 : -1;
+      int _hF = B4_MA(${TF}, ${fast}, MODE_EMA);
+      int _hS = B4_MA(${TF}, ${slow}, MODE_EMA);
+      double _fast = B4_MAval(_hF, 1);
+      double _slow = B4_MAval(_hS, 1);
+      ${varName} = (_fast > _slow) ? 1 : (_fast < _slow ? -1 : 0);
    }`;
     }
 

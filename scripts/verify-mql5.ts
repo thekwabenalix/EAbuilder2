@@ -224,5 +224,26 @@ function runAiTest(title: string, file: string, build: () => { code: string; che
 runAiTest("RSI HD as Setup Brain", "RSI_HD_Continuation_Test.mq5", buildAiEa);
 runAiTest("OB+FVG as Setup→Execution", "OB_FVG_Setup_Test.mq5", buildObFvgAiEa);
 
+// ── Template-mode EMA EA: confirm the MA helper is emitted AND used (drawn) ────
+runAiTest("EMA cross (template, drawn MAs)", "EMA_Cross_Template_Test.mq5", () => {
+  const config: FourBrainConfig = {
+    direction:  { modules: ["ema"], timeframe: "H1", parameters: { fastPeriod: 12, slowPeriod: 48 } },
+    setup:      { modules: ["ema"], timeframe: "M5", parameters: { fastPeriod: 12, slowPeriod: 48 } },
+    execution:  { modules: ["engulfing"], timeframe: "M5" },
+    management: { riskPercent: 1.0, rewardRisk: 2.0, stopBuffer: 0.0005,
+                  breakEvenEnabled: true, breakEvenAtR: 1.5, maxOpenTrades: 3 },
+  } as FourBrainConfig;
+  const code = generateEA({ eaName: "EMA_Cross_Template_Test", config,
+    globalSymbol: "EURUSD", globalMagic: 990779 });
+  const checks: Array<[string, boolean]> = [
+    ["B4_MA helper emitted",       code.includes("int B4_MA(")],
+    ["ChartIndicatorAdd present",  code.includes("ChartIndicatorAdd(")],
+    ["direction uses B4_MA",       /B4_MA\(PERIOD_H1, \d+, MODE_EMA\)/.test(code)],
+    ["setup uses B4_MA",           /B4_MA\(PERIOD_M5, \d+, MODE_EMA\)/.test(code)],
+    ["no fake summation EMA",      !code.includes("fastSum")],
+  ];
+  return { code, checks };
+});
+
 console.log(`\n${items.length + 1} files emitted, ${totalWarn} static warning(s).`);
 console.log(`Next: open verify/mql5/*.mq5 in MetaEditor and compile (F7).\n`);

@@ -148,17 +148,32 @@ CODE GENERATION RULES
     config = "undeclared identifier" compile error. Before finishing, check every
     XXXSM_ID_ call against your sm_configs.
 
-    ★ EMA HAS NO STATE MACHINE — it is INLINE code only.
-    Do NOT call BOSSM/FVGSM/etc for EMA. For EMA direction, write inline:
+    ★ EMA / moving averages HAVE NO STATE MACHINE — INLINE only.
+    Do NOT call BOSSM/FVGSM/etc for EMA. Use the verified helper B4_MA so the
+    moving average is a REAL iMA handle AND is DRAWN on the chart (the trader
+    must be able to SEE the MA to trust the EA). B4_MA is idempotent — safe to
+    call every bar. Example (12/48 EMA cross on M5 for direction):
       void Direction_Brain_Execute() {
-        double fast=0, slow=0;
-        for(int i=1;i<=48;i++){ double c=iClose(InpSymbol,PERIOD_M5,i); if(i<=12) fast+=c; slow+=c; }
-        fast/=12.0; slow/=48.0;
+        int hFast = B4_MA(PERIOD_M5, 12, MODE_EMA);
+        int hSlow = B4_MA(PERIOD_M5, 48, MODE_EMA);
+        double fast = B4_MAval(hFast, 1);   // 1 = last closed bar
+        double slow = B4_MAval(hSlow, 1);
         gBias = (fast>slow) ? 1 : (fast<slow ? -1 : 0);
         PrintFormat("[DIR] EMA fast=%.5f slow=%.5f gBias=%d", fast, slow, gBias);
       }
+    NEVER approximate an EMA with a manual loop/average — always use B4_MA.
     EMA needs NO sm_config entry — it uses no state machine.
     Pin Bar and Engulfing are also INLINE (no SM, no sm_config).
+
+    ★ VISUALISE EVERY INDICATOR. Any classic indicator you use MUST be visible:
+      - Moving averages: use B4_MA(tf, period, method) — it draws automatically.
+      - Other indicators (RSI, MACD, Bollinger, ATR, Stochastic): create the
+        handle once and pass it to B4_Draw(handle, subWindow). Use subWindow 0
+        for on-chart overlays (Bollinger) and 1 for oscillators (RSI/MACD/ATR).
+        Example: int hRsi = iRSI(InpSymbol, PERIOD_M15, 14, PRICE_CLOSE);
+                 B4_Draw(hRsi, 1);
+                 double rsi = B4_MAval(hRsi, 1);
+      Create indicator handles ONCE (guard with a static/global), never every tick.
 
     State machines that DO need an sm_config entry: fvg, fvg_inversion, ob, bos,
     choch, bos_choch, liqsweep, snr, gap_snr, breakout, rejection, miss. Only these.

@@ -385,16 +385,11 @@ void Setup_Brain_Execute()
         const emaSlow = p(brainParams, "slowPeriod", 50);
         parts.push(`
    // EMA alignment: fast(${emaFast}) > slow(${emaSlow}) in bias direction creates setup
+   // Real iMA handles, drawn on the chart via B4_MA.
    if(!gSetupActive)
    {
-      double fastSum = 0.0, slowSum = 0.0;
-      for(int i = 1; i <= ${emaSlow}; i++) {
-         double c = iClose(InpSymbol, ${TF}, i);
-         if(i <= ${emaFast}) fastSum += c;
-         slowSum += c;
-      }
-      double fastMA = fastSum / ${emaFast}.0;
-      double slowMA = slowSum / ${emaSlow}.0;
+      double fastMA = B4_MAval(B4_MA(${TF}, ${emaFast}, MODE_EMA), 1);
+      double slowMA = B4_MAval(B4_MA(${TF}, ${emaSlow}, MODE_EMA), 1);
       if(fastMA > slowMA && (gBias == 0 || gBias == 1))
       {
          gSetupActive = true; gSetupDir = 1; gSetupSLHint = fastMA;

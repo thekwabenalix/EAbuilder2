@@ -541,6 +541,59 @@ void DeleteAllChartObjects()
 }
 
 //+------------------------------------------------------------------+
+//| Verified indicator helpers — create handles AND draw them so the |
+//| trader can SEE the indicator the strategy uses. Idempotent:      |
+//| safe to call every bar (handles are cached + drawn once).        |
+//+------------------------------------------------------------------+
+int            B4_indHandles[];
+ENUM_TIMEFRAMES B4_indTf[];
+int            B4_indPeriod[];
+int            B4_indMethod[];
+int            B4_indCount = 0;
+
+// Real moving-average handle (uses iMA), drawn on the chart once.
+//   method: MODE_EMA / MODE_SMA / MODE_SMMA / MODE_LWMA
+int B4_MA(ENUM_TIMEFRAMES tf, int period, ENUM_MA_METHOD method)
+{
+   for(int _i = 0; _i < B4_indCount; _i++)
+      if(B4_indTf[_i] == tf && B4_indPeriod[_i] == period && B4_indMethod[_i] == (int)method)
+         return B4_indHandles[_i];
+   int h = iMA(InpSymbol, tf, period, 0, method, PRICE_CLOSE);
+   if(h == INVALID_HANDLE) return INVALID_HANDLE;
+   ChartIndicatorAdd(0, 0, h);   // main chart (MTF handles render automatically)
+   int n = B4_indCount + 1;
+   ArrayResize(B4_indHandles, n); ArrayResize(B4_indTf, n);
+   ArrayResize(B4_indPeriod, n);  ArrayResize(B4_indMethod, n);
+   B4_indHandles[B4_indCount] = h; B4_indTf[B4_indCount] = tf;
+   B4_indPeriod[B4_indCount] = period; B4_indMethod[B4_indCount] = (int)method;
+   B4_indCount++;
+   return h;
+}
+
+// Value of an MA/indicator buffer at a shift (1 = last closed bar).
+double B4_MAval(int handle, int shift)
+{
+   double _b[];
+   if(handle == INVALID_HANDLE || CopyBuffer(handle, 0, shift, 1, _b) != 1) return 0.0;
+   return _b[0];
+}
+
+// Draw ANY already-created indicator handle on the chart, once.
+//   e.g. int hRsi = iRSI(...); B4_Draw(hRsi, 1);   // 1 = separate sub-window
+void B4_Draw(int handle, int subWindow)
+{
+   if(handle == INVALID_HANDLE) return;
+   for(int _i = 0; _i < B4_indCount; _i++) if(B4_indHandles[_i] == handle) return;
+   ChartIndicatorAdd(0, subWindow, handle);
+   int n = B4_indCount + 1;
+   ArrayResize(B4_indHandles, n); ArrayResize(B4_indTf, n);
+   ArrayResize(B4_indPeriod, n);  ArrayResize(B4_indMethod, n);
+   B4_indHandles[B4_indCount] = handle; B4_indTf[B4_indCount] = PERIOD_CURRENT;
+   B4_indPeriod[B4_indCount] = 0; B4_indMethod[B4_indCount] = 0;
+   B4_indCount++;
+}
+
+//+------------------------------------------------------------------+
 //| Inline State Machine instances (embedded, zero dependencies)    |
 //+------------------------------------------------------------------+
 ${smCode}
