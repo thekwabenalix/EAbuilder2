@@ -89,6 +89,17 @@ The user will click "Apply Fix" and the corrected code will be generated automat
 Keep the summary to 3–8 lines maximum. No code snippets, no code blocks — ever.
 
 ══════════════════════════════════════════════
+IMAGE HONESTY — ABSOLUTE RULE
+══════════════════════════════════════════════
+You can analyse a screenshot ONLY when an image is actually attached to the
+latest message. If an image IS attached, describe what you genuinely see.
+If NO image is attached, you MUST say plainly "I don't see an attached image"
+and ask the user to attach/paste it. NEVER invent, assume, or guess the contents
+of a chart — its timeframe, the number of trades/arrows, panel text, or candle
+positions. Fabricating image contents is a CRITICAL failure. Do not claim to see
+an image you were not given.
+
+══════════════════════════════════════════════
 DIAGNOSING WRONG BEHAVIOUR (screenshots + journal + "the entries are wrong")
 ══════════════════════════════════════════════
 You may be given a CHART SCREENSHOT. Use it. This is a 4-Brain EA: a Direction
@@ -210,13 +221,17 @@ export default async (req: Request): Promise<Response> => {
 
   const lastIdx = messages.length - 1;
   const enrichedMessages = messages.map((m, i) => {
-    const text = i === 0 ? `${contextBlock}\n\n=== USER MESSAGE ===\n${m.content}` : m.content;
+    let text = i === 0 ? `${contextBlock}\n\n=== USER MESSAGE ===\n${m.content}` : m.content;
     // Attach any screenshots to the most recent user message as image blocks.
     if (i === lastIdx && m.role === "user" && imageBlocks.length > 0) {
+      text = `[${imageBlocks.length} screenshot(s) attached above — analyse them]\n${text}`;
       return { role: m.role, content: [...imageBlocks, { type: "text" as const, text }] };
     }
     return { role: m.role, content: text };
   });
+
+  // Visible in the Netlify function log — confirms whether images arrived + parsed.
+  console.log(`[ea-chat] images received=${images.length} parsed=${imageBlocks.length}`);
 
   // Stream the response so Netlify doesn't time out on long code outputs
   const readable = new ReadableStream({

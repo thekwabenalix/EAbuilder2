@@ -47,7 +47,10 @@ export function EaChatDrawer({
   onApplyCode,
   onRegenTemplate,
 }: EaChatDrawerProps) {
-  const [messages, setMessages] = useState<EaChatMessage[]>([]);
+  // Local message type carries attached screenshots so they stay visible in the
+  // conversation (and prove they were captured). Stripped before hitting the API.
+  type ChatMsg = EaChatMessage & { images?: string[] };
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   /** Attached chart screenshots (base64 data URLs) sent with the next message. */
   const [pendingImages, setPendingImages] = useState<string[]>([]);
@@ -118,8 +121,12 @@ export function EaChatDrawer({
     const imgs = pendingImages;
     if ((!text && imgs.length === 0) || loading) return;
 
-    const userMsg: EaChatMessage = { role: "user", content: text || "(screenshot attached)" };
-    const nextMessages: EaChatMessage[] = [...messages, userMsg];
+    const userMsg: ChatMsg = {
+      role: "user",
+      content: text || "(screenshot attached)",
+      images: imgs.length ? imgs : undefined,
+    };
+    const nextMessages: ChatMsg[] = [...messages, userMsg];
     setMessages([...nextMessages, { role: "assistant", content: "" }]);
     setInput("");
     setPendingImages([]);
@@ -134,7 +141,8 @@ export function EaChatDrawer({
         headers: { "Content-Type": "application/json" },
         signal: abortRef.current.signal,
         body: JSON.stringify({
-          messages: nextMessages,
+          // Strip base64 images from the message history — they're sent once via `images`.
+          messages: nextMessages.map(({ images: _i, ...m }) => m),
           blueprint,
           code,
           compileLog: compileLog ?? null,
@@ -294,6 +302,18 @@ export function EaChatDrawer({
                       : "bg-muted/50 border border-border text-foreground"
                   } ${isStreaming && m.content === "" ? "min-w-[40px] min-h-[28px]" : ""}`}
                 >
+                  {m.images && m.images.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-1.5">
+                      {m.images.map((src, k) => (
+                        <img
+                          key={k}
+                          src={src}
+                          alt="attached screenshot"
+                          className="max-h-40 rounded border border-black/20"
+                        />
+                      ))}
+                    </div>
+                  )}
                   {displayContent}
                   {isStreaming && m.content.length > 0 && (
                     <span className="inline-block w-1.5 h-3 bg-current ml-0.5 animate-pulse align-middle" />
