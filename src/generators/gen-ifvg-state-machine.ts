@@ -384,5 +384,33 @@ datetime ${P}LatestBearFvgTime()
          return ${P}ifvgList[_i].fvgTime;
    return 0;
 }
+datetime ${P}LatestBullInversionTime()
+{
+   for(int _i = ${P}ifvgCount - 1; _i >= 0; _i--)
+      if(${P}ifvgList[_i].dir == 1 && ${P}ifvgList[_i].state <= ${P}CONFIRMED)
+         return ${P}ifvgList[_i].inversionTime;
+   return 0;
+}
+datetime ${P}LatestBearInversionTime()
+{
+   for(int _i = ${P}ifvgCount - 1; _i >= 0; _i--)
+      if(${P}ifvgList[_i].dir == -1 && ${P}ifvgList[_i].state <= ${P}CONFIRMED)
+         return ${P}ifvgList[_i].inversionTime;
+   return 0;
+}
+datetime ${P}BullConfirmTime()
+{
+   for(int _i = ${P}ifvgCount - 1; _i >= 0; _i--)
+      if(${P}ifvgList[_i].dir == 1 && ${P}ifvgList[_i].justConfirmed)
+         return ${P}ifvgList[_i].confirmTime;
+   return 0;
+}
+datetime ${P}BearConfirmTime()
+{
+   for(int _i = ${P}ifvgCount - 1; _i >= 0; _i--)
+      if(${P}ifvgList[_i].dir == -1 && ${P}ifvgList[_i].justConfirmed)
+         return ${P}ifvgList[_i].confirmTime;
+   return 0;
+}
 `;
 }

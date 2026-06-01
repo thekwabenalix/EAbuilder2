@@ -376,5 +376,88 @@ runAiTest("EMA cross (template, drawn MAs)", "EMA_Cross_Template_Test.mq5", () =
   return { code, checks };
 });
 
+runAiTest("EMA test gates later iFVG", "EMA_Test_Then_IFVG_Test.mq5", () => {
+  const config: FourBrainConfig = {
+    direction: { modules: ["ema"], timeframe: "M5" },
+    setup: { modules: ["ema", "fvg_inversion"], timeframe: "M5" },
+    execution: { modules: ["fvg_inversion"], timeframe: "M5" },
+    management: {
+      riskPercent: 1,
+      rewardRisk: 3,
+      stopBuffer: 20,
+      breakEvenEnabled: true,
+      breakEvenAtR: 1.5,
+      maxOpenTrades: 1,
+      maxStopPoints: 70,
+    },
+  };
+  const aiWiring: AiBrainWiring = {
+    direction_brain: `void Direction_Brain_Execute() {
+   static int _lastBias = 0;
+   int hFast = B4_MA(PERIOD_M5, 12, MODE_EMA);
+   int hSlow = B4_MA(PERIOD_M5, 48, MODE_EMA);
+   double f1 = B4_MAval(hFast, 1), s1 = B4_MAval(hSlow, 1);
+   double f2 = B4_MAval(hFast, 2), s2 = B4_MAval(hSlow, 2);
+   bool bullCross = (f2 <= s2 && f1 > s1);
+   bool bearCross = (f2 >= s2 && f1 < s1);
+   if(bullCross) gBias = 1;
+   else if(bearCross) gBias = -1;
+   if(gBias != _lastBias) { _lastBias = gBias; gSetupActive = false; }
+}`,
+    setup_brain: `void Setup_Brain_Execute() {
+   static int _seqBias = 0;
+   static datetime _emaCrossTime = 0;
+   static datetime _emaTestTime = 0;
+   gSetupActive = false; gSetupDir = 0; gSetupSLHint = 0.0;
+   datetime barTime = iTime(InpSymbol, PERIOD_M5, 1);
+   if(gBias == 0) { _seqBias = 0; _emaCrossTime = 0; _emaTestTime = 0; return; }
+   if(gBias != _seqBias) { _seqBias = gBias; _emaCrossTime = barTime; _emaTestTime = 0; }
+   int hFast = B4_MA(PERIOD_M5, 12, MODE_EMA);
+   int hSlow = B4_MA(PERIOD_M5, 48, MODE_EMA);
+   double fast = B4_MAval(hFast, 1), slow = B4_MAval(hSlow, 1);
+   double hi = iHigh(InpSymbol, PERIOD_M5, 1), lo = iLow(InpSymbol, PERIOD_M5, 1);
+   bool touchedFast = (lo <= fast && hi >= fast);
+   bool touchedSlow = (lo <= slow && hi >= slow);
+   if(_emaTestTime == 0 && _emaCrossTime > 0 && barTime > _emaCrossTime && (touchedFast || touchedSlow))
+      _emaTestTime = barTime;
+   IFVGSM_M5_Tick(1);
+   datetime invTime = (gBias == 1) ? IFVGSM_M5_LatestBullInversionTime() : IFVGSM_M5_LatestBearInversionTime();
+   if(_emaTestTime > 0 && invTime > _emaTestTime) { gSetupActive = true; gSetupDir = gBias; }
+}`,
+    execution_brain: `void Execution_Brain_Execute() {
+   gExecSignal = false; gExecDir = 0; gExecSL = 0.0;
+   IFVGSM_M5_Tick(1);
+   if(gSetupDir == 1 && IFVGSM_M5_BullJustConfirmed() && IFVGSM_M5_BullConfirmTime() > 0) {
+      gExecSignal = true; gExecDir = 1; gExecSL = IFVGSM_M5_BullConfirmSL();
+   } else if(gSetupDir == -1 && IFVGSM_M5_BearJustConfirmed() && IFVGSM_M5_BearConfirmTime() > 0) {
+      gExecSignal = true; gExecDir = -1; gExecSL = IFVGSM_M5_BearConfirmSL();
+   }
+}`,
+    sm_configs: {
+      ifvg_M5: {
+        type: "fvg_inversion",
+        id: "M5",
+        TF: "PERIOD_M5",
+        tf: "M5",
+        params: { expiryBars: 24 },
+      },
+    },
+  };
+  const code = generateEA({
+    eaName: "EMA_Test_Then_IFVG_Test",
+    config,
+    globalSymbol: "EURUSD",
+    globalMagic: 990781,
+    aiWiring,
+  });
+  const checks: Array<[string, boolean]> = [
+    ["IFVG time accessors emitted", code.includes("LatestBullInversionTime")],
+    ["setup compares IFVG inversion after EMA test", code.includes("invTime > _emaTestTime")],
+    ["execution exposes confirm time", code.includes("BullConfirmTime()")],
+    ["uses just-closed bar tick", code.includes("IFVGSM_M5_Tick(1)")],
+  ];
+  return { code, checks };
+});
+
 console.log(`\n${items.length + 1} files emitted, ${totalWarn} static warning(s).`);
 console.log(`Next: open verify/mql5/*.mq5 in MetaEditor and compile (F7).\n`);

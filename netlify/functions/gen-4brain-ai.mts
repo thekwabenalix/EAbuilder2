@@ -249,11 +249,31 @@ CODE GENERATION RULES
       (If the trader gives a number, it is captured in the Max stop loss management
        input, not in your brain code.)
 
-    REQUIRED SEQUENCE: "must retest EMA before entry" or "only after price touches EMA"
-    → Add a state variable (static bool _emaRetested = false) that:
-      - Resets to false when gBias changes
-      - Sets to true when price touches within N points of either EMA
-      - Blocks gExecSignal unless _emaRetested is true
+    REQUIRED SEQUENCE / TEMPORAL GATING:
+    When the trader says "after", "before", "only after", "ignore anything before",
+    "then", "once X happens", or "valid only if it forms after Y", you MUST store
+    datetime timestamps and compare event times. A bool flag alone is forbidden
+    because it cannot prove event ordering.
+
+    Example: "After EMA cross, price must test 12/48 EMA. Only IFVGs that form
+    after the EMA test are valid."
+    → Store:
+      static int _lastBias = 0;
+      static datetime _emaCrossTime = 0;
+      static datetime _emaTestTime = 0;
+    → On opposite EMA cross / bias flip: update _emaCrossTime to the cross bar,
+      reset _emaTestTime = 0, gSetupActive=false.
+    → When a closed candle touches either EMA after _emaCrossTime:
+      _emaTestTime = barTime.
+    → For iFVG: accept only if IFVGSM_M5_LatestBullInversionTime() > _emaTestTime
+      (or LatestBearInversionTime for sells). Execution confirmation must also be
+      after _emaTestTime: IFVGSM_M5_BullConfirmTime() > _emaTestTime.
+    → NEVER use HasActiveBull()/HasActiveBear() by itself for a "forms after"
+      condition; pair it with the module's timestamp accessor.
+
+    Available iFVG time accessors:
+      IFVGSM_{id}_LatestBullInversionTime(), IFVGSM_{id}_LatestBearInversionTime()
+      IFVGSM_{id}_BullConfirmTime(), IFVGSM_{id}_BearConfirmTime()
 
     INVALIDATION: "if opposite cross, reset direction and cancel pending"
     → In Direction_Brain_Execute(): when gBias flips, also reset gSetupActive = false.

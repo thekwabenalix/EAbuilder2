@@ -495,6 +495,26 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
           returns: "double",
           meaning: "Upper limit of the most recent bear iFVG",
         },
+        {
+          fn: "IFVGSM_{id}_LatestBullInversionTime()",
+          returns: "datetime",
+          meaning: "When the latest bull iFVG formed; use for 'only after X' gates",
+        },
+        {
+          fn: "IFVGSM_{id}_LatestBearInversionTime()",
+          returns: "datetime",
+          meaning: "When the latest bear iFVG formed; use for 'only after X' gates",
+        },
+        {
+          fn: "IFVGSM_{id}_BullConfirmTime()",
+          returns: "datetime",
+          meaning: "Confirmation bar time for the current bull iFVG signal",
+        },
+        {
+          fn: "IFVGSM_{id}_BearConfirmTime()",
+          returns: "datetime",
+          meaning: "Confirmation bar time for the current bear iFVG signal",
+        },
       ],
       reset: "IFVGSM_{id}_Reset()",
     },
