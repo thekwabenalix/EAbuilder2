@@ -195,6 +195,17 @@ CODE GENERATION RULES
     guarded, so SetupActive() and JustConfirmed() are both valid on the confirmation bar.
     retestPoints = tolerance in POINTS (1 pip = 10 points on a 5-digit symbol; "10 pips" → 100).
 
+    ★★★ NEVER add a manual "arm now, fire next bar" defer for entries (no
+    gExecSignalArmed / gExecSignalBar pattern, no waiting one bar before setting
+    gExecSignal). Set gExecSignal = true in the SAME tick as JustConfirmed().
+    WHY: the state machine confirms on the CLOSED bar (shift 1), so firing
+    immediately already enters at the CURRENT (new) bar's open — that IS "enter on
+    the next candle". A manual defer pushes gExecSignal to a LATER bar, by which
+    time the setup has been CONSUMED (gSetupActive resets to false) — the confluence
+    gate then BLOCKS the trade with "no setup" and NO TRADE EVER FIRES. "Enter on
+    next candle open" is already handled by the bar-open execution model; do not
+    re-implement it.
+
     ★ VISUALISE EVERY INDICATOR. Any classic indicator you use MUST be visible:
       - Moving averages: use B4_MA(tf, period, method) — it draws automatically.
       - Other indicators (RSI, MACD, Bollinger, ATR, Stochastic): create the
