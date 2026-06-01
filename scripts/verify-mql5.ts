@@ -27,8 +27,9 @@ import { generateUnicornDetector }         from "../src/lib/smc-modules/unicorn-
 import { generateRsiHiddenDivergenceDetector }    from "../src/lib/indicator-modules/rsi-hidden-divergence-detector";
 import { generateRsiHiddenDivergenceStateModule } from "../src/lib/indicator-modules/rsi-hidden-divergence-state-module";
 
-// Inline state-machine fragment generator
+// Inline state-machine fragment generators
 import { genRsiHdSM } from "../src/generators/gen-rsi-hd-sm";
+import { genObFvgSM } from "../src/generators/gen-obfvg-sm";
 
 // Full 4-brain assembler (AI path)
 import { generateEA } from "../src/generators/gen-ea";
@@ -82,6 +83,9 @@ const items: Item[] = [
   { file: "_TEST_RSIHDSM_M15.mq5", code: wrapInlineSM(
       "RSIHDSM M15", genRsiHdSM("M15", "PERIOD_M15", "M15"),
       "RSIHDSM_M15_Reset();", "RSIHDSM_M15_Tick(50);") },
+  { file: "_TEST_OBFVGSM_M15.mq5", code: wrapInlineSM(
+      "OBFVGSM M15", genObFvgSM("M15", "PERIOD_M15", "M15"),
+      "OBFVGSM_M15_Reset();", "OBFVGSM_M15_Tick(50);") },
 ];
 
 // ── Static lint ───────────────────────────────────────────────────────────────
@@ -166,21 +170,59 @@ for (const it of items) {
   console.log(`[${tag}] ${it.file}  (${it.code.split("\n").length} lines)`);
   for (const m of w) console.log(`        • ${m}`);
 }
-// ── Run the AI-path integration test ──────────────────────────────────────────
-console.log(`\n── AI-path integration: RSI HD as Setup Brain ──`);
-try {
-  const { code, checks } = buildAiEa();
-  writeFileSync(resolve(OUT, "RSI_HD_Continuation_Test.mq5"), code, "utf8");
-  const lw = lint(code);
-  console.log(`[${lw.length ? "WARN" : "OK  "}] RSI_HD_Continuation_Test.mq5  (${code.split("\n").length} lines)`);
-  for (const m of lw) console.log(`        • ${m}`);
-  totalWarn += lw.length;
-  for (const [name, ok] of checks) console.log(`        ${ok ? "✓" : "✗"} ${name}`);
-  if (checks.some(([, ok]) => !ok)) totalWarn++;
-} catch (e) {
-  console.log(`[FAIL] assembler threw: ${(e as Error).message}`);
-  totalWarn++;
+// ── AI-path integration: OB+FVG as Setup→Execution via the AI path ────────────
+function buildObFvgAiEa(): { code: string; checks: Array<[string, boolean]> } {
+  const config: FourBrainConfig = {
+    direction:  { modules: ["bos"],    timeframe: "H4" },
+    setup:      { modules: ["ob_fvg"], timeframe: "M15" },
+    execution:  { modules: ["ob_fvg"], timeframe: "M15" },
+    management: { riskPercent: 1.0, rewardRisk: 3.0, stopBuffer: 0.0005,
+                  breakEvenEnabled: true, breakEvenAtR: 1.5, maxOpenTrades: 3 },
+  };
+  const aiWiring: AiBrainWiring = {
+    direction_brain: `void Direction_Brain_Execute() { gBias = 1; }`,
+    setup_brain: `void Setup_Brain_Execute() {
+   OBFVGSM_M15_Tick(80);
+   if(OBFVGSM_M15_HasActiveBull()) { gSetupActive = true; gSetupDir = 1; gSetupSLHint = OBFVGSM_M15_ActiveBullSL(); }
+   else if(OBFVGSM_M15_HasActiveBear()) { gSetupActive = true; gSetupDir = -1; gSetupSLHint = OBFVGSM_M15_ActiveBearSL(); }
+}`,
+    execution_brain: `void Execution_Brain_Execute() {
+   if(OBFVGSM_M15_BullJustConfirmed()) { gExecSignal = true; gExecDir = 1;  gExecSL = OBFVGSM_M15_BullConfirmSL(); }
+   else if(OBFVGSM_M15_BearJustConfirmed()) { gExecSignal = true; gExecDir = -1; gExecSL = OBFVGSM_M15_BearConfirmSL(); }
+}`,
+    required_sms: ["OBFVGSM_M15"],
+    sm_configs: {},
+  };
+  const code = generateEA({ eaName: "OB_FVG_Setup_Test", config,
+    globalSymbol: "EURUSD", globalMagic: 990778, aiWiring });
+  const checks: Array<[string, boolean]> = [
+    ["SM auto-embedded (reconcile)",  code.includes("void OBFVGSM_M15_Tick")],
+    ["SM Reset auto-called in OnInit", code.includes("OBFVGSM_M15_Reset();")],
+    ["setup brain wired",             code.includes("OBFVGSM_M15_HasActiveBull()")],
+    ["execution entry wired",         code.includes("OBFVGSM_M15_BullJustConfirmed()")],
+  ];
+  return { code, checks };
 }
+
+// ── Run the AI-path integration tests ─────────────────────────────────────────
+function runAiTest(title: string, file: string, build: () => { code: string; checks: Array<[string, boolean]> }) {
+  console.log(`\n── AI-path integration: ${title} ──`);
+  try {
+    const { code, checks } = build();
+    writeFileSync(resolve(OUT, file), code, "utf8");
+    const lw = lint(code);
+    console.log(`[${lw.length ? "WARN" : "OK  "}] ${file}  (${code.split("\n").length} lines)`);
+    for (const m of lw) console.log(`        • ${m}`);
+    totalWarn += lw.length;
+    for (const [name, ok] of checks) console.log(`        ${ok ? "✓" : "✗"} ${name}`);
+    if (checks.some(([, ok]) => !ok)) totalWarn++;
+  } catch (e) {
+    console.log(`[FAIL] assembler threw: ${(e as Error).message}`);
+    totalWarn++;
+  }
+}
+runAiTest("RSI HD as Setup Brain", "RSI_HD_Continuation_Test.mq5", buildAiEa);
+runAiTest("OB+FVG as Setup→Execution", "OB_FVG_Setup_Test.mq5", buildObFvgAiEa);
 
 console.log(`\n${items.length + 1} files emitted, ${totalWarn} static warning(s).`);
 console.log(`Next: open verify/mql5/*.mq5 in MetaEditor and compile (F7).\n`);

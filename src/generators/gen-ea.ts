@@ -31,6 +31,7 @@ import { genBreakoutSM }          from "./gen-breakout-sm";
 import { genRejectionSM }         from "./gen-rejection-sm";
 import { genMissSM }              from "./gen-miss-sm";
 import { genRsiHdSM }             from "./gen-rsi-hd-sm";
+import { genObFvgSM }             from "./gen-obfvg-sm";
 import type { AiBrainWiring }     from "@/lib/api-client";
 
 /** Collect all unique TFs that need an iFVG state machine instance. */
@@ -77,6 +78,7 @@ const SM_PREFIX_TYPE: Record<string, string> = {
   REJSM:  "rejection",
   MISSSM: "miss",
   RSIHDSM: "rsi_hd",
+  OBFVGSM: "ob_fvg",
 };
 
 /** Map an sm_config type to its function-name prefix. */
@@ -92,6 +94,7 @@ function smPrefixForType(type: string): string {
     case "rejection":     return "REJSM";
     case "miss":          return "MISSSM";
     case "rsi_hd":        return "RSIHDSM";
+    case "ob_fvg":        return "OBFVGSM";
     case "bos":
     case "choch":
     case "bos_choch":     return "BOSSM";
@@ -131,7 +134,7 @@ function reconcileStateMachines(aiWiring: AiBrainWiring): AiBrainWiring["sm_conf
 
   // Match  PREFIX_ID_  where PREFIX is a known SM prefix and ID is the TF label.
   // IFVGSM must precede FVGSM in the alternation so the longer prefix wins.
-  const re = /\b(RSIHDSM|IFVGSM|FVGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM)_([A-Za-z0-9]+)_/g;
+  const re = /\b(RSIHDSM|OBFVGSM|IFVGSM|FVGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM)_([A-Za-z0-9]+)_/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(allCode)) !== null) {
     const prefix = m[1];
@@ -237,6 +240,11 @@ function buildAiStateMachines(configs: AiBrainWiring["sm_configs"]): string {
           (p.minBars    as number) ?? 5,
           (p.maxBars    as number) ?? 50,
           (p.expiryBars as number) ?? 60,
+        ));
+        break;
+      case "ob_fvg":
+        parts.push(genObFvgSM(id, TF, tf,
+          (p.expiryBars as number) ?? 250,
         ));
         break;
       default:

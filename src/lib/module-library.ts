@@ -398,6 +398,61 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     combinesWith: ["bos", "choch", "fvg", "liqsweep"],
   },
 
+  // ─── OB + FVG (combination) ──────────────────────────────────────────────────
+  {
+    id: "ob_fvg",
+    label: "OB + FVG",
+    aliases: [
+      { phrase: "OB+FVG" },
+      { phrase: "OB and FVG" },
+      { phrase: "order block with fair value gap" },
+      { phrase: "order block FVG" },
+      { phrase: "OB FVG combo" },
+      { phrase: "FVG with order block" },
+      { phrase: "high probability order block" },
+    ],
+    concept: "A high-probability confluence: a Fair Value Gap whose FIRST candle is the opposite colour to the gap — that first candle is the order block. Entry is at the OB body.",
+    detectionLogic: "Scans 3-candle FVGs (C1 oldest, C3 newest). A bullish OB+FVG is a bullish gap (high(C1) < low(C3)) where C1 is bearish; a bearish OB+FVG is a bearish gap (low(C1) > high(C3)) where C1 is bullish. The OB = C1's body. Only FRESH zones count — a zone is consumed the instant price tests the OB body (a wick into it). Entry fires on that tap; SL = the OB candle's low (bull) / high (bear).",
+    roles: [
+      { role: "setup",     fit: "primary",   usage: "A fresh OB+FVG zone in the bias direction is the setup; HasActiveBull/Bear means a zone is waiting." },
+      { role: "execution", fit: "primary",   usage: "Entry triggers when price taps the OB body (BullJustConfirmed/BearJustConfirmed)." },
+    ],
+    lifecycle: "OB+FVG forms (fresh) → ACTIVE while untouched → CONSUMED when price taps the OB body (entry) | EXPIRED after expiryBars",
+    params: [
+      { name: "expiryBars", type: "int", default: 250, range: [20, 600], description: "Bars before an untested zone expires", traderPhrases: [] },
+    ],
+    outputStates: [
+      { name: "HasActiveBull()",     meaning: "A fresh bullish OB+FVG zone exists",  tradingImplication: "Setup armed — watch for a tap of the OB body" },
+      { name: "HasActiveBear()",     meaning: "A fresh bearish OB+FVG zone exists",  tradingImplication: "Setup armed — watch for a tap of the OB body" },
+      { name: "BullJustConfirmed()", meaning: "Price tapped a bullish OB body",      tradingImplication: "ENTRY LONG at the OB" },
+      { name: "BearJustConfirmed()", meaning: "Price tapped a bearish OB body",      tradingImplication: "ENTRY SHORT at the OB" },
+      { name: "BullConfirmSL()",     meaning: "The OB candle low",                   tradingImplication: "SL below the order block" },
+      { name: "BearConfirmSL()",     meaning: "The OB candle high",                  tradingImplication: "SL above the order block" },
+    ],
+    inlineApi: {
+      tick: "OBFVGSM_{id}_Tick(lookback)",
+      signals: [
+        { fn: "OBFVGSM_{id}_HasActiveBull()",     returns: "bool",   meaning: "Fresh bullish OB+FVG zone" },
+        { fn: "OBFVGSM_{id}_HasActiveBear()",     returns: "bool",   meaning: "Fresh bearish OB+FVG zone" },
+        { fn: "OBFVGSM_{id}_BullJustConfirmed()", returns: "bool",   meaning: "OB body tapped — long entry" },
+        { fn: "OBFVGSM_{id}_BearJustConfirmed()", returns: "bool",   meaning: "OB body tapped — short entry" },
+        { fn: "OBFVGSM_{id}_BullConfirmSL()",     returns: "double", meaning: "SL below the OB (entry)" },
+        { fn: "OBFVGSM_{id}_BearConfirmSL()",     returns: "double", meaning: "SL above the OB (entry)" },
+        { fn: "OBFVGSM_{id}_ActiveBullSL()",      returns: "double", meaning: "Freshest live bull zone OB low (setup SL hint)" },
+        { fn: "OBFVGSM_{id}_ActiveBearSL()",      returns: "double", meaning: "Freshest live bear zone OB high (setup SL hint)" },
+      ],
+      reset: "OBFVGSM_{id}_Reset()",
+    },
+    examplePhrases: [
+      "Enter at the OB+FVG on M15",
+      "Order block with a fair value gap for my setup",
+      "BOS on H4, OB+FVG entry on M15",
+      "High probability order block that has an FVG",
+    ],
+    notSuitedFor: ["Direction bias — it is a setup/entry zone, not a trend signal"],
+    combinesWith: ["bos", "choch", "ema", "liqsweep"],
+  },
+
   // ─── Liquidity Sweep ────────────────────────────────────────────────────────
   {
     id: "liqsweep",
@@ -1016,6 +1071,9 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
   ],
   breakout: [
     { key: "lookback",  label: "Range Lookback (bars)", type: "number", default: 20, min: 5,  max: 100, step: 5, hint: "Bar range whose high/low defines the breakout level" },
+  ],
+  ob_fvg: [
+    { key: "expiryBars", label: "Zone Expiry (bars)", type: "number", default: 250, min: 20, max: 600, step: 10, hint: "Bars an untested OB+FVG zone stays valid" },
   ],
   rsi_hd: [
     { key: "rsiPeriod",  label: "RSI Period",            type: "number", default: 14, min: 2,  max: 50,  step: 1, hint: "RSI period used to measure momentum" },
