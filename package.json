@@ -9,7 +9,8 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "verify:mql5": "tsx scripts/verify-mql5.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.40.0",
