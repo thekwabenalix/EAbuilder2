@@ -57,6 +57,8 @@ struct ${P}IfvgRec
    int      barsAlive;
    datetime fvgTime;        // original FVG birth time (chart rect left edge)
    datetime inversionTime;  // bar where FVG was first inverted
+   bool     justInverted;   // true for ONE bar after the iFVG is born
+   double   inversionSL;    // inversion bar low (bull) or high (bear)
    datetime retestTime;
    double   retestHigh;
    double   retestLow;
@@ -74,12 +76,14 @@ int         ${P}fvgCount  = 0;
 
 ${P}IfvgRec ${P}ifvgList[${P}MAX_IFVGS];
 int         ${P}ifvgCount = 0;
+datetime    ${P}lastBar   = 0;
 
 // ── Reset (call on OnInit or full recalc) ──────────────────────────────────
 void ${P}Reset()
 {
    ${P}fvgCount  = 0;
    ${P}ifvgCount = 0;
+   ${P}lastBar   = 0;
 }
 
 // ── Detect 3-candle FVG at bar shift sh (C3=sh, C2=sh+1, C1=sh+2) ─────────
@@ -126,6 +130,8 @@ void ${P}DetectFvg(int sh)
 void ${P}CheckInversion(int sh)
 {
    double   closeV = iClose(InpSymbol, ${TF}, sh);
+   double   barHi  = iHigh (InpSymbol, ${TF}, sh);
+   double   barLo  = iLow  (InpSymbol, ${TF}, sh);
    datetime barT   = iTime (InpSymbol, ${TF}, sh);
 
    for(int _k = 0; _k < ${P}fvgCount; _k++)
@@ -161,6 +167,8 @@ void ${P}CheckInversion(int sh)
       ${P}ifvgList[iIdx].barsAlive     = 0;
       ${P}ifvgList[iIdx].fvgTime       = ${P}fvgList[_k].c1Time;
       ${P}ifvgList[iIdx].inversionTime = barT;
+      ${P}ifvgList[iIdx].justInverted  = true;
+      ${P}ifvgList[iIdx].inversionSL   = (${P}fvgList[_k].dir == -1) ? barLo : barHi;
       ${P}ifvgList[iIdx].retestTime    = 0;
       ${P}ifvgList[iIdx].retestHigh    = 0.0;
       ${P}ifvgList[iIdx].retestLow     = 1e10;
@@ -284,6 +292,10 @@ void ${P}UpdateStates(int sh)
 // ── Main tick function: call once per bar at bar-open (sh=1) ──────────────
 void ${P}Tick(int sh)
 {
+   datetime _bt = iTime(InpSymbol, ${TF}, 0);
+   if(_bt == ${P}lastBar) return;
+   ${P}lastBar = _bt;
+   for(int _i = 0; _i < ${P}ifvgCount; _i++) ${P}ifvgList[_i].justInverted = false;
    ${P}DetectFvg(sh);
    ${P}CheckInversion(sh);
    ${P}UpdateStates(sh);
@@ -291,6 +303,34 @@ void ${P}Tick(int sh)
 
 // ── Accessors ─────────────────────────────────────────────────────────────
 
+// True if a bull iFVG was BORN this bar (bearish FVG closed above UL)
+bool ${P}BullJustInverted()
+{
+   for(int _i = 0; _i < ${P}ifvgCount; _i++)
+      if(${P}ifvgList[_i].dir == 1 && ${P}ifvgList[_i].justInverted) return true;
+   return false;
+}
+// True if a bear iFVG was BORN this bar (bullish FVG closed below LL)
+bool ${P}BearJustInverted()
+{
+   for(int _i = 0; _i < ${P}ifvgCount; _i++)
+      if(${P}ifvgList[_i].dir == -1 && ${P}ifvgList[_i].justInverted) return true;
+   return false;
+}
+double ${P}BullInversionSL()
+{
+   for(int _i = ${P}ifvgCount - 1; _i >= 0; _i--)
+      if(${P}ifvgList[_i].dir == 1 && ${P}ifvgList[_i].justInverted)
+         return ${P}ifvgList[_i].inversionSL;
+   return 0.0;
+}
+double ${P}BearInversionSL()
+{
+   for(int _i = ${P}ifvgCount - 1; _i >= 0; _i--)
+      if(${P}ifvgList[_i].dir == -1 && ${P}ifvgList[_i].justInverted)
+         return ${P}ifvgList[_i].inversionSL;
+   return 0.0;
+}
 // True if a bull iFVG was CONFIRMED this bar (justConfirmed flag)
 bool ${P}BullJustConfirmed()
 {

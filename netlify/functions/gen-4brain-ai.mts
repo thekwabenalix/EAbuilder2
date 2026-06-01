@@ -274,6 +274,19 @@ CODE GENERATION RULES
     Available iFVG time accessors:
       IFVGSM_{id}_LatestBullInversionTime(), IFVGSM_{id}_LatestBearInversionTime()
       IFVGSM_{id}_BullConfirmTime(), IFVGSM_{id}_BearConfirmTime()
+    Always call IFVGSM_{id}_Tick(1). The argument is the just-closed bar shift,
+    not lookback. The IFVG state machine is guarded, so Setup and Execution can
+    both call Tick(1) on the same bar without consuming the event.
+
+    iFVG ENTRY SEMANTICS — distinguish FORMATION from RETEST:
+    - If the trader says "bearish FVG closes above its upper boundary, becomes a
+      bullish IFVG" and "enter after the bullish IFVG is confirmed/forms", the
+      entry trigger is the INVERSION/FORMATION bar:
+        IFVGSM_{id}_BullJustInverted() / BearJustInverted()
+        SL: IFVGSM_{id}_BullInversionSL() / BearInversionSL()
+    - Use IFVGSM_{id}_BullJustConfirmed() / BearJustConfirmed() ONLY when the
+      trader explicitly asks for an iFVG RETEST entry after the inversion zone
+      is born. Do not substitute retest-confirmation for formation-confirmation.
 
     INVALIDATION: "if opposite cross, reset direction and cancel pending"
     → In Direction_Brain_Execute(): when gBias flips, also reset gSetupActive = false.
@@ -323,13 +336,187 @@ interface GenRequest {
   prompt?: string;
 }
 
+interface AiBrainWiringResponse {
+  direction_brain: string;
+  setup_brain: string;
+  execution_brain: string;
+  required_sms: string[];
+  sm_configs: Record<
+    string,
+    {
+      type: string;
+      id: string;
+      TF: string;
+      tf: string;
+      params: Record<string, unknown>;
+    }
+  >;
+  notes: string;
+}
+
+function periodConst(tf: string): string {
+  const label = (tf || "M5").toUpperCase();
+  return label === "MN" ? "PERIOD_MN1" : `PERIOD_${label}`;
+}
+
+function numFrom(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function extractEmaPeriods(text: string, config?: FourBrainConfig): { fast: number; slow: number } {
+  const params = {
+    ...(config?.direction?.params ?? {}),
+    ...(config?.setup?.params ?? {}),
+    ...(config?.execution?.params ?? {}),
+  };
+  const fastFromParams = numFrom(params.fastPeriod, NaN);
+  const slowFromParams = numFrom(params.slowPeriod, NaN);
+  if (Number.isFinite(fastFromParams) && Number.isFinite(slowFromParams)) {
+    return { fast: fastFromParams, slow: slowFromParams };
+  }
+
+  const matches = [...text.matchAll(/(\d{1,3})\s*(?:period\s*)?ema/gi)]
+    .map((m) => Number(m[1]))
+    .filter((n) => Number.isFinite(n));
+  if (matches.length >= 2) return { fast: matches[0], slow: matches[1] };
+  return { fast: 12, slow: 48 };
+}
+
+function extractSingleTimeframe(text: string, config?: FourBrainConfig): string {
+  const configured =
+    config?.execution?.timeframe || config?.setup?.timeframe || config?.direction?.timeframe || "";
+  if (configured) return configured.toUpperCase();
+
+  const tf = text.match(/\b(M1|M5|M15|M30|H1|H4|D1|W1|MN)\b/i)?.[1];
+  return (tf ?? "M5").toUpperCase();
+}
+
+function isEmaTestThenIfvgFormation(text: string, config?: FourBrainConfig): boolean {
+  const hay = text.toLowerCase();
+  const modules = [
+    ...(config?.direction?.modules ?? []),
+    ...(config?.setup?.modules ?? []),
+    ...(config?.execution?.modules ?? []),
+  ].map((m) => m.toLowerCase());
+
+  const hasEma = /\bema\b/.test(hay) || modules.includes("ema");
+  const hasIfvg =
+    /\bifvg\b/.test(hay) ||
+    /inversion\s+fair\s+value\s+gap/.test(hay) ||
+    modules.includes("fvg_inversion");
+  const hasEmaTest = /(ema|moving average).{0,80}(test|touch|retest)/.test(hay);
+  const hasAfterGate = /(after|only after|ignore.{0,40}before|must.{0,80}before)/.test(hay);
+  const hasFormationEntry =
+    /(forms?|formation|becomes?|closes?\s+(above|below).{0,80}(boundary|fvg|gap)|inverted)/.test(hay);
+
+  return hasEma && hasIfvg && hasEmaTest && hasAfterGate && hasFormationEntry;
+}
+
+function buildEmaTestThenIfvgFormationWiring(
+  text: string,
+  config?: FourBrainConfig,
+): AiBrainWiringResponse {
+  const tf = extractSingleTimeframe(text, config);
+  const TF = periodConst(tf);
+  const { fast, slow } = extractEmaPeriods(text, config);
+  const params = {
+    ...(config?.setup?.params ?? {}),
+    ...(config?.execution?.params ?? {}),
+  };
+  const expiryBars = numFrom(params.expiryBars, 100);
+
+  return {
+    direction_brain: `void Direction_Brain_Execute() {
+   static int _lastBias = 0;
+   int hFast = B4_MA(${TF}, ${fast}, MODE_EMA);
+   int hSlow = B4_MA(${TF}, ${slow}, MODE_EMA);
+   double f1 = B4_MAval(hFast, 1), s1 = B4_MAval(hSlow, 1);
+   double f2 = B4_MAval(hFast, 2), s2 = B4_MAval(hSlow, 2);
+   bool bullCross = (f2 <= s2 && f1 > s1);
+   bool bearCross = (f2 >= s2 && f1 < s1);
+   if(bullCross) gBias = 1;
+   else if(bearCross) gBias = -1;
+   if(gBias != _lastBias) {
+      _lastBias = gBias;
+      gSetupActive = false;
+      PrintFormat("[DIR] EMA cross bias=%d", gBias);
+   }
+}`,
+    setup_brain: `void Setup_Brain_Execute() {
+   static int _seqBias = 0;
+   static datetime _emaCrossTime = 0;
+   static datetime _emaTestTime = 0;
+   gSetupActive = false; gSetupDir = 0; gSetupSLHint = 0.0;
+
+   datetime barTime = iTime(InpSymbol, ${TF}, 1);
+   if(gBias == 0) {
+      _seqBias = 0; _emaCrossTime = 0; _emaTestTime = 0;
+      PrintFormat("[SETUP] waiting for EMA cross");
+      return;
+   }
+
+   if(gBias != _seqBias) {
+      _seqBias = gBias;
+      _emaCrossTime = barTime;
+      _emaTestTime = 0;
+      PrintFormat("[SETUP] EMA sequence reset bias=%d cross=%s", gBias, TimeToString(_emaCrossTime, TIME_DATE|TIME_MINUTES));
+   }
+
+   int hFast = B4_MA(${TF}, ${fast}, MODE_EMA);
+   int hSlow = B4_MA(${TF}, ${slow}, MODE_EMA);
+   double fastMa = B4_MAval(hFast, 1), slowMa = B4_MAval(hSlow, 1);
+   double hi = iHigh(InpSymbol, ${TF}, 1), lo = iLow(InpSymbol, ${TF}, 1);
+   bool touchedFast = (lo <= fastMa && hi >= fastMa);
+   bool touchedSlow = (lo <= slowMa && hi >= slowMa);
+   if(_emaTestTime == 0 && _emaCrossTime > 0 && barTime > _emaCrossTime && (touchedFast || touchedSlow)) {
+      _emaTestTime = barTime;
+      PrintFormat("[SETUP] EMA test accepted at %s", TimeToString(_emaTestTime, TIME_DATE|TIME_MINUTES));
+   }
+
+   IFVGSM_${tf}_Tick(1);
+   datetime invTime = (gBias == 1) ? IFVGSM_${tf}_LatestBullInversionTime() : IFVGSM_${tf}_LatestBearInversionTime();
+   if(_emaTestTime > 0 && invTime > _emaTestTime) {
+      gSetupActive = true;
+      gSetupDir = gBias;
+      gSetupSLHint = (gBias == 1) ? IFVGSM_${tf}_BullInversionSL() : IFVGSM_${tf}_BearInversionSL();
+   }
+   PrintFormat("[SETUP] active=%d dir=%d emaTest=%s inv=%s", gSetupActive, gSetupDir,
+               TimeToString(_emaTestTime, TIME_DATE|TIME_MINUTES),
+               TimeToString(invTime, TIME_DATE|TIME_MINUTES));
+}`,
+    execution_brain: `void Execution_Brain_Execute() {
+   gExecSignal = false; gExecDir = 0; gExecSL = 0.0;
+   IFVGSM_${tf}_Tick(1);
+
+   if(gSetupActive && gSetupDir == 1 && gBias == 1 && IFVGSM_${tf}_BullJustInverted()) {
+      gExecSignal = true;
+      gExecDir = 1;
+      gExecSL = IFVGSM_${tf}_BullInversionSL();
+   } else if(gSetupActive && gSetupDir == -1 && gBias == -1 && IFVGSM_${tf}_BearJustInverted()) {
+      gExecSignal = true;
+      gExecDir = -1;
+      gExecSL = IFVGSM_${tf}_BearInversionSL();
+   }
+   PrintFormat("[EXEC] signal=%d dir=%d SL=%.5f", gExecSignal, gExecDir, gExecSL);
+}`,
+    required_sms: [`IFVGSM_${tf}`],
+    sm_configs: {
+      [`ifvg_${tf}`]: {
+        type: "fvg_inversion",
+        id: tf,
+        TF,
+        tf,
+        params: { expiryBars },
+      },
+    },
+    notes: `Deterministic adapter: ${fast}/${slow} EMA cross on ${tf} sets direction, a later candle must touch either EMA, and only iFVG formations after that EMA-test timestamp can trigger entries. The EA uses the verified IFVGSM_${tf} state machine and fires on BullJustInverted/BearJustInverted, not on iFVG retest confirmation.`,
+  };
+}
+
 export default async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   if (req.method !== "POST")
     return Response.json({ error: "Method not allowed" }, { status: 405, headers: CORS });
-
-  if (!process.env.ANTHROPIC_API_KEY)
-    return Response.json({ error: "ANTHROPIC_API_KEY not set" }, { status: 500, headers: CORS });
 
   let body: GenRequest;
   try {
@@ -339,6 +526,24 @@ export default async (req: Request): Promise<Response> => {
   }
 
   const { config, eaName, description, prompt } = body;
+  const fullText = [
+    prompt,
+    description,
+    config?.direction?.description,
+    config?.setup?.description,
+    config?.execution?.description,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  if (isEmaTestThenIfvgFormation(fullText, config)) {
+    return Response.json(buildEmaTestThenIfvgFormationWiring(fullText, config), {
+      headers: { ...CORS, "Content-Type": "application/json" },
+    });
+  }
+
+  if (!process.env.ANTHROPIC_API_KEY)
+    return Response.json({ error: "ANTHROPIC_API_KEY not set" }, { status: 500, headers: CORS });
 
   // Build the user message — two modes:
   // 1. Description-first: trader wrote a plain-English description, no structured config

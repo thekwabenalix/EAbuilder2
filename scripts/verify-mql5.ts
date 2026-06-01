@@ -427,10 +427,10 @@ runAiTest("EMA test gates later iFVG", "EMA_Test_Then_IFVG_Test.mq5", () => {
     execution_brain: `void Execution_Brain_Execute() {
    gExecSignal = false; gExecDir = 0; gExecSL = 0.0;
    IFVGSM_M5_Tick(1);
-   if(gSetupDir == 1 && IFVGSM_M5_BullJustConfirmed() && IFVGSM_M5_BullConfirmTime() > 0) {
-      gExecSignal = true; gExecDir = 1; gExecSL = IFVGSM_M5_BullConfirmSL();
-   } else if(gSetupDir == -1 && IFVGSM_M5_BearJustConfirmed() && IFVGSM_M5_BearConfirmTime() > 0) {
-      gExecSignal = true; gExecDir = -1; gExecSL = IFVGSM_M5_BearConfirmSL();
+   if(gSetupDir == 1 && IFVGSM_M5_BullJustInverted() && IFVGSM_M5_LatestBullInversionTime() > 0) {
+      gExecSignal = true; gExecDir = 1; gExecSL = IFVGSM_M5_BullInversionSL();
+   } else if(gSetupDir == -1 && IFVGSM_M5_BearJustInverted() && IFVGSM_M5_LatestBearInversionTime() > 0) {
+      gExecSignal = true; gExecDir = -1; gExecSL = IFVGSM_M5_BearInversionSL();
    }
 }`,
     sm_configs: {
@@ -453,7 +453,8 @@ runAiTest("EMA test gates later iFVG", "EMA_Test_Then_IFVG_Test.mq5", () => {
   const checks: Array<[string, boolean]> = [
     ["IFVG time accessors emitted", code.includes("LatestBullInversionTime")],
     ["setup compares IFVG inversion after EMA test", code.includes("invTime > _emaTestTime")],
-    ["execution exposes confirm time", code.includes("BullConfirmTime()")],
+    ["execution uses iFVG formation signal", code.includes("BullJustInverted()")],
+    ["execution uses formation SL", code.includes("BullInversionSL()")],
     ["uses just-closed bar tick", code.includes("IFVGSM_M5_Tick(1)")],
   ];
   return { code, checks };

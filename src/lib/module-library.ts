@@ -469,8 +469,28 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       },
     ],
     inlineApi: {
-      tick: "IFVGSM_{id}_Tick(lookback)",
+      tick: "IFVGSM_{id}_Tick(1)",
       signals: [
+        {
+          fn: "IFVGSM_{id}_BullJustInverted()",
+          returns: "bool",
+          meaning: "Bull iFVG formed this bar: bearish FVG closed above its upper boundary",
+        },
+        {
+          fn: "IFVGSM_{id}_BearJustInverted()",
+          returns: "bool",
+          meaning: "Bear iFVG formed this bar: bullish FVG closed below its lower boundary",
+        },
+        {
+          fn: "IFVGSM_{id}_BullInversionSL()",
+          returns: "double",
+          meaning: "SL anchor from bull iFVG formation bar",
+        },
+        {
+          fn: "IFVGSM_{id}_BearInversionSL()",
+          returns: "double",
+          meaning: "SL anchor from bear iFVG formation bar",
+        },
         { fn: "IFVGSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live bull iFVG zone" },
         { fn: "IFVGSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live bear iFVG zone" },
         {
