@@ -306,7 +306,180 @@ function cleanBrain(value: unknown, fallbackTf: string) {
   };
 }
 
+function textOf(value: unknown): string {
+  return typeof value === "string" ? value.toLowerCase() : "";
+}
+
+function ruleText(rule: Record<string, unknown>): string {
+  return `${textOf(rule.type)} ${textOf(rule.label)} ${JSON.stringify(rule.parameters ?? {}).toLowerCase()}`;
+}
+
+function paramNumber(params: Record<string, unknown>, keys: string[], fallback?: number): number | undefined {
+  for (const key of keys) {
+    const value = params[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return fallback;
+}
+
+function extractTfFromRule(rule: Record<string, unknown>, fallback: string): string {
+  const params = cleanParams(rule.parameters);
+  const fromParam = params.timeframe ?? params.tf ?? params.entryTimeframe ?? params.setupTimeframe;
+  if (typeof fromParam === "string") return cleanTimeframe(fromParam, fallback);
+
+  const text = ruleText(rule).toUpperCase();
+  const match = text.match(/\b(M1|M5|M15|M30|H1|H4|D1|W1|MN)\b/);
+  return cleanTimeframe(match?.[1], fallback);
+}
+
+function moduleFromRule(rule: Record<string, unknown>): string | undefined {
+  const text = ruleText(rule);
+  if (text.includes("fvg") || text.includes("fair value gap") || text.includes("imbalance"))
+    return "fvg";
+  if (text.includes("order_block") || text.includes("order block")) return "order_block";
+  if (text.includes("liquidity_sweep") || text.includes("liquidity sweep") || text.includes("sweep"))
+    return "liqsweep";
+  if (text.includes("choch") || text.includes("change of character")) return "choch";
+  if (text.includes("bos") || text.includes("break of structure")) return "bos";
+  if (text.includes("breakout")) return "breakout";
+  if (text.includes("support") || text.includes("resistance") || text.includes("snr"))
+    return "snr";
+  if (text.includes("rejection")) return "rejection";
+  if (text.includes("miss")) return "miss";
+  if (text.includes("bollinger")) return "bb";
+  if (text.includes("engulf")) return "engulfing";
+  if (text.includes("pin bar") || text.includes("hammer") || text.includes("shooting star"))
+    return "pin_bar";
+  if (text.includes("ema") || text.includes("moving average")) return "ema";
+  return undefined;
+}
+
+function paramsFromRule(rule: Record<string, unknown>, module: string): Record<string, unknown> {
+  const params = cleanParams(rule.parameters);
+  if (module === "ema") {
+    const fastPeriod =
+      paramNumber(params, ["fastPeriod", "fast", "shortPeriod", "periodFast"]) ??
+      (ruleText(rule).match(/\b(\d+)\s*ema\b/) ? Number(ruleText(rule).match(/\b(\d+)\s*ema\b/)![1]) : undefined) ??
+      12;
+    const slowPeriod =
+      paramNumber(params, ["slowPeriod", "slow", "longPeriod", "periodSlow"]) ??
+      (ruleText(rule).match(/\b(\d+)\s*ema\b.*\b(\d+)\s*ema\b/)
+        ? Number(ruleText(rule).match(/\b(\d+)\s*ema\b.*\b(\d+)\s*ema\b/)![2])
+        : undefined) ??
+      48;
+    return { fastPeriod, slowPeriod };
+  }
+  if (module === "fvg" || module === "fvg_inversion") {
+    return { expiryBars: paramNumber(params, ["expiryBars", "expiry", "setupExpiryBars"], 100) };
+  }
+  if (module === "bos" || module === "choch" || module === "bos_choch") {
+    return {
+      lookback: paramNumber(params, ["lookback", "lookbackBars"], 20),
+      swingLen: paramNumber(params, ["swingLen", "pivotStrength", "pivot"], 5),
+    };
+  }
+  if (module === "order_block") {
+    return {
+      dispMult: paramNumber(params, ["dispMult", "displacement"], 0.6),
+      scanBack: paramNumber(params, ["scanBack"], 5),
+      expiryBars: paramNumber(params, ["expiryBars", "expiry"], 100),
+    };
+  }
+  return {};
+}
+
+function inferFourBrain(blueprint: Record<string, unknown>) {
+  const rules = Array.isArray(blueprint.rules)
+    ? (blueprint.rules.filter((r) => r && typeof r === "object") as Record<string, unknown>[])
+    : [];
+  if (rules.length === 0) return undefined;
+
+  const findRule = (predicate: (rule: Record<string, unknown>) => boolean) => rules.find(predicate);
+  const isDirection = (rule: Record<string, unknown>) => {
+    const text = ruleText(rule);
+    return (
+      text.includes("direction") ||
+      text.includes("bias") ||
+      text.includes("trend") ||
+      text.includes("alignment") ||
+      text.includes("ema_cross") ||
+      text.includes("bos") ||
+      text.includes("choch")
+    );
+  };
+  const isSetup = (rule: Record<string, unknown>) => {
+    const text = ruleText(rule);
+    return (
+      text.includes("setup") ||
+      text.includes("arm") ||
+      text.includes("retest") ||
+      text.includes("touch") ||
+      text.includes("zone") ||
+      text.includes("fvg") ||
+      text.includes("order block")
+    );
+  };
+  const isExecution = (rule: Record<string, unknown>) => {
+    const text = ruleText(rule);
+    return (
+      text.includes("trigger") ||
+      text.includes("entry") ||
+      text.includes("execute") ||
+      text.includes("next candle") ||
+      text.includes("engulf") ||
+      text.includes("pin bar") ||
+      text.includes("liquidity sweep")
+    );
+  };
+
+  const buildBrain = (rule: Record<string, unknown>, fallbackTf: string) => {
+    const module = moduleFromRule(rule);
+    if (!module) return undefined;
+    return {
+      modules: [module],
+      timeframe: extractTfFromRule(rule, fallbackTf),
+      params: paramsFromRule(rule, module),
+      description: typeof rule.label === "string" ? rule.label : "",
+    };
+  };
+
+  const directionRule = findRule(isDirection);
+  const setupRule = findRule((rule) => isSetup(rule) && rule !== directionRule);
+  const executionRule =
+    findRule((rule) => isExecution(rule) && rule !== directionRule && rule !== setupRule) ??
+    findRule((rule) => isExecution(rule)) ??
+    setupRule ??
+    directionRule;
+
+  if (!executionRule) return undefined;
+  const execution = buildBrain(executionRule, "M15");
+  if (!execution) return undefined;
+
+  const direction = directionRule ? buildBrain(directionRule, "D1") : undefined;
+  const setup = setupRule ? buildBrain(setupRule, "H4") : undefined;
+  const risk = cleanParams(blueprint.risk);
+  return {
+    direction,
+    setup,
+    execution,
+    management: {
+      riskPercent: paramNumber(risk, ["riskPercent"], 1),
+      rewardRisk: paramNumber(risk, ["rewardRisk"], 2),
+      stopBuffer: paramNumber(risk, ["stopBufferPoints", "stopBuffer"], 20),
+      breakEvenEnabled: typeof risk.breakevenEnabled === "boolean" ? risk.breakevenEnabled : false,
+      breakEvenAtR: 1,
+      maxOpenTrades: paramNumber(risk, ["maxOpenTrades"], 1),
+      maxStopPoints: 0,
+    },
+  };
+}
+
 function normalizeBlueprint(blueprint: Record<string, unknown>): Record<string, unknown> {
+  if (!blueprint.fourBrain) {
+    const inferred = inferFourBrain(blueprint);
+    if (inferred) blueprint.fourBrain = inferred;
+  }
+
   const fb = blueprint.fourBrain;
   if (!fb || typeof fb !== "object") return blueprint;
 

@@ -25,6 +25,7 @@ import { createStrategy } from "@/lib/strategies";
 import { toast } from "sonner";
 import { analyzeBuildability } from "@/lib/mql5-template-generator";
 import type { BuildabilityResult } from "@/lib/mql5-template-generator";
+import { formatBrainChain } from "@/lib/brain-modules";
 
 export const Route = createFileRoute("/new")({
   component: StrategyBuilders,
@@ -344,6 +345,7 @@ function InterviewPanel({
   const totalRules = blueprint.rules?.length ?? 0;
   const clarifications = blueprint.pendingClarifications ?? [];
   const confidence = blueprint.confidence ?? 0;
+  const isFourBrain = Boolean(blueprint.fourBrain);
 
   const confidenceColor =
     confidence >= 75
@@ -372,11 +374,19 @@ function InterviewPanel({
         {blueprint.summary && <p className="text-xs text-muted-foreground">{blueprint.summary}</p>}
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className="rounded border border-border bg-muted/20 p-2">
-            <p className="text-xl font-bold">{totalRules}</p>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Rules</p>
+            <p className="text-xl font-bold">
+              {isFourBrain && blueprint.fourBrain
+                ? (blueprint.fourBrain.direction ? 1 : 0) + (blueprint.fourBrain.setup ? 1 : 0) + 1
+                : totalRules}
+            </p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
+              {isFourBrain ? "Brains" : "Rules"}
+            </p>
           </div>
           <div className="rounded border border-emerald-500/30 bg-emerald-500/5 p-2">
-            <p className="text-xl font-bold text-emerald-400">{compilableCount}</p>
+            <p className="text-xl font-bold text-emerald-400">
+              {isFourBrain ? "4B" : compilableCount}
+            </p>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Compilable</p>
           </div>
           <div className="rounded border border-amber-500/30 bg-amber-500/5 p-2">
@@ -394,6 +404,14 @@ function InterviewPanel({
                 {t.replace(/_/g, " ")}
               </span>
             ))}
+          </div>
+        )}
+        {blueprint.fourBrain && (
+          <div className="rounded border border-primary/30 bg-primary/5 p-3">
+            <p className="text-[10px] uppercase tracking-wide text-primary mb-1">4-Brain Mapping</p>
+            <p className="text-xs font-mono text-primary/90">
+              {formatBrainChain(blueprint.fourBrain)}
+            </p>
           </div>
         )}
         <div className="grid grid-cols-3 gap-2 text-xs">
@@ -508,6 +526,26 @@ function InterviewPanel({
 // ─── Build Status Card ────────────────────────────────────────────────────────
 
 function BuildStatusCard({ blueprint }: { blueprint: StrategyBlueprint }) {
+  if (blueprint.fourBrain) {
+    return (
+      <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-medium">4-Brain ready — verified module path</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Click Save to open the Brains tab, review the mapping, then generate the EA from
+              verified building blocks.
+            </p>
+          </div>
+          <span className="text-xs px-2 py-0.5 rounded-full border font-medium shrink-0 border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
+            ready
+          </span>
+        </div>
+        <p className="text-xs font-mono text-primary/80">{formatBrainChain(blueprint.fourBrain)}</p>
+      </div>
+    );
+  }
+
   const result: BuildabilityResult = analyzeBuildability(blueprint);
 
   const pillColor =
