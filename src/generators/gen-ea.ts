@@ -326,14 +326,17 @@ export function generateEA(params: MQL5CodeGenParams): string {
     execSmTick  = (execTFUpper !== setupTFUpper) ? smTickCall(execTFUpper) : "";
   }
 
-  // Direction gate: if no direction brain, skip bias check
+  // Direction gate: require a bias AND that the execution direction AGREES with it.
+  // (Confluence = all active brains agree. A BULL bias must never open a SELL.)
   const dirGate   = hasDirBrain
-    ? `if(gBias == 0) { PrintFormat("[GATE] BLOCKED: no bias"); return; }`
+    ? `if(gBias == 0) { PrintFormat("[GATE] BLOCKED: no bias"); return; }
+      if(gExecDir != 0 && gExecDir != gBias) { PrintFormat("[GATE] BLOCKED: exec dir %d disagrees with bias %d", gExecDir, gBias); return; }`
     : `// Direction Brain disabled — no bias gate`;
 
-  // Setup gate: if no setup brain, bypass
+  // Setup gate: require an active setup AND that exec direction agrees with the setup direction.
   const setupGate = hasSetupBrain
-    ? `if(!gSetupActive) { PrintFormat("[GATE] BLOCKED: no setup"); return; }`
+    ? `if(!gSetupActive) { PrintFormat("[GATE] BLOCKED: no setup"); return; }
+      if(gSetupDir != 0 && gExecDir != 0 && gExecDir != gSetupDir) { PrintFormat("[GATE] BLOCKED: exec dir %d disagrees with setup dir %d", gExecDir, gSetupDir); return; }`
     : `// Setup Brain disabled — no zone gate`;
 
   // Break-even management code
