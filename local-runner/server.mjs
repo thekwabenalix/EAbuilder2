@@ -248,6 +248,11 @@ function boolToMt5(value) {
   return value ? "1" : "0";
 }
 
+function testerSymbolOrDefault(symbol) {
+  const clean = String(symbol ?? "").trim();
+  return clean && clean.toUpperCase() !== "ANY" ? clean : "EURUSD";
+}
+
 function forwardModeToMt5(value) {
   return value === "half" || value === "custom" ? "1" : "0";
 }
@@ -720,7 +725,7 @@ function buildTesterIni(jobId, mt5, request, expert) {
     "[Tester]",
     `Expert=${expert.testerExpertName}`,
     `ExpertParameters=${setFilename}`,
-    `Symbol=${tester.symbol ?? "EURUSD"}`,
+    `Symbol=${testerSymbolOrDefault(tester.symbol)}`,
     `Period=${tester.period ?? "M5"}`,
     `Login=${accountLogin}`,
     `Model=${modelToMt5Value(tester.model)}`,
@@ -766,7 +771,7 @@ function buildSetLines(tester) {
   ]);
 
   return [
-    `InpSymbol=${tester.symbol ?? "EURUSD"}`,
+    `InpSymbol=${testerSymbolOrDefault(tester.symbol)}`,
     ...ranges.map((range) => {
       if (!range?.name) return null;
       const value = Number.isFinite(Number(range.value))

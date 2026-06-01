@@ -1461,6 +1461,11 @@ function todayDot() {
   return new Date().toISOString().slice(0, 10).replace(/-/g, ".");
 }
 
+function mt5TesterSymbol(symbol?: string | null) {
+  const clean = String(symbol ?? "").trim();
+  return clean && clean.toUpperCase() !== "ANY" ? clean : "EURUSD";
+}
+
 function oneYearAgoDot() {
   const d = new Date();
   d.setFullYear(d.getFullYear() - 1);
@@ -1539,7 +1544,7 @@ function BacktestTab({
   const [config, setConfig] = useState<
     Omit<TesterConfig, "expertName" | "reportName" | "visualMode" | "optimization">
   >({
-    symbol: blueprint.execution.symbol || "EURUSD",
+    symbol: mt5TesterSymbol(blueprint.execution.symbol),
     period: blueprint.execution.entryTimeframe || "H1",
     model: "open_prices",
     fromDate: oneYearAgoDot(),
