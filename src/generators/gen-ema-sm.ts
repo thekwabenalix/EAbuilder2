@@ -1,34 +1,44 @@
 /**
- * Inline EMA State Machine Generator (retest + confirmation sequence)
+ * Inline EMA State Machine Generator (cross → retest → confirmation sequence)
  *
- * Encodes the multi-bar EMA pullback sequence as a verified state machine so the
- * AI WIRES it instead of hand-writing (and collapsing) the phases:
+ * The canonical EMA pullback setup, as a verified state machine so the AI WIRES
+ * it instead of hand-writing (and collapsing) the phases:
  *
  *   IDLE
- *     → ARMED       : price RETESTS the slow EMA (within retestPoints) in the
- *                     bias direction. The retest bar only ARMS — it never fires.
- *     → (stay ARMED): later pullback bars update the swing extreme (SL ref).
- *     → CONFIRMED   : a LATER bar CLOSES outside the fast EMA in the bias
- *                     direction → entry signal (enter next bar). SL = swing.
- *   Invalidation: bias flips, or a bar closes back through the slow EMA.
+ *     → CROSSED   : the fast/slow EMA CROSSES in the bias direction (12 crosses
+ *                   48 up for bull / down for bear). This arms the setup.
+ *                   (Skipped when requireCross = false.)
+ *     → ARMED     : after the cross, price RETESTS the slow EMA (within
+ *                   retestPoints). The retest bar only arms — it never fires.
+ *     → CONFIRMED : a LATER bar CLOSES outside the fast EMA in the bias
+ *                   direction → entry next bar. SL = pullback swing.
+ *   After a confirmation, the machine returns to IDLE — a NEW cross is required
+ *   for the next trade (prevents repeated entries off one move).
+ *   Invalidation: bias flips, an opposite cross, or a bar closes back through
+ *   the slow EMA while armed.
  *
- * Direction is supplied externally (the higher-TF gBias) so the M5 instance
- * aligns with the H1 trend. The SM also exposes Bias() for use as a Direction
- * Brain on its own timeframe.
+ * Direction is supplied externally (the higher-TF gBias) so the lower-TF instance
+ * aligns with the trend. Bias() is exposed for the Direction Brain role.
  *
- * EMAs are real iMA handles drawn via B4_MA. Values are read with a GUARDED
- * copy (never the 0.0 fallback), so unready buffers can't produce phantom signals.
+ * Roles → API:
+ *   Direction : EMASM_{id}_Bias()
+ *   Setup     : EMASM_{id}_SetupActive()  (cross happened — setup live)
+ *   Execution : EMASM_{id}_JustConfirmed() (close outside fast after retest)
  *
- * Standard API:
+ * EMAs are real iMA handles drawn via B4_MA, read with a GUARDED copy (never the
+ * 0.0 fallback) so unready buffers can't produce phantom signals.
+ *
+ * Full API:
  *   EMASM_{id}_Reset()
- *   EMASM_{id}_Tick(int bias)        — advance once per bar for the given bias
- *   EMASM_{id}_Bias()                — own fast/slow alignment (Direction role)
- *   EMASM_{id}_RetestActive()        — ARMED: a retest is waiting (Setup role)
- *   EMASM_{id}_ActiveDir()           — direction of the armed pullback
- *   EMASM_{id}_ActiveSL()            — current swing SL hint while armed
- *   EMASM_{id}_JustConfirmed()       — confirmation fired THIS bar (Execution)
- *   EMASM_{id}_ConfirmDir()          — direction of the confirmation
- *   EMASM_{id}_ConfirmSL()           — swing SL at confirmation
+ *   EMASM_{id}_Tick(int bias)
+ *   EMASM_{id}_Bias()           — own fast/slow alignment (Direction)
+ *   EMASM_{id}_SetupActive()    — CROSSED or ARMED (Setup)
+ *   EMASM_{id}_RetestActive()   — ARMED only (retest in progress)
+ *   EMASM_{id}_ActiveDir()      — direction of the live setup
+ *   EMASM_{id}_ActiveSL()       — swing SL hint while live
+ *   EMASM_{id}_JustConfirmed()  — entry fired this bar (Execution)
+ *   EMASM_{id}_ConfirmDir()     — direction of the confirmation
+ *   EMASM_{id}_ConfirmSL()      — swing SL at confirmation
  */
 
 export function genEmaSM(
@@ -37,40 +47,38 @@ export function genEmaSM(
   tf: string,
   fast = 12,
   slow = 48,
-  retestPoints = 100,   // retest tolerance in POINTS (≈10 pips on a 5-digit symbol)
+  retestPoints = 100,     // retest tolerance in POINTS (≈10 pips on a 5-digit symbol)
+  requireCross = true,    // require an aligned fast/slow cross before the retest
 ): string {
   const P = `EMASM_${id}_`;
+  const RC = requireCross ? "true" : "false";
 
   return `
 //+------------------------------------------------------------------+
-//| EMA Retest State Machine — ${tf} (${id})                        |
-//| fast=${fast}  slow=${slow}  retest tol=${retestPoints} pts                  |
-//| IDLE → ARMED (retest slow EMA) → CONFIRMED (close outside fast)  |
+//| EMA Cross→Retest State Machine — ${tf} (${id})                  |
+//| fast=${fast} slow=${slow} retest=${retestPoints}pts requireCross=${RC}        |
+//| IDLE → CROSSED → ARMED (retest) → CONFIRMED (close outside fast) |
 //+------------------------------------------------------------------+
-#define ${P}IDLE  0
-#define ${P}ARMED 1
+#define ${P}IDLE    0
+#define ${P}CROSSED 1
+#define ${P}ARMED   2
 
 int    ${P}phase        = ${P}IDLE;
-int    ${P}activeDir    = 0;        //  1 bull pullback,  -1 bear pullback
+int    ${P}activeDir    = 0;        //  1 bull setup,  -1 bear setup
 double ${P}swingLow     = 0.0;
 double ${P}swingHigh    = 0.0;
 bool   ${P}justConfirmed = false;
 int    ${P}confirmDir   = 0;
 double ${P}confirmSL    = 0.0;
-bool   ${P}consume      = false;    // reset on the tick AFTER a confirmation
+bool   ${P}consume      = false;
 datetime ${P}lastBar    = 0;
 
 void ${P}Reset()
 {
-   ${P}phase         = ${P}IDLE;
-   ${P}activeDir     = 0;
-   ${P}swingLow      = 0.0;
-   ${P}swingHigh     = 0.0;
-   ${P}justConfirmed = false;
-   ${P}confirmDir    = 0;
-   ${P}confirmSL     = 0.0;
-   ${P}consume       = false;
-   ${P}lastBar       = 0;
+   ${P}phase = ${P}IDLE; ${P}activeDir = 0;
+   ${P}swingLow = 0.0; ${P}swingHigh = 0.0;
+   ${P}justConfirmed = false; ${P}confirmDir = 0; ${P}confirmSL = 0.0;
+   ${P}consume = false; ${P}lastBar = 0;
 }
 
 // Guarded EMA read — returns false (not 0.0) when the buffer is not ready.
@@ -92,85 +100,89 @@ int ${P}Bias()
    return (f > s) ? 1 : (f < s ? -1 : 0);
 }
 
-// Advance the retest sequence once per bar for the supplied bias direction.
 void ${P}Tick(int bias)
 {
    datetime _bt = iTime(InpSymbol, ${TF}, 0);
    if(_bt == ${P}lastBar) return;          // once per bar (safe if Setup+Exec both call)
    ${P}lastBar = _bt;
    ${P}justConfirmed = false;
-
-   // Reset state on the tick after a confirmation was reported.
    if(${P}consume) { ${P}phase = ${P}IDLE; ${P}activeDir = 0; ${P}consume = false; }
 
-   double f, s;
+   double f1, s1, f2, s2;
    int hF = B4_MA(${TF}, ${fast}, MODE_EMA);
    int hS = B4_MA(${TF}, ${slow}, MODE_EMA);
-   if(!${P}Val(hF, 1, f) || !${P}Val(hS, 1, s)) return;   // buffers not ready — do nothing
+   if(!${P}Val(hF, 1, f1) || !${P}Val(hS, 1, s1)) return;   // buffers not ready
+   if(!${P}Val(hF, 2, f2) || !${P}Val(hS, 2, s2)) return;
 
    double hi = iHigh (InpSymbol, ${TF}, 1);
    double lo = iLow  (InpSymbol, ${TF}, 1);
    double cl = iClose(InpSymbol, ${TF}, 1);
    double tol = ${retestPoints} * SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
 
-   if(bias == 0) { ${P}phase = ${P}IDLE; ${P}activeDir = 0; return; }   // no trend
-   if(${P}phase == ${P}ARMED && ${P}activeDir != bias) { ${P}phase = ${P}IDLE; ${P}activeDir = 0; }
+   bool bullCross = (f2 <= s2 && f1 > s1);   // 12 crossed ABOVE 48 on the last bar
+   bool bearCross = (f2 >= s2 && f1 < s1);   // 12 crossed BELOW 48 on the last bar
+   bool requireCross = ${RC};
 
-   if(bias == 1)                                   // ── BULL pullback ──────────
+   if(bias == 0) { ${P}phase = ${P}IDLE; ${P}activeDir = 0; return; }   // no trend
+   if(${P}activeDir != 0 && ${P}activeDir != bias) { ${P}phase = ${P}IDLE; ${P}activeDir = 0; }
+
+   if(bias == 1)                                   // ── BULL ───────────────────
    {
       if(${P}phase == ${P}IDLE)
       {
-         // Retest: the bar's low came within tol of the slow EMA. ARM only.
-         if(lo <= s + tol)
-         {
-            ${P}phase = ${P}ARMED; ${P}activeDir = 1; ${P}swingLow = lo;
-            PrintFormat("[EMASM_${tf}] BULL retest armed @ slow=%.5f low=%.5f", s, lo);
-         }
+         if(!requireCross && lo <= s1 + tol)        // retest-only mode: arm directly
+         { ${P}phase = ${P}ARMED; ${P}activeDir = 1; ${P}swingLow = lo; }
+         else if(requireCross && bullCross)         // cross arms the setup
+         { ${P}phase = ${P}CROSSED; ${P}activeDir = 1;
+           PrintFormat("[EMASM_${tf}] BULL cross — setup armed (12 over 48)"); }
+      }
+      else if(${P}phase == ${P}CROSSED)
+      {
+         if(bearCross) { ${P}phase = ${P}IDLE; ${P}activeDir = 0; }      // regime flipped
+         else if(lo <= s1 + tol)                    // retest of the slow EMA
+         { ${P}phase = ${P}ARMED; ${P}swingLow = lo;
+           PrintFormat("[EMASM_${tf}] BULL retest of slow=%.5f low=%.5f", s1, lo); }
       }
       else                                          // ARMED
       {
-         if(lo < ${P}swingLow) ${P}swingLow = lo;    // track pullback low for SL
-         if(cl < s)                                  // closed below slow → invalidated
-         {
-            ${P}phase = ${P}IDLE; ${P}activeDir = 0;
-            PrintFormat("[EMASM_${tf}] BULL retest invalidated (close %.5f < slow %.5f)", cl, s);
-         }
-         else if(cl > f)                             // confirmation: closed above fast
-         {
-            ${P}justConfirmed = true; ${P}confirmDir = 1; ${P}confirmSL = ${P}swingLow;
-            ${P}consume = true;                       // stay ARMED this bar; reset next tick
-            PrintFormat("[EMASM_${tf}] BULL CONFIRMED close=%.5f > fast=%.5f SL=%.5f", cl, f, ${P}swingLow);
-         }
+         if(lo < ${P}swingLow) ${P}swingLow = lo;
+         if(bearCross || cl < s1) { ${P}phase = ${P}IDLE; ${P}activeDir = 0;
+            PrintFormat("[EMASM_${tf}] BULL setup invalidated"); }
+         else if(cl > f1)                           // confirmation: close above fast
+         { ${P}justConfirmed = true; ${P}confirmDir = 1; ${P}confirmSL = ${P}swingLow; ${P}consume = true;
+           PrintFormat("[EMASM_${tf}] BULL CONFIRMED close=%.5f > fast=%.5f SL=%.5f", cl, f1, ${P}swingLow); }
       }
    }
-   else                                            // ── BEAR pullback ──────────
+   else                                            // ── BEAR ───────────────────
    {
       if(${P}phase == ${P}IDLE)
       {
-         if(hi >= s - tol)
-         {
-            ${P}phase = ${P}ARMED; ${P}activeDir = -1; ${P}swingHigh = hi;
-            PrintFormat("[EMASM_${tf}] BEAR retest armed @ slow=%.5f high=%.5f", s, hi);
-         }
+         if(!requireCross && hi >= s1 - tol)
+         { ${P}phase = ${P}ARMED; ${P}activeDir = -1; ${P}swingHigh = hi; }
+         else if(requireCross && bearCross)
+         { ${P}phase = ${P}CROSSED; ${P}activeDir = -1;
+           PrintFormat("[EMASM_${tf}] BEAR cross — setup armed (12 under 48)"); }
+      }
+      else if(${P}phase == ${P}CROSSED)
+      {
+         if(bullCross) { ${P}phase = ${P}IDLE; ${P}activeDir = 0; }
+         else if(hi >= s1 - tol)
+         { ${P}phase = ${P}ARMED; ${P}swingHigh = hi;
+           PrintFormat("[EMASM_${tf}] BEAR retest of slow=%.5f high=%.5f", s1, hi); }
       }
       else
       {
          if(hi > ${P}swingHigh) ${P}swingHigh = hi;
-         if(cl > s)
-         {
-            ${P}phase = ${P}IDLE; ${P}activeDir = 0;
-            PrintFormat("[EMASM_${tf}] BEAR retest invalidated (close %.5f > slow %.5f)", cl, s);
-         }
-         else if(cl < f)
-         {
-            ${P}justConfirmed = true; ${P}confirmDir = -1; ${P}confirmSL = ${P}swingHigh;
-            ${P}consume = true;
-            PrintFormat("[EMASM_${tf}] BEAR CONFIRMED close=%.5f < fast=%.5f SL=%.5f", cl, f, ${P}swingHigh);
-         }
+         if(bullCross || cl > s1) { ${P}phase = ${P}IDLE; ${P}activeDir = 0;
+            PrintFormat("[EMASM_${tf}] BEAR setup invalidated"); }
+         else if(cl < f1)
+         { ${P}justConfirmed = true; ${P}confirmDir = -1; ${P}confirmSL = ${P}swingHigh; ${P}consume = true;
+           PrintFormat("[EMASM_${tf}] BEAR CONFIRMED close=%.5f < fast=%.5f SL=%.5f", cl, f1, ${P}swingHigh); }
       }
    }
 }
 
+bool   ${P}SetupActive()  { return ${P}phase == ${P}CROSSED || ${P}phase == ${P}ARMED; }
 bool   ${P}RetestActive() { return ${P}phase == ${P}ARMED; }
 int    ${P}ActiveDir()    { return ${P}activeDir; }
 double ${P}ActiveSL()     { return (${P}activeDir == 1) ? ${P}swingLow : ${P}swingHigh; }

@@ -255,6 +255,7 @@ function buildAiStateMachines(configs: AiBrainWiring["sm_configs"]): string {
           (p.fastPeriod   as number) ?? 12,
           (p.slowPeriod   as number) ?? 48,
           (p.retestPoints as number) ?? 100,
+          (p.requireCross as boolean) ?? true,
         ));
         break;
       default:

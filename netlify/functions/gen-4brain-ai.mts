@@ -165,29 +165,34 @@ CODE GENERATION RULES
     Simple EMA-cross DIRECTION (bias only) needs NO sm_config — inline B4_MA is fine.
     Pin Bar and Engulfing are also INLINE (no SM, no sm_config).
 
-    ★★ EMA RETEST / PULLBACK SEQUENCES — USE THE VERIFIED EMASM, never hand-write.
-    If the strategy is "retest the slow EMA, then wait for a candle to close
-    outside the fast EMA, then enter" (a MULTI-BAR sequence), do NOT write the
-    phases inline — you WILL collapse them onto one bar. Use the EMASM state
-    machine (type "ema", prefix EMASM) which persists IDLE→ARMED→CONFIRMED:
+    ★★ EMA CROSS → RETEST → PULLBACK SEQUENCES — USE THE VERIFIED EMASM, never hand-write.
+    The canonical EMA setup is "fast/slow CROSS, then retest the slow EMA, then a
+    candle CLOSES outside the fast EMA, then enter next bar" — a MULTI-BAR sequence.
+    Do NOT write the phases inline — you WILL collapse them onto one bar. Use the
+    EMASM state machine (type "ema", prefix EMASM): IDLE → CROSSED (aligned
+    fast/slow cross) → ARMED (retest slow EMA) → CONFIRMED (close outside fast EMA).
       // sm_configs: { "ema_M5": { type:"ema", id:"M5", TF:"PERIOD_M5", tf:"M5",
-      //                           params:{ fastPeriod:12, slowPeriod:48, retestPoints:100 } } }
-      void Setup_Brain_Execute() {
-        EMASM_M5_Tick(gBias);                 // advance once (safe if Exec also ticks)
-        if(EMASM_M5_RetestActive()) {
+      //   params:{ fastPeriod:12, slowPeriod:48, retestPoints:100, requireCross:true } } }
+      void Setup_Brain_Execute() {     // setup = the M5 cross occurred (setup live)
+        EMASM_M5_Tick(gBias);          // advance once (safe if Exec also ticks)
+        if(EMASM_M5_SetupActive()) {
           gSetupActive = true; gSetupDir = EMASM_M5_ActiveDir(); gSetupSLHint = EMASM_M5_ActiveSL();
         } else { gSetupActive = false; }
       }
-      void Execution_Brain_Execute() {
+      void Execution_Brain_Execute() { // execution = retest + close outside fast
         EMASM_M5_Tick(gBias);
         if(EMASM_M5_JustConfirmed()) {
           gExecSignal = true; gExecDir = EMASM_M5_ConfirmDir(); gExecSL = EMASM_M5_ConfirmSL();
         }
       }
-    Direction can still be a simple H1 cross: gBias = EMASM_H1_Bias();  (or inline B4_MA).
-    EMASM retest/exec on the SAME TF (e.g. M5 setup + M5 exec) is correct — Tick is
-    once-per-bar guarded, so RetestActive() and JustConfirmed() are both valid on the
-    confirmation bar (the gate needs both).
+    Mapping the brains to EMASM:
+      • "M5 cross is the setup"            → Setup uses EMASM_M5_SetupActive()
+      • "retest 48 then close outside 12"  → Execution uses EMASM_M5_JustConfirmed()
+    Direction can be a simple cross on the HTF: gBias = EMASM_M15_Bias();  (or inline B4_MA).
+    requireCross:true (default) demands an aligned fast/slow cross BEFORE the retest —
+    set false ONLY for a pure retest-with-no-cross strategy.
+    EMASM on the SAME TF for both Setup and Execution is correct — Tick is once-per-bar
+    guarded, so SetupActive() and JustConfirmed() are both valid on the confirmation bar.
     retestPoints = tolerance in POINTS (1 pip = 10 points on a 5-digit symbol; "10 pips" → 100).
 
     ★ VISUALISE EVERY INDICATOR. Any classic indicator you use MUST be visible:

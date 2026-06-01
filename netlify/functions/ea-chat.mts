@@ -113,6 +113,15 @@ When the user says the EA mis-traded, produce a STRUCTURED diagnosis:
        fixable by editing this .mq5. Name the module and the exact behaviour that
        must change, and say it must be reported to the developer / generator.
 
+   DECISIVE TEST for [A] vs [B]: if the missing behaviour is a CAPABILITY the
+   embedded state machine does not have (e.g. "the SM has no cross state", "the SM
+   never checks X", "there is no phase for Y"), it is [B] — regenerating with the
+   SAME module produces the SAME code, so "Regen Template" will NOT fix it. Only
+   choose [A] when a DIFFERENT existing module/param/timeframe would genuinely
+   produce the wanted behaviour. When in doubt between [A] and [B], pick [B] and
+   name the building block — never tell the user to "Regen Template" to fix a
+   capability the embedded module demonstrably lacks.
+
 CRITICAL — for a 4-Brain EA (inline state machines, brain functions) you must
 NEVER attempt a freeform logic rewrite via [FIX_READY]. Rewriting 800+ lines
 truncates and removes working features. Logic bugs in a 4-Brain EA are class [A]

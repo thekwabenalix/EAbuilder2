@@ -224,10 +224,10 @@ function runAiTest(title: string, file: string, build: () => { code: string; che
 runAiTest("RSI HD as Setup Brain", "RSI_HD_Continuation_Test.mq5", buildAiEa);
 runAiTest("OB+FVG as Setup→Execution", "OB_FVG_Setup_Test.mq5", buildObFvgAiEa);
 
-// ── EMA retest sequence (the strategy that was firing prematurely) ────────────
-runAiTest("EMA retest SM (H1 bias → M5 retest → M5 confirm)", "EMA_Retest_SM_Test.mq5", () => {
+// ── EMA cross→retest sequence (M15 cross → M5 cross setup → M5 retest/confirm) ─
+runAiTest("EMA cross→retest SM (M15 bias → M5 cross → retest → confirm)", "EMA_CrossRetest_SM_Test.mq5", () => {
   const config: FourBrainConfig = {
-    direction:  { modules: ["ema"], timeframe: "H1" },
+    direction:  { modules: ["ema"], timeframe: "M15" },
     setup:      { modules: ["ema"], timeframe: "M5" },
     execution:  { modules: ["ema"], timeframe: "M5" },
     management: { riskPercent: 1.0, rewardRisk: 2.0, stopBuffer: 0.0002,
@@ -235,31 +235,32 @@ runAiTest("EMA retest SM (H1 bias → M5 retest → M5 confirm)", "EMA_Retest_SM
   };
   const aiWiring: AiBrainWiring = {
     direction_brain: `void Direction_Brain_Execute() {
-   int nb = EMASM_H1_Bias();
+   int nb = EMASM_M15_Bias();
    if(nb != gBias && nb != 0) { gBias = nb; gSetupActive = false; }
 }`,
     setup_brain: `void Setup_Brain_Execute() {
    EMASM_M5_Tick(gBias);
-   if(EMASM_M5_RetestActive()) { gSetupActive = true; gSetupDir = EMASM_M5_ActiveDir(); gSetupSLHint = EMASM_M5_ActiveSL(); }
+   if(EMASM_M5_SetupActive()) { gSetupActive = true; gSetupDir = EMASM_M5_ActiveDir(); gSetupSLHint = EMASM_M5_ActiveSL(); }
    else { gSetupActive = false; }
 }`,
     execution_brain: `void Execution_Brain_Execute() {
    EMASM_M5_Tick(gBias);
    if(EMASM_M5_JustConfirmed()) { gExecSignal = true; gExecDir = EMASM_M5_ConfirmDir(); gExecSL = EMASM_M5_ConfirmSL(); }
 }`,
-    required_sms: ["EMASM_H1", "EMASM_M5"],
+    required_sms: ["EMASM_M15", "EMASM_M5"],
     sm_configs: {
       ema_M5: { type: "ema", id: "M5", TF: "PERIOD_M5", tf: "M5",
-                params: { fastPeriod: 12, slowPeriod: 48, retestPoints: 100 } },
+                params: { fastPeriod: 12, slowPeriod: 48, retestPoints: 100, requireCross: true } },
     },
   };
-  const code = generateEA({ eaName: "EMA_Retest_SM_Test", config,
+  const code = generateEA({ eaName: "EMA_CrossRetest_SM_Test", config,
     globalSymbol: "EURUSD", globalMagic: 990780, aiWiring });
   const checks: Array<[string, boolean]> = [
-    ["H1 bias SM embedded",        code.includes("int EMASM_H1_Bias()")],
-    ["M5 retest SM embedded",      code.includes("void EMASM_M5_Tick(")],
-    ["both SMs reset in OnInit",   code.includes("EMASM_H1_Reset();") && code.includes("EMASM_M5_Reset();")],
-    ["confirmation gated by ARMED",code.includes("EMASM_M5_RetestActive()") && code.includes("EMASM_M5_JustConfirmed()")],
+    ["M15 bias SM embedded",       code.includes("int EMASM_M15_Bias()")],
+    ["M5 SM embedded",             code.includes("void EMASM_M5_Tick(")],
+    ["both SMs reset in OnInit",   code.includes("EMASM_M15_Reset();") && code.includes("EMASM_M5_Reset();")],
+    ["CROSSED gate present",       code.includes("EMASM_M5_CROSSED") && code.includes("bullCross")],
+    ["setup uses SetupActive",     code.includes("EMASM_M5_SetupActive()") && code.includes("EMASM_M5_JustConfirmed()")],
     ["direction alignment gate",   code.includes("disagrees with bias")],
   ];
   return { code, checks };
