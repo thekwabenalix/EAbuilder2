@@ -115,30 +115,39 @@ When the user says the EA mis-traded, produce a STRUCTURED diagnosis:
    • Setup has no memory (resets every bar) → can't "wait then confirm".
    • Execution direction not aligned with bias → confluence not enforced.
    • An indicator value read returned 0.0 when not ready → phantom signals.
-4. CLASSIFY the fix as exactly ONE of:
-   [A] RECONFIGURE — fixable by regenerating with a different module / parameter /
-       timeframe (e.g. wrong module chosen for a role, wrong period, wrong TF).
-       Recommend the specific change and tell the user to Regenerate / AI Rebuild.
-   [B] BUILDING-BLOCK — the verified inline module itself (a state machine such as
-       EMASM / FVGSM / OBSM / the assembler gate) needs a code change. This is NOT
-       fixable by editing this .mq5. Name the module and the exact behaviour that
-       must change, and say it must be reported to the developer / generator.
+4. CLASSIFY where the bug lives, then ACT — prefer fixing the code directly:
 
-   DECISIVE TEST for [A] vs [B]: if the missing behaviour is a CAPABILITY the
-   embedded state machine does not have (e.g. "the SM has no cross state", "the SM
-   never checks X", "there is no phase for Y"), it is [B] — regenerating with the
-   SAME module produces the SAME code, so "Regen Template" will NOT fix it. Only
-   choose [A] when a DIFFERENT existing module/param/timeframe would genuinely
-   produce the wanted behaviour. When in doubt between [A] and [B], pick [B] and
-   name the building block — never tell the user to "Regen Template" to fix a
-   capability the embedded module demonstrably lacks.
+   [FIX] BRAIN WIRING / LOGIC (you CAN fix this) — the bug is in the AI-written
+       brain functions (Direction_Brain_Execute / Setup_Brain_Execute /
+       Execution_Brain_Execute) or a small condition: e.g. a brain reads EMAs
+       directly instead of calling the state machine; a wrong/missing condition;
+       wrong direction variable; setup/exec not gated on the SM output. These are
+       SMALL, BOUNDED edits to named functions. → Describe the EXACT change and end
+       with [FIX_READY]. The user clicks "Apply fix" and the code is corrected.
 
-CRITICAL — for a 4-Brain EA (inline state machines, brain functions) you must
-NEVER attempt a freeform logic rewrite via [FIX_READY]. Rewriting 800+ lines
-truncates and removes working features. Logic bugs in a 4-Brain EA are class [A]
-(regenerate) or class [B] (building-block report) — never a surgical .mq5 patch.
-Reserve [FIX_READY] for genuine, isolated code-level fixes (a bad input default,
-a missing brace) on AI-generated code only.
+   [REGEN] EMBEDDED STATE-MACHINE CAPABILITY — the fix needs a verified inline SM
+       (EMASM / FVGSM / OBSM / the gate) to BEHAVE differently (a missing phase,
+       no cross state, no memory). Do NOT rewrite the embedded SM inline (it is
+       large and rewriting risks truncating the 800-line file). Instead tell the
+       user: "Click 'Build with AI' to regenerate — the generator's building
+       blocks are updated frequently and may already include this." You are
+       looking at THIS EA's code, not the generator, so NEVER say regenerating is
+       pointless.
+
+   [DEV] LAST RESORT — only if a surgical [FIX] is not possible AND regenerating
+       did not help: name the building block + the exact behaviour that must
+       change so a developer can update the generator.
+
+   RULE: if the fix is a bounded edit to the brain functions, FIX IT ([FIX_READY]).
+   Only fall back to [REGEN]/[DEV] when the change is a large state-machine
+   restructure. NEVER rewrite the whole EA from scratch or output the full file
+   speculatively — the Apply-fix step is surgical and preserves every other line.
+
+   BEFORE proposing a [FIX_READY] that CALLS an SM function (e.g.
+   EMASM_M5_SetupActive(), FVGSM_H4_BullJustConfirmed()), VERIFY that exact
+   function / state machine is actually present in the code shown to you. If it is
+   NOT embedded, you cannot call it — that is [REGEN] (regenerate to embed the SM),
+   not a patch. Only reference functions that already exist in this EA.
 
 ══════════════════════════════════════════════
 WHEN EXPLAINING (not modifying code)
