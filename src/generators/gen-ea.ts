@@ -32,6 +32,7 @@ import { genRejectionSM }         from "./gen-rejection-sm";
 import { genMissSM }              from "./gen-miss-sm";
 import { genRsiHdSM }             from "./gen-rsi-hd-sm";
 import { genObFvgSM }             from "./gen-obfvg-sm";
+import { genEmaSM }               from "./gen-ema-sm";
 import type { AiBrainWiring }     from "@/lib/api-client";
 
 /** Collect all unique TFs that need an iFVG state machine instance. */
@@ -79,6 +80,7 @@ const SM_PREFIX_TYPE: Record<string, string> = {
   MISSSM: "miss",
   RSIHDSM: "rsi_hd",
   OBFVGSM: "ob_fvg",
+  EMASM:   "ema",
 };
 
 /** Map an sm_config type to its function-name prefix. */
@@ -95,6 +97,7 @@ function smPrefixForType(type: string): string {
     case "miss":          return "MISSSM";
     case "rsi_hd":        return "RSIHDSM";
     case "ob_fvg":        return "OBFVGSM";
+    case "ema":           return "EMASM";
     case "bos":
     case "choch":
     case "bos_choch":     return "BOSSM";
@@ -134,7 +137,7 @@ function reconcileStateMachines(aiWiring: AiBrainWiring): AiBrainWiring["sm_conf
 
   // Match  PREFIX_ID_  where PREFIX is a known SM prefix and ID is the TF label.
   // IFVGSM must precede FVGSM in the alternation so the longer prefix wins.
-  const re = /\b(RSIHDSM|OBFVGSM|IFVGSM|FVGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM)_([A-Za-z0-9]+)_/g;
+  const re = /\b(RSIHDSM|OBFVGSM|EMASM|IFVGSM|FVGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM)_([A-Za-z0-9]+)_/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(allCode)) !== null) {
     const prefix = m[1];
@@ -245,6 +248,13 @@ function buildAiStateMachines(configs: AiBrainWiring["sm_configs"]): string {
       case "ob_fvg":
         parts.push(genObFvgSM(id, TF, tf,
           (p.expiryBars as number) ?? 250,
+        ));
+        break;
+      case "ema":
+        parts.push(genEmaSM(id, TF, tf,
+          (p.fastPeriod   as number) ?? 12,
+          (p.slowPeriod   as number) ?? 48,
+          (p.retestPoints as number) ?? 100,
         ));
         break;
       default:

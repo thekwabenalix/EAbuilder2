@@ -162,8 +162,33 @@ CODE GENERATION RULES
         PrintFormat("[DIR] EMA fast=%.5f slow=%.5f gBias=%d", fast, slow, gBias);
       }
     NEVER approximate an EMA with a manual loop/average — always use B4_MA.
-    EMA needs NO sm_config entry — it uses no state machine.
+    Simple EMA-cross DIRECTION (bias only) needs NO sm_config — inline B4_MA is fine.
     Pin Bar and Engulfing are also INLINE (no SM, no sm_config).
+
+    ★★ EMA RETEST / PULLBACK SEQUENCES — USE THE VERIFIED EMASM, never hand-write.
+    If the strategy is "retest the slow EMA, then wait for a candle to close
+    outside the fast EMA, then enter" (a MULTI-BAR sequence), do NOT write the
+    phases inline — you WILL collapse them onto one bar. Use the EMASM state
+    machine (type "ema", prefix EMASM) which persists IDLE→ARMED→CONFIRMED:
+      // sm_configs: { "ema_M5": { type:"ema", id:"M5", TF:"PERIOD_M5", tf:"M5",
+      //                           params:{ fastPeriod:12, slowPeriod:48, retestPoints:100 } } }
+      void Setup_Brain_Execute() {
+        EMASM_M5_Tick(gBias);                 // advance once (safe if Exec also ticks)
+        if(EMASM_M5_RetestActive()) {
+          gSetupActive = true; gSetupDir = EMASM_M5_ActiveDir(); gSetupSLHint = EMASM_M5_ActiveSL();
+        } else { gSetupActive = false; }
+      }
+      void Execution_Brain_Execute() {
+        EMASM_M5_Tick(gBias);
+        if(EMASM_M5_JustConfirmed()) {
+          gExecSignal = true; gExecDir = EMASM_M5_ConfirmDir(); gExecSL = EMASM_M5_ConfirmSL();
+        }
+      }
+    Direction can still be a simple H1 cross: gBias = EMASM_H1_Bias();  (or inline B4_MA).
+    EMASM retest/exec on the SAME TF (e.g. M5 setup + M5 exec) is correct — Tick is
+    once-per-bar guarded, so RetestActive() and JustConfirmed() are both valid on the
+    confirmation bar (the gate needs both).
+    retestPoints = tolerance in POINTS (1 pip = 10 points on a 5-digit symbol; "10 pips" → 100).
 
     ★ VISUALISE EVERY INDICATOR. Any classic indicator you use MUST be visible:
       - Moving averages: use B4_MA(tf, period, method) — it draws automatically.
@@ -176,9 +201,11 @@ CODE GENERATION RULES
       Create indicator handles ONCE (guard with a static/global), never every tick.
 
     State machines that DO need an sm_config entry: fvg, fvg_inversion, ob, bos,
-    choch, bos_choch, liqsweep, snr, gap_snr, breakout, rejection, miss. Only these.
+    choch, bos_choch, liqsweep, snr, gap_snr, breakout, rejection, miss, rsi_hd,
+    ob_fvg, and ema (ONLY the EMA retest/pullback variant — simple EMA cross does not).
     Prefixes: fvg→FVGSM, fvg_inversion→IFVGSM, ob→OBSM, bos/choch/bos_choch→BOSSM,
-    liqsweep→LSSM, snr→SNRSM, gap_snr→GSNRSM, breakout→BRKSM, rejection→REJSM, miss→MISSSM.
+    liqsweep→LSSM, snr→SNRSM, gap_snr→GSNRSM, breakout→BRKSM, rejection→REJSM,
+    miss→MISSSM, rsi_hd→RSIHDSM, ob_fvg→OBFVGSM, ema→EMASM.
 
 6.  Include one PrintFormat() log per state transition. Use prefix [DIR], [SETUP], [EXEC].
 
