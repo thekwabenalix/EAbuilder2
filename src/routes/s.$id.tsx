@@ -695,6 +695,17 @@ function FourBrainTab({
     return newBp;
   }
 
+  // Lift brain/management edits to the parent blueprint on EVERY change so they
+  // survive the Brains tab unmounting (Radix TabsContent) and don't reset to the
+  // MODULE_UI_PARAMS defaults (e.g. EMA 21/50) when you switch tabs or rebuild.
+  const firstSync = useRef(true);
+  useEffect(() => {
+    if (firstSync.current) { firstSync.current = false; return; }
+    onChange(buildUpdatedBp());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [direction, setup, execution, strategyNotes,
+      riskPct, rr, stopBuf, maxStopPts, beOn, beAtR, maxTrades]);
+
   const canRegenerate = execution.modules.length > 0 && execution.timeframe;
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiNotes, setAiNotes] = useState<string | null>(null);

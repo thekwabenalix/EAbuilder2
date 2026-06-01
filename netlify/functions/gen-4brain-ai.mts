@@ -330,15 +330,23 @@ Instructions:
   } else if (config?.execution) {
     // ── Config-guided mode ──────────────────────────────────────────────────
     // Visual builder provided explicit brain config.
+    // Exact parameter values the trader set in the visual builder. These are
+    // AUTHORITATIVE — use them verbatim (e.g. EMA fastPeriod/slowPeriod, lookback,
+    // expiryBars). Do NOT substitute defaults when a value is provided here.
+    const paramLine = (p?: Record<string, unknown>) =>
+      p && Object.keys(p).length
+        ? `\nEXACT PARAMETERS (use these values, do not change): ${JSON.stringify(p)}`
+        : "";
+
     const dirDesc = config.direction
-      ? `DIRECTION BRAIN — modules: [${config.direction.modules.join(", ")}] @ ${config.direction.timeframe}${config.direction.description ? `\nTrader notes: "${config.direction.description}"` : ""}`
+      ? `DIRECTION BRAIN — modules: [${config.direction.modules.join(", ")}] @ ${config.direction.timeframe}${paramLine(config.direction.params)}${config.direction.description ? `\nTrader notes: "${config.direction.description}"` : ""}`
       : "DIRECTION BRAIN — disabled (passthrough: trade both directions)";
 
     const setupDesc = config.setup
-      ? `SETUP BRAIN — modules: [${config.setup.modules.join(", ")}] @ ${config.setup.timeframe}${config.setup.description ? `\nTrader notes: "${config.setup.description}"` : ""}`
+      ? `SETUP BRAIN — modules: [${config.setup.modules.join(", ")}] @ ${config.setup.timeframe}${paramLine(config.setup.params)}${config.setup.description ? `\nTrader notes: "${config.setup.description}"` : ""}`
       : "SETUP BRAIN — disabled (passthrough: setup always active when bias set)";
 
-    const execDesc = `EXECUTION BRAIN — modules: [${config.execution.modules.join(", ")}] @ ${config.execution.timeframe}${config.execution.description ? `\nTrader notes: "${config.execution.description}"` : ""}`;
+    const execDesc = `EXECUTION BRAIN — modules: [${config.execution.modules.join(", ")}] @ ${config.execution.timeframe}${paramLine(config.execution.params)}${config.execution.description ? `\nTrader notes: "${config.execution.description}"` : ""}`;
 
     userMessage = `Generate the 4-Brain wiring code for this EA: "${eaName}"
 ${description ? `\nOverall strategy intent: ${description}\n` : ""}

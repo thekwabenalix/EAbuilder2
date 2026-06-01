@@ -239,9 +239,9 @@ export interface AiBrainWiring {
  */
 export async function generateAiBrainWiring(
   config: {
-    direction?: { modules: string[]; timeframe: string; description?: string };
-    setup?:     { modules: string[]; timeframe: string; description?: string };
-    execution:  { modules: string[]; timeframe: string; description?: string };
+    direction?: { modules: string[]; timeframe: string; description?: string; params?: Record<string, unknown> };
+    setup?:     { modules: string[]; timeframe: string; description?: string; params?: Record<string, unknown> };
+    execution:  { modules: string[]; timeframe: string; description?: string; params?: Record<string, unknown> };
   },
   eaName: string,
   description?: string,
