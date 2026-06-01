@@ -19,7 +19,7 @@
  */
 
 export const FVG_LIQUIDITY_DETECTOR_VERSION = "1.1.0";
-export const FVG_LIQUIDITY_DETECTOR_MODULE  = "FVG_Liquidity_Detector";
+export const FVG_LIQUIDITY_DETECTOR_MODULE = "FVG_Liquidity_Detector";
 
 export function generateFvgLiquidityDetector(): string {
   return `//+------------------------------------------------------------------+

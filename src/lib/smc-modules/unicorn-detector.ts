@@ -18,7 +18,7 @@
  */
 
 export const UNICORN_DETECTOR_VERSION = "1.0.0";
-export const UNICORN_DETECTOR_MODULE  = "Unicorn_Detector";
+export const UNICORN_DETECTOR_MODULE = "Unicorn_Detector";
 
 export function generateUnicornDetector(): string {
   return `//+------------------------------------------------------------------+

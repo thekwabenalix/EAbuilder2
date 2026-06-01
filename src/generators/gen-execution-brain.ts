@@ -24,13 +24,19 @@ import type { BrainConfig } from "@/types/blueprint";
 /** Read a numeric param from brain.params, falling back to the default. */
 function p(params: Record<string, unknown> | undefined, key: string, def: number): number {
   const v = params?.[key];
-  return (typeof v === "number" && isFinite(v)) ? v : def;
+  return typeof v === "number" && isFinite(v) ? v : def;
 }
 
 function tfConst(tf: string): string {
   const map: Record<string, string> = {
-    M1: "PERIOD_M1",  M5: "PERIOD_M5",  M15: "PERIOD_M15", M30: "PERIOD_M30",
-    H1: "PERIOD_H1",  H4: "PERIOD_H4",  D1: "PERIOD_D1",   W1: "PERIOD_W1",
+    M1: "PERIOD_M1",
+    M5: "PERIOD_M5",
+    M15: "PERIOD_M15",
+    M30: "PERIOD_M30",
+    H1: "PERIOD_H1",
+    H4: "PERIOD_H4",
+    D1: "PERIOD_D1",
+    W1: "PERIOD_W1",
     MN: "PERIOD_MN1",
   };
   return map[tf.toUpperCase()] ?? "PERIOD_H1";
@@ -383,7 +389,7 @@ void Execution_Brain_Execute() { gExecSignal = false; gExecDir = 0; gExecSL = 0;
 
       case "bb": {
         const bbPer = p(brainParams, "period", 20);
-        const bbStd = p(brainParams, "stdDev",  2);
+        const bbStd = p(brainParams, "stdDev", 2);
         parts.push(`
    // Bollinger Bands: entry on touch of upper/lower band
    if(!gExecSignal)
@@ -418,7 +424,7 @@ void Execution_Brain_Execute() { gExecSignal = false; gExecDir = 0; gExecSL = 0;
       case "swing_structure":
       case "breakout":
       case "gap_snr": {
-        const ssLb    = p(brainParams, "lookback", mod === "swing_structure" ? 50 : 20);
+        const ssLb = p(brainParams, "lookback", mod === "swing_structure" ? 50 : 20);
         const ssLabel = mod === "swing_structure" ? "SWING" : mod === "breakout" ? "BO" : "GAP_SNR";
         parts.push(`
    // ${ssLabel}: close beyond ${ssLb}-bar range extreme fires entry

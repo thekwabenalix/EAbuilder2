@@ -37,7 +37,7 @@
  */
 
 export const CHOCH_DETECTOR_VERSION = "3.0.0";
-export const CHOCH_DETECTOR_MODULE  = "CHoCH_Detector";
+export const CHOCH_DETECTOR_MODULE = "CHoCH_Detector";
 
 export function generateChochDetector(): string {
   return `//+------------------------------------------------------------------+

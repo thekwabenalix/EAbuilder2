@@ -18,7 +18,7 @@
  */
 
 export const OB_FVG_DETECTOR_VERSION = "2.0.0";
-export const OB_FVG_DETECTOR_MODULE  = "OB_FVG_Detector";
+export const OB_FVG_DETECTOR_MODULE = "OB_FVG_Detector";
 
 export function generateObFvgDetector(): string {
   return `//+------------------------------------------------------------------+

@@ -21,7 +21,7 @@
  */
 
 export const REJECTION_STATE_MODULE_VERSION = "1.0.0";
-export const REJECTION_STATE_MODULE  = "Rejection_State_Module";
+export const REJECTION_STATE_MODULE = "Rejection_State_Module";
 
 export function generateRejectionStateModule(): string {
   return `//+------------------------------------------------------------------+

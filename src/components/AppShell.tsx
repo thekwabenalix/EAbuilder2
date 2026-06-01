@@ -69,7 +69,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="hidden md:block p-2 border-t border-border">
           <div className="px-2 py-1.5 text-xs text-muted-foreground truncate">{user?.email}</div>
-          <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => signOut()}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start"
+            onClick={() => signOut()}
+          >
             <LogOut className="h-4 w-4 mr-2" /> Sign out
           </Button>
         </div>

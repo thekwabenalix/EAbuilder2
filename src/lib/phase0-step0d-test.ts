@@ -21,6 +21,16 @@
 import { generateMql5FromBlueprint } from "./mql5-template-generator";
 import type { StrategyBlueprint } from "@/types/blueprint";
 
+const EMPTY_STATS = {
+  lines: 0,
+  hasDirectionBrain: false,
+  hasSetupBrain: false,
+  hasExecutionBrain: false,
+  hasManagementBrain: false,
+  hasConfluenceGate: false,
+  loggingCalls: 0,
+};
+
 export function generateClassicICTEA(): {
   success: boolean;
   ea?: string;
@@ -103,7 +113,7 @@ export function generateClassicICTEA(): {
 
     if (!ea) {
       errors.push("EA generation returned empty output");
-      return { success: false, errors, stats: {} as any };
+      return { success: false, errors, stats: EMPTY_STATS };
     }
 
     // Step 3: Verify output structure
@@ -113,7 +123,8 @@ export function generateClassicICTEA(): {
       hasSetupBrain: ea.includes("Setup_Brain_Execute"),
       hasExecutionBrain: ea.includes("Execution_Brain_Execute"),
       hasManagementBrain: ea.includes("Management_Brain_ManageBreakEven"),
-      hasConfluenceGate: (ea.includes("bias != 0") || ea.includes("canTrade")) && ea.includes("signalReady"),
+      hasConfluenceGate:
+        (ea.includes("bias != 0") || ea.includes("canTrade")) && ea.includes("signalReady"),
       loggingCalls: (ea.match(/PrintFormat/g) || []).length,
     };
 
@@ -189,7 +200,7 @@ export function generateClassicICTEA(): {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     errors.push(`Exception: ${message}`);
-    return { success: false, errors, stats: {} as any };
+    return { success: false, errors, stats: EMPTY_STATS };
   }
 }
 

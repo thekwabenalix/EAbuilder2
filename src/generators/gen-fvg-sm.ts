@@ -18,9 +18,9 @@
  */
 
 export function genFvgSM(
-  id: string,          // e.g. "H4"  → prefix FVGSM_H4_
-  TF: string,          // e.g. "PERIOD_H4"
-  tf: string,          // e.g. "H4"  (log messages)
+  id: string, // e.g. "H4"  → prefix FVGSM_H4_
+  TF: string, // e.g. "PERIOD_H4"
+  tf: string, // e.g. "H4"  (log messages)
   expiryBars = 100,
 ): string {
   const P = `FVGSM_${id}_`;

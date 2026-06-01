@@ -67,7 +67,9 @@ function Dashboard() {
       <PageHeader
         title="Dashboard"
         subtitle={
-          data ? `${data.length} saved strateg${data.length === 1 ? "y" : "ies"}` : "Your strategies"
+          data
+            ? `${data.length} saved strateg${data.length === 1 ? "y" : "ies"}`
+            : "Your strategies"
         }
         actions={
           <Link to="/new">
@@ -126,20 +128,19 @@ function Dashboard() {
                   {/* Left: name + tags / brain chain */}
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      {isFourBrain && (
-                        <Brain className="h-3.5 w-3.5 text-primary shrink-0" />
-                      )}
+                      {isFourBrain && <Brain className="h-3.5 w-3.5 text-primary shrink-0" />}
                       <span className="font-medium text-sm group-hover:text-primary transition-colors truncate">
                         {row.name}
                       </span>
-                      {!isFourBrain && types.slice(0, 3).map((t) => (
-                        <span
-                          key={t}
-                          className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border"
-                        >
-                          {t.replace(/_/g, " ")}
-                        </span>
-                      ))}
+                      {!isFourBrain &&
+                        types.slice(0, 3).map((t) => (
+                          <span
+                            key={t}
+                            className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border"
+                          >
+                            {t.replace(/_/g, " ")}
+                          </span>
+                        ))}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                       {isFourBrain && fourBrain ? (
@@ -150,7 +151,9 @@ function Dashboard() {
                         <>
                           {exec?.symbol && <span className="font-mono">{exec.symbol}</span>}
                           {exec?.setupTimeframe && <span>{exec.setupTimeframe}</span>}
-                          {exec?.spreadFilterPoints && <span>spread ≤ {exec.spreadFilterPoints}pts</span>}
+                          {exec?.spreadFilterPoints && (
+                            <span>spread ≤ {exec.spreadFilterPoints}pts</span>
+                          )}
                         </>
                       )}
                       <span className="flex items-center gap-1">
@@ -193,7 +196,9 @@ function Dashboard() {
                           <p className="text-[10px] text-muted-foreground">compiled</p>
                         </div>
                         <div className="text-center">
-                          <p className={`text-sm font-semibold ${confidence >= 75 ? "text-emerald-400" : confidence >= 50 ? "text-amber-400" : "text-destructive"}`}>
+                          <p
+                            className={`text-sm font-semibold ${confidence >= 75 ? "text-emerald-400" : confidence >= 50 ? "text-amber-400" : "text-destructive"}`}
+                          >
                             {confidence}%
                           </p>
                           <p className="text-[10px] text-muted-foreground">confidence</p>

@@ -68,7 +68,7 @@ export function generatePhase3Ea(cfg: Phase3EaConfig): string {
 //| ⚠  State module .mq5 must be compiled in MQL5/Indicators/
 //+------------------------------------------------------------------+
 #property copyright "EAbuilder2 — Phase 3 Execution Module"
-#property version   "${ver.replace('.', '').padStart(3, '0').slice(0, 3)}"
+#property version   "${ver.replace(".", "").padStart(3, "0").slice(0, 3)}"
 #property strict
 
 #include <Trade\\Trade.mqh>
@@ -331,54 +331,91 @@ export const OB_EA_CONFIG: Phase3EaConfig = {
   eaName: "OB_Execution_EA",
   description: "Reads confirmed Order Block signals from OB_State_Module via iCustom().",
   defaultModuleName: "OB_State_Module",
-  magic: 20250602, riskPct: 1.0, rr: 2.0, breakevenR: 0.5,
-  maxTrades: 1, maxSpreadPts: 20, slippage: 3,
+  magic: 20250602,
+  riskPct: 1.0,
+  rr: 2.0,
+  breakevenR: 0.5,
+  maxTrades: 1,
+  maxSpreadPts: 20,
+  slippage: 3,
 };
 
 export const BREAKOUT_EA_CONFIG: Phase3EaConfig = {
   eaName: "Breakout_Execution_EA",
   description: "Reads confirmed RBS/SBR signals from Breakout_State_Module via iCustom().",
   defaultModuleName: "Breakout_State_Module",
-  magic: 20250603, riskPct: 1.0, rr: 2.0, breakevenR: 0.5,
-  maxTrades: 1, maxSpreadPts: 20, slippage: 3,
+  magic: 20250603,
+  riskPct: 1.0,
+  rr: 2.0,
+  breakevenR: 0.5,
+  maxTrades: 1,
+  maxSpreadPts: 20,
+  slippage: 3,
 };
 
 export const BB_EA_CONFIG: Phase3EaConfig = {
   eaName: "BB_Execution_EA",
   description: "Reads confirmed Breaker Block signals from BB_State_Module via iCustom().",
   defaultModuleName: "BB_State_Module",
-  magic: 20250604, riskPct: 1.0, rr: 2.0, breakevenR: 0.5,
-  maxTrades: 1, maxSpreadPts: 20, slippage: 3,
+  magic: 20250604,
+  riskPct: 1.0,
+  rr: 2.0,
+  breakevenR: 0.5,
+  maxTrades: 1,
+  maxSpreadPts: 20,
+  slippage: 3,
 };
 
 export const LIQSWEEP_EA_CONFIG: Phase3EaConfig = {
   eaName: "LiqSweep_Execution_EA",
   description: "Reads confirmed liquidity sweep signals from LiqSweep_State_Module via iCustom().",
   defaultModuleName: "LiqSweep_State_Module",
-  magic: 20250605, riskPct: 1.0, rr: 2.0, breakevenR: 0.5,
-  maxTrades: 2, maxSpreadPts: 20, slippage: 3,
+  magic: 20250605,
+  riskPct: 1.0,
+  rr: 2.0,
+  breakevenR: 0.5,
+  maxTrades: 2,
+  maxSpreadPts: 20,
+  slippage: 3,
 };
 
 export const IFVG_EA_CONFIG: Phase3EaConfig = {
   eaName: "FVG_Inversion_Execution_EA",
-  description: "Reads confirmed Inversion FVG signals from FVG_Inversion_State_Module via iCustom().",
+  description:
+    "Reads confirmed Inversion FVG signals from FVG_Inversion_State_Module via iCustom().",
   defaultModuleName: "FVG_Inversion_State_Module",
-  magic: 20250606, riskPct: 1.0, rr: 2.0, breakevenR: 0.5,
-  maxTrades: 1, maxSpreadPts: 20, slippage: 3,
+  magic: 20250606,
+  riskPct: 1.0,
+  rr: 2.0,
+  breakevenR: 0.5,
+  maxTrades: 1,
+  maxSpreadPts: 20,
+  slippage: 3,
 };
 
 export const CLASSIC_SNR_EA_CONFIG: Phase3EaConfig = {
   eaName: "Classic_SNR_Execution_EA",
-  description: "Reads confirmed Classic SNR level signals from Classic_SNR_State_Module via iCustom().",
+  description:
+    "Reads confirmed Classic SNR level signals from Classic_SNR_State_Module via iCustom().",
   defaultModuleName: "Classic_SNR_State_Module",
-  magic: 20250607, riskPct: 1.0, rr: 2.0, breakevenR: 0.5,
-  maxTrades: 2, maxSpreadPts: 20, slippage: 3,
+  magic: 20250607,
+  riskPct: 1.0,
+  rr: 2.0,
+  breakevenR: 0.5,
+  maxTrades: 2,
+  maxSpreadPts: 20,
+  slippage: 3,
 };
 
 export const GAP_SNR_EA_CONFIG: Phase3EaConfig = {
   eaName: "Gap_SNR_Execution_EA",
   description: "Reads confirmed Gap SNR level signals from Gap_SNR_State_Module via iCustom().",
   defaultModuleName: "Gap_SNR_State_Module",
-  magic: 20250608, riskPct: 1.0, rr: 2.0, breakevenR: 0.5,
-  maxTrades: 2, maxSpreadPts: 20, slippage: 3,
+  magic: 20250608,
+  riskPct: 1.0,
+  rr: 2.0,
+  breakevenR: 0.5,
+  maxTrades: 2,
+  maxSpreadPts: 20,
+  slippage: 3,
 };

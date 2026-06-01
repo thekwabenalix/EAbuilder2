@@ -94,7 +94,9 @@ export async function generateCode(
           const parsed = JSON.parse(buf.trim().slice(6)) as Record<string, unknown>;
           if (parsed.done) finalCode = accumulated.trim();
           if (typeof parsed.error === "string") throw new Error(parsed.error);
-        } catch {}
+        } catch {
+          // Ignore a trailing partial SSE frame; fallback below uses accumulated text.
+        }
       }
       // If the stream ended but we never saw {done:true}, use whatever was accumulated.
       if (!finalCode && accumulated.length > 50) finalCode = accumulated.trim();
@@ -202,7 +204,9 @@ export async function applyFix(
           if (typeof parsed.text === "string") accumulated += parsed.text;
           if (parsed.done) finalCode = accumulated.trim();
           if (typeof parsed.error === "string") throw new Error(parsed.error);
-        } catch {}
+        } catch {
+          // Ignore a trailing partial SSE frame; fallback below uses accumulated text.
+        }
       }
       // Fallback: if stream ended without {done:true}, use whatever was accumulated
       if (!finalCode && accumulated.length > 50) finalCode = accumulated.trim();
@@ -219,16 +223,19 @@ export async function applyFix(
 
 export interface AiBrainWiring {
   direction_brain: string;
-  setup_brain:     string;
+  setup_brain: string;
   execution_brain: string;
-  required_sms:    string[];
-  sm_configs:      Record<string, {
-    type: string;
-    id: string;
-    TF: string;
-    tf: string;
-    params: Record<string, unknown>;
-  }>;
+  required_sms: string[];
+  sm_configs: Record<
+    string,
+    {
+      type: string;
+      id: string;
+      TF: string;
+      tf: string;
+      params: Record<string, unknown>;
+    }
+  >;
   notes: string;
 }
 
@@ -239,9 +246,24 @@ export interface AiBrainWiring {
  */
 export async function generateAiBrainWiring(
   config: {
-    direction?: { modules: string[]; timeframe: string; description?: string; params?: Record<string, unknown> };
-    setup?:     { modules: string[]; timeframe: string; description?: string; params?: Record<string, unknown> };
-    execution:  { modules: string[]; timeframe: string; description?: string; params?: Record<string, unknown> };
+    direction?: {
+      modules: string[];
+      timeframe: string;
+      description?: string;
+      params?: Record<string, unknown>;
+    };
+    setup?: {
+      modules: string[];
+      timeframe: string;
+      description?: string;
+      params?: Record<string, unknown>;
+    };
+    execution: {
+      modules: string[];
+      timeframe: string;
+      description?: string;
+      params?: Record<string, unknown>;
+    };
   },
   eaName: string,
   description?: string,
@@ -357,7 +379,9 @@ export async function fixCompileErrors(
           if (typeof parsed.text === "string") accumulated += parsed.text;
           if (parsed.done) finalCode = accumulated.trim();
           if (typeof parsed.error === "string") throw new Error(parsed.error);
-        } catch {}
+        } catch {
+          // Ignore a trailing partial SSE frame; fallback below uses accumulated text.
+        }
       }
       if (!finalCode && accumulated.length > 50) finalCode = accumulated.trim();
       break;

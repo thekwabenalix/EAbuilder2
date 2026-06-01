@@ -26,7 +26,7 @@
  */
 
 export const REJECTION_DETECTOR_VERSION = "1.0.0";
-export const REJECTION_DETECTOR_MODULE  = "Rejection_Detector";
+export const REJECTION_DETECTOR_MODULE = "Rejection_Detector";
 
 export function generateRejectionDetector(): string {
   return `//+------------------------------------------------------------------+

@@ -249,10 +249,7 @@ export default async (req: Request): Promise<Response> => {
         });
 
         for await (const event of stream) {
-          if (
-            event.type === "content_block_delta" &&
-            event.delta.type === "text_delta"
-          ) {
+          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
             generatedText += event.delta.text;
             send({ text: event.delta.text });
           }

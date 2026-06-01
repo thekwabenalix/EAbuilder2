@@ -186,7 +186,46 @@ Match this exact TypeScript interface:
   "pendingClarifications": string[],  // MAX 2 items. Only code-path-changing ambiguities. Usually [].
   "confidence": number,               // 0-100
   "summary": string                   // 2-3 sentences: what you understood + any assumptions made
+  "strategyNotes": string,            // cross-brain intent, invalidation, sessions, special conditions; "" if none
+  "fourBrain": {
+    "direction": null | {
+      "modules": string[],            // supported ids only: bos, choch, bos_choch, swing_structure, fvg, fvg_inversion, order_block, liqsweep, breakout, snr, gap_snr, rejection, miss, bb, ema, engulfing, pin_bar
+      "timeframe": string,            // MT5 style: M1,M5,M15,M30,H1,H4,D1,W1,MN
+      "params": {},                   // extracted module params such as fastPeriod, slowPeriod, lookback, swingLen, expiryBars
+      "description": string
+    },
+    "setup": null | {
+      "modules": string[],
+      "timeframe": string,
+      "params": {},
+      "description": string
+    },
+    "execution": {
+      "modules": string[],            // REQUIRED. Choose the actual entry trigger module(s), never a placeholder.
+      "timeframe": string,
+      "params": {},
+      "description": string
+    },
+    "management": {
+      "riskPercent": number,
+      "rewardRisk": number,
+      "stopBuffer": number,
+      "breakEvenEnabled": boolean,
+      "breakEvenAtR": number,
+      "maxOpenTrades": number,
+      "maxStopPoints": number
+    }
+  }
 }
+
+4-BRAIN MAPPING RULES:
+- The final product is a 4-Brain EA. Always include fourBrain when the trader's idea maps to the supported modules.
+- Do NOT use a placeholder module. If the trader says EMA, use ema. If they say FVG, use fvg. If they say order block, use order_block. If they say liquidity sweep, use liqsweep.
+- Direction is optional. Use it for higher-timeframe bias only when the trader describes trend, bias, structure, EMA alignment, BOS, CHoCH, etc.
+- Setup is optional. Use it for zones/context such as FVG, order block, support/resistance, sweep context, or other pre-entry setup.
+- Execution is required. It is the precise trigger: FVG confirmation, liquidity sweep, engulfing, pin bar, breakout, EMA trigger, etc.
+- If timeframes are specified, use them exactly. If missing, default to D1 direction, H4 setup, M15 execution.
+- Put any cross-brain notes in strategyNotes, not in invented modules.
 
 Rule type taxonomy (use the closest match, or "custom" if none fit):
 ema_cross, ema_touch, ema_alignment, ema_band,
@@ -214,6 +253,102 @@ session_filter, time_filter,
 spread_filter, news_filter, volatility_filter,
 fixed_rr_take_profit, max_open_trades_filter,
 custom`;
+
+const SUPPORTED_MODULES = new Set([
+  "bos",
+  "choch",
+  "bos_choch",
+  "swing_structure",
+  "fvg",
+  "fvg_inversion",
+  "order_block",
+  "liqsweep",
+  "breakout",
+  "snr",
+  "gap_snr",
+  "rejection",
+  "miss",
+  "bb",
+  "ema",
+  "engulfing",
+  "pin_bar",
+]);
+
+const TIMEFRAMES = new Set(["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN"]);
+
+function cleanTimeframe(value: unknown, fallback: string): string {
+  const tf = typeof value === "string" ? value.toUpperCase() : "";
+  return TIMEFRAMES.has(tf) ? tf : fallback;
+}
+
+function cleanParams(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function cleanModules(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((m): m is string => typeof m === "string" && SUPPORTED_MODULES.has(m))
+    : [];
+}
+
+function cleanBrain(value: unknown, fallbackTf: string) {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Record<string, unknown>;
+  const modules = cleanModules(raw.modules);
+  if (modules.length === 0) return undefined;
+  return {
+    modules,
+    timeframe: cleanTimeframe(raw.timeframe, fallbackTf),
+    params: cleanParams(raw.params),
+    description: typeof raw.description === "string" ? raw.description : "",
+  };
+}
+
+function normalizeBlueprint(blueprint: Record<string, unknown>): Record<string, unknown> {
+  const fb = blueprint.fourBrain;
+  if (!fb || typeof fb !== "object") return blueprint;
+
+  const raw = fb as Record<string, unknown>;
+  const execution = cleanBrain(raw.execution, "M15");
+  if (!execution) {
+    delete blueprint.fourBrain;
+    return blueprint;
+  }
+
+  const rawMgmt =
+    raw.management && typeof raw.management === "object"
+      ? (raw.management as Record<string, unknown>)
+      : {};
+  const risk =
+    blueprint.risk && typeof blueprint.risk === "object"
+      ? (blueprint.risk as Record<string, unknown>)
+      : {};
+
+  const num = (value: unknown, fallback: number) =>
+    typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  const bool = (value: unknown, fallback: boolean) =>
+    typeof value === "boolean" ? value : fallback;
+
+  blueprint.fourBrain = {
+    direction: cleanBrain(raw.direction, "D1"),
+    setup: cleanBrain(raw.setup, "H4"),
+    execution,
+    management: {
+      riskPercent: num(rawMgmt.riskPercent, num(risk.riskPercent, 1)),
+      rewardRisk: num(rawMgmt.rewardRisk, num(risk.rewardRisk, 2)),
+      stopBuffer: num(rawMgmt.stopBuffer, num(risk.stopBufferPoints, 20)),
+      breakEvenEnabled: bool(rawMgmt.breakEvenEnabled, bool(risk.breakevenEnabled, false)),
+      breakEvenAtR: num(rawMgmt.breakEvenAtR, 1),
+      maxOpenTrades: num(rawMgmt.maxOpenTrades, num(risk.maxOpenTrades, 1)),
+      maxStopPoints: num(rawMgmt.maxStopPoints, 0),
+    },
+  };
+
+  if (typeof blueprint.strategyNotes !== "string") blueprint.strategyNotes = "";
+  return blueprint;
+}
 
 function cleanJson(raw: string): string {
   // Strip markdown code fences
@@ -313,7 +448,7 @@ export default async (req: Request): Promise<Response> => {
   }
 
   try {
-    const blueprint = await extractBlueprint(prompt);
+    const blueprint = normalizeBlueprint(await extractBlueprint(prompt));
     return Response.json(
       { blueprint, source: "ai" },
       { headers: { ...CORS, "Content-Type": "application/json" } },

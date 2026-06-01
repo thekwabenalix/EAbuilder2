@@ -17,7 +17,7 @@
  */
 
 export const RSS_SRR_DETECTOR_VERSION = "4.0.0";
-export const RSS_SRR_DETECTOR_MODULE  = "RSS_SRR_Detector";
+export const RSS_SRR_DETECTOR_MODULE = "RSS_SRR_Detector";
 
 export function generateRssSrrDetector(): string {
   return `//+------------------------------------------------------------------+

@@ -46,7 +46,7 @@
  */
 
 export const FVG_DETECTOR_VERSION = "3.0.0";
-export const FVG_DETECTOR_MODULE  = "FVG_Detector";
+export const FVG_DETECTOR_MODULE = "FVG_Detector";
 
 /**
  * Returns the complete MQL5 source code for the FVG Detector indicator (v3).

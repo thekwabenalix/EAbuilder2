@@ -58,7 +58,7 @@
  */
 
 export const BREAKOUT_DETECTOR_VERSION = "2.0.0";
-export const BREAKOUT_DETECTOR_MODULE  = "Breakout_Detector";
+export const BREAKOUT_DETECTOR_MODULE = "Breakout_Detector";
 
 export function generateBreakoutDetector(): string {
   return `//+------------------------------------------------------------------+

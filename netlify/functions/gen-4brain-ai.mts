@@ -280,8 +280,8 @@ interface BrainConfig {
 
 interface FourBrainConfig {
   direction?: BrainConfig;
-  setup?:     BrainConfig;
-  execution:  BrainConfig;
+  setup?: BrainConfig;
+  execution: BrainConfig;
   management?: {
     riskPercent?: number;
     rewardRisk?: number;
@@ -311,8 +311,11 @@ export default async (req: Request): Promise<Response> => {
     return Response.json({ error: "ANTHROPIC_API_KEY not set" }, { status: 500, headers: CORS });
 
   let body: GenRequest;
-  try { body = await req.json(); }
-  catch { return Response.json({ error: "Invalid JSON body" }, { status: 400, headers: CORS }); }
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON body" }, { status: 400, headers: CORS });
+  }
 
   const { config, eaName, description, prompt } = body;
 
@@ -379,7 +382,10 @@ Use the module library to select the best state machine for each brain,
 extract any configuration from the trader's notes, and generate the wiring code.
 In "notes", explain how you mapped their module selections to state machines.`;
   } else {
-    return Response.json({ error: "Either prompt or config.execution is required" }, { status: 400, headers: CORS });
+    return Response.json(
+      { error: "Either prompt or config.execution is required" },
+      { status: 400, headers: CORS },
+    );
   }
 
   try {
@@ -394,14 +400,13 @@ In "notes", explain how you mapped their module selections to state machines.`;
         },
       ],
       messages: [
-        { role: "user",      content: userMessage },
-        { role: "assistant", content: "{" },   // prefill to force JSON
+        { role: "user", content: userMessage },
+        { role: "assistant", content: "{" }, // prefill to force JSON
       ],
     });
 
     const block = response.content[0];
-    if (block.type !== "text")
-      throw new Error("Unexpected Claude response type");
+    if (block.type !== "text") throw new Error("Unexpected Claude response type");
 
     const raw = "{" + block.text;
 
@@ -420,7 +425,6 @@ In "notes", explain how you mapped their module selections to state machines.`;
     }
 
     return Response.json(parsed, { headers: { ...CORS, "Content-Type": "application/json" } });
-
   } catch (err) {
     console.error("gen-4brain-ai error:", err);
     const msg = err instanceof Error ? err.message : "Internal server error";

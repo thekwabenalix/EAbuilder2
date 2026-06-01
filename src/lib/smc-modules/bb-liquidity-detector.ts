@@ -22,7 +22,7 @@
  */
 
 export const BB_LIQUIDITY_DETECTOR_VERSION = "1.1.0";
-export const BB_LIQUIDITY_DETECTOR_MODULE  = "BB_Liquidity_Detector";
+export const BB_LIQUIDITY_DETECTOR_MODULE = "BB_Liquidity_Detector";
 
 export function generateBbLiquidityDetector(): string {
   return `//+------------------------------------------------------------------+

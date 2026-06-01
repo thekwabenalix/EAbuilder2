@@ -22,13 +22,14 @@ A clean report means "no obvious red flags" — it is **not** a compiler.
 
 Copy the emitted files and press **F7**:
 
-| File | Drop into | Compile |
-|---|---|---|
-| `*_Detector.mq5`, `*_State_Module.mq5` | `MQL5/Indicators/` | F7 → 0 errors |
-| `_TEST_RSIHDSM_M15.mq5` | `MQL5/Indicators/` | F7 → 0 errors (isolated inline SM) |
-| `RSI_HD_Continuation_Test.mq5` | `MQL5/Experts/` | F7 → 0 errors (full 4-Brain EA) |
+| File                                   | Drop into          | Compile                            |
+| -------------------------------------- | ------------------ | ---------------------------------- |
+| `*_Detector.mq5`, `*_State_Module.mq5` | `MQL5/Indicators/` | F7 → 0 errors                      |
+| `_TEST_RSIHDSM_M15.mq5`                | `MQL5/Indicators/` | F7 → 0 errors (isolated inline SM) |
+| `RSI_HD_Continuation_Test.mq5`         | `MQL5/Experts/`    | F7 → 0 errors (full 4-Brain EA)    |
 
 ### Priority order (riskiest first)
+
 1. `_TEST_RSIHDSM_M15.mq5` — novel `iRSI` handle inside an inline SM
 2. `RSI_HD_Continuation_Test.mq5` — full assembled EA using the new SM
 3. `RSI_Hidden_Divergence_Detector.mq5` — separate-window indicator + dual-pane objects

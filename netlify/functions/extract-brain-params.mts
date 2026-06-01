@@ -63,9 +63,10 @@ const MODULE_PARAMS: Record<string, string> = {
 function buildSystem(role: string, modules: string[]): string {
   const primaryModule = modules[0] ?? "fvg";
   const schema = MODULE_PARAMS[primaryModule] ?? `{ "lookback": number }`;
-  const modulesDesc = modules.length === 1
-    ? `the "${modules[0]}" module`
-    : `the modules: ${modules.map(m => `"${m}"`).join(", ")}`;
+  const modulesDesc =
+    modules.length === 1
+      ? `the "${modules[0]}" module`
+      : `the modules: ${modules.map((m) => `"${m}"`).join(", ")}`;
 
   return `You are a parameter extractor for a forex EA builder.
 
@@ -121,14 +122,18 @@ export default async (req: Request): Promise<Response> => {
   }
 
   let body: Record<string, unknown>;
-  try { body = await req.json(); }
-  catch { return Response.json({ error: "Invalid JSON body" }, { status: 400, headers: CORS }); }
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON body" }, { status: 400, headers: CORS });
+  }
 
-  const role        = typeof body.role        === "string" ? body.role.trim()        : "";
-  const modules     = Array.isArray(body.modules) && body.modules.every((m: unknown) => typeof m === "string")
-    ? body.modules.map((m: string) => m.trim())
-    : [];
-  const timeframe   = typeof body.timeframe   === "string" ? body.timeframe.trim()   : "";
+  const role = typeof body.role === "string" ? body.role.trim() : "";
+  const modules =
+    Array.isArray(body.modules) && body.modules.every((m: unknown) => typeof m === "string")
+      ? body.modules.map((m: string) => m.trim())
+      : [];
+  const timeframe = typeof body.timeframe === "string" ? body.timeframe.trim() : "";
   const description = typeof body.description === "string" ? body.description.trim() : "";
 
   if (!role || modules.length === 0 || !timeframe || !description) {
@@ -157,7 +162,7 @@ export default async (req: Request): Promise<Response> => {
         },
         {
           role: "assistant",
-          content: "{",   // prefill forces JSON-only output
+          content: "{", // prefill forces JSON-only output
         },
       ],
     });
@@ -165,7 +170,7 @@ export default async (req: Request): Promise<Response> => {
     const block = response.content[0];
     if (block.type !== "text") throw new Error("Unexpected Claude response type");
 
-    const raw  = "{" + block.text;
+    const raw = "{" + block.text;
     const text = cleanJson(raw);
 
     let parsed: Record<string, unknown>;
@@ -176,7 +181,7 @@ export default async (req: Request): Promise<Response> => {
     }
 
     const summary = typeof parsed.summary === "string" ? parsed.summary : "";
-    const { summary: _s, ...params } = parsed;   // separate summary from params
+    const { summary: _s, ...params } = parsed; // separate summary from params
     void _s;
 
     return Response.json(

@@ -8,8 +8,19 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  ArrowRight, Zap, CheckCircle2, Plus, X, ChevronDown, ChevronUp,
-  Loader2, Brain, Target, Crosshair, Settings2, Sparkles,
+  ArrowRight,
+  Zap,
+  CheckCircle2,
+  Plus,
+  X,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  Brain,
+  Target,
+  Crosshair,
+  Settings2,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createStrategy } from "@/lib/strategies";
@@ -41,9 +52,11 @@ interface Preset {
   tag: string;
   description: string;
   direction?: { modules: BrainModuleType[]; timeframe: string };
-  setup?:     { modules: BrainModuleType[]; timeframe: string };
-  execution:  { modules: BrainModuleType[]; timeframe: string };
-  rr: number; risk: number; be: boolean;
+  setup?: { modules: BrainModuleType[]; timeframe: string };
+  execution: { modules: BrainModuleType[]; timeframe: string };
+  rr: number;
+  risk: number;
+  be: boolean;
 }
 
 const PRESETS: Preset[] = [
@@ -51,62 +64,79 @@ const PRESETS: Preset[] = [
     name: "Classic ICT",
     tag: "Most popular",
     description: "D1 structure → H4 order block → M15 FVG",
-    direction: { modules: ["choch"],       timeframe: "D1"  },
-    setup:     { modules: ["order_block"], timeframe: "H4"  },
-    execution: { modules: ["fvg"],         timeframe: "M15" },
-    rr: 2, risk: 1, be: true,
+    direction: { modules: ["choch"], timeframe: "D1" },
+    setup: { modules: ["order_block"], timeframe: "H4" },
+    execution: { modules: ["fvg"], timeframe: "M15" },
+    rr: 2,
+    risk: 1,
+    be: true,
   },
   {
     name: "Sweep & Fill",
     tag: "Aggressive",
     description: "H4 BOS → H1 FVG setup → M5 liquidity sweep entry",
-    direction: { modules: ["bos"],         timeframe: "H4"  },
-    setup:     { modules: ["fvg"],         timeframe: "H1"  },
-    execution: { modules: ["liqsweep"],    timeframe: "M5"  },
-    rr: 3, risk: 1, be: true,
+    direction: { modules: ["bos"], timeframe: "H4" },
+    setup: { modules: ["fvg"], timeframe: "H1" },
+    execution: { modules: ["liqsweep"], timeframe: "M5" },
+    rr: 3,
+    risk: 1,
+    be: true,
   },
   {
     name: "Trend Rider",
     tag: "Long-term",
     description: "W1 BOS direction → D1 order block → H4 FVG entry",
-    direction: { modules: ["bos"],         timeframe: "W1"  },
-    setup:     { modules: ["order_block"], timeframe: "D1"  },
-    execution: { modules: ["fvg"],         timeframe: "H4"  },
-    rr: 3, risk: 0.5, be: true,
+    direction: { modules: ["bos"], timeframe: "W1" },
+    setup: { modules: ["order_block"], timeframe: "D1" },
+    execution: { modules: ["fvg"], timeframe: "H4" },
+    rr: 3,
+    risk: 0.5,
+    be: true,
   },
   {
     name: "Execution Only",
     tag: "Scalp",
     description: "No bias filter — H1 FVG retest entry, both directions",
     direction: undefined,
-    setup:     undefined,
-    execution: { modules: ["fvg"],         timeframe: "H1"  },
-    rr: 2, risk: 1, be: false,
+    setup: undefined,
+    execution: { modules: ["fvg"], timeframe: "H1" },
+    rr: 2,
+    risk: 1,
+    be: false,
   },
 ];
 
 // ─── Brain config state ───────────────────────────────────────────────────────
 
 interface BrainState extends BrainConfig {
-  hint?: string;  // user's optional description
+  hint?: string; // user's optional description
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function TimeframePicker({ value, onChange, recommendAbove, recommendBelow }: {
+function TimeframePicker({
+  value,
+  onChange,
+  recommendAbove,
+  recommendBelow,
+}: {
   value: string;
   onChange: (tf: string) => void;
   recommendAbove?: string;
   recommendBelow?: string;
 }) {
-  const aboveIdx = recommendAbove ? TIMEFRAMES.indexOf(recommendAbove as (typeof TIMEFRAMES)[number]) : -1;
-  const belowIdx = recommendBelow ? TIMEFRAMES.indexOf(recommendBelow as (typeof TIMEFRAMES)[number]) : 99;
+  const aboveIdx = recommendAbove
+    ? TIMEFRAMES.indexOf(recommendAbove as (typeof TIMEFRAMES)[number])
+    : -1;
+  const belowIdx = recommendBelow
+    ? TIMEFRAMES.indexOf(recommendBelow as (typeof TIMEFRAMES)[number])
+    : 99;
 
   return (
     <div className="flex flex-wrap gap-1.5">
       {TIMEFRAMES.map((tf, idx) => {
-        const active  = value === tf;
-        const warn    = (aboveIdx >= 0 && idx <= aboveIdx) || idx >= belowIdx;
+        const active = value === tf;
+        const warn = (aboveIdx >= 0 && idx <= aboveIdx) || idx >= belowIdx;
         return (
           <button
             key={tf}
@@ -116,8 +146,8 @@ function TimeframePicker({ value, onChange, recommendAbove, recommendBelow }: {
               active
                 ? "bg-primary text-primary-foreground border-primary"
                 : warn
-                ? "border-amber-500/40 text-amber-400/70 hover:border-amber-500 hover:text-amber-300 bg-amber-500/5"
-                : "border-border text-muted-foreground hover:border-primary/60 hover:text-primary",
+                  ? "border-amber-500/40 text-amber-400/70 hover:border-amber-500 hover:text-amber-300 bg-amber-500/5"
+                  : "border-border text-muted-foreground hover:border-primary/60 hover:text-primary",
             ].join(" ")}
           >
             {tf}
@@ -138,7 +168,7 @@ function ModuleMultiSelect({
   onChange: (modules: BrainModuleType[]) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const modules = ALL_MODULES;  // Show ALL modules in every brain — role is determined by timeframe, not module type
+  const modules = ALL_MODULES; // Show ALL modules in every brain — role is determined by timeframe, not module type
   const selectedDefs = modules.filter((m) => selected.includes(m.id));
 
   const toggleModule = (id: BrainModuleType) => {
@@ -195,14 +225,10 @@ function ModuleMultiSelect({
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className={`text-lg leading-none ${def.color}`}>
-                      {def.symbol}
-                    </span>
+                    <span className={`text-lg leading-none ${def.color}`}>{def.symbol}</span>
                     <span className="text-xs font-semibold">{def.label}</span>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    {def.desc}
-                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{def.desc}</p>
                 </div>
               </label>
             ))}
@@ -224,12 +250,14 @@ function AIParamExtractor({
   state: BrainState | undefined;
   onChange: (s: BrainState) => void;
 }) {
-  const [open, setOpen]           = useState(false);
-  const [hint, setHint]           = useState("");
+  const [open, setOpen] = useState(false);
+  const [hint, setHint] = useState("");
   const [extracting, setExtracting] = useState(false);
   const [extractSummary, setExtractSummary] = useState<string | null>(null);
 
-  const hasParams = state?.params && Object.keys(state.params).filter(k => k !== "expiry" || state.params![k] !== 50).length > 0;
+  const hasParams =
+    state?.params &&
+    Object.keys(state.params).filter((k) => k !== "expiry" || state.params![k] !== 50).length > 0;
 
   async function onExtract() {
     if (!state?.modules || state.modules.length === 0 || !state.timeframe || !hint.trim()) {
@@ -254,7 +282,7 @@ function AIParamExtractor({
     <div className="space-y-2">
       {/* Toggle */}
       <button
-        onClick={() => setOpen(v => !v)}
+        onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
       >
         <Sparkles className="h-3 w-3 text-violet-400" />
@@ -293,7 +321,9 @@ function AIParamExtractor({
               placeholder={`e.g. "use 5-bar pivots, lookback 30 bars, only first BOS of the session"`}
               value={hint}
               onChange={(e) => setHint(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) onExtract(); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) onExtract();
+              }}
             />
             <Button
               size="sm"
@@ -302,9 +332,11 @@ function AIParamExtractor({
               disabled={extracting || !hint.trim()}
               className="shrink-0 self-end gap-1.5 border-violet-500/40 text-violet-400 hover:bg-violet-500/10"
             >
-              {extracting
-                ? <Loader2 className="h-3 w-3 animate-spin" />
-                : <Sparkles className="h-3 w-3" />}
+              {extracting ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Sparkles className="h-3 w-3" />
+              )}
               Extract
             </Button>
           </div>
@@ -312,7 +344,10 @@ function AIParamExtractor({
           {/* Clear params */}
           {state?.params && Object.keys(state.params).length > 0 && (
             <button
-              onClick={() => { onChange({ ...state, params: {} }); setExtractSummary(null); }}
+              onClick={() => {
+                onChange({ ...state, params: {} });
+                setExtractSummary(null);
+              }}
               className="text-[10px] text-muted-foreground hover:text-destructive transition-colors"
             >
               Clear extracted params
@@ -327,9 +362,16 @@ function AIParamExtractor({
 // ─────────────────────────────────────────────────────────────────────────────
 
 function BrainCard({
-  role, icon: Icon, title, color,
-  state, onChange, onClear,
-  optional, recommendAbove, recommendBelow,
+  role,
+  icon: Icon,
+  title,
+  color,
+  state,
+  onChange,
+  onClear,
+  optional,
+  recommendAbove,
+  recommendBelow,
 }: {
   role: BrainRole;
   icon: React.ElementType;
@@ -343,7 +385,7 @@ function BrainCard({
   recommendBelow?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const modules = ALL_MODULES;  // Show ALL modules in every brain
+  const modules = ALL_MODULES; // Show ALL modules in every brain
   const configured = Boolean(state?.modules?.[0] && state?.timeframe);
 
   const selectedMod = state?.modules?.[0]
@@ -354,9 +396,7 @@ function BrainCard({
     <div
       className={[
         "flex-1 min-w-0 rounded-xl border transition-all",
-        configured
-          ? "border-primary/40 bg-card"
-          : "border-border bg-card/60",
+        configured ? "border-primary/40 bg-card" : "border-border bg-card/60",
         open ? "ring-1 ring-primary/20" : "",
       ].join(" ")}
     >
@@ -382,10 +422,7 @@ function BrainCard({
               {state.modules.map((modId) => {
                 const mod = modules.find((m) => m.id === modId);
                 return mod ? (
-                  <span
-                    key={modId}
-                    className={`text-xs font-medium ${mod.color}`}
-                  >
+                  <span key={modId} className={`text-xs font-medium ${mod.color}`}>
                     {mod.symbol} {mod.label}
                   </span>
                 ) : null;
@@ -401,9 +438,7 @@ function BrainCard({
           )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          {configured && (
-            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-          )}
+          {configured && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
           {open ? (
             <ChevronUp className="h-4 w-4 text-muted-foreground" />
           ) : (
@@ -451,79 +486,87 @@ function BrainCard({
           </div>
 
           {/* Per-module parameter inputs */}
-          {state?.modules && state.modules.length > 0 && (() => {
-            const seen = new Set<string>();
-            const allUiParams: UIParam[] = [];
-            for (const mod of state.modules) {
-              for (const p of MODULE_UI_PARAMS[mod] ?? []) {
-                if (!seen.has(p.key)) { seen.add(p.key); allUiParams.push(p); }
+          {state?.modules &&
+            state.modules.length > 0 &&
+            (() => {
+              const seen = new Set<string>();
+              const allUiParams: UIParam[] = [];
+              for (const mod of state.modules) {
+                for (const p of MODULE_UI_PARAMS[mod] ?? []) {
+                  if (!seen.has(p.key)) {
+                    seen.add(p.key);
+                    allUiParams.push(p);
+                  }
+                }
               }
-            }
-            if (allUiParams.length === 0) return null;
-            return (
-              <div>
-                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                  Parameters
-                </p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                  {allUiParams.map((p) => {
-                    const current = typeof state?.params?.[p.key] === "number"
-                      ? state.params![p.key] as number : p.default;
-                    return (
-                      <div key={p.key} className="space-y-0.5">
-                        <label className="text-[11px] text-muted-foreground">{p.label}</label>
-                        <input
-                          type="number"
-                          min={p.min} max={p.max} step={p.step}
-                          value={current}
-                          onChange={(e) => {
-                            const v = parseFloat(e.target.value);
-                            if (!isNaN(v)) onChange({
-                              ...(state as BrainState),
-                              params: { ...(state?.params ?? {}), [p.key]: v },
-                            });
-                          }}
-                          className="w-full h-7 rounded border border-border bg-background px-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
-                          title={p.hint}
-                        />
-                        <p className="text-[10px] text-muted-foreground/60">{p.hint}</p>
-                      </div>
-                    );
-                  })}
+              if (allUiParams.length === 0) return null;
+              return (
+                <div>
+                  <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                    Parameters
+                  </p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                    {allUiParams.map((p) => {
+                      const current =
+                        typeof state?.params?.[p.key] === "number"
+                          ? (state.params![p.key] as number)
+                          : p.default;
+                      return (
+                        <div key={p.key} className="space-y-0.5">
+                          <label className="text-[11px] text-muted-foreground">{p.label}</label>
+                          <input
+                            type="number"
+                            min={p.min}
+                            max={p.max}
+                            step={p.step}
+                            value={current}
+                            onChange={(e) => {
+                              const v = parseFloat(e.target.value);
+                              if (!isNaN(v))
+                                onChange({
+                                  ...(state as BrainState),
+                                  params: { ...(state?.params ?? {}), [p.key]: v },
+                                });
+                            }}
+                            className="w-full h-7 rounded border border-border bg-background px-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                            title={p.hint}
+                          />
+                          <p className="text-[10px] text-muted-foreground/60">{p.hint}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
 
           {/* Notes for AI */}
           <div>
             <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              Notes for AI <span className="normal-case font-normal text-muted-foreground/60">(optional)</span>
+              Notes for AI{" "}
+              <span className="normal-case font-normal text-muted-foreground/60">(optional)</span>
             </p>
             <Textarea
               className="text-xs font-mono resize-none h-14"
               placeholder={`Describe any specific behaviour, e.g. "only enter after EMA retest, not on the cross itself"`}
               value={state?.description ?? ""}
-              onChange={(e) =>
-                onChange({ ...(state as BrainState), description: e.target.value })
-              }
+              onChange={(e) => onChange({ ...(state as BrainState), description: e.target.value })}
             />
           </div>
 
           {/* AI param extraction — kept as optional advanced tool */}
           {state?.modules && state.modules.length > 0 && (
-            <AIParamExtractor
-              role={role}
-              state={state}
-              onChange={onChange}
-            />
+            <AIParamExtractor role={role} state={state} onChange={onChange} />
           )}
 
           {/* Actions */}
           <div className="flex justify-between items-center pt-1">
             {optional && (
               <button
-                onClick={() => { onClear(); setOpen(false); }}
+                onClick={() => {
+                  onClear();
+                  setOpen(false);
+                }}
                 className="text-[11px] text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1"
               >
                 <X className="h-3 w-3" /> Skip this brain
@@ -557,21 +600,21 @@ function Arrow({ active }: { active: boolean }) {
 
 function FourBrainBuilderPage() {
   const { user } = useAuth();
-  const navigate  = useNavigate();
+  const navigate = useNavigate();
 
   // Brain states
   const [direction, setDirection] = useState<BrainState | undefined>(undefined);
-  const [setup,     setSetup]     = useState<BrainState | undefined>(undefined);
+  const [setup, setSetup] = useState<BrainState | undefined>(undefined);
   const [execution, setExecution] = useState<BrainState | undefined>(undefined);
 
   // Management
-  const [risk,       setRisk]       = useState(1.0);
-  const [rr,         setRr]         = useState(2.0);
-  const [be,         setBe]         = useState(true);
-  const [beAt,       setBeAt]       = useState(1.0);
-  const [maxTrades,  setMaxTrades]  = useState(1);
+  const [risk, setRisk] = useState(1.0);
+  const [rr, setRr] = useState(2.0);
+  const [be, setBe] = useState(true);
+  const [beAt, setBeAt] = useState(1.0);
+  const [maxTrades, setMaxTrades] = useState(1);
   const [stopBuffer, setStopBuffer] = useState(20);
-  const [maxStopPts, setMaxStopPts] = useState(0);   // 0 = no limit
+  const [maxStopPts, setMaxStopPts] = useState(0); // 0 = no limit
   const [strategyNotes, setStrategyNotes] = useState("");
 
   const [saving, setSaving] = useState(false);
@@ -579,7 +622,7 @@ function FourBrainBuilderPage() {
   // ── Preset application ────────────────────────────────────────────────────
   function applyPreset(p: Preset) {
     setDirection(p.direction ? { ...p.direction } : undefined);
-    setSetup(p.setup         ? { ...p.setup }     : undefined);
+    setSetup(p.setup ? { ...p.setup } : undefined);
     setExecution({ ...p.execution });
     setRr(p.rr);
     setRisk(p.risk);
@@ -590,19 +633,19 @@ function FourBrainBuilderPage() {
   function summary() {
     const parts: string[] = [];
     if (direction?.modules?.[0] && direction.timeframe) {
-      const mods = direction.modules.map(m => m.replace(/_/g, " ").toUpperCase()).join(" + ");
+      const mods = direction.modules.map((m) => m.replace(/_/g, " ").toUpperCase()).join(" + ");
       parts.push(`${direction.timeframe} ${mods}`);
     }
     if (setup?.modules?.[0] && setup.timeframe) {
-      const mods = setup.modules.map(m => m.replace(/_/g, " ").toUpperCase()).join(" + ");
+      const mods = setup.modules.map((m) => m.replace(/_/g, " ").toUpperCase()).join(" + ");
       parts.push(`${setup.timeframe} ${mods}`);
     }
     if (execution?.modules?.[0] && execution.timeframe) {
-      const mods = execution.modules.map(m => m.replace(/_/g, " ").toUpperCase()).join(" + ");
+      const mods = execution.modules.map((m) => m.replace(/_/g, " ").toUpperCase()).join(" + ");
       parts.push(`${execution.timeframe} ${mods}`);
     }
     const chain = parts.join(" → ");
-    const mgmt  = `${risk}% risk · ${rr}R TP${be ? ` · BE@${beAt}R` : ""}`;
+    const mgmt = `${risk}% risk · ${rr}R TP${be ? ` · BE@${beAt}R` : ""}`;
     return chain ? `${chain} | ${mgmt}` : mgmt;
   }
 
@@ -615,25 +658,37 @@ function FourBrainBuilderPage() {
     }
 
     const fourBrain: FourBrainConfig = {
-      direction: direction?.modules?.[0] && direction.timeframe
-        ? { modules: direction.modules, timeframe: direction.timeframe, description: direction.description, params: {} }
-        : undefined,
-      setup: setup?.modules?.[0] && setup.timeframe
-        ? { modules: setup.modules, timeframe: setup.timeframe, description: setup.description, params: {} }
-        : undefined,
+      direction:
+        direction?.modules?.[0] && direction.timeframe
+          ? {
+              modules: direction.modules,
+              timeframe: direction.timeframe,
+              description: direction.description,
+              params: direction.params ?? {},
+            }
+          : undefined,
+      setup:
+        setup?.modules?.[0] && setup.timeframe
+          ? {
+              modules: setup.modules,
+              timeframe: setup.timeframe,
+              description: setup.description,
+              params: setup.params ?? {},
+            }
+          : undefined,
       execution: {
         modules: execution.modules,
         timeframe: execution.timeframe,
         description: execution.description,
-        params: { expiry: 50 },
+        params: execution.params ?? {},
       },
       management: {
         riskPercent: risk,
         rewardRisk: rr,
         breakEvenEnabled: be,
-        breakEvenAtR: 1,
+        breakEvenAtR: beAt,
         maxOpenTrades: maxTrades,
-        stopBuffer: stopBuffer,  // in points — gen-ea.ts uses as int (input int InpStopBuffer)
+        stopBuffer: stopBuffer, // in points — gen-ea.ts uses as int (input int InpStopBuffer)
         maxStopPoints: maxStopPts,
       },
     };
@@ -642,7 +697,7 @@ function FourBrainBuilderPage() {
       ...DEFAULT_BLUEPRINT,
       name: buildName(fourBrain),
       fourBrain,
-      strategyNotes,   // cross-brain conditions for AI generation
+      strategyNotes: strategyNotes.trim(), // cross-brain conditions for AI generation
       risk: {
         ...DEFAULT_BLUEPRINT.risk,
         riskPercent: risk,
@@ -674,14 +729,20 @@ function FourBrainBuilderPage() {
   function buildName(cfg: FourBrainConfig): string {
     const parts: string[] = [];
     if (cfg.direction) {
-      const dirModules = cfg.direction.modules.map(m => m.replace("_", " ").toUpperCase()).join(" + ");
+      const dirModules = cfg.direction.modules
+        .map((m) => m.replace("_", " ").toUpperCase())
+        .join(" + ");
       parts.push(`${cfg.direction.timeframe} ${dirModules}`);
     }
     if (cfg.setup) {
-      const setupModules = cfg.setup.modules.map(m => m.replace("_", " ").toUpperCase()).join(" + ");
+      const setupModules = cfg.setup.modules
+        .map((m) => m.replace("_", " ").toUpperCase())
+        .join(" + ");
       parts.push(`${cfg.setup.timeframe} ${setupModules}`);
     }
-    const execModules = cfg.execution.modules.map(m => m.replace("_", " ").toUpperCase()).join(" + ");
+    const execModules = cfg.execution.modules
+      .map((m) => m.replace("_", " ").toUpperCase())
+      .join(" + ");
     parts.push(`${cfg.execution.timeframe} ${execModules}`);
     return parts.join(" → ");
   }
@@ -696,7 +757,6 @@ function FourBrainBuilderPage() {
       />
 
       <div className="flex-1 p-6 space-y-6 max-w-7xl mx-auto w-full">
-
         {/* ── Presets ── */}
         <div>
           <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">
@@ -717,9 +777,7 @@ function FourBrainBuilderPage() {
                     {p.tag}
                   </span>
                 </div>
-                <p className="text-[11px] text-muted-foreground leading-snug">
-                  {p.description}
-                </p>
+                <p className="text-[11px] text-muted-foreground leading-snug">{p.description}</p>
                 <div className="flex items-center gap-1 mt-1 text-[10px] font-mono text-muted-foreground/60">
                   <span>{p.rr}R</span>
                   <span>·</span>
@@ -793,7 +851,9 @@ function FourBrainBuilderPage() {
                 <span className="text-xs font-mono text-primary">{risk.toFixed(1)}%</span>
               </div>
               <Slider
-                min={0.1} max={5} step={0.1}
+                min={0.1}
+                max={5}
+                step={0.1}
                 value={[risk]}
                 onValueChange={([v]) => setRisk(v)}
               />
@@ -806,7 +866,9 @@ function FourBrainBuilderPage() {
                 <span className="text-xs font-mono text-primary">{rr.toFixed(1)}R</span>
               </div>
               <Slider
-                min={0.5} max={10} step={0.5}
+                min={0.5}
+                max={10}
+                step={0.5}
                 value={[rr]}
                 onValueChange={([v]) => setRr(v)}
               />
@@ -819,7 +881,9 @@ function FourBrainBuilderPage() {
                 <span className="text-xs font-mono text-primary">{stopBuffer} pts</span>
               </div>
               <Slider
-                min={5} max={100} step={5}
+                min={5}
+                max={100}
+                step={5}
                 value={[stopBuffer]}
                 onValueChange={([v]) => setStopBuffer(v)}
               />
@@ -830,11 +894,15 @@ function FourBrainBuilderPage() {
               <div className="flex justify-between items-center">
                 <Label className="text-xs">Max stop loss</Label>
                 <span className="text-xs font-mono text-primary">
-                  {maxStopPts === 0 ? "no limit" : `${maxStopPts} pts (${(maxStopPts / 10).toFixed(0)} pips)`}
+                  {maxStopPts === 0
+                    ? "no limit"
+                    : `${maxStopPts} pts (${(maxStopPts / 10).toFixed(0)} pips)`}
                 </span>
               </div>
               <Slider
-                min={0} max={300} step={10}
+                min={0}
+                max={300}
+                step={10}
                 value={[maxStopPts]}
                 onValueChange={([v]) => setMaxStopPts(v)}
               />
@@ -854,7 +922,9 @@ function FourBrainBuilderPage() {
                   <span className="text-[11px] text-muted-foreground">Move SL to B/E at</span>
                   <div className="flex items-center gap-2">
                     <Slider
-                      min={0.25} max={3} step={0.25}
+                      min={0.25}
+                      max={3}
+                      step={0.25}
                       value={[beAt]}
                       onValueChange={([v]) => setBeAt(v)}
                       className="w-24"
@@ -872,7 +942,9 @@ function FourBrainBuilderPage() {
                 <span className="text-xs font-mono text-primary">{maxTrades}</span>
               </div>
               <Slider
-                min={1} max={10} step={1}
+                min={1}
+                max={10}
+                step={1}
                 value={[maxTrades]}
                 onValueChange={([v]) => setMaxTrades(v)}
               />
@@ -907,9 +979,7 @@ function FourBrainBuilderPage() {
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
               Strategy summary
             </p>
-            <p className="text-sm font-mono text-foreground truncate">
-              {summary()}
-            </p>
+            <p className="text-sm font-mono text-foreground truncate">{summary()}</p>
           </div>
           <Button
             size="lg"
@@ -918,9 +988,13 @@ function FourBrainBuilderPage() {
             className="shrink-0 gap-2"
           >
             {saving ? (
-              <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</>
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Saving…
+              </>
             ) : (
-              <><Zap className="h-4 w-4" /> Build EA</>
+              <>
+                <Zap className="h-4 w-4" /> Build EA
+              </>
             )}
           </Button>
         </div>

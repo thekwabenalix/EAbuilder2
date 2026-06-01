@@ -15,16 +15,16 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Standalone full-indicator generators (each returns a complete .mq5)
-import { generateMissDetector }            from "../src/lib/smc-modules/miss-detector";
-import { generateMissStateModule }         from "../src/lib/smc-modules/miss-state-module";
-import { generateRssSrrDetector }          from "../src/lib/smc-modules/rss-srr-detector";
-import { generateRssSrrStateModule }       from "../src/lib/smc-modules/rss-srr-state-module";
-import { generateFvgLiquidityDetector }    from "../src/lib/smc-modules/fvg-liquidity-detector";
-import { generateObLiquidityDetector }     from "../src/lib/smc-modules/ob-liquidity-detector";
-import { generateBbLiquidityDetector }     from "../src/lib/smc-modules/bb-liquidity-detector";
-import { generateObFvgDetector }           from "../src/lib/smc-modules/ob-fvg-detector";
-import { generateUnicornDetector }         from "../src/lib/smc-modules/unicorn-detector";
-import { generateRsiHiddenDivergenceDetector }    from "../src/lib/indicator-modules/rsi-hidden-divergence-detector";
+import { generateMissDetector } from "../src/lib/smc-modules/miss-detector";
+import { generateMissStateModule } from "../src/lib/smc-modules/miss-state-module";
+import { generateRssSrrDetector } from "../src/lib/smc-modules/rss-srr-detector";
+import { generateRssSrrStateModule } from "../src/lib/smc-modules/rss-srr-state-module";
+import { generateFvgLiquidityDetector } from "../src/lib/smc-modules/fvg-liquidity-detector";
+import { generateObLiquidityDetector } from "../src/lib/smc-modules/ob-liquidity-detector";
+import { generateBbLiquidityDetector } from "../src/lib/smc-modules/bb-liquidity-detector";
+import { generateObFvgDetector } from "../src/lib/smc-modules/ob-fvg-detector";
+import { generateUnicornDetector } from "../src/lib/smc-modules/unicorn-detector";
+import { generateRsiHiddenDivergenceDetector } from "../src/lib/indicator-modules/rsi-hidden-divergence-detector";
 import { generateRsiHiddenDivergenceStateModule } from "../src/lib/indicator-modules/rsi-hidden-divergence-state-module";
 
 // Inline state-machine fragment generators
@@ -67,25 +67,43 @@ int OnCalculate(const int rates_total, const int prev_calculated,
 `;
 }
 
-interface Item { file: string; code: string }
+interface Item {
+  file: string;
+  code: string;
+}
 const items: Item[] = [
-  { file: "Miss_Detector.mq5",                     code: generateMissDetector() },
-  { file: "Miss_State_Module.mq5",                 code: generateMissStateModule() },
-  { file: "RSS_SRR_Detector.mq5",                  code: generateRssSrrDetector() },
-  { file: "RSS_SRR_State_Module.mq5",              code: generateRssSrrStateModule() },
-  { file: "FVG_Liquidity_Detector.mq5",            code: generateFvgLiquidityDetector() },
-  { file: "OB_Liquidity_Detector.mq5",             code: generateObLiquidityDetector() },
-  { file: "BB_Liquidity_Detector.mq5",             code: generateBbLiquidityDetector() },
-  { file: "OB_FVG_Detector.mq5",                   code: generateObFvgDetector() },
-  { file: "Unicorn_Detector.mq5",                  code: generateUnicornDetector() },
-  { file: "RSI_Hidden_Divergence_Detector.mq5",    code: generateRsiHiddenDivergenceDetector() },
-  { file: "RSI_Hidden_Divergence_State_Module.mq5",code: generateRsiHiddenDivergenceStateModule() },
-  { file: "_TEST_RSIHDSM_M15.mq5", code: wrapInlineSM(
-      "RSIHDSM M15", genRsiHdSM("M15", "PERIOD_M15", "M15"),
-      "RSIHDSM_M15_Reset();", "RSIHDSM_M15_Tick(50);") },
-  { file: "_TEST_OBFVGSM_M15.mq5", code: wrapInlineSM(
-      "OBFVGSM M15", genObFvgSM("M15", "PERIOD_M15", "M15"),
-      "OBFVGSM_M15_Reset();", "OBFVGSM_M15_Tick(50);") },
+  { file: "Miss_Detector.mq5", code: generateMissDetector() },
+  { file: "Miss_State_Module.mq5", code: generateMissStateModule() },
+  { file: "RSS_SRR_Detector.mq5", code: generateRssSrrDetector() },
+  { file: "RSS_SRR_State_Module.mq5", code: generateRssSrrStateModule() },
+  { file: "FVG_Liquidity_Detector.mq5", code: generateFvgLiquidityDetector() },
+  { file: "OB_Liquidity_Detector.mq5", code: generateObLiquidityDetector() },
+  { file: "BB_Liquidity_Detector.mq5", code: generateBbLiquidityDetector() },
+  { file: "OB_FVG_Detector.mq5", code: generateObFvgDetector() },
+  { file: "Unicorn_Detector.mq5", code: generateUnicornDetector() },
+  { file: "RSI_Hidden_Divergence_Detector.mq5", code: generateRsiHiddenDivergenceDetector() },
+  {
+    file: "RSI_Hidden_Divergence_State_Module.mq5",
+    code: generateRsiHiddenDivergenceStateModule(),
+  },
+  {
+    file: "_TEST_RSIHDSM_M15.mq5",
+    code: wrapInlineSM(
+      "RSIHDSM M15",
+      genRsiHdSM("M15", "PERIOD_M15", "M15"),
+      "RSIHDSM_M15_Reset();",
+      "RSIHDSM_M15_Tick(50);",
+    ),
+  },
+  {
+    file: "_TEST_OBFVGSM_M15.mq5",
+    code: wrapInlineSM(
+      "OBFVGSM M15",
+      genObFvgSM("M15", "PERIOD_M15", "M15"),
+      "OBFVGSM_M15_Reset();",
+      "OBFVGSM_M15_Tick(50);",
+    ),
+  },
 ];
 
 // ── Static lint ───────────────────────────────────────────────────────────────
@@ -95,8 +113,10 @@ function lint(code: string): string[] {
 
   // brace / paren balance
   const count = (re: RegExp) => (code.match(re) ?? []).length;
-  if (count(/\{/g) !== count(/\}/g)) warn.push(`brace imbalance: ${count(/\{/g)} { vs ${count(/\}/g)} }`);
-  if (count(/\(/g) !== count(/\)/g)) warn.push(`paren imbalance: ${count(/\(/g)} ( vs ${count(/\)/g)} )`);
+  if (count(/\{/g) !== count(/\}/g))
+    warn.push(`brace imbalance: ${count(/\{/g)} { vs ${count(/\}/g)} }`);
+  if (count(/\(/g) !== count(/\)/g))
+    warn.push(`paren imbalance: ${count(/\(/g)} ( vs ${count(/\)/g)} )`);
 
   // MQL4-isms / forbidden patterns (per CLAUDE.md)
   const pat: Array<[RegExp, string]> = [
@@ -107,8 +127,12 @@ function lint(code: string): string[] {
   ];
   for (const [re, msg] of pat) {
     const hits: number[] = [];
-    lines.forEach((ln, i) => { if (re.test(ln)) hits.push(i + 1); re.lastIndex = 0; });
-    if (hits.length) warn.push(`${msg} @ lines ${hits.slice(0, 6).join(",")}${hits.length > 6 ? "…" : ""}`);
+    lines.forEach((ln, i) => {
+      if (re.test(ln)) hits.push(i + 1);
+      re.lastIndex = 0;
+    });
+    if (hits.length)
+      warn.push(`${msg} @ lines ${hits.slice(0, 6).join(",")}${hits.length > 6 ? "…" : ""}`);
   }
 
   // struct defined inside a function (heuristic: 'struct' appearing after a non-zero brace depth)
@@ -116,7 +140,8 @@ function lint(code: string): string[] {
   lines.forEach((ln, i) => {
     const before = depth;
     depth += (ln.match(/\{/g) ?? []).length - (ln.match(/\}/g) ?? []).length;
-    if (before > 0 && /^\s*struct\s+\w/.test(ln)) warn.push(`struct declared inside a block @ line ${i + 1}`);
+    if (before > 0 && /^\s*struct\s+\w/.test(ln))
+      warn.push(`struct declared inside a block @ line ${i + 1}`);
   });
 
   return warn;
@@ -127,11 +152,17 @@ function lint(code: string): string[] {
 // RSIHDSM_M15 from the setup_brain reference, and OnInit must auto-call Reset.
 function buildAiEa(): { code: string; checks: Array<[string, boolean]> } {
   const config: FourBrainConfig = {
-    direction:  { modules: ["bos"],    timeframe: "H4" },
-    setup:      { modules: ["rsi_hd"], timeframe: "M15" },
-    execution:  { modules: ["fvg_inversion"], timeframe: "M5" },
-    management: { riskPercent: 1.0, rewardRisk: 3.0, stopBuffer: 0.0005,
-                  breakEvenEnabled: true, breakEvenAtR: 1.5, maxOpenTrades: 3 },
+    direction: { modules: ["bos"], timeframe: "H4" },
+    setup: { modules: ["rsi_hd"], timeframe: "M15" },
+    execution: { modules: ["fvg_inversion"], timeframe: "M5" },
+    management: {
+      riskPercent: 1.0,
+      rewardRisk: 3.0,
+      stopBuffer: 0.0005,
+      breakEvenEnabled: true,
+      breakEvenAtR: 1.5,
+      maxOpenTrades: 3,
+    },
   };
   const aiWiring: AiBrainWiring = {
     direction_brain: `void Direction_Brain_Execute() { gBias = 1; }`,
@@ -144,18 +175,21 @@ function buildAiEa(): { code: string; checks: Array<[string, boolean]> } {
    if(gSetupActive) { gExecSignal = true; gExecDir = gSetupDir; gExecSL = gSetupSLHint; }
 }`,
     required_sms: ["RSIHDSM_M15"],
-    sm_configs: {},   // intentionally empty → must be reconciled
+    sm_configs: {}, // intentionally empty → must be reconciled
   };
   const params: MQL5CodeGenParams = {
-    eaName: "RSI_HD_Continuation_Test", config,
-    globalSymbol: "EURUSD", globalMagic: 990777, aiWiring,
+    eaName: "RSI_HD_Continuation_Test",
+    config,
+    globalSymbol: "EURUSD",
+    globalMagic: 990777,
+    aiWiring,
   };
   const code = generateEA(params);
   const checks: Array<[string, boolean]> = [
     ["SM auto-embedded (reconcile)", code.includes("void RSIHDSM_M15_Tick")],
     ["SM Reset auto-called in OnInit", code.includes("RSIHDSM_M15_Reset();")],
-    ["RSI handle present",            code.includes("iRSI(InpSymbol, PERIOD_M15")],
-    ["setup brain wired",             code.includes("RSIHDSM_M15_BullJustConfirmed()")],
+    ["RSI handle present", code.includes("iRSI(InpSymbol, PERIOD_M15")],
+    ["setup brain wired", code.includes("RSIHDSM_M15_BullJustConfirmed()")],
   ];
   return { code, checks };
 }
@@ -173,11 +207,17 @@ for (const it of items) {
 // ── AI-path integration: OB+FVG as Setup→Execution via the AI path ────────────
 function buildObFvgAiEa(): { code: string; checks: Array<[string, boolean]> } {
   const config: FourBrainConfig = {
-    direction:  { modules: ["bos"],    timeframe: "H4" },
-    setup:      { modules: ["ob_fvg"], timeframe: "M15" },
-    execution:  { modules: ["ob_fvg"], timeframe: "M15" },
-    management: { riskPercent: 1.0, rewardRisk: 3.0, stopBuffer: 0.0005,
-                  breakEvenEnabled: true, breakEvenAtR: 1.5, maxOpenTrades: 3 },
+    direction: { modules: ["bos"], timeframe: "H4" },
+    setup: { modules: ["ob_fvg"], timeframe: "M15" },
+    execution: { modules: ["ob_fvg"], timeframe: "M15" },
+    management: {
+      riskPercent: 1.0,
+      rewardRisk: 3.0,
+      stopBuffer: 0.0005,
+      breakEvenEnabled: true,
+      breakEvenAtR: 1.5,
+      maxOpenTrades: 3,
+    },
   };
   const aiWiring: AiBrainWiring = {
     direction_brain: `void Direction_Brain_Execute() { gBias = 1; }`,
@@ -193,19 +233,28 @@ function buildObFvgAiEa(): { code: string; checks: Array<[string, boolean]> } {
     required_sms: ["OBFVGSM_M15"],
     sm_configs: {},
   };
-  const code = generateEA({ eaName: "OB_FVG_Setup_Test", config,
-    globalSymbol: "EURUSD", globalMagic: 990778, aiWiring });
+  const code = generateEA({
+    eaName: "OB_FVG_Setup_Test",
+    config,
+    globalSymbol: "EURUSD",
+    globalMagic: 990778,
+    aiWiring,
+  });
   const checks: Array<[string, boolean]> = [
-    ["SM auto-embedded (reconcile)",  code.includes("void OBFVGSM_M15_Tick")],
+    ["SM auto-embedded (reconcile)", code.includes("void OBFVGSM_M15_Tick")],
     ["SM Reset auto-called in OnInit", code.includes("OBFVGSM_M15_Reset();")],
-    ["setup brain wired",             code.includes("OBFVGSM_M15_HasActiveBull()")],
-    ["execution entry wired",         code.includes("OBFVGSM_M15_BullJustConfirmed()")],
+    ["setup brain wired", code.includes("OBFVGSM_M15_HasActiveBull()")],
+    ["execution entry wired", code.includes("OBFVGSM_M15_BullJustConfirmed()")],
   ];
   return { code, checks };
 }
 
 // ── Run the AI-path integration tests ─────────────────────────────────────────
-function runAiTest(title: string, file: string, build: () => { code: string; checks: Array<[string, boolean]> }) {
+function runAiTest(
+  title: string,
+  file: string,
+  build: () => { code: string; checks: Array<[string, boolean]> },
+) {
   console.log(`\n── AI-path integration: ${title} ──`);
   try {
     const { code, checks } = build();
@@ -225,64 +274,104 @@ runAiTest("RSI HD as Setup Brain", "RSI_HD_Continuation_Test.mq5", buildAiEa);
 runAiTest("OB+FVG as Setup→Execution", "OB_FVG_Setup_Test.mq5", buildObFvgAiEa);
 
 // ── EMA cross→retest sequence (M15 cross → M5 cross setup → M5 retest/confirm) ─
-runAiTest("EMA cross→retest SM (M15 bias → M5 cross → retest → confirm)", "EMA_CrossRetest_SM_Test.mq5", () => {
-  const config: FourBrainConfig = {
-    direction:  { modules: ["ema"], timeframe: "M15" },
-    setup:      { modules: ["ema"], timeframe: "M5" },
-    execution:  { modules: ["ema"], timeframe: "M5" },
-    management: { riskPercent: 1.0, rewardRisk: 2.0, stopBuffer: 0.0002,
-                  breakEvenEnabled: true, breakEvenAtR: 1.0, maxOpenTrades: 3 },
-  };
-  const aiWiring: AiBrainWiring = {
-    direction_brain: `void Direction_Brain_Execute() {
+runAiTest(
+  "EMA cross→retest SM (M15 bias → M5 cross → retest → confirm)",
+  "EMA_CrossRetest_SM_Test.mq5",
+  () => {
+    const config: FourBrainConfig = {
+      direction: { modules: ["ema"], timeframe: "M15" },
+      setup: { modules: ["ema"], timeframe: "M5" },
+      execution: { modules: ["ema"], timeframe: "M5" },
+      management: {
+        riskPercent: 1.0,
+        rewardRisk: 2.0,
+        stopBuffer: 0.0002,
+        breakEvenEnabled: true,
+        breakEvenAtR: 1.0,
+        maxOpenTrades: 3,
+      },
+    };
+    const aiWiring: AiBrainWiring = {
+      direction_brain: `void Direction_Brain_Execute() {
    int nb = EMASM_M15_Bias();
    if(nb != gBias && nb != 0) { gBias = nb; gSetupActive = false; }
 }`,
-    setup_brain: `void Setup_Brain_Execute() {
+      setup_brain: `void Setup_Brain_Execute() {
    EMASM_M5_Tick(gBias);
    if(EMASM_M5_SetupActive()) { gSetupActive = true; gSetupDir = EMASM_M5_ActiveDir(); gSetupSLHint = EMASM_M5_ActiveSL(); }
    else { gSetupActive = false; }
 }`,
-    execution_brain: `void Execution_Brain_Execute() {
+      execution_brain: `void Execution_Brain_Execute() {
    EMASM_M5_Tick(gBias);
    if(EMASM_M5_JustConfirmed()) { gExecSignal = true; gExecDir = EMASM_M5_ConfirmDir(); gExecSL = EMASM_M5_ConfirmSL(); }
 }`,
-    required_sms: ["EMASM_M15", "EMASM_M5"],
-    sm_configs: {
-      ema_M5: { type: "ema", id: "M5", TF: "PERIOD_M5", tf: "M5",
-                params: { fastPeriod: 12, slowPeriod: 48, retestPoints: 100, requireCross: true } },
-    },
-  };
-  const code = generateEA({ eaName: "EMA_CrossRetest_SM_Test", config,
-    globalSymbol: "EURUSD", globalMagic: 990780, aiWiring });
-  const checks: Array<[string, boolean]> = [
-    ["M15 bias SM embedded",       code.includes("int EMASM_M15_Bias()")],
-    ["M5 SM embedded",             code.includes("void EMASM_M5_Tick(")],
-    ["both SMs reset in OnInit",   code.includes("EMASM_M15_Reset();") && code.includes("EMASM_M5_Reset();")],
-    ["CROSSED gate present",       code.includes("EMASM_M5_CROSSED") && code.includes("bullCross")],
-    ["setup uses SetupActive",     code.includes("EMASM_M5_SetupActive()") && code.includes("EMASM_M5_JustConfirmed()")],
-    ["direction alignment gate",   code.includes("disagrees with bias")],
-  ];
-  return { code, checks };
-});
+      required_sms: ["EMASM_M15", "EMASM_M5"],
+      sm_configs: {
+        ema_M5: {
+          type: "ema",
+          id: "M5",
+          TF: "PERIOD_M5",
+          tf: "M5",
+          params: { fastPeriod: 12, slowPeriod: 48, retestPoints: 100, requireCross: true },
+        },
+      },
+    };
+    const code = generateEA({
+      eaName: "EMA_CrossRetest_SM_Test",
+      config,
+      globalSymbol: "EURUSD",
+      globalMagic: 990780,
+      aiWiring,
+    });
+    const checks: Array<[string, boolean]> = [
+      ["M15 bias SM embedded", code.includes("int EMASM_M15_Bias()")],
+      ["M5 SM embedded", code.includes("void EMASM_M5_Tick(")],
+      [
+        "both SMs reset in OnInit",
+        code.includes("EMASM_M15_Reset();") && code.includes("EMASM_M5_Reset();"),
+      ],
+      ["CROSSED gate present", code.includes("EMASM_M5_CROSSED") && code.includes("bullCross")],
+      [
+        "setup uses SetupActive",
+        code.includes("EMASM_M5_SetupActive()") && code.includes("EMASM_M5_JustConfirmed()"),
+      ],
+      ["direction alignment gate", code.includes("disagrees with bias")],
+    ];
+    return { code, checks };
+  },
+);
 
 // ── Template-mode EMA EA: confirm the MA helper is emitted AND used (drawn) ────
 runAiTest("EMA cross (template, drawn MAs)", "EMA_Cross_Template_Test.mq5", () => {
   const config: FourBrainConfig = {
-    direction:  { modules: ["ema"], timeframe: "H1", parameters: { fastPeriod: 12, slowPeriod: 48 } },
-    setup:      { modules: ["ema"], timeframe: "M5", parameters: { fastPeriod: 12, slowPeriod: 48 } },
-    execution:  { modules: ["engulfing"], timeframe: "M5" },
-    management: { riskPercent: 1.0, rewardRisk: 2.0, stopBuffer: 0.0005,
-                  breakEvenEnabled: true, breakEvenAtR: 1.5, maxOpenTrades: 3 },
+    direction: {
+      modules: ["ema"],
+      timeframe: "H1",
+      parameters: { fastPeriod: 12, slowPeriod: 48 },
+    },
+    setup: { modules: ["ema"], timeframe: "M5", parameters: { fastPeriod: 12, slowPeriod: 48 } },
+    execution: { modules: ["engulfing"], timeframe: "M5" },
+    management: {
+      riskPercent: 1.0,
+      rewardRisk: 2.0,
+      stopBuffer: 0.0005,
+      breakEvenEnabled: true,
+      breakEvenAtR: 1.5,
+      maxOpenTrades: 3,
+    },
   } as FourBrainConfig;
-  const code = generateEA({ eaName: "EMA_Cross_Template_Test", config,
-    globalSymbol: "EURUSD", globalMagic: 990779 });
+  const code = generateEA({
+    eaName: "EMA_Cross_Template_Test",
+    config,
+    globalSymbol: "EURUSD",
+    globalMagic: 990779,
+  });
   const checks: Array<[string, boolean]> = [
-    ["B4_MA helper emitted",       code.includes("int B4_MA(")],
-    ["ChartIndicatorAdd present",  code.includes("ChartIndicatorAdd(")],
-    ["direction uses B4_MA",       /B4_MA\(PERIOD_H1, \d+, MODE_EMA\)/.test(code)],
-    ["setup uses B4_MA",           /B4_MA\(PERIOD_M5, \d+, MODE_EMA\)/.test(code)],
-    ["no fake summation EMA",      !code.includes("fastSum")],
+    ["B4_MA helper emitted", code.includes("int B4_MA(")],
+    ["ChartIndicatorAdd present", code.includes("ChartIndicatorAdd(")],
+    ["direction uses B4_MA", /B4_MA\(PERIOD_H1, \d+, MODE_EMA\)/.test(code)],
+    ["setup uses B4_MA", /B4_MA\(PERIOD_M5, \d+, MODE_EMA\)/.test(code)],
+    ["no fake summation EMA", !code.includes("fastSum")],
   ];
   return { code, checks };
 });

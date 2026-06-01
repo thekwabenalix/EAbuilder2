@@ -10,9 +10,7 @@
 
 import type { ManagementBrainConfig } from "@/types/blueprint";
 
-export function genManagementBrain(
-  _config: ManagementBrainConfig | undefined
-): string {
+export function genManagementBrain(_config: ManagementBrainConfig | undefined): string {
   // Management logic (break-even, trailing stop) is inlined by gen-ea.ts.
   return "";
 }

@@ -34,7 +34,7 @@
  */
 
 export const OB_DETECTOR_VERSION = "1.0.0";
-export const OB_DETECTOR_MODULE  = "OB_Detector";
+export const OB_DETECTOR_MODULE = "OB_Detector";
 
 /**
  * Returns the complete MQL5 source code for the Order Block Detector (v1.0).

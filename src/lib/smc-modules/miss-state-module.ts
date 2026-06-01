@@ -21,7 +21,7 @@
  */
 
 export const MISS_STATE_MODULE_VERSION = "2.0.0";
-export const MISS_STATE_MODULE  = "Miss_State_Module";
+export const MISS_STATE_MODULE = "Miss_State_Module";
 
 export function generateMissStateModule(): string {
   return `//+------------------------------------------------------------------+

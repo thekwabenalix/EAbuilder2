@@ -28,8 +28,8 @@ export function genRejectionSM(
   id: string,
   TF: string,
   tf: string,
-  lookback = 30,        // bars scanned for S/R levels each tick
-  minWickRatio = 0.5,   // rejection wick must be >= this fraction of candle range
+  lookback = 30, // bars scanned for S/R levels each tick
+  minWickRatio = 0.5, // rejection wick must be >= this fraction of candle range
   expiryBars = 150,
 ): string {
   const P = `REJSM_${id}_`;

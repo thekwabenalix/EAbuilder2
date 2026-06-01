@@ -31,7 +31,7 @@
  */
 
 export const GAP_SNR_DETECTOR_VERSION = "1.0.0";
-export const GAP_SNR_DETECTOR_MODULE  = "Gap_SNR_Detector";
+export const GAP_SNR_DETECTOR_MODULE = "Gap_SNR_Detector";
 
 export function generateGapSnrDetector(): string {
   return `//+------------------------------------------------------------------+

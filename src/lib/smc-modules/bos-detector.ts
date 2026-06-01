@@ -34,7 +34,7 @@
  */
 
 export const BOS_DETECTOR_VERSION = "3.0.0";
-export const BOS_DETECTOR_MODULE  = "BOS_Detector";
+export const BOS_DETECTOR_MODULE = "BOS_Detector";
 
 export function generateBosDetector(): string {
   return `//+------------------------------------------------------------------+

@@ -20,7 +20,7 @@
  */
 
 export const RSI_HD_STATE_MODULE_VERSION = "1.0.0";
-export const RSI_HD_STATE_MODULE  = "RSI_Hidden_Divergence_State_Module";
+export const RSI_HD_STATE_MODULE = "RSI_Hidden_Divergence_State_Module";
 
 export function generateRsiHiddenDivergenceStateModule(): string {
   return `//+------------------------------------------------------------------+

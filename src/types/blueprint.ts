@@ -120,6 +120,8 @@ export interface StrategyBlueprint {
   pendingClarifications: string[];
   confidence: number;
   summary?: string;
+  /** Cross-brain notes used by the 4-Brain AI wiring path. */
+  strategyNotes?: string;
 
   /**
    * Optional 4-brain configuration.
@@ -173,22 +175,23 @@ export type Timeframe = (typeof TIMEFRAMES)[number];
 // three independent bar-open loops and confluence gating between brains.
 
 export type BrainModuleType =
-  | "bos" | "choch"           // structural break — bias detection
-  | "bos_choch"               // combined BOS + CHoCH detection
-  | "swing_structure"         // multi-bar swing structure
-  | "fvg"                     // fair value gap — zone setup or execution trigger
-  | "fvg_inversion"           // inverted FVG pattern
-  | "order_block"             // order block  — zone setup or execution trigger
-  | "liqsweep"                // liquidity sweep — execution trigger
-  | "breakout"                // price break beyond a defined level
-  | "snr"                     // classic S/R — zone setup
-  | "gap_snr"                 // S/R at gap edges
-  | "rejection"               // Reactive SNR — wick rejection off a level
-  | "miss"                    // Reactive SNR — price misses a level (liquidity)
-  | "bb"                      // Bollinger Bands
-  | "ema"                     // EMA trend — direction bias
-  | "engulfing"               // candle pattern — execution trigger
-  | "pin_bar";                // candle pattern — execution trigger
+  | "bos"
+  | "choch" // structural break — bias detection
+  | "bos_choch" // combined BOS + CHoCH detection
+  | "swing_structure" // multi-bar swing structure
+  | "fvg" // fair value gap — zone setup or execution trigger
+  | "fvg_inversion" // inverted FVG pattern
+  | "order_block" // order block  — zone setup or execution trigger
+  | "liqsweep" // liquidity sweep — execution trigger
+  | "breakout" // price break beyond a defined level
+  | "snr" // classic S/R — zone setup
+  | "gap_snr" // S/R at gap edges
+  | "rejection" // Reactive SNR — wick rejection off a level
+  | "miss" // Reactive SNR — price misses a level (liquidity)
+  | "bb" // Bollinger Bands
+  | "ema" // EMA trend — direction bias
+  | "engulfing" // candle pattern — execution trigger
+  | "pin_bar"; // candle pattern — execution trigger
 
 export interface BrainConfig {
   /**
@@ -199,7 +202,7 @@ export interface BrainConfig {
    * the `description` field; AI extracts params from it.
    */
   modules: BrainModuleType[];
-  timeframe: string;            // e.g. "D1", "H4", "M15"
+  timeframe: string; // e.g. "D1", "H4", "M15"
   params?: Record<string, unknown>;
   /** Plain-English description of how the selected modules work together. */
   description?: string;
@@ -211,9 +214,9 @@ export interface BrainConfig {
  * execution is required — it is the trade trigger.
  */
 export interface FourBrainConfig {
-  direction?: BrainConfig;  // sets gBias = BUY / SELL / NEUTRAL
-  setup?:     BrainConfig;  // sets gSetupActive + gSetupDir + gSetupSLHint
-  execution:  BrainConfig;  // fires the trade when Direction + Setup agree
+  direction?: BrainConfig; // sets gBias = BUY / SELL / NEUTRAL
+  setup?: BrainConfig; // sets gSetupActive + gSetupDir + gSetupSLHint
+  execution: BrainConfig; // fires the trade when Direction + Setup agree
   management?: ManagementBrainConfig;
 }
 
@@ -247,4 +250,3 @@ export interface ManagementBrainConfig {
    *  distance exceeds this are skipped (e.g. 70 points = 7 pips on a 5-digit pair). */
   maxStopPoints?: number;
 }
-

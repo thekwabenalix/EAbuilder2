@@ -17,7 +17,7 @@
  */
 
 export const RSI_HD_DETECTOR_VERSION = "1.1.0";
-export const RSI_HD_DETECTOR_MODULE  = "RSI_Hidden_Divergence_Detector";
+export const RSI_HD_DETECTOR_MODULE = "RSI_Hidden_Divergence_Detector";
 
 export function generateRsiHiddenDivergenceDetector(): string {
   return `//+------------------------------------------------------------------+

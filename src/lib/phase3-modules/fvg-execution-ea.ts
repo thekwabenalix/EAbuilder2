@@ -43,7 +43,7 @@
  */
 
 export const FVG_EXECUTION_EA_VERSION = "1.1.0";
-export const FVG_EXECUTION_EA_MODULE  = "FVG_Execution_EA";
+export const FVG_EXECUTION_EA_MODULE = "FVG_Execution_EA";
 
 export function generateFvgExecutionEa(): string {
   return `//+------------------------------------------------------------------+

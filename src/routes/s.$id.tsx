@@ -167,21 +167,22 @@ function StrategyPage() {
 
   const isFourBrain = Boolean(blueprint.fourBrain);
   const exec = blueprint.execution;
-  const subtitle = isFourBrain && blueprint.fourBrain
-    ? [
-        formatBrainChain(blueprint.fourBrain),
-        `risk ${blueprint.fourBrain.management?.riskPercent ?? blueprint.risk.riskPercent}%`,
-      ].join(" · ")
-    : [
-        exec.symbol,
-        exec.setupTimeframe !== exec.entryTimeframe
-          ? `${exec.setupTimeframe} → ${exec.entryTimeframe}`
-          : exec.entryTimeframe,
-        `risk ${blueprint.risk.riskPercent}%`,
-        blueprint.strategyType.length > 0 ? blueprint.strategyType.join(", ") : null,
-      ]
-        .filter(Boolean)
-        .join(" · ");
+  const subtitle =
+    isFourBrain && blueprint.fourBrain
+      ? [
+          formatBrainChain(blueprint.fourBrain),
+          `risk ${blueprint.fourBrain.management?.riskPercent ?? blueprint.risk.riskPercent}%`,
+        ].join(" · ")
+      : [
+          exec.symbol,
+          exec.setupTimeframe !== exec.entryTimeframe
+            ? `${exec.setupTimeframe} → ${exec.entryTimeframe}`
+            : exec.entryTimeframe,
+          `risk ${blueprint.risk.riskPercent}%`,
+          blueprint.strategyType.length > 0 ? blueprint.strategyType.join(", ") : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
 
   const onBlueprintChange = (next: StrategyBlueprint) => {
     setBlueprint(next);
@@ -204,11 +205,7 @@ function StrategyPage() {
         subtitle={subtitle}
         actions={
           <>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setChatOpen(true)}
-            >
+            <Button size="sm" variant="outline" onClick={() => setChatOpen(true)}>
               <Bot className="h-4 w-4 mr-1.5" /> AI Chat
             </Button>
             <Button
@@ -248,7 +245,10 @@ function StrategyPage() {
         /* ── 4-Brain strategy tabs ─────────────────────────────────────────── */
         <Tabs defaultValue="brains" className="px-6 pt-4">
           <TabsList>
-            <TabsTrigger value="brains"><Brain className="h-3.5 w-3.5 mr-1.5" />Brains</TabsTrigger>
+            <TabsTrigger value="brains">
+              <Brain className="h-3.5 w-3.5 mr-1.5" />
+              Brains
+            </TabsTrigger>
             <TabsTrigger value="code">Code</TabsTrigger>
             <TabsTrigger value="backtest">Backtest</TabsTrigger>
             <TabsTrigger value="export">Export</TabsTrigger>
@@ -277,10 +277,18 @@ function StrategyPage() {
               blueprint={blueprint}
               code={generatedCode}
               prompt={data.prompt}
-              onCodeChange={(code) => { setGeneratedCode(code); setDirty(true); }}
+              onCodeChange={(code) => {
+                setGeneratedCode(code);
+                setDirty(true);
+              }}
               onAutoSave={async (code) => {
-                await updateStrategy(id, { name: name || "Untitled Strategy", blueprint, generatedCode: code });
-                setGeneratedCode(code); setDirty(false);
+                await updateStrategy(id, {
+                  name: name || "Untitled Strategy",
+                  blueprint,
+                  generatedCode: code,
+                });
+                setGeneratedCode(code);
+                setDirty(false);
                 qc.invalidateQueries({ queryKey: ["strategies"] });
                 qc.invalidateQueries({ queryKey: ["strategy", id] });
               }}
@@ -295,8 +303,14 @@ function StrategyPage() {
               code={generatedCode}
               onCompileLog={setCompileLog}
               onBacktestSummary={setBacktestSummary}
-              onOpenChat={(msg) => { setChatAutoMessage(msg ?? null); setChatOpen(true); }}
-              onApplyCode={(fixed) => { setGeneratedCode(fixed); setDirty(true); }}
+              onOpenChat={(msg) => {
+                setChatAutoMessage(msg ?? null);
+                setChatOpen(true);
+              }}
+              onApplyCode={(fixed) => {
+                setGeneratedCode(fixed);
+                setDirty(true);
+              }}
             />
           </TabsContent>
 
@@ -331,10 +345,18 @@ function StrategyPage() {
               blueprint={blueprint}
               code={generatedCode}
               prompt={data.prompt}
-              onCodeChange={(code) => { setGeneratedCode(code); setDirty(true); }}
+              onCodeChange={(code) => {
+                setGeneratedCode(code);
+                setDirty(true);
+              }}
               onAutoSave={async (code) => {
-                await updateStrategy(id, { name: name || "Untitled Strategy", blueprint, generatedCode: code });
-                setGeneratedCode(code); setDirty(false);
+                await updateStrategy(id, {
+                  name: name || "Untitled Strategy",
+                  blueprint,
+                  generatedCode: code,
+                });
+                setGeneratedCode(code);
+                setDirty(false);
                 qc.invalidateQueries({ queryKey: ["strategies"] });
                 qc.invalidateQueries({ queryKey: ["strategy", id] });
               }}
@@ -349,8 +371,14 @@ function StrategyPage() {
               code={generatedCode}
               onCompileLog={setCompileLog}
               onBacktestSummary={setBacktestSummary}
-              onOpenChat={(msg) => { setChatAutoMessage(msg ?? null); setChatOpen(true); }}
-              onApplyCode={(fixed) => { setGeneratedCode(fixed); setDirty(true); }}
+              onOpenChat={(msg) => {
+                setChatAutoMessage(msg ?? null);
+                setChatOpen(true);
+              }}
+              onApplyCode={(fixed) => {
+                setGeneratedCode(fixed);
+                setDirty(true);
+              }}
             />
           </TabsContent>
 
@@ -366,7 +394,10 @@ function StrategyPage() {
 
       <EaChatDrawer
         open={chatOpen}
-        onOpenChange={(open) => { setChatOpen(open); if (!open) setChatAutoMessage(null); }}
+        onOpenChange={(open) => {
+          setChatOpen(open);
+          if (!open) setChatAutoMessage(null);
+        }}
         autoMessage={chatAutoMessage ?? undefined}
         blueprint={blueprint}
         code={generatedCode}
@@ -489,7 +520,10 @@ function TfPicker({ value, onChange }: { value: string; onChange: (tf: string) =
 
 type BrainRole = "direction" | "setup" | "execution";
 
-const BRAIN_META: Record<BrainRole, { label: string; icon: ReactNode; color: string; hint: string }> = {
+const BRAIN_META: Record<
+  BrainRole,
+  { label: string; icon: ReactNode; color: string; hint: string }
+> = {
   direction: {
     label: "Direction Brain",
     icon: <Brain className="h-4 w-4" />,
@@ -527,7 +561,10 @@ function ModuleParamEditor({
   for (const mod of modules) {
     const uiParams = MODULE_UI_PARAMS[mod] ?? [];
     for (const p of uiParams) {
-      if (!seen.has(p.key)) { seen.add(p.key); allParams.push(p); }
+      if (!seen.has(p.key)) {
+        seen.add(p.key);
+        allParams.push(p);
+      }
     }
   }
 
@@ -535,10 +572,12 @@ function ModuleParamEditor({
 
   return (
     <div className="space-y-2 pt-1">
-      <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">Parameters</Label>
+      <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">
+        Parameters
+      </Label>
       <div className="grid grid-cols-2 gap-x-4 gap-y-2">
         {allParams.map((p) => {
-          const current = typeof params[p.key] === "number" ? params[p.key] as number : p.default;
+          const current = typeof params[p.key] === "number" ? (params[p.key] as number) : p.default;
           return (
             <div key={p.key} className="space-y-0.5">
               <Label className="text-[11px] text-muted-foreground">{p.label}</Label>
@@ -583,18 +622,16 @@ function BrainCard({
 }) {
   const meta = BRAIN_META[role];
   return (
-    <div className={`rounded-lg border p-4 space-y-3 transition-opacity ${enabled ? "" : "opacity-40"} ${meta.color}`}>
+    <div
+      className={`rounded-lg border p-4 space-y-3 transition-opacity ${enabled ? "" : "opacity-40"} ${meta.color}`}
+    >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {meta.icon}
           <span className="text-sm font-semibold">{meta.label}</span>
         </div>
         {optional && onToggle && (
-          <Switch
-            checked={enabled}
-            onCheckedChange={onToggle}
-            className="scale-75"
-          />
+          <Switch checked={enabled} onCheckedChange={onToggle} className="scale-75" />
         )}
       </div>
       <p className="text-[11px] text-muted-foreground">{meta.hint}</p>
@@ -602,15 +639,22 @@ function BrainCard({
       {enabled && (
         <>
           <div className="space-y-1">
-            <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">Modules</Label>
+            <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">
+              Modules
+            </Label>
             <BrainModuleChips
               selected={config.modules}
               onChange={(mods) => onChange({ ...config, modules: mods })}
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">Timeframe</Label>
-            <TfPicker value={config.timeframe} onChange={(tf) => onChange({ ...config, timeframe: tf })} />
+            <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">
+              Timeframe
+            </Label>
+            <TfPicker
+              value={config.timeframe}
+              onChange={(tf) => onChange({ ...config, timeframe: tf })}
+            />
           </div>
 
           {/* Per-module parameter inputs — e.g. EMA periods, lookback bars */}
@@ -625,7 +669,10 @@ function BrainCard({
           {/* Optional notes for AI — describe any nuance Claude should know */}
           <div className="space-y-1">
             <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">
-              Notes for AI <span className="normal-case font-normal">(optional — describe any specific behaviour)</span>
+              Notes for AI{" "}
+              <span className="normal-case font-normal">
+                (optional — describe any specific behaviour)
+              </span>
             </Label>
             <textarea
               value={config.description ?? ""}
@@ -654,41 +701,49 @@ function FourBrainTab({
   const mgmt = cfg.management;
 
   const [direction, setDirection] = useState<BrainConfig | undefined>(cfg.direction);
-  const [setup,     setSetup]     = useState<BrainConfig | undefined>(cfg.setup);
+  const [setup, setSetup] = useState<BrainConfig | undefined>(cfg.setup);
   const [execution, setExecution] = useState<BrainConfig>(cfg.execution);
   /** Strategy-level rules that apply across all brains (filters, invalidation, special conditions) */
   const [strategyNotes, setStrategyNotes] = useState<string>(
-    (blueprint as { strategyNotes?: string }).strategyNotes ?? ""
+    (blueprint as { strategyNotes?: string }).strategyNotes ?? "",
   );
 
-  const [riskPct,  setRiskPct]  = useState(mgmt?.riskPercent  ?? 1);
-  const [rr,       setRr]       = useState(mgmt?.rewardRisk   ?? 2);
-  const [stopBuf,  setStopBuf]  = useState(mgmt?.stopBuffer   ?? 20);
+  const [riskPct, setRiskPct] = useState(mgmt?.riskPercent ?? 1);
+  const [rr, setRr] = useState(mgmt?.rewardRisk ?? 2);
+  const [stopBuf, setStopBuf] = useState(mgmt?.stopBuffer ?? 20);
   const [maxStopPts, setMaxStopPts] = useState(mgmt?.maxStopPoints ?? 0);
-  const [beOn,     setBeOn]     = useState(mgmt?.breakEvenEnabled ?? false);
-  const [beAtR,    setBeAtR]    = useState(mgmt?.breakEvenAtR ?? 1);
-  const [maxTrades,setMaxTrades]= useState(mgmt?.maxOpenTrades ?? 1);
+  const [beOn, setBeOn] = useState(mgmt?.breakEvenEnabled ?? false);
+  const [beAtR, setBeAtR] = useState(mgmt?.breakEvenAtR ?? 1);
+  const [maxTrades, setMaxTrades] = useState(mgmt?.maxOpenTrades ?? 1);
 
   function buildUpdatedBp(): StrategyBlueprint {
     const newCfg: FourBrainConfig = {
       direction: direction?.modules?.length ? direction : undefined,
-      setup:     setup?.modules?.length     ? setup     : undefined,
+      setup: setup?.modules?.length ? setup : undefined,
       execution,
       management: {
-        riskPercent:      riskPct,
-        rewardRisk:       rr,
-        stopBuffer:       stopBuf,
-        maxStopPoints:    maxStopPts,
+        riskPercent: riskPct,
+        rewardRisk: rr,
+        stopBuffer: stopBuf,
+        maxStopPoints: maxStopPts,
         breakEvenEnabled: beOn,
-        breakEvenAtR:     beAtR,
-        maxOpenTrades:    maxTrades,
+        breakEvenAtR: beAtR,
+        maxOpenTrades: maxTrades,
       },
     };
     // Rebuild strategy name from new config
     const parts: string[] = [];
-    if (newCfg.direction) parts.push(`${newCfg.direction.timeframe} ${newCfg.direction.modules.map(m => m.replace(/_/g, " ").toUpperCase()).join("+")}`);
-    if (newCfg.setup)     parts.push(`${newCfg.setup.timeframe} ${newCfg.setup.modules.map(m => m.replace(/_/g, " ").toUpperCase()).join("+")}`);
-    parts.push(`${newCfg.execution.timeframe} ${newCfg.execution.modules.map(m => m.replace(/_/g, " ").toUpperCase()).join("+")}`);
+    if (newCfg.direction)
+      parts.push(
+        `${newCfg.direction.timeframe} ${newCfg.direction.modules.map((m) => m.replace(/_/g, " ").toUpperCase()).join("+")}`,
+      );
+    if (newCfg.setup)
+      parts.push(
+        `${newCfg.setup.timeframe} ${newCfg.setup.modules.map((m) => m.replace(/_/g, " ").toUpperCase()).join("+")}`,
+      );
+    parts.push(
+      `${newCfg.execution.timeframe} ${newCfg.execution.modules.map((m) => m.replace(/_/g, " ").toUpperCase()).join("+")}`,
+    );
     const newBp = { ...blueprint, name: parts.join(" → "), fourBrain: newCfg };
     // Store strategy-level notes so they persist and flow into AI generation
     (newBp as unknown as Record<string, unknown>).strategyNotes = strategyNotes;
@@ -700,11 +755,25 @@ function FourBrainTab({
   // MODULE_UI_PARAMS defaults (e.g. EMA 21/50) when you switch tabs or rebuild.
   const firstSync = useRef(true);
   useEffect(() => {
-    if (firstSync.current) { firstSync.current = false; return; }
+    if (firstSync.current) {
+      firstSync.current = false;
+      return;
+    }
     onChange(buildUpdatedBp());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [direction, setup, execution, strategyNotes,
-      riskPct, rr, stopBuf, maxStopPts, beOn, beAtR, maxTrades]);
+  }, [
+    direction,
+    setup,
+    execution,
+    strategyNotes,
+    riskPct,
+    rr,
+    stopBuf,
+    maxStopPts,
+    beOn,
+    beAtR,
+    maxTrades,
+  ]);
 
   const canRegenerate = execution.modules.length > 0 && execution.timeframe;
   const [aiGenerating, setAiGenerating] = useState(false);
@@ -726,13 +795,17 @@ function FourBrainTab({
         cfg.direction?.description,
         cfg.setup?.description,
         cfg.execution.description,
-      ].filter(Boolean).join(". ");
-      const fullDescription = [strategyNotes, brainNotes].filter(Boolean).join("\n\nPer-brain notes: ");
+      ]
+        .filter(Boolean)
+        .join(". ");
+      const fullDescription = [strategyNotes, brainNotes]
+        .filter(Boolean)
+        .join("\n\nPer-brain notes: ");
 
       const wiring = await generateAiBrainWiring(
         {
           direction: cfg.direction,
-          setup:     cfg.setup,
+          setup: cfg.setup,
           execution: cfg.execution,
         },
         bp.name,
@@ -757,15 +830,14 @@ function FourBrainTab({
 
   return (
     <div className="max-w-2xl space-y-4">
-
       {/* Strategy-level notes — cross-brain conditions, filters, invalidation rules */}
       <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
         <div>
           <Label className="text-xs font-semibold text-amber-400">Strategy Rules</Label>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Describe conditions that apply across the whole strategy — max SL distance, invalidation rules,
-            required sequences (e.g. "must retest EMA before entry"), session filters. Claude reads this
-            when you click <strong>Generate with AI</strong>.
+            Describe conditions that apply across the whole strategy — max SL distance, invalidation
+            rules, required sequences (e.g. "must retest EMA before entry"), session filters. Claude
+            reads this when you click <strong>Generate with AI</strong>.
           </p>
         </div>
         <textarea
@@ -812,46 +884,85 @@ function FourBrainTab({
 
       {/* Management */}
       <div className="rounded-lg border border-border p-4 space-y-4">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Management</p>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          Management
+        </p>
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Risk per trade</Label>
             <div className="flex items-center gap-2">
-              <Slider value={[riskPct]} min={0.1} max={5} step={0.1} onValueChange={([v]) => setRiskPct(v)} className="flex-1" />
+              <Slider
+                value={[riskPct]}
+                min={0.1}
+                max={5}
+                step={0.1}
+                onValueChange={([v]) => setRiskPct(v)}
+                className="flex-1"
+              />
               <span className="text-xs font-mono w-10 text-right">{riskPct}%</span>
             </div>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Reward : Risk</Label>
             <div className="flex items-center gap-2">
-              <Slider value={[rr]} min={0.5} max={10} step={0.5} onValueChange={([v]) => setRr(v)} className="flex-1" />
+              <Slider
+                value={[rr]}
+                min={0.5}
+                max={10}
+                step={0.5}
+                onValueChange={([v]) => setRr(v)}
+                className="flex-1"
+              />
               <span className="text-xs font-mono w-10 text-right">{rr}R</span>
             </div>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Stop buffer (pts)</Label>
             <div className="flex items-center gap-2">
-              <Slider value={[stopBuf]} min={0} max={100} step={5} onValueChange={([v]) => setStopBuf(v)} className="flex-1" />
+              <Slider
+                value={[stopBuf]}
+                min={0}
+                max={100}
+                step={5}
+                onValueChange={([v]) => setStopBuf(v)}
+                className="flex-1"
+              />
               <span className="text-xs font-mono w-10 text-right">{stopBuf}</span>
             </div>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Max stop loss</Label>
             <div className="flex items-center gap-2">
-              <Slider value={[maxStopPts]} min={0} max={300} step={10} onValueChange={([v]) => setMaxStopPts(v)} className="flex-1" />
+              <Slider
+                value={[maxStopPts]}
+                min={0}
+                max={300}
+                step={10}
+                onValueChange={([v]) => setMaxStopPts(v)}
+                className="flex-1"
+              />
               <span className="text-xs font-mono w-16 text-right">
                 {maxStopPts === 0 ? "off" : `${maxStopPts}pt`}
               </span>
             </div>
             <p className="text-[10px] text-muted-foreground/60">
-              {maxStopPts === 0 ? "No SL limit" : `Skip trades with SL > ${(maxStopPts / 10).toFixed(0)} pips`}
+              {maxStopPts === 0
+                ? "No SL limit"
+                : `Skip trades with SL > ${(maxStopPts / 10).toFixed(0)} pips`}
             </p>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Max trades</Label>
             <div className="flex items-center gap-2">
-              <Slider value={[maxTrades]} min={1} max={10} step={1} onValueChange={([v]) => setMaxTrades(v)} className="flex-1" />
+              <Slider
+                value={[maxTrades]}
+                min={1}
+                max={10}
+                step={1}
+                onValueChange={([v]) => setMaxTrades(v)}
+                className="flex-1"
+              />
               <span className="text-xs font-mono w-10 text-right">{maxTrades}</span>
             </div>
           </div>
@@ -859,12 +970,22 @@ function FourBrainTab({
 
         <div className="flex items-center gap-3">
           <Switch checked={beOn} onCheckedChange={setBeOn} />
-          <Label className="text-xs text-muted-foreground cursor-pointer" onClick={() => setBeOn(v => !v)}>
+          <Label
+            className="text-xs text-muted-foreground cursor-pointer"
+            onClick={() => setBeOn((v) => !v)}
+          >
             Break-even at
           </Label>
           {beOn && (
             <div className="flex items-center gap-2 flex-1">
-              <Slider value={[beAtR]} min={0.5} max={3} step={0.25} onValueChange={([v]) => setBeAtR(v)} className="flex-1 max-w-32" />
+              <Slider
+                value={[beAtR]}
+                min={0.5}
+                max={3}
+                step={0.25}
+                onValueChange={([v]) => setBeAtR(v)}
+                className="flex-1 max-w-32"
+              />
               <span className="text-xs font-mono">{beAtR}R</span>
             </div>
           )}
@@ -874,7 +995,8 @@ function FourBrainTab({
       {/* AI notes */}
       {aiNotes && (
         <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
-          <span className="font-medium text-primary">AI notes: </span>{aiNotes}
+          <span className="font-medium text-primary">AI notes: </span>
+          {aiNotes}
         </div>
       )}
 
@@ -884,7 +1006,10 @@ function FourBrainTab({
         <Button
           variant="outline"
           onClick={() => {
-            if (!canRegenerate) { toast.error("Execution Brain needs at least one module and a timeframe."); return; }
+            if (!canRegenerate) {
+              toast.error("Execution Brain needs at least one module and a timeframe.");
+              return;
+            }
             const bp = buildUpdatedBp();
             onChange(bp);
             onRegenerate(bp);
@@ -901,14 +1026,22 @@ function FourBrainTab({
           disabled={aiGenerating}
           className="bg-primary hover:bg-primary/90 text-primary-foreground"
         >
-          {aiGenerating
-            ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Claude thinking…</>
-            : <><Sparkles className="h-4 w-4 mr-1.5" />Generate with AI</>
-          }
+          {aiGenerating ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+              Claude thinking…
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-4 w-4 mr-1.5" />
+              Generate with AI
+            </>
+          )}
         </Button>
       </div>
       <p className="text-[11px] text-muted-foreground text-center">
-        <strong>Template</strong> — fast, no API cost · <strong>AI</strong> — Claude reads your descriptions and wires the proven modules intelligently
+        <strong>Template</strong> — fast, no API cost · <strong>AI</strong> — Claude reads your
+        descriptions and wires the proven modules intelligently
       </p>
     </div>
   );
@@ -980,6 +1113,9 @@ function CodeTab({
   const [compiling, setCompiling] = useState(false);
   const [compileLog, setCompileLog] = useState<string | null>(null);
   const [aiNotes, setAiNotes] = useState<string | null>(null);
+  const canUseFourBrainAi = Boolean(
+    blueprint.fourBrain?.execution?.modules?.length && blueprint.fourBrain.execution.timeframe,
+  );
 
   const companion = useQuery({
     queryKey: ["local-runner-health"],
@@ -1028,9 +1164,16 @@ function CodeTab({
   };
 
   const generateWithAi = async () => {
+    if (!canUseFourBrainAi || !blueprint.fourBrain) {
+      toast.error("AI 4-Brain generation needs a real 4-Brain strategy. Use the 4-Brain Builder.");
+      return;
+    }
+
     const userPrompt = prompt || blueprint.marketPhilosophy || "";
     if (!userPrompt.trim()) {
-      toast.error("No strategy description available. Use the AI Description Builder to write your strategy first.");
+      toast.error(
+        "No strategy description available. Use the AI Description Builder to write your strategy first.",
+      );
       return;
     }
     setGenerating(true);
@@ -1041,9 +1184,7 @@ function CodeTab({
       const { generateEA } = await import("@/generators/gen-ea");
       const generatedCode = generateEA({
         eaName: strategyName.replace(/[^\w\s-]/g, "").trim(),
-        config: blueprint.fourBrain ?? {
-          execution: { modules: ["fvg"], timeframe: "H1" },
-        },
+        config: blueprint.fourBrain,
         aiWiring: wiring,
       });
       if (onAutoSave) {
@@ -1147,13 +1288,15 @@ function CodeTab({
                 ) : null,
               )}
               <p className="text-[11px] text-muted-foreground pt-1">
-                These rules will be skipped. Go to New Strategy and re-interview with a more specific description.
+                These rules will be skipped. Go to New Strategy and re-interview with a more
+                specific description.
               </p>
             </div>
           )}
           {build.hasFvgMachine && (
             <p className="text-[11px] text-violet-400/80">
-              ⚙ FVG state machine active — retest, confirmation, invalidation, expiry, SL and break-even are all implemented.
+              ⚙ FVG state machine active — retest, confirmation, invalidation, expiry, SL and
+              break-even are all implemented.
             </p>
           )}
         </div>
@@ -1163,18 +1306,26 @@ function CodeTab({
           {/* Primary: AI generation — interprets description, selects modules, embeds logic */}
           <Button
             onClick={generateWithAi}
-            disabled={generating}
+            disabled={generating || !canUseFourBrainAi}
             size="lg"
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             {generating ? (
-              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Claude is building your EA…</>
+              <>
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                Claude is building your EA…
+              </>
             ) : (
-              <><Sparkles className="h-4 w-4 mr-1.5" />Build EA with AI</>
+              <>
+                <Sparkles className="h-4 w-4 mr-1.5" />
+                Build EA with AI
+              </>
             )}
           </Button>
           <p className="text-[11px] text-center text-muted-foreground">
-            Claude reads your strategy description, selects the right detection modules, and generates a self-contained EA.
+            {canUseFourBrainAi
+              ? "Claude reads your strategy description, selects the right detection modules, and generates a self-contained EA."
+              : "AI 4-Brain generation is available after creating a strategy with the 4-Brain Builder."}
           </p>
 
           {/* Divider */}
@@ -1193,15 +1344,22 @@ function CodeTab({
             className="w-full"
           >
             {generating ? (
-              <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Generating…</>
+              <>
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                Generating…
+              </>
             ) : (
-              <><Hammer className="h-3.5 w-3.5 mr-1.5" />Template (instant, no AI)</>
+              <>
+                <Hammer className="h-3.5 w-3.5 mr-1.5" />
+                Template (instant, no AI)
+              </>
             )}
           </Button>
 
           {!build.buildable && (
             <p className="text-[11px] text-center text-muted-foreground">
-              Template requires a supported entry trigger. Use <strong>Build with AI</strong> for any strategy.
+              Template requires a supported entry trigger. Use <strong>Build with AI</strong> for
+              any strategy.
             </p>
           )}
         </div>
@@ -1209,7 +1367,8 @@ function CodeTab({
         {/* AI notes when generating */}
         {aiNotes && (
           <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
-            <span className="font-medium text-primary">AI reasoning: </span>{aiNotes}
+            <span className="font-medium text-primary">AI reasoning: </span>
+            {aiNotes}
           </div>
         )}
       </div>
@@ -1255,7 +1414,7 @@ function CodeTab({
           <Button
             size="sm"
             onClick={generateWithAi}
-            disabled={generating}
+            disabled={generating || !canUseFourBrainAi}
             title="Claude interprets your description and rebuilds with proven modules"
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
@@ -1377,7 +1536,9 @@ function BacktestTab({
   const mt5Configured = Boolean(mt5Status.data?.configuredTerminalPath);
 
   const [localApproval, setLocalApproval] = useState(false);
-  const [config, setConfig] = useState<Omit<TesterConfig, "expertName" | "reportName" | "visualMode" | "optimization">>({
+  const [config, setConfig] = useState<
+    Omit<TesterConfig, "expertName" | "reportName" | "visualMode" | "optimization">
+  >({
     symbol: blueprint.execution.symbol || "EURUSD",
     period: blueprint.execution.entryTimeframe || "H1",
     model: "open_prices",
@@ -1407,7 +1568,13 @@ function BacktestTab({
     mutationFn: async () => {
       const filename = buildExportFilename(blueprint, "mq5");
       const approval = await buildRunnerApproval(code, "compile");
-      return compileEa({ strategyId, strategyName, eaFilename: filename, sourceCode: code, approval });
+      return compileEa({
+        strategyId,
+        strategyName,
+        eaFilename: filename,
+        sourceCode: code,
+        approval,
+      });
     },
     onSuccess: (result) => {
       setCompileResult(null);
@@ -1502,12 +1669,20 @@ function BacktestTab({
         visualMode: false,
         optimization: false,
       };
-      const res = await submitBacktest({ strategyId, strategyName, eaFilename: filename, sourceCode: code, approval, testerConfig });
+      const res = await submitBacktest({
+        strategyId,
+        strategyName,
+        eaFilename: filename,
+        sourceCode: code,
+        approval,
+        testerConfig,
+      });
       setBacktestResult(null);
       setBacktestJobId(res.job.id);
       setBacktestPolling(true);
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed to start backtest"),
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Failed to start backtest"),
   });
 
   const visualMut = useMutation({
@@ -1521,11 +1696,19 @@ function BacktestTab({
         visualMode: true,
         optimization: false,
       };
-      const res = await submitBacktest({ strategyId, strategyName, eaFilename: filename, sourceCode: code, approval, testerConfig });
+      const res = await submitBacktest({
+        strategyId,
+        strategyName,
+        eaFilename: filename,
+        sourceCode: code,
+        approval,
+        testerConfig,
+      });
       setVisualJobId(res.job.id);
       setVisualPolling(true);
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed to start visual test"),
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Failed to start visual test"),
   });
 
   const set = <K extends keyof typeof config>(k: K, v: (typeof config)[K]) =>
@@ -1575,7 +1758,6 @@ function BacktestTab({
 
   return (
     <div className="space-y-5 max-w-3xl">
-
       {/* Status cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="rounded-md border border-border bg-background/50 p-3">
@@ -1628,7 +1810,9 @@ function BacktestTab({
 
       {/* Config + actions */}
       <div className="rounded-md border border-border bg-card p-4 space-y-4">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">Tester configuration</p>
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+          Tester configuration
+        </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="space-y-1">
             <Label className="text-xs">Symbol</Label>
@@ -1647,14 +1831,19 @@ function BacktestTab({
               </SelectTrigger>
               <SelectContent>
                 {["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"].map((p) => (
-                  <SelectItem key={p} value={p}>{p}</SelectItem>
+                  <SelectItem key={p} value={p}>
+                    {p}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Model</Label>
-            <Select value={config.model} onValueChange={(v) => set("model", v as TesterConfig["model"])}>
+            <Select
+              value={config.model}
+              onValueChange={(v) => set("model", v as TesterConfig["model"])}
+            >
               <SelectTrigger className="text-sm">
                 <SelectValue />
               </SelectTrigger>
@@ -1674,7 +1863,9 @@ function BacktestTab({
               </SelectTrigger>
               <SelectContent>
                 {["1:50", "1:100", "1:200", "1:500", "1:1000"].map((l) => (
-                  <SelectItem key={l} value={l}>{l}</SelectItem>
+                  <SelectItem key={l} value={l}>
+                    {l}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1725,9 +1916,12 @@ function BacktestTab({
             onCheckedChange={(v) => setLocalApproval(Boolean(v))}
             className="mt-0.5"
           />
-          <label htmlFor="local-approval" className="text-xs text-muted-foreground leading-relaxed cursor-pointer select-none">
-            I approve this generated EA source for local compile &amp; testing on this computer only.
-            I understand it does not perform live trading.
+          <label
+            htmlFor="local-approval"
+            className="text-xs text-muted-foreground leading-relaxed cursor-pointer select-none"
+          >
+            I approve this generated EA source for local compile &amp; testing on this computer
+            only. I understand it does not perform live trading.
           </label>
         </div>
 
@@ -1741,9 +1935,13 @@ function BacktestTab({
             className="min-w-[120px]"
           >
             {compileRunning ? (
-              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Compiling…</>
+              <>
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Compiling…
+              </>
             ) : (
-              <><Hammer className="h-4 w-4 mr-1.5" /> Compile EA</>
+              <>
+                <Hammer className="h-4 w-4 mr-1.5" /> Compile EA
+              </>
             )}
           </Button>
 
@@ -1757,10 +1955,14 @@ function BacktestTab({
             title={!compileSucceeded ? "Compile EA first" : undefined}
           >
             {backtestRunning ? (
-              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                {backtestJobStatus === "running" ? "Tester running…" : "Launching…"}</>
+              <>
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                {backtestJobStatus === "running" ? "Tester running…" : "Launching…"}
+              </>
             ) : (
-              <><BarChart2 className="h-4 w-4 mr-1.5" /> Run Report Backtest</>
+              <>
+                <BarChart2 className="h-4 w-4 mr-1.5" /> Run Report Backtest
+              </>
             )}
           </Button>
 
@@ -1773,93 +1975,113 @@ function BacktestTab({
             title={!compileSucceeded ? "Compile EA first" : undefined}
           >
             {visualRunning ? (
-              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                {visualJobStatus === "running" ? "Visual running…" : "Launching…"}</>
+              <>
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                {visualJobStatus === "running" ? "Visual running…" : "Launching…"}
+              </>
             ) : (
-              <><Play className="h-4 w-4 mr-1.5" /> Run Visual Test</>
+              <>
+                <Play className="h-4 w-4 mr-1.5" /> Run Visual Test
+              </>
             )}
           </Button>
         </div>
 
         {/* Compile error banner */}
-        {compileResult && !compileResult.success && compileResult.errors > 0 && (() => {
-          // 4-Brain EAs are assembled from proven inline state machines + AI wiring.
-          // A freeform AI rewrite would destroy the structure (it rewrites 800+ lines
-          // and truncates). The correct fix is to regenerate — template or AI Rebuild
-          // from the Brains tab — NOT a freeform rewrite.
-          const isFourBrain   = Boolean(blueprint.fourBrain);
-          const isTemplateCode = code.includes("template mode — always compiles");
-          return (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 flex items-start gap-3">
-              <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-destructive">
-                  {compileResult.errors} compile error{compileResult.errors !== 1 ? "s" : ""} — fix the code before backtesting
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {fixingAi
-                    ? "Generating fixed code — this takes 15–30 seconds…"
-                    : isFourBrain
-                      ? "This is a 4-Brain EA. Regenerate from Template (instant, deterministic) or use AI Rebuild on the Brains tab. Do NOT use freeform AI fix — it rewrites the whole file."
-                      : isTemplateCode
-                        ? "This is template-generated code. Regenerating from the template is faster and safer than AI rewrite."
-                        : "Click Fix with AI to automatically correct all errors in one step."}
-                </p>
-              </div>
-              {onApplyCode && (
-                <div className="flex items-center gap-2 shrink-0">
-                  {/* 4-Brain or template: primary action is deterministic template regen */}
-                  {(isFourBrain || isTemplateCode) && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={fixingAi}
-                      className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 shrink-0"
-                      onClick={() => {
-                        try {
-                          onApplyCode(generateMql5FromBlueprint(blueprint));
-                          toast.success("Regenerated from template — recompile to verify");
-                        } catch (e: unknown) {
-                          toast.error(e instanceof Error ? e.message : "Template generation failed");
-                        }
-                      }}
-                    >
-                      <Hammer className="h-3.5 w-3.5 mr-1.5" /> Regen from Template
-                    </Button>
-                  )}
-                  {/* Freeform AI fix — ONLY for non-4-brain, raw AI-generated code */}
-                  {!isFourBrain && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={fixingAi}
-                      onClick={async () => {
-                        if (!compileResult.log) return;
-                        setFixingAi(true);
-                        try {
-                          const result = await fixCompileErrors(blueprint, code, compileResult.log);
-                          onApplyCode(result.code);
-                          toast.success("AI fixed the code — recompile to verify");
-                        } catch (e: unknown) {
-                          toast.error(e instanceof Error ? e.message : "Fix failed — please try again");
-                        } finally {
-                          setFixingAi(false);
-                        }
-                      }}
-                      className="shrink-0"
-                    >
-                      {fixingAi ? (
-                        <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Fixing…</>
-                      ) : (
-                        <><Bot className="h-3.5 w-3.5 mr-1.5" /> Fix with AI</>
-                      )}
-                    </Button>
-                  )}
+        {compileResult &&
+          !compileResult.success &&
+          compileResult.errors > 0 &&
+          (() => {
+            // 4-Brain EAs are assembled from proven inline state machines + AI wiring.
+            // A freeform AI rewrite would destroy the structure (it rewrites 800+ lines
+            // and truncates). The correct fix is to regenerate — template or AI Rebuild
+            // from the Brains tab — NOT a freeform rewrite.
+            const isFourBrain = Boolean(blueprint.fourBrain);
+            const isTemplateCode = code.includes("template mode — always compiles");
+            return (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 flex items-start gap-3">
+                <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-destructive">
+                    {compileResult.errors} compile error{compileResult.errors !== 1 ? "s" : ""} —
+                    fix the code before backtesting
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {fixingAi
+                      ? "Generating fixed code — this takes 15–30 seconds…"
+                      : isFourBrain
+                        ? "This is a 4-Brain EA. Regenerate from Template (instant, deterministic) or use AI Rebuild on the Brains tab. Do NOT use freeform AI fix — it rewrites the whole file."
+                        : isTemplateCode
+                          ? "This is template-generated code. Regenerating from the template is faster and safer than AI rewrite."
+                          : "Click Fix with AI to automatically correct all errors in one step."}
+                  </p>
                 </div>
-              )}
-            </div>
-          );
-        })()}
+                {onApplyCode && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* 4-Brain or template: primary action is deterministic template regen */}
+                    {(isFourBrain || isTemplateCode) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={fixingAi}
+                        className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 shrink-0"
+                        onClick={() => {
+                          try {
+                            onApplyCode(generateMql5FromBlueprint(blueprint));
+                            toast.success("Regenerated from template — recompile to verify");
+                          } catch (e: unknown) {
+                            toast.error(
+                              e instanceof Error ? e.message : "Template generation failed",
+                            );
+                          }
+                        }}
+                      >
+                        <Hammer className="h-3.5 w-3.5 mr-1.5" /> Regen from Template
+                      </Button>
+                    )}
+                    {/* Freeform AI fix — ONLY for non-4-brain, raw AI-generated code */}
+                    {!isFourBrain && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={fixingAi}
+                        onClick={async () => {
+                          if (!compileResult.log) return;
+                          setFixingAi(true);
+                          try {
+                            const result = await fixCompileErrors(
+                              blueprint,
+                              code,
+                              compileResult.log,
+                            );
+                            onApplyCode(result.code);
+                            toast.success("AI fixed the code — recompile to verify");
+                          } catch (e: unknown) {
+                            toast.error(
+                              e instanceof Error ? e.message : "Fix failed — please try again",
+                            );
+                          } finally {
+                            setFixingAi(false);
+                          }
+                        }}
+                        className="shrink-0"
+                      >
+                        {fixingAi ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Fixing…
+                          </>
+                        ) : (
+                          <>
+                            <Bot className="h-3.5 w-3.5 mr-1.5" /> Fix with AI
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
         {/* Never compiled hint */}
         {!compileResult && !compileRunning && localApproval && (
@@ -1870,8 +2092,8 @@ function BacktestTab({
 
         {visualRunning && (
           <p className="text-xs text-muted-foreground">
-            MT5 visual test is running — watch MetaTrader 5 for the strategy tester window.
-            No report will be generated for visual tests.
+            MT5 visual test is running — watch MetaTrader 5 for the strategy tester window. No
+            report will be generated for visual tests.
           </p>
         )}
         {backtestRunning && (
@@ -1923,7 +2145,9 @@ function BacktestTab({
               <MetricCard
                 label="Max Drawdown"
                 value={`${fmt(summary.maximalDrawdown)}%`}
-                positive={summary.maximalDrawdown !== null ? summary.maximalDrawdown < 20 : undefined}
+                positive={
+                  summary.maximalDrawdown !== null ? summary.maximalDrawdown < 20 : undefined
+                }
               />
               <MetricCard
                 label="Win Rate"

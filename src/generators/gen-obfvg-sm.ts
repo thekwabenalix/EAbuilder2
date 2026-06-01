@@ -21,12 +21,7 @@
  *   OBFVGSM_{id}_ActiveBullSL() / ActiveBearSL()     — freshest zone's OB low/high (setup SL hint)
  */
 
-export function genObFvgSM(
-  id: string,
-  TF: string,
-  tf: string,
-  expiryBars = 250,
-): string {
+export function genObFvgSM(id: string, TF: string, tf: string, expiryBars = 250): string {
   const P = `OBFVGSM_${id}_`;
 
   return `

@@ -219,13 +219,16 @@ export default async (req: Request): Promise<Response> => {
 
   // Convert a base64 data URL into an Anthropic image content block.
   const toImageBlock = (dataUrl: string) => {
-    const m = /^data:(image\/(?:png|jpe?g|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl.trim());
+    const m = /^data:(image\/(?:png|jpe?g|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(
+      dataUrl.trim(),
+    );
     if (!m) return null;
     const media_type = m[1] === "image/jpg" ? "image/jpeg" : m[1];
     return { type: "image" as const, source: { type: "base64" as const, media_type, data: m[2] } };
   };
   const imageBlocks = images.map(toImageBlock).filter(Boolean) as Array<{
-    type: "image"; source: { type: "base64"; media_type: string; data: string };
+    type: "image";
+    source: { type: "base64"; media_type: string; data: string };
   }>;
 
   const lastIdx = messages.length - 1;
@@ -261,10 +264,7 @@ export default async (req: Request): Promise<Response> => {
         });
 
         for await (const event of stream) {
-          if (
-            event.type === "content_block_delta" &&
-            event.delta.type === "text_delta"
-          ) {
+          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
             fullText += event.delta.text;
             send({ text: event.delta.text });
           }

@@ -32,7 +32,7 @@ export function genBreakoutSM(
   id: string,
   TF: string,
   tf: string,
-  lookback = 20,      // range whose high/low defines the breakout level
+  lookback = 20, // range whose high/low defines the breakout level
   expiryBars = 100,
 ): string {
   const P = `BRKSM_${id}_`;

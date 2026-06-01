@@ -6,11 +6,7 @@
 
 import type { FourBrainConfig } from "@/types/blueprint";
 
-export function genInputs(
-  config: FourBrainConfig,
-  symbol: string,
-  magic: number
-): string {
+export function genInputs(config: FourBrainConfig, symbol: string, magic: number): string {
   const directionTF = config.direction?.timeframe || "D1";
   const setupTF = config.setup?.timeframe || "H4";
   const executionTF = config.execution?.timeframe || "H1";

@@ -24,7 +24,7 @@
  */
 
 export const SWING_STRUCTURE_DETECTOR_VERSION = "1.0.0";
-export const SWING_STRUCTURE_DETECTOR_MODULE  = "Swing_Structure_Detector";
+export const SWING_STRUCTURE_DETECTOR_MODULE = "Swing_Structure_Detector";
 
 export function generateSwingStructureDetector(): string {
   return `//+------------------------------------------------------------------+

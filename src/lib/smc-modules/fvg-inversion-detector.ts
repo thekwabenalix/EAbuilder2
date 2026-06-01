@@ -49,7 +49,7 @@
  */
 
 export const FVG_INVERSION_DETECTOR_VERSION = "2.1.0";
-export const FVG_INVERSION_DETECTOR_MODULE  = "FVG_Inversion_Detector";
+export const FVG_INVERSION_DETECTOR_MODULE = "FVG_Inversion_Detector";
 
 /**
  * Returns the complete MQL5 source code for the FVG Inversion Detector (v2.1).

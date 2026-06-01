@@ -57,7 +57,9 @@ function asStringArray(v: unknown): string[] {
 function normalizeSpec(raw: Partial<StrategySpec> & Record<string, unknown>): StrategySpec {
   return {
     name: String(raw.name ?? DEFAULT_SPEC.name).slice(0, 120) || DEFAULT_SPEC.name,
-    symbol: String(raw.symbol ?? DEFAULT_SPEC.symbol).toUpperCase().slice(0, 16),
+    symbol: String(raw.symbol ?? DEFAULT_SPEC.symbol)
+      .toUpperCase()
+      .slice(0, 16),
     setupTimeframe: String(raw.setupTimeframe ?? DEFAULT_SPEC.setupTimeframe).toUpperCase(),
     entryTimeframe: String(raw.entryTimeframe ?? DEFAULT_SPEC.entryTimeframe).toUpperCase(),
     fastEma: clampNumber(raw.fastEma, DEFAULT_SPEC.fastEma, 1, 500),
@@ -97,7 +99,9 @@ function mockParse(prompt: string): StrategySpec {
   const riskPercent = riskMatch ? parseFloat(riskMatch[1]) : DEFAULT_SPEC.riskPercent;
 
   const rrMatch = lower.match(/(\d+(?:\.\d+)?)\s*[:r]\s*(\d+(?:\.\d+)?)/);
-  const rewardRisk = rrMatch ? parseFloat(rrMatch[1]) / parseFloat(rrMatch[2]) : DEFAULT_SPEC.rewardRisk;
+  const rewardRisk = rrMatch
+    ? parseFloat(rrMatch[1]) / parseFloat(rrMatch[2])
+    : DEFAULT_SPEC.rewardRisk;
 
   const nameMatch = text.match(/(?:for the|called|named)\s+([A-Z][\w\s]{2,40}?)\s+strategy/i);
   const name = nameMatch ? `${nameMatch[1].trim()} Strategy` : "Custom MT5 Strategy";

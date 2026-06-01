@@ -31,7 +31,7 @@
  */
 
 export const CLASSIC_SNR_DETECTOR_VERSION = "1.0.0";
-export const CLASSIC_SNR_DETECTOR_MODULE  = "Classic_SNR_Detector";
+export const CLASSIC_SNR_DETECTOR_MODULE = "Classic_SNR_Detector";
 
 export function generateClassicSnrDetector(): string {
   return `//+------------------------------------------------------------------+

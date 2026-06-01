@@ -97,7 +97,10 @@ export function EaChatDrawer({
   /** Read an image File into a base64 data URL and queue it. */
   const addImageFile = (file: File) => {
     if (!file.type.startsWith("image/")) return;
-    if (file.size > 4 * 1024 * 1024) { toast.error("Image too large (max 4 MB)"); return; }
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("Image too large (max 4 MB)");
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       const url = typeof reader.result === "string" ? reader.result : "";
@@ -112,7 +115,10 @@ export function EaChatDrawer({
     const imgs = items.filter((it) => it.type.startsWith("image/"));
     if (imgs.length === 0) return;
     e.preventDefault();
-    for (const it of imgs) { const f = it.getAsFile(); if (f) addImageFile(f); }
+    for (const it of imgs) {
+      const f = it.getAsFile();
+      if (f) addImageFile(f);
+    }
   };
 
   /** Send a message. Pass `textArg` to bypass the input field (used for auto-send). */
@@ -178,7 +184,11 @@ export function EaChatDrawer({
         if (done) {
           processChunk(decoder.decode());
           if (buf.trim().startsWith("data: ")) {
-            try { processEvent(JSON.parse(buf.trim().slice(6))); } catch {}
+            try {
+              processEvent(JSON.parse(buf.trim().slice(6)));
+            } catch {
+              // Ignore a trailing partial SSE frame; the accumulated stream is authoritative.
+            }
           }
           break;
         }
@@ -366,7 +376,10 @@ export function EaChatDrawer({
           {pendingImages.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {pendingImages.map((src, idx) => (
-                <div key={idx} className="relative h-14 w-14 rounded border border-border overflow-hidden group">
+                <div
+                  key={idx}
+                  className="relative h-14 w-14 rounded border border-border overflow-hidden group"
+                >
                   <img src={src} alt="screenshot" className="h-full w-full object-cover" />
                   <button
                     onClick={() => setPendingImages((prev) => prev.filter((_, i) => i !== idx))}
@@ -421,7 +434,11 @@ export function EaChatDrawer({
               disabled={loading || applyLoading || (!input.trim() && pendingImages.length === 0)}
               className="self-end shrink-0"
             >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
             </Button>
           </div>
         </div>

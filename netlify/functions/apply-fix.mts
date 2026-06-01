@@ -63,7 +63,10 @@ function trimCompileLog(log: string): string {
     .trim();
 }
 
-interface Edit { search: string; replace: string; }
+interface Edit {
+  search: string;
+  replace: string;
+}
 
 /** Parse SEARCH/REPLACE blocks from the model output. */
 function parseEdits(text: string): Edit[] {
@@ -75,7 +78,11 @@ function parseEdits(text: string): Edit[] {
 }
 
 const stripTrailingWs = (s: string) =>
-  s.replace(/\r\n/g, "\n").split("\n").map((l) => l.replace(/[ \t]+$/, "")).join("\n");
+  s
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((l) => l.replace(/[ \t]+$/, ""))
+    .join("\n");
 const balanced = (s: string) =>
   (s.match(/\{/g)?.length ?? 0) === (s.match(/\}/g)?.length ?? 0) &&
   (s.match(/\(/g)?.length ?? 0) === (s.match(/\)/g)?.length ?? 0);
@@ -88,7 +95,7 @@ function applyEdits(original: string, edits: Edit[]): { code: string; failures: 
     const search = e.search.replace(/\r\n/g, "\n");
     const replace = e.replace.replace(/\r\n/g, "\n");
     if (out.includes(search)) {
-      out = out.replace(search, replace);              // exact match (first occurrence)
+      out = out.replace(search, replace); // exact match (first occurrence)
       continue;
     }
     // Fallback: tolerate trailing-whitespace differences.
@@ -114,8 +121,11 @@ export default async (req: Request): Promise<Response> => {
     return Response.json({ error: "ANTHROPIC_API_KEY missing" }, { status: 500, headers: CORS });
 
   let body: Record<string, unknown>;
-  try { body = await req.json(); }
-  catch { return Response.json({ error: "Invalid JSON" }, { status: 400, headers: CORS }); }
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON" }, { status: 400, headers: CORS });
+  }
 
   const messages = body.messages as { role: "user" | "assistant"; content: string }[];
   const blueprint = body.blueprint;
@@ -125,7 +135,10 @@ export default async (req: Request): Promise<Response> => {
   const backtestSummary = body.backtestSummary ?? null;
 
   if (!messages?.length || !code) {
-    return Response.json({ error: "messages and code are required" }, { status: 400, headers: CORS });
+    return Response.json(
+      { error: "messages and code are required" },
+      { status: 400, headers: CORS },
+    );
   }
 
   const conversationHistory = messages
@@ -139,14 +152,18 @@ export default async (req: Request): Promise<Response> => {
     "=== MQL5 CODE (apply edits against THIS exact text) ===",
     code.replace(/\r\n/g, "\n"),
     compileLog ? `\n=== COMPILE ERRORS ===\n${compileLog}` : "",
-    backtestSummary ? `\n=== BACKTEST SUMMARY ===\n${JSON.stringify(backtestSummary, null, 2)}` : "",
+    backtestSummary
+      ? `\n=== BACKTEST SUMMARY ===\n${JSON.stringify(backtestSummary, null, 2)}`
+      : "",
     "",
     "=== CONVERSATION (describes what to fix) ===",
     conversationHistory,
     "",
     "Output ONLY <<<<<<< SEARCH / ======= / >>>>>>> REPLACE blocks for the smallest",
     "edits that implement the described fix. Copy SEARCH text verbatim from the code above.",
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   const readable = new ReadableStream({
     async start(controller) {
@@ -166,7 +183,10 @@ export default async (req: Request): Promise<Response> => {
 
         const edits = parseEdits(out);
         if (edits.length === 0) {
-          send({ error: "The fix could not be expressed as edits. Try rephrasing, or use Build with AI to regenerate." });
+          send({
+            error:
+              "The fix could not be expressed as edits. Try rephrasing, or use Build with AI to regenerate.",
+          });
           send({ done: true });
           controller.close();
           return;
@@ -174,13 +194,18 @@ export default async (req: Request): Promise<Response> => {
 
         const { code: patched, failures } = applyEdits(code, edits);
         if (failures.length > 0) {
-          send({ error: `Could not locate ${failures.length} edit target(s) in the code (the snippet did not match). Try Build with AI to regenerate instead.` });
+          send({
+            error: `Could not locate ${failures.length} edit target(s) in the code (the snippet did not match). Try Build with AI to regenerate instead.`,
+          });
           send({ done: true });
           controller.close();
           return;
         }
         if (!balanced(patched)) {
-          send({ error: "The edit would unbalance braces/parentheses — refusing to apply a broken file. Try Build with AI to regenerate." });
+          send({
+            error:
+              "The edit would unbalance braces/parentheses — refusing to apply a broken file. Try Build with AI to regenerate.",
+          });
           send({ done: true });
           controller.close();
           return;

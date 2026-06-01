@@ -20,10 +20,10 @@ export function genBosSM(
   TF: string,
   tf: string,
   mode: BosSmMode = "bos",
-  swingLen = 5,      // pivot confirmation bars each side
-  lookback = 20,     // bars to scan for swing levels
+  swingLen = 5, // pivot confirmation bars each side
+  lookback = 20, // bars to scan for swing levels
 ): string {
-  const P   = `BOSSM_${id}_`;
+  const P = `BOSSM_${id}_`;
   const modeLabel = mode === "bos" ? "BOS" : mode === "choch" ? "CHoCH" : "BOS+CHoCH";
 
   return `
@@ -101,22 +101,28 @@ void ${P}CheckBreak()
          if(cl > ${P}swings[_k].price)
          {
             ${P}swings[_k].consumed = true;
-${mode === "choch" ? `
+${
+  mode === "choch"
+    ? `
             // CHoCH: only fire if trend was BEAR (reversal signal)
             if(${P}trend <= 0)
             {
                ${P}_bullBroke = true;
                ${P}trend = 1;
                PrintFormat("[${modeLabel}_${tf}] BULL CHoCH level=%.5f", ${P}swings[_k].price);
-            }` : mode === "bos" ? `
+            }`
+    : mode === "bos"
+      ? `
             // BOS: fire on with-trend continuation OR first break
             ${P}_bullBroke = true;
             ${P}trend = 1;
-            PrintFormat("[${modeLabel}_${tf}] BULL BOS level=%.5f", ${P}swings[_k].price);` : `
+            PrintFormat("[${modeLabel}_${tf}] BULL BOS level=%.5f", ${P}swings[_k].price);`
+      : `
             // BOS+CHoCH: fire on any upside break
             ${P}_bullBroke = true;
             ${P}trend = 1;
-            PrintFormat("[${modeLabel}_${tf}] BULL break level=%.5f", ${P}swings[_k].price);`}
+            PrintFormat("[${modeLabel}_${tf}] BULL break level=%.5f", ${P}swings[_k].price);`
+}
          }
       }
       else  // swing LOW
@@ -124,19 +130,25 @@ ${mode === "choch" ? `
          if(cl < ${P}swings[_k].price)
          {
             ${P}swings[_k].consumed = true;
-${mode === "choch" ? `
+${
+  mode === "choch"
+    ? `
             if(${P}trend >= 0)
             {
                ${P}_bearBroke = true;
                ${P}trend = -1;
                PrintFormat("[${modeLabel}_${tf}] BEAR CHoCH level=%.5f", ${P}swings[_k].price);
-            }` : mode === "bos" ? `
+            }`
+    : mode === "bos"
+      ? `
             ${P}_bearBroke = true;
             ${P}trend = -1;
-            PrintFormat("[${modeLabel}_${tf}] BEAR BOS level=%.5f", ${P}swings[_k].price);` : `
+            PrintFormat("[${modeLabel}_${tf}] BEAR BOS level=%.5f", ${P}swings[_k].price);`
+      : `
             ${P}_bearBroke = true;
             ${P}trend = -1;
-            PrintFormat("[${modeLabel}_${tf}] BEAR break level=%.5f", ${P}swings[_k].price);`}
+            PrintFormat("[${modeLabel}_${tf}] BEAR break level=%.5f", ${P}swings[_k].price);`
+}
          }
       }
    }

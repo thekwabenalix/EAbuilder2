@@ -42,7 +42,7 @@
  */
 
 export const BB_DETECTOR_VERSION = "1.0.0";
-export const BB_DETECTOR_MODULE  = "BB_Detector";
+export const BB_DETECTOR_MODULE = "BB_Detector";
 
 /**
  * Returns the complete MQL5 source code for the Breaker Block Detector (v1.0).

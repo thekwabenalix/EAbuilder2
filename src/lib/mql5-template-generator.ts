@@ -21,7 +21,13 @@
  *   ✓ Maintainable: change one brain without affecting others
  */
 
-import type { StrategyBlueprint, NormalizedRule, FourBrainConfig, BrainConfig, MQL5CodeGenParams } from "@/types/blueprint";
+import type {
+  StrategyBlueprint,
+  NormalizedRule,
+  FourBrainConfig,
+  BrainConfig,
+  MQL5CodeGenParams,
+} from "@/types/blueprint";
 import { generateEA } from "@/generators/gen-ea";
 
 // ─── Primitive registries (single source of truth) ───────────────────────────
@@ -31,39 +37,61 @@ import { generateEA } from "@/generators/gen-ea";
 
 /** Rules that generate actual entry conditions (OR'd in CheckEntrySignal). */
 export const TRIGGER_RULE_TYPES = new Set([
-  "ema_cross", "sma_cross", "ema_touch",
-  "rsi_overbought", "rsi_oversold",
-  "macd_cross", "macd_signal", "macd_histogram",
-  "bollinger_touch", "bollinger_breakout", "bollinger_squeeze",
+  "ema_cross",
+  "sma_cross",
+  "ema_touch",
+  "rsi_overbought",
+  "rsi_oversold",
+  "macd_cross",
+  "macd_signal",
+  "macd_histogram",
+  "bollinger_touch",
+  "bollinger_breakout",
+  "bollinger_squeeze",
   "stochastic_cross",
-  "bos", "choch", "mss",
-  "fair_value_gap_bullish", "fair_value_gap_bearish",
-  "order_block_bullish", "order_block_bearish",
-  "liquidity_sweep_high", "liquidity_sweep_low",
-  "demand_zone", "supply_zone",
-  "engulfing_bullish", "engulfing_bearish",
-  "pin_bar_bullish", "pin_bar_bearish",
-  "inside_bar", "doji", "hammer", "shooting_star",
+  "bos",
+  "choch",
+  "mss",
+  "fair_value_gap_bullish",
+  "fair_value_gap_bearish",
+  "order_block_bullish",
+  "order_block_bearish",
+  "liquidity_sweep_high",
+  "liquidity_sweep_low",
+  "demand_zone",
+  "supply_zone",
+  "engulfing_bullish",
+  "engulfing_bearish",
+  "pin_bar_bullish",
+  "pin_bar_bearish",
+  "inside_bar",
+  "doji",
+  "hammer",
+  "shooting_star",
 ]);
 
 /** Rules that gate entry (AND'd in CheckEntrySignal). */
 export const FILTER_RULE_TYPES = new Set([
-  "ema_alignment", "ema_band",
-  "rsi_level", "adx_strength", "stochastic_level",
-  "trend_filter_htf", "trend_direction",
-  "session_filter", "time_filter",
+  "ema_alignment",
+  "ema_band",
+  "rsi_level",
+  "adx_strength",
+  "stochastic_level",
+  "trend_filter_htf",
+  "trend_direction",
+  "session_filter",
+  "time_filter",
   "spread_filter",
-  "atr_trailing", "atr_volatility", "volatility_filter",
+  "atr_trailing",
+  "atr_volatility",
+  "volatility_filter",
   // Trade-management primitives — govern execution, not signal detection
-  "fixed_rr_take_profit",   // TP = entry ± (risk_dist × reward_ratio)
+  "fixed_rr_take_profit", // TP = entry ± (risk_dist × reward_ratio)
   "max_open_trades_filter", // block entries when open positions ≥ max
 ]);
 
 /** Union of all rule types that have any template implementation. */
-export const SUPPORTED_RULE_TYPES = new Set([
-  ...TRIGGER_RULE_TYPES,
-  ...FILTER_RULE_TYPES,
-]);
+export const SUPPORTED_RULE_TYPES = new Set([...TRIGGER_RULE_TYPES, ...FILTER_RULE_TYPES]);
 
 // ─── Buildability analysis ────────────────────────────────────────────────────
 
@@ -71,19 +99,27 @@ export const SUPPORTED_RULE_TYPES = new Set([
 // When the FVG state machine is active these are ALL implemented — they should
 // not appear as "unsupported" even if the interview expanded them into extra rules.
 const FVG_MECHANIC_KEYWORDS = [
-  "retest", "confirm", "invalidat", "expir",
-  "buy at market", "sell at market",
-  "stop loss", "breakeven", "break-even", "break even",
-  "one trade", "per fvg", "candle wick", "candle closes",
-  "upper limit", "lower limit",
+  "retest",
+  "confirm",
+  "invalidat",
+  "expir",
+  "buy at market",
+  "sell at market",
+  "stop loss",
+  "breakeven",
+  "break-even",
+  "break even",
+  "one trade",
+  "per fvg",
+  "candle wick",
+  "candle closes",
+  "upper limit",
+  "lower limit",
 ];
 
 function isFvgSubRule(rule: NormalizedRule): boolean {
   const label = rule.label.toLowerCase();
-  return (
-    rule.type === "custom" &&
-    FVG_MECHANIC_KEYWORDS.some((kw) => label.includes(kw))
-  );
+  return rule.type === "custom" && FVG_MECHANIC_KEYWORDS.some((kw) => label.includes(kw));
 }
 
 export interface RuleBuildStatus {
@@ -119,7 +155,7 @@ export function analyzeBuildability(bp: StrategyBlueprint): BuildabilityResult {
   // PHASE 0 ENHANCEMENT: 4-Brain architecture is always buildable
   if (bp.fourBrain && bp.fourBrain.execution) {
     return {
-      buildable: true,  // 4-Brain config is always buildable
+      buildable: true, // 4-Brain config is always buildable
       coverage: 100,
       statuses: [],
       supportedCount: 0,
@@ -136,7 +172,7 @@ export function analyzeBuildability(bp: StrategyBlueprint): BuildabilityResult {
 
   const statuses: RuleBuildStatus[] = bp.rules.map((rule) => {
     if (TRIGGER_RULE_TYPES.has(rule.type)) return { rule, category: "trigger" };
-    if (FILTER_RULE_TYPES.has(rule.type))  return { rule, category: "filter"  };
+    if (FILTER_RULE_TYPES.has(rule.type)) return { rule, category: "filter" };
 
     // When the FVG state machine is active, "custom" rules that describe FVG mechanics
     // (retest, confirmation, invalidation, expiry, entry, SL, BE, one-per-zone) are
@@ -150,14 +186,11 @@ export function analyzeBuildability(bp: StrategyBlueprint): BuildabilityResult {
 
   const hasSupportedTrigger = statuses.some((s) => s.category === "trigger");
   const supportedCount = statuses.filter((s) => s.category !== "unsupported").length;
-  const unsupportedRules = statuses
-    .filter((s) => s.category === "unsupported")
-    .map((s) => s.rule);
+  const unsupportedRules = statuses.filter((s) => s.category === "unsupported").map((s) => s.rule);
 
   return {
     buildable: hasFvgMachine || hasSupportedTrigger,
-    coverage:
-      bp.rules.length === 0 ? 100 : Math.round((supportedCount / bp.rules.length) * 100),
+    coverage: bp.rules.length === 0 ? 100 : Math.round((supportedCount / bp.rules.length) * 100),
     statuses,
     supportedCount,
     unsupportedCount: unsupportedRules.length,
@@ -287,36 +320,46 @@ interface Ctx {
 function analyze(bp: StrategyBlueprint): Ctx {
   const r = bp.rules;
 
-  const emaRule  = findRule(r, "ema_cross", "sma_cross", "ema_touch");
+  const emaRule = findRule(r, "ema_cross", "sma_cross", "ema_touch");
   const emaAlign = findRule(r, "ema_alignment", "ema_band");
-  const rsiTrig  = findRule(r, "rsi_overbought", "rsi_oversold");
+  const rsiTrig = findRule(r, "rsi_overbought", "rsi_oversold");
   const rsiFilter = findRule(r, "rsi_level");
-  const rsiRule  = rsiTrig ?? rsiFilter;
+  const rsiRule = rsiTrig ?? rsiFilter;
   const macdRule = findRule(r, "macd_cross", "macd_signal", "macd_histogram");
-  const adxRule  = findRule(r, "adx_strength");
-  const bbRule   = findRule(r, "bollinger_touch", "bollinger_breakout", "bollinger_squeeze");
+  const adxRule = findRule(r, "adx_strength");
+  const bbRule = findRule(r, "bollinger_touch", "bollinger_breakout", "bollinger_squeeze");
   const stochRule = findRule(r, "stochastic_cross", "stochastic_level");
-  const atrRule  = findRule(r, "atr_trailing", "atr_volatility");
-  const htfRule  = findRule(r, "trend_filter_htf", "trend_direction");
-  const sesRule  = findRule(r, "session_filter", "time_filter");
-  const bosRule  = findRule(r, "bos", "choch", "mss");
-  const fvgRule  = findRule(r, "fair_value_gap_bullish", "fair_value_gap_bearish");
-  const obRule   = findRule(r, "order_block_bullish", "order_block_bearish");
-  const liqRule  = findRule(r, "liquidity_sweep_high", "liquidity_sweep_low");
+  const atrRule = findRule(r, "atr_trailing", "atr_volatility");
+  const htfRule = findRule(r, "trend_filter_htf", "trend_direction");
+  const sesRule = findRule(r, "session_filter", "time_filter");
+  const bosRule = findRule(r, "bos", "choch", "mss");
+  const fvgRule = findRule(r, "fair_value_gap_bullish", "fair_value_gap_bearish");
+  const obRule = findRule(r, "order_block_bullish", "order_block_bearish");
+  const liqRule = findRule(r, "liquidity_sweep_high", "liquidity_sweep_low");
   const zoneRule = findRule(r, "demand_zone", "supply_zone");
-  const engulf   = findRule(r, "engulfing_bullish", "engulfing_bearish");
-  const pinBar   = findRule(r, "pin_bar_bullish", "pin_bar_bearish");
+  const engulf = findRule(r, "engulfing_bullish", "engulfing_bearish");
+  const pinBar = findRule(r, "pin_bar_bullish", "pin_bar_bearish");
   const insideBar = findRule(r, "inside_bar");
-  const hammer   = findRule(r, "hammer", "shooting_star", "doji");
-  const fixedRRRule    = findRule(r, "fixed_rr_take_profit");
-  const maxTradesRule  = findRule(r, "max_open_trades_filter");
+  const hammer = findRule(r, "hammer", "shooting_star", "doji");
+  const fixedRRRule = findRule(r, "fixed_rr_take_profit");
+  const maxTradesRule = findRule(r, "max_open_trades_filter");
 
   // Use ema_alignment period for the filter EMA if no cross rule
   const emaSource = emaRule ?? emaAlign;
   const fastDef = 9;
   const slowDef = 21;
-  const fast = safeInt(param(emaSource, "fastPeriod", param(emaSource, "fast", fastDef)), fastDef, 2, 500);
-  const slow = safeInt(param(emaSource, "slowPeriod", param(emaSource, "slow", slowDef)), slowDef, 2, 500);
+  const fast = safeInt(
+    param(emaSource, "fastPeriod", param(emaSource, "fast", fastDef)),
+    fastDef,
+    2,
+    500,
+  );
+  const slow = safeInt(
+    param(emaSource, "slowPeriod", param(emaSource, "slow", slowDef)),
+    slowDef,
+    2,
+    500,
+  );
 
   return {
     hasEMA: Boolean(emaRule ?? emaAlign),
@@ -325,41 +368,61 @@ function analyze(bp: StrategyBlueprint): Ctx {
     useSetupTF: bp.execution.setupTimeframe !== bp.execution.entryTimeframe,
 
     hasRSI: Boolean(rsiRule),
-    rsiPeriod:    safeInt(param(rsiRule, "period", 14), 14, 2, 100),
-    rsiBuyMax:    safeInt(param(rsiTrig, "oversoldLevel",   param(rsiTrig, "level", 35)), 35, 10, 90),
-    rsiSellMin:   safeInt(param(rsiTrig, "overboughtLevel", param(rsiTrig, "level", 65)), 65, 10, 90),
+    rsiPeriod: safeInt(param(rsiRule, "period", 14), 14, 2, 100),
+    rsiBuyMax: safeInt(param(rsiTrig, "oversoldLevel", param(rsiTrig, "level", 35)), 35, 10, 90),
+    rsiSellMin: safeInt(param(rsiTrig, "overboughtLevel", param(rsiTrig, "level", 65)), 65, 10, 90),
     rsiFilterLevel: safeInt(param(rsiFilter, "level", 50), 50, 10, 90),
 
     hasMACD: Boolean(macdRule),
     macdFast: safeInt(param(macdRule, "fastPeriod", param(macdRule, "fast", 12)), 12, 2, 200),
     macdSlow: safeInt(param(macdRule, "slowPeriod", param(macdRule, "slow", 26)), 26, 2, 500),
-    macdSig:  safeInt(param(macdRule, "signalPeriod", param(macdRule, "signal", 9)), 9, 1, 100),
+    macdSig: safeInt(param(macdRule, "signalPeriod", param(macdRule, "signal", 9)), 9, 1, 100),
 
     hasADX: Boolean(adxRule),
     adxPeriod: safeInt(param(adxRule, "period", 14), 14, 2, 100),
-    adxMin:    safeInt(param(adxRule, "minStrength", param(adxRule, "threshold", 25)), 25, 1, 100),
+    adxMin: safeInt(param(adxRule, "minStrength", param(adxRule, "threshold", 25)), 25, 1, 100),
 
     hasBB: Boolean(bbRule),
     bbPeriod: safeInt(param(bbRule, "period", 20), 20, 2, 500),
-    bbDev:    safeFloat(param(bbRule, "deviation", param(bbRule, "stdDev", 2.0)), 2.0, 0.1, 5.0),
+    bbDev: safeFloat(param(bbRule, "deviation", param(bbRule, "stdDev", 2.0)), 2.0, 0.1, 5.0),
 
     hasStoch: Boolean(stochRule),
-    stochK:       safeInt(param(stochRule, "kPeriod",   param(stochRule, "k", 5)),   5, 1, 100),
-    stochD:       safeInt(param(stochRule, "dPeriod",   param(stochRule, "d", 3)),   3, 1, 100),
+    stochK: safeInt(param(stochRule, "kPeriod", param(stochRule, "k", 5)), 5, 1, 100),
+    stochD: safeInt(param(stochRule, "dPeriod", param(stochRule, "d", 3)), 3, 1, 100),
     stochSlowing: safeInt(param(stochRule, "slowing", 3), 3, 1, 100),
-    stochBuyMax:  safeInt(param(stochRule, "oversoldLevel",   param(stochRule, "level", 30)), 30, 5, 50),
-    stochSellMin: safeInt(param(stochRule, "overboughtLevel", param(stochRule, "level", 70)), 70, 50, 95),
+    stochBuyMax: safeInt(
+      param(stochRule, "oversoldLevel", param(stochRule, "level", 30)),
+      30,
+      5,
+      50,
+    ),
+    stochSellMin: safeInt(
+      param(stochRule, "overboughtLevel", param(stochRule, "level", 70)),
+      70,
+      50,
+      95,
+    ),
 
     hasATR: Boolean(atrRule) || bp.risk.stopType === "atr_based",
     atrPeriod: safeInt(param(atrRule, "period", 14), 14, 1, 100),
-    atrMult:   safeFloat(param(atrRule, "multiplier", 2.0), 2.0, 0.1, 10.0),
+    atrMult: safeFloat(param(atrRule, "multiplier", 2.0), 2.0, 0.1, 10.0),
 
     hasHTF: Boolean(htfRule),
     htfPeriod: safeInt(param(htfRule, "period", param(htfRule, "maPeriod", slow)), slow, 2, 500),
 
     hasSession: Boolean(sesRule) || bp.execution.sessionFilter.length > 0,
-    sessionStart: safeInt(sesRule ? param(sesRule, "startHour", param(sesRule, "start", 8)) : 8, 8, 0, 23),
-    sessionEnd:   safeInt(sesRule ? param(sesRule, "endHour",   param(sesRule, "end",  17)) : 17, 17, 0, 23),
+    sessionStart: safeInt(
+      sesRule ? param(sesRule, "startHour", param(sesRule, "start", 8)) : 8,
+      8,
+      0,
+      23,
+    ),
+    sessionEnd: safeInt(
+      sesRule ? param(sesRule, "endHour", param(sesRule, "end", 17)) : 17,
+      17,
+      0,
+      23,
+    ),
 
     // SMC / PA
     hasBOS: Boolean(bosRule),
@@ -368,11 +431,11 @@ function analyze(bp: StrategyBlueprint): Ctx {
     hasFVG: Boolean(fvgRule),
 
     hasOrderBlock: Boolean(obRule),
-    obLookback:   safeInt(param(obRule, "lookback", 20), 20, 5, 100),
-    obATRPeriod:  safeInt(param(obRule, "atrPeriod", 14), 14, 2, 50),
-    obDispMult:   safeFloat(param(obRule, "dispMult", 1.5), 1.5, 0.5, 5.0),
-    obScanBack:   safeInt(param(obRule, "scanBack", 5), 5, 1, 20),
-    obExpiry:     safeInt(param(obRule, "expiry", 100), 100, 0, 500),
+    obLookback: safeInt(param(obRule, "lookback", 20), 20, 5, 100),
+    obATRPeriod: safeInt(param(obRule, "atrPeriod", 14), 14, 2, 50),
+    obDispMult: safeFloat(param(obRule, "dispMult", 1.5), 1.5, 0.5, 5.0),
+    obScanBack: safeInt(param(obRule, "scanBack", 5), 5, 1, 20),
+    obExpiry: safeInt(param(obRule, "expiry", 100), 100, 0, 500),
 
     hasLiquiditySweep: Boolean(liqRule),
     liqLookback: safeInt(param(liqRule, "lookback", 20), 20, 5, 100),
@@ -380,23 +443,35 @@ function analyze(bp: StrategyBlueprint): Ctx {
     hasZone: Boolean(zoneRule),
 
     hasEngulfing: Boolean(engulf),
-    hasPinBar:    Boolean(pinBar),
+    hasPinBar: Boolean(pinBar),
     hasInsideBar: Boolean(insideBar),
-    hasHammer:    Boolean(hammer),
+    hasHammer: Boolean(hammer),
 
     stopType: bp.risk.stopType,
     useChartSymbol: (bp.execution.symbol ?? "").toUpperCase() === "ANY",
 
     hasFixedRR: Boolean(fixedRRRule),
     rrRatio: safeFloat(
-      param(fixedRRRule, "reward_ratio", param(fixedRRRule, "rewardRatio", bp.risk.rewardRisk ?? 2.0)),
-      2.0, 0.1, 100,
+      param(
+        fixedRRRule,
+        "reward_ratio",
+        param(fixedRRRule, "rewardRatio", bp.risk.rewardRisk ?? 2.0),
+      ),
+      2.0,
+      0.1,
+      100,
     ),
 
     hasMaxTradesFilter: Boolean(maxTradesRule),
     maxOpenTrades: safeInt(
-      param(maxTradesRule, "max_open_trades", param(maxTradesRule, "maxOpenTrades", bp.risk.maxOpenTrades ?? 1)),
-      1, 1, 100,
+      param(
+        maxTradesRule,
+        "max_open_trades",
+        param(maxTradesRule, "maxOpenTrades", bp.risk.maxOpenTrades ?? 1),
+      ),
+      1,
+      1,
+      100,
     ),
   };
 }
@@ -430,7 +505,9 @@ function genInputs(bp: StrategyBlueprint, ctx: Ctx): string {
     // When the user said "ANY", the EA binds to _Symbol via a #define — no string input needed.
     ...(ctx.useChartSymbol
       ? []
-      : [`input string  InpSymbol          = "${execution.symbol ?? "EURUSD"}";  // Trading symbol`]),
+      : [
+          `input string  InpSymbol          = "${execution.symbol ?? "EURUSD"}";  // Trading symbol`,
+        ]),
     `input ENUM_TIMEFRAMES InpSetupTF = ${tfConst(execution.setupTimeframe ?? "H1")};  // Setup timeframe`,
     `input ENUM_TIMEFRAMES InpEntryTF = ${tfConst(execution.entryTimeframe ?? "M5")};  // Entry timeframe`,
     ``,
@@ -452,8 +529,12 @@ function genInputs(bp: StrategyBlueprint, ctx: Ctx): string {
   if (ctx.hasRSI) {
     lines.push(`//--- RSI`);
     lines.push(`input int InpRSIPeriod   = ${ctx.rsiPeriod};  // RSI period`);
-    lines.push(`input int InpRSIBuyMax   = ${ctx.rsiBuyMax};  // Buy when RSI below this (oversold)`);
-    lines.push(`input int InpRSISellMin  = ${ctx.rsiSellMin}; // Sell when RSI above this (overbought)`);
+    lines.push(
+      `input int InpRSIBuyMax   = ${ctx.rsiBuyMax};  // Buy when RSI below this (oversold)`,
+    );
+    lines.push(
+      `input int InpRSISellMin  = ${ctx.rsiSellMin}; // Sell when RSI above this (overbought)`,
+    );
     lines.push(``);
   }
   if (ctx.hasMACD) {
@@ -472,7 +553,9 @@ function genInputs(bp: StrategyBlueprint, ctx: Ctx): string {
   if (ctx.hasBB) {
     lines.push(`//--- Bollinger Bands`);
     lines.push(`input int    InpBBPeriod = ${ctx.bbPeriod ?? 20};    // Bollinger period`);
-    lines.push(`input double InpBBDev    = ${(ctx.bbDev ?? 2.0).toFixed(1)};  // Bollinger std-dev`);
+    lines.push(
+      `input double InpBBDev    = ${(ctx.bbDev ?? 2.0).toFixed(1)};  // Bollinger std-dev`,
+    );
     lines.push(``);
   }
   if (ctx.hasStoch) {
@@ -487,7 +570,9 @@ function genInputs(bp: StrategyBlueprint, ctx: Ctx): string {
   if (ctx.hasATR) {
     lines.push(`//--- ATR`);
     lines.push(`input int    InpATRPeriod = ${ctx.atrPeriod};  // ATR period`);
-    lines.push(`input double InpATRMult   = ${(ctx.atrMult ?? 2.0).toFixed(1)};  // ATR stop multiplier`);
+    lines.push(
+      `input double InpATRMult   = ${(ctx.atrMult ?? 2.0).toFixed(1)};  // ATR stop multiplier`,
+    );
     lines.push(``);
   }
   if (ctx.hasHTF) {
@@ -508,15 +593,25 @@ function genInputs(bp: StrategyBlueprint, ctx: Ctx): string {
   }
   if (ctx.hasOrderBlock) {
     lines.push(`//--- Order Block`);
-    lines.push(`input int    InpOBATRPeriod = ${ctx.obATRPeriod};   // ATR period for displacement filter`);
-    lines.push(`input double InpOBDispMult  = ${ctx.obDispMult.toFixed(1)};   // Displacement body ≥ N × ATR`);
-    lines.push(`input int    InpOBScanBack  = ${ctx.obScanBack};    // Bars before displacement to search for OB candle`);
-    lines.push(`input int    InpOBExpiry    = ${ctx.obExpiry};      // OB expiry (bars, 0 = never)`);
+    lines.push(
+      `input int    InpOBATRPeriod = ${ctx.obATRPeriod};   // ATR period for displacement filter`,
+    );
+    lines.push(
+      `input double InpOBDispMult  = ${ctx.obDispMult.toFixed(1)};   // Displacement body ≥ N × ATR`,
+    );
+    lines.push(
+      `input int    InpOBScanBack  = ${ctx.obScanBack};    // Bars before displacement to search for OB candle`,
+    );
+    lines.push(
+      `input int    InpOBExpiry    = ${ctx.obExpiry};      // OB expiry (bars, 0 = never)`,
+    );
     lines.push(``);
   }
   if (ctx.hasLiquiditySweep) {
     lines.push(`//--- Liquidity sweep`);
-    lines.push(`input int InpLiqLookback = ${ctx.liqLookback};  // Bars to scan for recent highs/lows`);
+    lines.push(
+      `input int InpLiqLookback = ${ctx.liqLookback};  // Bars to scan for recent highs/lows`,
+    );
     lines.push(``);
   }
   if (ctx.hasFVG) {
@@ -526,7 +621,9 @@ function genInputs(bp: StrategyBlueprint, ctx: Ctx): string {
   }
   if (ctx.hasMaxTradesFilter) {
     lines.push(`//--- Trade count limit`);
-    lines.push(`input int InpMaxTrades = ${ctx.maxOpenTrades};  // Max simultaneous open positions (0 = unlimited)`);
+    lines.push(
+      `input int InpMaxTrades = ${ctx.maxOpenTrades};  // Max simultaneous open positions (0 = unlimited)`,
+    );
     lines.push(``);
   }
 
@@ -564,13 +661,13 @@ function genGlobals(ctx: Ctx): string {
       lines.push(`int hSlowSetup = INVALID_HANDLE;`);
     }
   }
-  if (ctx.hasRSI)   lines.push(`int hRSI   = INVALID_HANDLE;`);
-  if (ctx.hasMACD)  lines.push(`int hMACD  = INVALID_HANDLE;`);
-  if (ctx.hasADX)   lines.push(`int hADX   = INVALID_HANDLE;`);
-  if (ctx.hasBB)    lines.push(`int hBB    = INVALID_HANDLE;`);
+  if (ctx.hasRSI) lines.push(`int hRSI   = INVALID_HANDLE;`);
+  if (ctx.hasMACD) lines.push(`int hMACD  = INVALID_HANDLE;`);
+  if (ctx.hasADX) lines.push(`int hADX   = INVALID_HANDLE;`);
+  if (ctx.hasBB) lines.push(`int hBB    = INVALID_HANDLE;`);
   if (ctx.hasStoch) lines.push(`int hStoch = INVALID_HANDLE;`);
-  if (ctx.hasATR)   lines.push(`int hATR   = INVALID_HANDLE;`);
-  if (ctx.hasHTF)   lines.push(`int hHTF   = INVALID_HANDLE;`);
+  if (ctx.hasATR) lines.push(`int hATR   = INVALID_HANDLE;`);
+  if (ctx.hasHTF) lines.push(`int hHTF   = INVALID_HANDLE;`);
   lines.push(``, `static datetime lastBarTime = 0;`, ``);
   if (ctx.hasBOS) {
     lines.push(
@@ -922,9 +1019,11 @@ void FVG_DrawTradeMarker(int idx, double price, double sl, double tp, datetime t
 // Full setup is logged to the journal and drawn on the chart before every order.
 void FVG_ExecuteEntries()
 {
-   ${ctx.hasMaxTradesFilter
-     ? `if(CountOpenPositions(InpSymbol, InpMagic) >= InpMaxTrades) return;`
-     : `if(HasOpenPosition(InpSymbol, InpMagic)) return;`}
+   ${
+     ctx.hasMaxTradesFilter
+       ? `if(CountOpenPositions(InpSymbol, InpMagic) >= InpMaxTrades) return;`
+       : `if(HasOpenPosition(InpSymbol, InpMagic)) return;`
+   }
    if(!SpreadOk(InpSymbol, InpMaxSpread)) return;
 
    double   point    = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
@@ -1188,9 +1287,11 @@ void BOS_ExecuteEntries()
         { bosSigs[i].state = BOS_MISSED; continue; }
    }
 
-   ${ctx.hasMaxTradesFilter
-     ? `if(CountOpenPositions(InpSymbol, InpMagic) >= InpMaxTrades) return;`
-     : `if(HasOpenPosition(InpSymbol, InpMagic)) return;`}
+   ${
+     ctx.hasMaxTradesFilter
+       ? `if(CountOpenPositions(InpSymbol, InpMagic) >= InpMaxTrades) return;`
+       : `if(HasOpenPosition(InpSymbol, InpMagic)) return;`
+   }
    if(!SpreadOk(InpSymbol, InpMaxSpread)) return;
 
    double point  = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
@@ -1434,9 +1535,11 @@ void OB_Update()
 // Called at bar open: execute market entries for CONFIRMED zones.
 void OB_ExecuteEntries()
 {
-   ${ctx.hasMaxTradesFilter
-     ? `if(CountOpenPositions(InpSymbol, InpMagic) >= InpMaxTrades) return;`
-     : `if(HasOpenPosition(InpSymbol, InpMagic)) return;`}
+   ${
+     ctx.hasMaxTradesFilter
+       ? `if(CountOpenPositions(InpSymbol, InpMagic) >= InpMaxTrades) return;`
+       : `if(HasOpenPosition(InpSymbol, InpMagic)) return;`
+   }
    if(!SpreadOk(InpSymbol, InpMaxSpread)) return;
 
    double   point    = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
@@ -1790,16 +1893,14 @@ bool IsNearSupplyZone()
       `   double fNow=IndVal(hFastMA,0,1), sNow=IndVal(hSlowMA,0,1);`,
       `   double fPrv=IndVal(hFastMA,0,2), sPrv=IndVal(hSlowMA,0,2);`,
     );
-    buyTriggers.push(`(fNow>0 && fPrv<=sPrv && fNow>sNow)` );  // golden cross
-    sellTriggers.push(`(fNow>0 && fPrv>=sPrv && fNow<sNow)`);  // death cross
+    buyTriggers.push(`(fNow>0 && fPrv<=sPrv && fNow>sNow)`); // golden cross
+    sellTriggers.push(`(fNow>0 && fPrv>=sPrv && fNow<sNow)`); // death cross
   }
 
   // ── FILTER: EMA alignment (fast above/below slow, no cross required)
   if (ctx.hasEMA && findRule(bp.rules, "ema_alignment", "ema_band")) {
     if (!preamble.includes(`   double fNow=IndVal(hFastMA,0,1), sNow=IndVal(hSlowMA,0,1);`)) {
-      preamble.push(
-        `   double fNow=IndVal(hFastMA,0,1), sNow=IndVal(hSlowMA,0,1);`,
-      );
+      preamble.push(`   double fNow=IndVal(hFastMA,0,1), sNow=IndVal(hSlowMA,0,1);`);
     }
     buyFilters.push(`fNow>sNow`);
     sellFilters.push(`fNow<sNow`);
@@ -1819,14 +1920,12 @@ bool IsNearSupplyZone()
 
   // ── TRIGGER: MACD cross / histogram
   if (ctx.hasMACD) {
-    preamble.push(
-      `   double mHist1=IndVal(hMACD,2,1), mHist2=IndVal(hMACD,2,2);`,
-    );
+    preamble.push(`   double mHist1=IndVal(hMACD,2,1), mHist2=IndVal(hMACD,2,2);`);
     if (findRule(bp.rules, "macd_cross", "macd_signal")) {
-      buyTriggers.push(`(mHist2<=0 && mHist1>0)` );  // crosses above zero
-      sellTriggers.push(`(mHist2>=0 && mHist1<0)`);  // crosses below zero
+      buyTriggers.push(`(mHist2<=0 && mHist1>0)`); // crosses above zero
+      sellTriggers.push(`(mHist2>=0 && mHist1<0)`); // crosses below zero
     } else {
-      buyTriggers.push(`(mHist1>mHist2 && mHist1>0)`);  // histogram rising & positive
+      buyTriggers.push(`(mHist1>mHist2 && mHist1>0)`); // histogram rising & positive
       sellTriggers.push(`(mHist1<mHist2 && mHist1<0)`); // histogram falling & negative
     }
   }
@@ -1847,7 +1946,7 @@ bool IsNearSupplyZone()
       `   double stK1=IndVal(hStoch,0,1), stK2=IndVal(hStoch,0,2);`,
       `   double stD1=IndVal(hStoch,1,1);`,
     );
-    buyTriggers.push(`(stK2<stD1 && stK1>stD1 && stK1<=InpStochBuyMax)` );  // %K crosses %D up in oversold
+    buyTriggers.push(`(stK2<stD1 && stK1>stD1 && stK1<=InpStochBuyMax)`); // %K crosses %D up in oversold
     sellTriggers.push(`(stK2>stD1 && stK1<stD1 && stK1>=InpStochSellMin)`); // %K crosses %D down in overbought
   } else if (ctx.hasStoch) {
     preamble.push(`   double stK1=IndVal(hStoch,0,1);`);
@@ -1938,12 +2037,13 @@ bool IsNearSupplyZone()
   }
 
   // Compose buy / sell condition strings
-  const buyTrig  = buyTriggers.map((c, i)  => (i === 0 ? `   (${c}` : `   || ${c}`)).join("\n") + `)`;
-  const sellTrig = sellTriggers.map((c, i) => (i === 0 ? `   (${c}` : `   || ${c}`)).join("\n") + `)`;
-  const buyFilt  = buyFilters.length  > 0 ? `\n   && ` + buyFilters.join("\n   && ")  : "";
+  const buyTrig = buyTriggers.map((c, i) => (i === 0 ? `   (${c}` : `   || ${c}`)).join("\n") + `)`;
+  const sellTrig =
+    sellTriggers.map((c, i) => (i === 0 ? `   (${c}` : `   || ${c}`)).join("\n") + `)`;
+  const buyFilt = buyFilters.length > 0 ? `\n   && ` + buyFilters.join("\n   && ") : "";
   const sellFilt = sellFilters.length > 0 ? `\n   && ` + sellFilters.join("\n   && ") : "";
 
-  const pre  = preamble.length  > 0 ? preamble.join("\n")  + "\n\n" : "";
+  const pre = preamble.length > 0 ? preamble.join("\n") + "\n\n" : "";
   const todos = todoLines.length > 0 ? todoLines.join("\n") + "\n\n" : "";
 
   parts.push(`// Returns +1 (buy), -1 (sell), or 0 (no signal).
@@ -1990,10 +2090,16 @@ function genOnInit(bp: StrategyBlueprint, ctx: Ctx): string {
     lines.push(`   hFastMA = iMA(InpSymbol, InpEntryTF, InpFastMA, 0, MODE_EMA, PRICE_CLOSE);`);
     lines.push(`   hSlowMA = iMA(InpSymbol, InpEntryTF, InpSlowMA, 0, MODE_EMA, PRICE_CLOSE);`);
     if (ctx.useSetupTF) {
-      lines.push(`   hFastSetup = iMA(InpSymbol, InpSetupTF, InpFastMA, 0, MODE_EMA, PRICE_CLOSE);`);
-      lines.push(`   hSlowSetup = iMA(InpSymbol, InpSetupTF, InpSlowMA, 0, MODE_EMA, PRICE_CLOSE);`);
+      lines.push(
+        `   hFastSetup = iMA(InpSymbol, InpSetupTF, InpFastMA, 0, MODE_EMA, PRICE_CLOSE);`,
+      );
+      lines.push(
+        `   hSlowSetup = iMA(InpSymbol, InpSetupTF, InpSlowMA, 0, MODE_EMA, PRICE_CLOSE);`,
+      );
     }
-    lines.push(`   if(hFastMA==INVALID_HANDLE||hSlowMA==INVALID_HANDLE) { Print("MA handle failed"); return INIT_FAILED; }`);
+    lines.push(
+      `   if(hFastMA==INVALID_HANDLE||hSlowMA==INVALID_HANDLE) { Print("MA handle failed"); return INIT_FAILED; }`,
+    );
     lines.push(``);
   }
   if (ctx.hasRSI) {
@@ -2002,7 +2108,9 @@ function genOnInit(bp: StrategyBlueprint, ctx: Ctx): string {
     lines.push(``);
   }
   if (ctx.hasMACD) {
-    lines.push(`   hMACD = iMACD(InpSymbol, InpEntryTF, InpMACDFast, InpMACDSlow, InpMACDSignal, PRICE_CLOSE);`);
+    lines.push(
+      `   hMACD = iMACD(InpSymbol, InpEntryTF, InpMACDFast, InpMACDSlow, InpMACDSignal, PRICE_CLOSE);`,
+    );
     lines.push(`   if(hMACD==INVALID_HANDLE) { Print("MACD handle failed"); return INIT_FAILED; }`);
     lines.push(``);
   }
@@ -2013,12 +2121,18 @@ function genOnInit(bp: StrategyBlueprint, ctx: Ctx): string {
   }
   if (ctx.hasBB) {
     lines.push(`   hBB = iBands(InpSymbol, InpEntryTF, InpBBPeriod, 0, InpBBDev, PRICE_CLOSE);`);
-    lines.push(`   if(hBB==INVALID_HANDLE) { Print("Bollinger handle failed"); return INIT_FAILED; }`);
+    lines.push(
+      `   if(hBB==INVALID_HANDLE) { Print("Bollinger handle failed"); return INIT_FAILED; }`,
+    );
     lines.push(``);
   }
   if (ctx.hasStoch) {
-    lines.push(`   hStoch = iStochastic(InpSymbol, InpEntryTF, InpStochK, InpStochD, InpStochSlowing, MODE_SMA, STO_LOWHIGH);`);
-    lines.push(`   if(hStoch==INVALID_HANDLE) { Print("Stochastic handle failed"); return INIT_FAILED; }`);
+    lines.push(
+      `   hStoch = iStochastic(InpSymbol, InpEntryTF, InpStochK, InpStochD, InpStochSlowing, MODE_SMA, STO_LOWHIGH);`,
+    );
+    lines.push(
+      `   if(hStoch==INVALID_HANDLE) { Print("Stochastic handle failed"); return INIT_FAILED; }`,
+    );
     lines.push(``);
   }
   if (ctx.hasATR) {
@@ -2046,14 +2160,14 @@ function genOnDeinit(ctx: Ctx): string {
       rel.push(`   if(hSlowSetup!=INVALID_HANDLE) IndicatorRelease(hSlowSetup);`);
     }
   }
-  if (ctx.hasRSI)   rel.push(`   if(hRSI  !=INVALID_HANDLE) IndicatorRelease(hRSI);`);
-  if (ctx.hasMACD)  rel.push(`   if(hMACD !=INVALID_HANDLE) IndicatorRelease(hMACD);`);
-  if (ctx.hasADX)   rel.push(`   if(hADX  !=INVALID_HANDLE) IndicatorRelease(hADX);`);
-  if (ctx.hasBB)    rel.push(`   if(hBB   !=INVALID_HANDLE) IndicatorRelease(hBB);`);
+  if (ctx.hasRSI) rel.push(`   if(hRSI  !=INVALID_HANDLE) IndicatorRelease(hRSI);`);
+  if (ctx.hasMACD) rel.push(`   if(hMACD !=INVALID_HANDLE) IndicatorRelease(hMACD);`);
+  if (ctx.hasADX) rel.push(`   if(hADX  !=INVALID_HANDLE) IndicatorRelease(hADX);`);
+  if (ctx.hasBB) rel.push(`   if(hBB   !=INVALID_HANDLE) IndicatorRelease(hBB);`);
   if (ctx.hasStoch) rel.push(`   if(hStoch!=INVALID_HANDLE) IndicatorRelease(hStoch);`);
-  if (ctx.hasATR)   rel.push(`   if(hATR  !=INVALID_HANDLE) IndicatorRelease(hATR);`);
-  if (ctx.hasHTF)   rel.push(`   if(hHTF  !=INVALID_HANDLE) IndicatorRelease(hHTF);`);
-  if (ctx.hasFVG)        rel.push(`   FVG_DeleteAllObjects();`);
+  if (ctx.hasATR) rel.push(`   if(hATR  !=INVALID_HANDLE) IndicatorRelease(hATR);`);
+  if (ctx.hasHTF) rel.push(`   if(hHTF  !=INVALID_HANDLE) IndicatorRelease(hHTF);`);
+  if (ctx.hasFVG) rel.push(`   FVG_DeleteAllObjects();`);
   if (ctx.hasOrderBlock) rel.push(`   OB_DeleteAllObjects();`);
 
   return `void OnDeinit(const int reason)
@@ -2072,42 +2186,40 @@ function genOnTick(bp: StrategyBlueprint, ctx: Ctx): string {
 
   if (isStateMachine) {
     // Phase 0 — break-even (runs every tick, before bar-open guard)
-    const beLines:      string[] = [];
+    const beLines: string[] = [];
     // Phase 1 — update zone states with just-closed bar
-    const updateLines:  string[] = [];
+    const updateLines: string[] = [];
     // Phase 2 — execute entries at bar open for confirmed zones
-    const execLines:    string[] = [];
+    const execLines: string[] = [];
     // Phase 3 — detect new zones in just-closed bar
-    const detectLines:  string[] = [];
+    const detectLines: string[] = [];
     // Phase 4 — refresh chart objects
-    const drawLines:    string[] = [];
+    const drawLines: string[] = [];
 
     if (ctx.hasFVG) {
-      beLines    .push(`   FVG_ManageBreakEven();`);
+      beLines.push(`   FVG_ManageBreakEven();`);
       updateLines.push(`   FVG_Update();`);
-      execLines  .push(`   FVG_ExecuteEntries();`);
+      execLines.push(`   FVG_ExecuteEntries();`);
       detectLines.push(`   FVG_Detect();`);
-      drawLines  .push(`   FVG_DrawZones();`);
+      drawLines.push(`   FVG_DrawZones();`);
     }
     if (ctx.hasOrderBlock) {
-      beLines    .push(`   OB_ManageBreakEven();`);
+      beLines.push(`   OB_ManageBreakEven();`);
       updateLines.push(`   OB_Update();`);
-      execLines  .push(`   OB_ExecuteEntries();`);
+      execLines.push(`   OB_ExecuteEntries();`);
       detectLines.push(`   OB_ScanBar(1);`);
-      drawLines  .push(`   OB_DrawZones();`);
+      drawLines.push(`   OB_DrawZones();`);
     }
     if (ctx.hasBOS) {
-      beLines    .push(`   BOS_ManageBreakEven();`);
-      execLines  .push(`   BOS_ExecuteEntries();`);
+      beLines.push(`   BOS_ManageBreakEven();`);
+      execLines.push(`   BOS_ExecuteEntries();`);
       detectLines.push(`   BOS_Detect();`);
       // BOS has no chart objects — no drawLines entry needed
     }
     // ── Future modules: add here ──────────────────────────────────────────────
     // if (ctx.hasLiquiditySweep){ beLines.push(...); execLines.push(...); detectLines.push(...); }
 
-    const beBlock = beLines.length > 0
-      ? beLines.join("\n") + "\n\n"
-      : "";
+    const beBlock = beLines.length > 0 ? beLines.join("\n") + "\n\n" : "";
 
     return `void OnTick()
 {
@@ -2194,7 +2306,7 @@ function genRulesBlock(bp: StrategyBlueprint): string {
   for (const rule of bp.rules) {
     const tag = rule.compilable ? "compiled" : "subjective";
     lines.push(`// [${tag}] ${rule.type} (${rule.side}): ${rule.label}`);
-    if (rule.mql5Hint)      lines.push(`//   hint: ${rule.mql5Hint}`);
+    if (rule.mql5Hint) lines.push(`//   hint: ${rule.mql5Hint}`);
     if (rule.subjectiveNote) lines.push(`//   note: ${rule.subjectiveNote}`);
   }
   if (bp.pendingClarifications.length > 0) {

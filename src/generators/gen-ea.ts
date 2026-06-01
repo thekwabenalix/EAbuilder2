@@ -16,31 +16,30 @@
  */
 
 import type { FourBrainConfig, MQL5CodeGenParams, BrainModuleType } from "@/types/blueprint";
-import { genDirectionBrain }      from "./gen-direction-brain";
-import { genSetupBrain }          from "./gen-setup-brain";
-import { genExecutionBrain }      from "./gen-execution-brain";
-import { genFvgInversionSM }      from "./gen-ifvg-state-machine";
-import { genFvgSM }               from "./gen-fvg-sm";
-import { genBosSM }               from "./gen-bos-sm";
-import type { BosSmMode }         from "./gen-bos-sm";
-import { genObSM }                from "./gen-ob-sm";
-import { genLiqSweepSM }          from "./gen-liqsweep-sm";
-import { genSnrSM }               from "./gen-snr-sm";
-import { genGapSnrSM }            from "./gen-gap-snr-sm";
-import { genBreakoutSM }          from "./gen-breakout-sm";
-import { genRejectionSM }         from "./gen-rejection-sm";
-import { genMissSM }              from "./gen-miss-sm";
-import { genRsiHdSM }             from "./gen-rsi-hd-sm";
-import { genObFvgSM }             from "./gen-obfvg-sm";
-import { genEmaSM }               from "./gen-ema-sm";
-import type { AiBrainWiring }     from "@/lib/api-client";
+import { genDirectionBrain } from "./gen-direction-brain";
+import { genSetupBrain } from "./gen-setup-brain";
+import { genExecutionBrain } from "./gen-execution-brain";
+import { genFvgInversionSM } from "./gen-ifvg-state-machine";
+import { genFvgSM } from "./gen-fvg-sm";
+import { genBosSM } from "./gen-bos-sm";
+import type { BosSmMode } from "./gen-bos-sm";
+import { genObSM } from "./gen-ob-sm";
+import { genLiqSweepSM } from "./gen-liqsweep-sm";
+import { genSnrSM } from "./gen-snr-sm";
+import { genGapSnrSM } from "./gen-gap-snr-sm";
+import { genBreakoutSM } from "./gen-breakout-sm";
+import { genRejectionSM } from "./gen-rejection-sm";
+import { genMissSM } from "./gen-miss-sm";
+import { genRsiHdSM } from "./gen-rsi-hd-sm";
+import { genObFvgSM } from "./gen-obfvg-sm";
+import { genEmaSM } from "./gen-ema-sm";
+import type { AiBrainWiring } from "@/lib/api-client";
 
 /** Collect all unique TFs that need an iFVG state machine instance. */
 function collectIfvgTFs(config: FourBrainConfig): Map<string, string> {
   // Map: tf-label (e.g. "H1") → PERIOD constant
   const result = new Map<string, string>();
-  const needs = (mods: BrainModuleType[] | undefined) =>
-    mods?.includes("fvg_inversion") ?? false;
+  const needs = (mods: BrainModuleType[] | undefined) => mods?.includes("fvg_inversion") ?? false;
   const add = (tf: string) => {
     if (!tf) return;
     const u = tf.toUpperCase();
@@ -48,7 +47,7 @@ function collectIfvgTFs(config: FourBrainConfig): Map<string, string> {
     result.set(u, c);
   };
   if (needs(config.direction?.modules)) add(config.direction!.timeframe);
-  if (needs(config.setup?.modules))     add(config.setup!.timeframe);
+  if (needs(config.setup?.modules)) add(config.setup!.timeframe);
   if (needs(config.execution?.modules)) add(config.execution.timeframe);
   return result;
 }
@@ -57,8 +56,14 @@ function collectIfvgTFs(config: FourBrainConfig): Map<string, string> {
 
 function tfConst(tf: string): string {
   const map: Record<string, string> = {
-    M1: "PERIOD_M1",  M5: "PERIOD_M5",  M15: "PERIOD_M15", M30: "PERIOD_M30",
-    H1: "PERIOD_H1",  H4: "PERIOD_H4",  D1: "PERIOD_D1",   W1: "PERIOD_W1",
+    M1: "PERIOD_M1",
+    M5: "PERIOD_M5",
+    M15: "PERIOD_M15",
+    M30: "PERIOD_M30",
+    H1: "PERIOD_H1",
+    H4: "PERIOD_H4",
+    D1: "PERIOD_D1",
+    W1: "PERIOD_W1",
     MN: "PERIOD_MN1",
   };
   return map[(tf ?? "H1").toUpperCase()] ?? "PERIOD_H1";
@@ -69,39 +74,53 @@ function tfConst(tf: string): string {
 /** Map an SM function-name prefix back to its generator type. */
 const SM_PREFIX_TYPE: Record<string, string> = {
   IFVGSM: "fvg_inversion",
-  FVGSM:  "fvg",
-  OBSM:   "ob",
-  BOSSM:  "bos",
-  LSSM:   "liqsweep",
-  SNRSM:  "snr",
+  FVGSM: "fvg",
+  OBSM: "ob",
+  BOSSM: "bos",
+  LSSM: "liqsweep",
+  SNRSM: "snr",
   GSNRSM: "gap_snr",
-  BRKSM:  "breakout",
-  REJSM:  "rejection",
+  BRKSM: "breakout",
+  REJSM: "rejection",
   MISSSM: "miss",
   RSIHDSM: "rsi_hd",
   OBFVGSM: "ob_fvg",
-  EMASM:   "ema",
+  EMASM: "ema",
 };
 
 /** Map an sm_config type to its function-name prefix. */
 function smPrefixForType(type: string): string {
   switch (type) {
-    case "fvg_inversion": return "IFVGSM";
-    case "fvg":           return "FVGSM";
-    case "ob":            return "OBSM";
-    case "liqsweep":      return "LSSM";
-    case "snr":           return "SNRSM";
-    case "gap_snr":       return "GSNRSM";
-    case "breakout":      return "BRKSM";
-    case "rejection":     return "REJSM";
-    case "miss":          return "MISSSM";
-    case "rsi_hd":        return "RSIHDSM";
-    case "ob_fvg":        return "OBFVGSM";
-    case "ema":           return "EMASM";
+    case "fvg_inversion":
+      return "IFVGSM";
+    case "fvg":
+      return "FVGSM";
+    case "ob":
+      return "OBSM";
+    case "liqsweep":
+      return "LSSM";
+    case "snr":
+      return "SNRSM";
+    case "gap_snr":
+      return "GSNRSM";
+    case "breakout":
+      return "BRKSM";
+    case "rejection":
+      return "REJSM";
+    case "miss":
+      return "MISSSM";
+    case "rsi_hd":
+      return "RSIHDSM";
+    case "ob_fvg":
+      return "OBFVGSM";
+    case "ema":
+      return "EMASM";
     case "bos":
     case "choch":
-    case "bos_choch":     return "BOSSM";
-    default:              return "BOSSM";
+    case "bos_choch":
+      return "BOSSM";
+    default:
+      return "BOSSM";
   }
 }
 
@@ -137,7 +156,8 @@ function reconcileStateMachines(aiWiring: AiBrainWiring): AiBrainWiring["sm_conf
 
   // Match  PREFIX_ID_  where PREFIX is a known SM prefix and ID is the TF label.
   // IFVGSM must precede FVGSM in the alternation so the longer prefix wins.
-  const re = /\b(RSIHDSM|OBFVGSM|EMASM|IFVGSM|FVGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM)_([A-Za-z0-9]+)_/g;
+  const re =
+    /\b(RSIHDSM|OBFVGSM|EMASM|IFVGSM|FVGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM)_([A-Za-z0-9]+)_/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(allCode)) !== null) {
     const prefix = m[1];
@@ -157,7 +177,9 @@ function reconcileStateMachines(aiWiring: AiBrainWiring): AiBrainWiring["sm_conf
       tf: id.toUpperCase(),
       params: {},
     };
-    console.warn(`[reconcile] Auto-added missing SM config: ${autoKey} (referenced but undeclared)`);
+    console.warn(
+      `[reconcile] Auto-added missing SM config: ${autoKey} (referenced but undeclared)`,
+    );
   }
 
   return configs;
@@ -165,13 +187,13 @@ function reconcileStateMachines(aiWiring: AiBrainWiring): AiBrainWiring["sm_conf
 
 function buildAiStateMachines(configs: AiBrainWiring["sm_configs"]): string {
   const parts: string[] = [];
-  const emitted = new Set<string>();   // prevent duplicate SM emission (same prefix+id)
+  const emitted = new Set<string>(); // prevent duplicate SM emission (same prefix+id)
 
   for (const [key, cfg] of Object.entries(configs)) {
     const { type, id, TF, tf, params: p = {} } = cfg;
     const prefix = smPrefixForType(type);
     const emitKey = `${prefix}|${id.toUpperCase()}`;
-    if (emitted.has(emitKey)) continue;   // same machine already emitted
+    if (emitted.has(emitKey)) continue; // same machine already emitted
     emitted.add(emitKey);
 
     switch (type) {
@@ -182,81 +204,106 @@ function buildAiStateMachines(configs: AiBrainWiring["sm_configs"]): string {
         parts.push(genFvgInversionSM(id, TF, tf, (p.expiryBars as number) ?? 100));
         break;
       case "ob":
-        parts.push(genObSM(id, TF, tf,
-          (p.dispMult   as number) ?? 0.6,
-          (p.scanBack   as number) ?? 5,
-          (p.expiryBars as number) ?? 100,
-        ));
+        parts.push(
+          genObSM(
+            id,
+            TF,
+            tf,
+            (p.dispMult as number) ?? 0.6,
+            (p.scanBack as number) ?? 5,
+            (p.expiryBars as number) ?? 100,
+          ),
+        );
         break;
       case "bos":
       case "choch":
       case "bos_choch":
-        parts.push(genBosSM(id, TF, tf, type as BosSmMode,
-          (p.swingLen as number) ?? 5,
-          (p.lookback as number) ?? 20,
-        ));
+        parts.push(
+          genBosSM(
+            id,
+            TF,
+            tf,
+            type as BosSmMode,
+            (p.swingLen as number) ?? 5,
+            (p.lookback as number) ?? 20,
+          ),
+        );
         break;
       case "liqsweep":
-        parts.push(genLiqSweepSM(id, TF, tf,
-          (p.swingLen as number) ?? 3,
-          (p.lookback as number) ?? 20,
-        ));
+        parts.push(
+          genLiqSweepSM(id, TF, tf, (p.swingLen as number) ?? 3, (p.lookback as number) ?? 20),
+        );
         break;
       case "snr":
-        parts.push(genSnrSM(id, TF, tf,
-          (p.lookback   as number) ?? 20,
-          (p.expiryBars as number) ?? 100,
-        ));
+        parts.push(
+          genSnrSM(id, TF, tf, (p.lookback as number) ?? 20, (p.expiryBars as number) ?? 100),
+        );
         break;
       case "gap_snr":
-        parts.push(genGapSnrSM(id, TF, tf,
-          (p.lookback   as number) ?? 20,
-          (p.expiryBars as number) ?? 100,
-        ));
+        parts.push(
+          genGapSnrSM(id, TF, tf, (p.lookback as number) ?? 20, (p.expiryBars as number) ?? 100),
+        );
         break;
       case "breakout":
-        parts.push(genBreakoutSM(id, TF, tf,
-          (p.lookback   as number) ?? 20,
-          (p.expiryBars as number) ?? 100,
-        ));
+        parts.push(
+          genBreakoutSM(id, TF, tf, (p.lookback as number) ?? 20, (p.expiryBars as number) ?? 100),
+        );
         break;
       case "rejection":
-        parts.push(genRejectionSM(id, TF, tf,
-          (p.lookback     as number) ?? 30,
-          (p.minWickRatio as number) ?? 0.5,
-          (p.expiryBars   as number) ?? 150,
-        ));
+        parts.push(
+          genRejectionSM(
+            id,
+            TF,
+            tf,
+            (p.lookback as number) ?? 30,
+            (p.minWickRatio as number) ?? 0.5,
+            (p.expiryBars as number) ?? 150,
+          ),
+        );
         break;
       case "miss":
-        parts.push(genMissSM(id, TF, tf,
-          (p.lookback   as number) ?? 40,
-          (p.swingLen   as number) ?? 3,
-          (p.nearPoints as number) ?? 50,
-          (p.expiryBars as number) ?? 200,
-        ));
+        parts.push(
+          genMissSM(
+            id,
+            TF,
+            tf,
+            (p.lookback as number) ?? 40,
+            (p.swingLen as number) ?? 3,
+            (p.nearPoints as number) ?? 50,
+            (p.expiryBars as number) ?? 200,
+          ),
+        );
         break;
       case "rsi_hd":
-        parts.push(genRsiHdSM(id, TF, tf,
-          (p.rsiPeriod  as number) ?? 14,
-          (p.pivotLeft  as number) ?? 3,
-          (p.pivotRight as number) ?? 3,
-          (p.minBars    as number) ?? 5,
-          (p.maxBars    as number) ?? 50,
-          (p.expiryBars as number) ?? 60,
-        ));
+        parts.push(
+          genRsiHdSM(
+            id,
+            TF,
+            tf,
+            (p.rsiPeriod as number) ?? 14,
+            (p.pivotLeft as number) ?? 3,
+            (p.pivotRight as number) ?? 3,
+            (p.minBars as number) ?? 5,
+            (p.maxBars as number) ?? 50,
+            (p.expiryBars as number) ?? 60,
+          ),
+        );
         break;
       case "ob_fvg":
-        parts.push(genObFvgSM(id, TF, tf,
-          (p.expiryBars as number) ?? 250,
-        ));
+        parts.push(genObFvgSM(id, TF, tf, (p.expiryBars as number) ?? 250));
         break;
       case "ema":
-        parts.push(genEmaSM(id, TF, tf,
-          (p.fastPeriod   as number) ?? 12,
-          (p.slowPeriod   as number) ?? 48,
-          (p.retestPoints as number) ?? 100,
-          (p.requireCross as boolean) ?? true,
-        ));
+        parts.push(
+          genEmaSM(
+            id,
+            TF,
+            tf,
+            (p.fastPeriod as number) ?? 12,
+            (p.slowPeriod as number) ?? 48,
+            (p.retestPoints as number) ?? 100,
+            (p.requireCross as boolean) ?? true,
+          ),
+        );
         break;
       default:
         parts.push(`// Unknown SM type: ${type} (key=${key})`);
@@ -270,23 +317,23 @@ function buildAiStateMachines(configs: AiBrainWiring["sm_configs"]): string {
 export function generateEA(params: MQL5CodeGenParams): string {
   const { eaName, config, globalSymbol = "EURUSD", globalMagic = 990001, aiWiring } = params;
 
-  const dirMods  = config.direction?.modules?.join(" + ").toUpperCase() ?? "NONE";
-  const dirTF    = config.direction?.timeframe ?? "D1";
+  const dirMods = config.direction?.modules?.join(" + ").toUpperCase() ?? "NONE";
+  const dirTF = config.direction?.timeframe ?? "D1";
   const setupMods = config.setup?.modules?.join(" + ").toUpperCase() ?? "NONE";
-  const setupTF  = config.setup?.timeframe ?? "H4";
+  const setupTF = config.setup?.timeframe ?? "H4";
   const execMods = config.execution?.modules?.join(" + ").toUpperCase() ?? "NONE";
-  const execTF   = config.execution?.timeframe ?? "H1";
+  const execTF = config.execution?.timeframe ?? "H1";
 
-  const mgmt       = config.management;
-  const riskPct    = mgmt?.riskPercent   ?? 1.0;
-  const rrRatio    = mgmt?.rewardRisk    ?? 2.0;
-  const stopBuf    = mgmt?.stopBuffer    ?? 20;          // in POINTS (not price)
-  const beEnabled  = mgmt?.breakEvenEnabled ?? false;
-  const beAtR      = mgmt?.breakEvenAtR  ?? 1.0;
-  const maxTrades  = mgmt?.maxOpenTrades ?? 1;
-  const maxStopPts = mgmt?.maxStopPoints ?? 0;          // 0 = no limit
+  const mgmt = config.management;
+  const riskPct = mgmt?.riskPercent ?? 1.0;
+  const rrRatio = mgmt?.rewardRisk ?? 2.0;
+  const stopBuf = mgmt?.stopBuffer ?? 20; // in POINTS (not price)
+  const beEnabled = mgmt?.breakEvenEnabled ?? false;
+  const beAtR = mgmt?.breakEvenAtR ?? 1.0;
+  const maxTrades = mgmt?.maxOpenTrades ?? 1;
+  const maxStopPts = mgmt?.maxStopPoints ?? 0; // 0 = no limit
 
-  const hasDirBrain   = Boolean(config.direction);
+  const hasDirBrain = Boolean(config.direction);
   const hasSetupBrain = Boolean(config.setup);
 
   // ── State machine code ──────────────────────────────────────────────────────
@@ -312,34 +359,36 @@ export function generateEA(params: MQL5CodeGenParams): string {
   let dirCode: string, setupCode: string, execCode: string;
   let aiModeLabel = "";
   if (aiWiring) {
-    dirCode   = aiWiring.direction_brain;
+    dirCode = aiWiring.direction_brain;
     setupCode = aiWiring.setup_brain;
-    execCode  = aiWiring.execution_brain;
+    execCode = aiWiring.execution_brain;
     aiModeLabel = `// Generated by Claude AI — module library wiring\n// ${aiWiring.notes ?? ""}`;
   } else {
-    dirCode   = genDirectionBrain(config.direction);
+    dirCode = genDirectionBrain(config.direction);
     setupCode = genSetupBrain(config.setup);
-    execCode  = genExecutionBrain(config.execution);
+    execCode = genExecutionBrain(config.execution);
   }
 
-  const dirTFUpper   = (config.direction?.timeframe ?? "").toUpperCase();
+  const dirTFUpper = (config.direction?.timeframe ?? "").toUpperCase();
   const setupTFUpper = (config.setup?.timeframe ?? "").toUpperCase();
-  const execTFUpper  = (config.execution.timeframe).toUpperCase();
+  const execTFUpper = config.execution.timeframe.toUpperCase();
 
   // In AI mode: Claude's brain functions include their own Tick() calls inline.
   // In template mode: only iFVG SMs need explicit pre-brain Tick() calls.
-  let dirSmTick = "", setupSmTick = "", execSmTick = "";
+  let dirSmTick = "",
+    setupSmTick = "",
+    execSmTick = "";
   if (!aiWiring) {
     const ifvgTFsForTick = collectIfvgTFs(config);
-    const smTickCall = (tf: string) => ifvgTFsForTick.has(tf) ? `IFVGSM_${tf}_Tick(1);` : "";
-    dirSmTick   = smTickCall(dirTFUpper);
+    const smTickCall = (tf: string) => (ifvgTFsForTick.has(tf) ? `IFVGSM_${tf}_Tick(1);` : "");
+    dirSmTick = smTickCall(dirTFUpper);
     setupSmTick = smTickCall(setupTFUpper);
-    execSmTick  = (execTFUpper !== setupTFUpper) ? smTickCall(execTFUpper) : "";
+    execSmTick = execTFUpper !== setupTFUpper ? smTickCall(execTFUpper) : "";
   }
 
   // Direction gate: require a bias AND that the execution direction AGREES with it.
   // (Confluence = all active brains agree. A BULL bias must never open a SELL.)
-  const dirGate   = hasDirBrain
+  const dirGate = hasDirBrain
     ? `if(gBias == 0) { PrintFormat("[GATE] BLOCKED: no bias"); return; }
       if(gExecDir != 0 && gExecDir != gBias) { PrintFormat("[GATE] BLOCKED: exec dir %d disagrees with bias %d", gExecDir, gBias); return; }`
     : `// Direction Brain disabled — no bias gate`;
@@ -351,7 +400,8 @@ export function generateEA(params: MQL5CodeGenParams): string {
     : `// Setup Brain disabled — no zone gate`;
 
   // Break-even management code
-  const breakEvenCode = beEnabled ? `
+  const breakEvenCode = beEnabled
+    ? `
    // Break-Even Management
    for(int i = PositionsTotal() - 1; i >= 0; i--)
    {
@@ -380,7 +430,8 @@ export function generateEA(params: MQL5CodeGenParams): string {
          if(openPx - ask >= initRisk * InpBEAtR)
             trade.PositionModify(ticket, openPx, tp);
       }
-   }` : `   // Break-even management disabled`;
+   }`
+    : `   // Break-even management disabled`;
 
   // Build OnInit SM resets from the RECONCILED configs (dedup by prefix+id)
   const aiSmResets = aiWiring
@@ -396,7 +447,7 @@ export function generateEA(params: MQL5CodeGenParams): string {
         }
         return resets.join(" ");
       })()
-    : [...(collectIfvgTFs(config)).keys()].map(tf => `IFVGSM_${tf}_Reset();`).join(" ");
+    : [...collectIfvgTFs(config).keys()].map((tf) => `IFVGSM_${tf}_Reset();`).join(" ");
 
   return `//+------------------------------------------------------------------+
 //| ${eaName}.mq5

@@ -30,7 +30,7 @@ export function genSnrSM(
   id: string,
   TF: string,
   tf: string,
-  lookback = 20,      // bars scanned for new levels each tick
+  lookback = 20, // bars scanned for new levels each tick
   expiryBars = 100,
 ): string {
   const P = `SNRSM_${id}_`;

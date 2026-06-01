@@ -77,7 +77,9 @@ function RunnerStartCard({ onRefresh }: { onRefresh: () => void }) {
       </a>
 
       <ol className="text-xs text-muted-foreground space-y-1.5 pl-4 list-decimal">
-        <li>Download and double-click <span className="font-mono">mt5-local-runner.exe</span></li>
+        <li>
+          Download and double-click <span className="font-mono">mt5-local-runner.exe</span>
+        </li>
         <li>
           A terminal window opens — open{" "}
           <a
@@ -136,7 +138,9 @@ function Phase1ValidationPanel() {
   return (
     <section className="rounded-md border border-border bg-card p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Phase 1 — Generator Validation</h2>
+        <h2 className="text-xs uppercase tracking-wide text-muted-foreground">
+          Phase 1 — Generator Validation
+        </h2>
         <Button size="sm" variant="outline" onClick={run} disabled={running}>
           {running ? "Running…" : "Run 5 Tests"}
         </Button>

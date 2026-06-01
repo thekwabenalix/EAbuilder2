@@ -47,8 +47,8 @@ export function genEmaSM(
   tf: string,
   fast = 12,
   slow = 48,
-  retestPoints = 100,     // retest tolerance in POINTS (≈10 pips on a 5-digit symbol)
-  requireCross = true,    // require an aligned fast/slow cross before the retest
+  retestPoints = 100, // retest tolerance in POINTS (≈10 pips on a 5-digit symbol)
+  requireCross = true, // require an aligned fast/slow cross before the retest
 ): string {
   const P = `EMASM_${id}_`;
   const RC = requireCross ? "true" : "false";

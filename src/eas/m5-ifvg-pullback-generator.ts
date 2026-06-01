@@ -8,16 +8,16 @@
  */
 
 export const M5_IFVG_PULLBACK_FILENAME = "M5_IFVG_Pullback.mq5";
-export const M5_IFVG_PULLBACK_NAME     = "M5 iFVG Pullback";
+export const M5_IFVG_PULLBACK_NAME = "M5 iFVG Pullback";
 
 // Re-export raw source imported by Vite so tests/bundles can consume it
 // The actual file content lives in M5_IFVG_Pullback.mq5 (same folder)
 // and is bundled at build time via the ?raw import in the page component.
 // This module re-exports metadata only; the page handles the import.
 export const M5_IFVG_PULLBACK_META = {
-  filename:    M5_IFVG_PULLBACK_FILENAME,
-  name:        M5_IFVG_PULLBACK_NAME,
-  timeframe:   "M5",
+  filename: M5_IFVG_PULLBACK_FILENAME,
+  name: M5_IFVG_PULLBACK_NAME,
+  timeframe: "M5",
   defaultSymbol: "EURUSD",
   description:
     "EMA 12/48 trend filter + M5 swing high/low detection + iFVG inversion entry. " +

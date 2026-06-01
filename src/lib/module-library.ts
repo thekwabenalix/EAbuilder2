@@ -88,7 +88,6 @@ export interface ModuleSpec {
 }
 
 export const MODULE_LIBRARY: ModuleSpec[] = [
-
   // ─── BOS ────────────────────────────────────────────────────────────────────
   {
     id: "bos",
@@ -104,36 +103,77 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "structure continuation" },
       { phrase: "trend continuation break" },
     ],
-    concept: "Detects when price closes beyond a confirmed swing high or low, signalling continuation of the current trend.",
-    detectionLogic: "Identifies swing pivots (price must be higher/lower than N bars on both sides). When a candle CLOSES beyond an unconsumed pivot, a BOS fires and the trend state updates persistently. Each pivot can generate exactly one BOS — consumed pivots are never re-used.",
+    concept:
+      "Detects when price closes beyond a confirmed swing high or low, signalling continuation of the current trend.",
+    detectionLogic:
+      "Identifies swing pivots (price must be higher/lower than N bars on both sides). When a candle CLOSES beyond an unconsumed pivot, a BOS fires and the trend state updates persistently. Each pivot can generate exactly one BOS — consumed pivots are never re-used.",
     roles: [
-      { role: "direction", fit: "primary",   usage: "BOS fires → trend direction set to BULL or BEAR. Persists until opposite BOS." },
-      { role: "setup",     fit: "secondary", usage: "Fresh BOS in bias direction means momentum is active — valid setup zone." },
-      { role: "execution", fit: "possible",  usage: "Enter on the BOS bar itself if risk allows — break-and-go entry." },
+      {
+        role: "direction",
+        fit: "primary",
+        usage: "BOS fires → trend direction set to BULL or BEAR. Persists until opposite BOS.",
+      },
+      {
+        role: "setup",
+        fit: "secondary",
+        usage: "Fresh BOS in bias direction means momentum is active — valid setup zone.",
+      },
+      {
+        role: "execution",
+        fit: "possible",
+        usage: "Enter on the BOS bar itself if risk allows — break-and-go entry.",
+      },
     ],
-    lifecycle: "Swing pivot formed → price closes beyond it → BOS fires (one-time event) → trend bias updated persistently",
+    lifecycle:
+      "Swing pivot formed → price closes beyond it → BOS fires (one-time event) → trend bias updated persistently",
     params: [
-      { name: "swingLen", type: "int", default: 5, range: [2, 20],
+      {
+        name: "swingLen",
+        type: "int",
+        default: 5,
+        range: [2, 20],
         description: "Bars on each side needed to confirm a pivot high/low",
-        traderPhrases: ["5-bar pivot", "use 3 bars each side", "strict pivots", "loose pivots"] },
-      { name: "lookback", type: "int", default: 20, range: [10, 100],
+        traderPhrases: ["5-bar pivot", "use 3 bars each side", "strict pivots", "loose pivots"],
+      },
+      {
+        name: "lookback",
+        type: "int",
+        default: 20,
+        range: [10, 100],
         description: "How many bars back to scan for swing levels",
-        traderPhrases: ["last 20 bars", "look back 30 bars", "recent structure only"] },
+        traderPhrases: ["last 20 bars", "look back 30 bars", "recent structure only"],
+      },
     ],
     outputStates: [
-      { name: "IsBull()", meaning: "Trend is currently BULL", tradingImplication: "Only take buy setups" },
-      { name: "IsBear()", meaning: "Trend is currently BEAR", tradingImplication: "Only take sell setups" },
-      { name: "BullJustBroke()", meaning: "BOS BULL fired on this exact bar", tradingImplication: "Fresh momentum — immediate entry or start watching for setup" },
-      { name: "BearJustBroke()", meaning: "BOS BEAR fired on this exact bar", tradingImplication: "Fresh momentum — immediate entry or start watching for setup" },
+      {
+        name: "IsBull()",
+        meaning: "Trend is currently BULL",
+        tradingImplication: "Only take buy setups",
+      },
+      {
+        name: "IsBear()",
+        meaning: "Trend is currently BEAR",
+        tradingImplication: "Only take sell setups",
+      },
+      {
+        name: "BullJustBroke()",
+        meaning: "BOS BULL fired on this exact bar",
+        tradingImplication: "Fresh momentum — immediate entry or start watching for setup",
+      },
+      {
+        name: "BearJustBroke()",
+        meaning: "BOS BEAR fired on this exact bar",
+        tradingImplication: "Fresh momentum — immediate entry or start watching for setup",
+      },
     ],
     inlineApi: {
       tick: "BOSSM_{id}_Tick(lookback)",
       signals: [
-        { fn: "BOSSM_{id}_IsBull()",        returns: "bool",   meaning: "Trend is BULL (persistent)" },
-        { fn: "BOSSM_{id}_IsBear()",        returns: "bool",   meaning: "Trend is BEAR (persistent)" },
-        { fn: "BOSSM_{id}_BullJustBroke()", returns: "bool",   meaning: "BOS BULL fired this bar" },
-        { fn: "BOSSM_{id}_BearJustBroke()", returns: "bool",   meaning: "BOS BEAR fired this bar" },
-        { fn: "BOSSM_{id}_Trend()",         returns: "int",    meaning: "1=BULL, -1=BEAR, 0=UNKNOWN" },
+        { fn: "BOSSM_{id}_IsBull()", returns: "bool", meaning: "Trend is BULL (persistent)" },
+        { fn: "BOSSM_{id}_IsBear()", returns: "bool", meaning: "Trend is BEAR (persistent)" },
+        { fn: "BOSSM_{id}_BullJustBroke()", returns: "bool", meaning: "BOS BULL fired this bar" },
+        { fn: "BOSSM_{id}_BearJustBroke()", returns: "bool", meaning: "BOS BEAR fired this bar" },
+        { fn: "BOSSM_{id}_Trend()", returns: "int", meaning: "1=BULL, -1=BEAR, 0=UNKNOWN" },
       ],
       reset: "BOSSM_{id}_Reset()",
     },
@@ -163,29 +203,61 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "flip in structure" },
       { phrase: "counter-trend break" },
     ],
-    concept: "Fires ONLY when price breaks structure AGAINST the current trend — a signal that the trend may be reversing.",
-    detectionLogic: "Same swing pivot detection as BOS. But CHoCH fires ONLY on counter-trend breaks: in a BEAR trend, a close above a swing high = Bull CHoCH. In a BULL trend, a close below a swing low = Bear CHoCH. With-trend breaks are silently consumed (not drawn). This filters noise and highlights genuine reversals.",
+    concept:
+      "Fires ONLY when price breaks structure AGAINST the current trend — a signal that the trend may be reversing.",
+    detectionLogic:
+      "Same swing pivot detection as BOS. But CHoCH fires ONLY on counter-trend breaks: in a BEAR trend, a close above a swing high = Bull CHoCH. In a BULL trend, a close below a swing low = Bear CHoCH. With-trend breaks are silently consumed (not drawn). This filters noise and highlights genuine reversals.",
     roles: [
-      { role: "direction", fit: "primary",   usage: "CHoCH fires → direction flips. Trade the new direction until next CHoCH." },
-      { role: "setup",     fit: "possible",  usage: "Fresh CHoCH near key level = high-probability reversal setup." },
+      {
+        role: "direction",
+        fit: "primary",
+        usage: "CHoCH fires → direction flips. Trade the new direction until next CHoCH.",
+      },
+      {
+        role: "setup",
+        fit: "possible",
+        usage: "Fresh CHoCH near key level = high-probability reversal setup.",
+      },
     ],
-    lifecycle: "Trend established → counter-trend break fires CHoCH → trend flips to opposite direction",
+    lifecycle:
+      "Trend established → counter-trend break fires CHoCH → trend flips to opposite direction",
     params: [
-      { name: "swingLen", type: "int", default: 5, range: [2, 20],
+      {
+        name: "swingLen",
+        type: "int",
+        default: 5,
+        range: [2, 20],
         description: "Pivot confirmation bars",
-        traderPhrases: ["5-bar pivots", "use swing strength of 3"] },
+        traderPhrases: ["5-bar pivots", "use swing strength of 3"],
+      },
     ],
     outputStates: [
-      { name: "IsBull()",        meaning: "After bull CHoCH — now looking for buys", tradingImplication: "Bias is BULL" },
-      { name: "IsBear()",        meaning: "After bear CHoCH — now looking for sells", tradingImplication: "Bias is BEAR" },
-      { name: "BullJustBroke()", meaning: "Bull CHoCH fired this bar", tradingImplication: "Trend just flipped bullish — start fresh" },
-      { name: "BearJustBroke()", meaning: "Bear CHoCH fired this bar", tradingImplication: "Trend just flipped bearish" },
+      {
+        name: "IsBull()",
+        meaning: "After bull CHoCH — now looking for buys",
+        tradingImplication: "Bias is BULL",
+      },
+      {
+        name: "IsBear()",
+        meaning: "After bear CHoCH — now looking for sells",
+        tradingImplication: "Bias is BEAR",
+      },
+      {
+        name: "BullJustBroke()",
+        meaning: "Bull CHoCH fired this bar",
+        tradingImplication: "Trend just flipped bullish — start fresh",
+      },
+      {
+        name: "BearJustBroke()",
+        meaning: "Bear CHoCH fired this bar",
+        tradingImplication: "Trend just flipped bearish",
+      },
     ],
     inlineApi: {
       tick: "BOSSM_{id}_Tick(lookback)  // generated with mode='choch'",
       signals: [
-        { fn: "BOSSM_{id}_IsBull()",        returns: "bool", meaning: "Bias is BULL (post CHoCH)" },
-        { fn: "BOSSM_{id}_IsBear()",        returns: "bool", meaning: "Bias is BEAR (post CHoCH)" },
+        { fn: "BOSSM_{id}_IsBull()", returns: "bool", meaning: "Bias is BULL (post CHoCH)" },
+        { fn: "BOSSM_{id}_IsBear()", returns: "bool", meaning: "Bias is BEAR (post CHoCH)" },
         { fn: "BOSSM_{id}_BullJustBroke()", returns: "bool", meaning: "CHoCH BULL fired this bar" },
         { fn: "BOSSM_{id}_BearJustBroke()", returns: "bool", meaning: "CHoCH BEAR fired this bar" },
       ],
@@ -221,36 +293,89 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "fill the gap" },
       { phrase: "mitigate the imbalance" },
     ],
-    concept: "A 3-candle imbalance where C3.Low > C1.High (bull) or C3.High < C1.Low (bear). Tracks the zone from formation through retest and confirmation.",
-    detectionLogic: "Scans each bar for a 3-candle formation where candle 3's low is above candle 1's high (bullish gap) or candle 3's high is below candle 1's low (bearish gap). Zone is stored with its upper limit (UL) and lower limit (LL). State machine tracks: ACTIVE (gap born) → RETESTED (wick enters zone) → CONFIRMED (close exits back outside near edge). Terminal states: MITIGATED (close inside zone), INVALIDATED (close through far edge), EXPIRED (too old).",
+    concept:
+      "A 3-candle imbalance where C3.Low > C1.High (bull) or C3.High < C1.Low (bear). Tracks the zone from formation through retest and confirmation.",
+    detectionLogic:
+      "Scans each bar for a 3-candle formation where candle 3's low is above candle 1's high (bullish gap) or candle 3's high is below candle 1's low (bearish gap). Zone is stored with its upper limit (UL) and lower limit (LL). State machine tracks: ACTIVE (gap born) → RETESTED (wick enters zone) → CONFIRMED (close exits back outside near edge). Terminal states: MITIGATED (close inside zone), INVALIDATED (close through far edge), EXPIRED (too old).",
     roles: [
-      { role: "setup",     fit: "primary",   usage: "Active FVG in bias direction = there is a zone to retest. Setup is active while zone is ACTIVE or RETESTED." },
-      { role: "execution", fit: "primary",   usage: "FVG CONFIRMED = price retested the zone and held. Entry fires on confirmation bar." },
-      { role: "direction", fit: "possible",  usage: "Recent FVG direction can indicate short-term momentum bias." },
+      {
+        role: "setup",
+        fit: "primary",
+        usage:
+          "Active FVG in bias direction = there is a zone to retest. Setup is active while zone is ACTIVE or RETESTED.",
+      },
+      {
+        role: "execution",
+        fit: "primary",
+        usage: "FVG CONFIRMED = price retested the zone and held. Entry fires on confirmation bar.",
+      },
+      {
+        role: "direction",
+        fit: "possible",
+        usage: "Recent FVG direction can indicate short-term momentum bias.",
+      },
     ],
-    lifecycle: "3-candle gap formed → ACTIVE → wick enters zone → RETESTED → close holds outside near edge → CONFIRMED | MITIGATED | INVALIDATED | EXPIRED",
+    lifecycle:
+      "3-candle gap formed → ACTIVE → wick enters zone → RETESTED → close holds outside near edge → CONFIRMED | MITIGATED | INVALIDATED | EXPIRED",
     params: [
-      { name: "expiryBars", type: "int", default: 100, range: [10, 500],
+      {
+        name: "expiryBars",
+        type: "int",
+        default: 100,
+        range: [10, 500],
         description: "Bars before an unmitigated FVG expires",
-        traderPhrases: ["expire after 50 bars", "use only recent FVGs", "keep FVGs for 200 bars"] },
+        traderPhrases: ["expire after 50 bars", "use only recent FVGs", "keep FVGs for 200 bars"],
+      },
     ],
     outputStates: [
-      { name: "HasActiveBull()",     meaning: "A bull FVG zone exists and has not been mitigated/invalidated", tradingImplication: "Setup zone present — watch for retest" },
-      { name: "HasActiveBear()",     meaning: "A bear FVG zone is live",         tradingImplication: "Setup zone present" },
-      { name: "BullJustConfirmed()", meaning: "Bull FVG retested and confirmed this bar", tradingImplication: "ENTRY SIGNAL — price respected the gap and bounced" },
-      { name: "BearJustConfirmed()", meaning: "Bear FVG confirmed this bar",     tradingImplication: "ENTRY SIGNAL" },
-      { name: "BullConfirmSL()",     meaning: "SL price = lowest wick during the retest", tradingImplication: "Use as stop-loss for the entry" },
-      { name: "BearConfirmSL()",     meaning: "SL price = highest wick during the retest", tradingImplication: "Use as stop-loss" },
+      {
+        name: "HasActiveBull()",
+        meaning: "A bull FVG zone exists and has not been mitigated/invalidated",
+        tradingImplication: "Setup zone present — watch for retest",
+      },
+      {
+        name: "HasActiveBear()",
+        meaning: "A bear FVG zone is live",
+        tradingImplication: "Setup zone present",
+      },
+      {
+        name: "BullJustConfirmed()",
+        meaning: "Bull FVG retested and confirmed this bar",
+        tradingImplication: "ENTRY SIGNAL — price respected the gap and bounced",
+      },
+      {
+        name: "BearJustConfirmed()",
+        meaning: "Bear FVG confirmed this bar",
+        tradingImplication: "ENTRY SIGNAL",
+      },
+      {
+        name: "BullConfirmSL()",
+        meaning: "SL price = lowest wick during the retest",
+        tradingImplication: "Use as stop-loss for the entry",
+      },
+      {
+        name: "BearConfirmSL()",
+        meaning: "SL price = highest wick during the retest",
+        tradingImplication: "Use as stop-loss",
+      },
     ],
     inlineApi: {
       tick: "FVGSM_{id}_Tick(lookback)",
       signals: [
-        { fn: "FVGSM_{id}_HasActiveBull()",     returns: "bool",   meaning: "Live bull FVG zone" },
-        { fn: "FVGSM_{id}_HasActiveBear()",     returns: "bool",   meaning: "Live bear FVG zone" },
-        { fn: "FVGSM_{id}_BullJustConfirmed()", returns: "bool",   meaning: "Bull FVG confirmed — entry signal" },
-        { fn: "FVGSM_{id}_BearJustConfirmed()", returns: "bool",   meaning: "Bear FVG confirmed — entry signal" },
-        { fn: "FVGSM_{id}_BullConfirmSL()",     returns: "double", meaning: "SL for bull entries" },
-        { fn: "FVGSM_{id}_BearConfirmSL()",     returns: "double", meaning: "SL for bear entries" },
+        { fn: "FVGSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live bull FVG zone" },
+        { fn: "FVGSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live bear FVG zone" },
+        {
+          fn: "FVGSM_{id}_BullJustConfirmed()",
+          returns: "bool",
+          meaning: "Bull FVG confirmed — entry signal",
+        },
+        {
+          fn: "FVGSM_{id}_BearJustConfirmed()",
+          returns: "bool",
+          meaning: "Bear FVG confirmed — entry signal",
+        },
+        { fn: "FVGSM_{id}_BullConfirmSL()", returns: "double", meaning: "SL for bull entries" },
+        { fn: "FVGSM_{id}_BearConfirmSL()", returns: "double", meaning: "SL for bear entries" },
       ],
       reset: "FVGSM_{id}_Reset()",
     },
@@ -282,38 +407,94 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "bullish inversion FVG" },
       { phrase: "bearish inversion FVG" },
     ],
-    concept: "A FVG that price closes THROUGH — flipping its polarity. A bullish FVG that gets closed below becomes a bearish iFVG (resistance). A bearish FVG closed above becomes a bullish iFVG (support).",
-    detectionLogic: "First detects all FVGs. Then monitors for close-through events: bull FVG closed below LL → bear iFVG born. Bear FVG closed above UL → bull iFVG born. The inverted zone then tracks ACTIVE → RETESTED → CONFIRMED as the price returns to it from the new direction.",
+    concept:
+      "A FVG that price closes THROUGH — flipping its polarity. A bullish FVG that gets closed below becomes a bearish iFVG (resistance). A bearish FVG closed above becomes a bullish iFVG (support).",
+    detectionLogic:
+      "First detects all FVGs. Then monitors for close-through events: bull FVG closed below LL → bear iFVG born. Bear FVG closed above UL → bull iFVG born. The inverted zone then tracks ACTIVE → RETESTED → CONFIRMED as the price returns to it from the new direction.",
     roles: [
-      { role: "direction", fit: "primary",   usage: "iFVG confirmed = polarity flip confirmed. Sets directional bias." },
-      { role: "setup",     fit: "primary",   usage: "Active iFVG zone = setup waiting for retest entry." },
-      { role: "execution", fit: "primary",   usage: "iFVG CONFIRMED = high-probability entry after polarity-flip retest." },
+      {
+        role: "direction",
+        fit: "primary",
+        usage: "iFVG confirmed = polarity flip confirmed. Sets directional bias.",
+      },
+      {
+        role: "setup",
+        fit: "primary",
+        usage: "Active iFVG zone = setup waiting for retest entry.",
+      },
+      {
+        role: "execution",
+        fit: "primary",
+        usage: "iFVG CONFIRMED = high-probability entry after polarity-flip retest.",
+      },
     ],
-    lifecycle: "FVG formed → price closes THROUGH it → iFVG born (opposite direction) → ACTIVE → RETESTED → CONFIRMED",
+    lifecycle:
+      "FVG formed → price closes THROUGH it → iFVG born (opposite direction) → ACTIVE → RETESTED → CONFIRMED",
     params: [
-      { name: "expiryBars", type: "int", default: 100, range: [10, 500],
+      {
+        name: "expiryBars",
+        type: "int",
+        default: 100,
+        range: [10, 500],
         description: "Bars before iFVG expires",
-        traderPhrases: ["50-bar expiry", "expire old iFVGs after 100 bars"] },
+        traderPhrases: ["50-bar expiry", "expire old iFVGs after 100 bars"],
+      },
     ],
     outputStates: [
-      { name: "HasActiveBull()",     meaning: "A bull iFVG zone is live",          tradingImplication: "Polarity support zone present — wait for retest" },
-      { name: "HasActiveBear()",     meaning: "A bear iFVG zone is live",          tradingImplication: "Polarity resistance zone present" },
-      { name: "BullJustConfirmed()", meaning: "Bull iFVG retested and confirmed",  tradingImplication: "ENTRY — zone held after polarity flip" },
-      { name: "BearJustConfirmed()", meaning: "Bear iFVG confirmed",               tradingImplication: "ENTRY" },
-      { name: "BullConfirmSL()",     meaning: "Retest low — use as SL",            tradingImplication: "Tight SL at zone boundary" },
-      { name: "BearConfirmSL()",     meaning: "Retest high — use as SL",           tradingImplication: "Tight SL at zone boundary" },
+      {
+        name: "HasActiveBull()",
+        meaning: "A bull iFVG zone is live",
+        tradingImplication: "Polarity support zone present — wait for retest",
+      },
+      {
+        name: "HasActiveBear()",
+        meaning: "A bear iFVG zone is live",
+        tradingImplication: "Polarity resistance zone present",
+      },
+      {
+        name: "BullJustConfirmed()",
+        meaning: "Bull iFVG retested and confirmed",
+        tradingImplication: "ENTRY — zone held after polarity flip",
+      },
+      { name: "BearJustConfirmed()", meaning: "Bear iFVG confirmed", tradingImplication: "ENTRY" },
+      {
+        name: "BullConfirmSL()",
+        meaning: "Retest low — use as SL",
+        tradingImplication: "Tight SL at zone boundary",
+      },
+      {
+        name: "BearConfirmSL()",
+        meaning: "Retest high — use as SL",
+        tradingImplication: "Tight SL at zone boundary",
+      },
     ],
     inlineApi: {
       tick: "IFVGSM_{id}_Tick(lookback)",
       signals: [
-        { fn: "IFVGSM_{id}_HasActiveBull()",     returns: "bool",   meaning: "Live bull iFVG zone" },
-        { fn: "IFVGSM_{id}_HasActiveBear()",     returns: "bool",   meaning: "Live bear iFVG zone" },
-        { fn: "IFVGSM_{id}_BullJustConfirmed()", returns: "bool",   meaning: "Bull iFVG confirmed — entry" },
-        { fn: "IFVGSM_{id}_BearJustConfirmed()", returns: "bool",   meaning: "Bear iFVG confirmed — entry" },
-        { fn: "IFVGSM_{id}_BullConfirmSL()",     returns: "double", meaning: "SL for bull entries" },
-        { fn: "IFVGSM_{id}_BearConfirmSL()",     returns: "double", meaning: "SL for bear entries" },
-        { fn: "IFVGSM_{id}_LatestBullLL()",      returns: "double", meaning: "Lower limit of the most recent bull iFVG" },
-        { fn: "IFVGSM_{id}_LatestBearUL()",      returns: "double", meaning: "Upper limit of the most recent bear iFVG" },
+        { fn: "IFVGSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live bull iFVG zone" },
+        { fn: "IFVGSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live bear iFVG zone" },
+        {
+          fn: "IFVGSM_{id}_BullJustConfirmed()",
+          returns: "bool",
+          meaning: "Bull iFVG confirmed — entry",
+        },
+        {
+          fn: "IFVGSM_{id}_BearJustConfirmed()",
+          returns: "bool",
+          meaning: "Bear iFVG confirmed — entry",
+        },
+        { fn: "IFVGSM_{id}_BullConfirmSL()", returns: "double", meaning: "SL for bull entries" },
+        { fn: "IFVGSM_{id}_BearConfirmSL()", returns: "double", meaning: "SL for bear entries" },
+        {
+          fn: "IFVGSM_{id}_LatestBullLL()",
+          returns: "double",
+          meaning: "Lower limit of the most recent bull iFVG",
+        },
+        {
+          fn: "IFVGSM_{id}_LatestBearUL()",
+          returns: "double",
+          meaning: "Upper limit of the most recent bear iFVG",
+        },
       ],
       reset: "IFVGSM_{id}_Reset()",
     },
@@ -345,44 +526,120 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "displacement zone" },
       { phrase: "origin of the move" },
     ],
-    concept: "The last opposing candle before a strong ATR-displacement move. Represents institutional order flow. Tracks the zone through ACTIVE → RETESTED → CONFIRMED.",
-    detectionLogic: "Identifies displacement moves: candles where body >= dispMult × candle range. Then looks back up to scanBack bars for the last candle moving in the opposite direction — this is the OB. Zone is UL = OB high, LL = OB low. Lifecycle mirrors FVG: ACTIVE until retested, CONFIRMED after close holds outside near edge, MITIGATED if close trades inside zone.",
+    concept:
+      "The last opposing candle before a strong ATR-displacement move. Represents institutional order flow. Tracks the zone through ACTIVE → RETESTED → CONFIRMED.",
+    detectionLogic:
+      "Identifies displacement moves: candles where body >= dispMult × candle range. Then looks back up to scanBack bars for the last candle moving in the opposite direction — this is the OB. Zone is UL = OB high, LL = OB low. Lifecycle mirrors FVG: ACTIVE until retested, CONFIRMED after close holds outside near edge, MITIGATED if close trades inside zone.",
     roles: [
-      { role: "setup",     fit: "primary",   usage: "Active OB in bias direction = institutional zone to watch. Setup active while OB is live." },
-      { role: "execution", fit: "primary",   usage: "OB CONFIRMED = price retested the zone and institutional orders held. Entry signal." },
-      { role: "direction", fit: "possible",  usage: "Strong OB with large displacement indicates directional momentum." },
+      {
+        role: "setup",
+        fit: "primary",
+        usage:
+          "Active OB in bias direction = institutional zone to watch. Setup active while OB is live.",
+      },
+      {
+        role: "execution",
+        fit: "primary",
+        usage:
+          "OB CONFIRMED = price retested the zone and institutional orders held. Entry signal.",
+      },
+      {
+        role: "direction",
+        fit: "possible",
+        usage: "Strong OB with large displacement indicates directional momentum.",
+      },
     ],
-    lifecycle: "Displacement detected → last opposing candle becomes OB zone → ACTIVE → RETESTED → CONFIRMED | MITIGATED | INVALIDATED | EXPIRED",
+    lifecycle:
+      "Displacement detected → last opposing candle becomes OB zone → ACTIVE → RETESTED → CONFIRMED | MITIGATED | INVALIDATED | EXPIRED",
     params: [
-      { name: "dispMult",   type: "double", default: 0.6, range: [0.4, 0.9],
+      {
+        name: "dispMult",
+        type: "double",
+        default: 0.6,
+        range: [0.4, 0.9],
         description: "Body must be >= dispMult × candle range to count as displacement",
-        traderPhrases: ["strong displacement candles only", "use 70% body filter", "looser displacement filter"] },
-      { name: "scanBack",   type: "int",    default: 5, range: [1, 10],
+        traderPhrases: [
+          "strong displacement candles only",
+          "use 70% body filter",
+          "looser displacement filter",
+        ],
+      },
+      {
+        name: "scanBack",
+        type: "int",
+        default: 5,
+        range: [1, 10],
         description: "Bars before displacement to look for the OB candle",
-        traderPhrases: ["look 3 bars before the move", "scan back 5 candles"] },
-      { name: "expiryBars", type: "int",    default: 100, range: [10, 500],
+        traderPhrases: ["look 3 bars before the move", "scan back 5 candles"],
+      },
+      {
+        name: "expiryBars",
+        type: "int",
+        default: 100,
+        range: [10, 500],
         description: "Bars before OB expires",
-        traderPhrases: ["expire after 50 bars", "keep OBs for 200 bars"] },
+        traderPhrases: ["expire after 50 bars", "keep OBs for 200 bars"],
+      },
     ],
     outputStates: [
-      { name: "HasActiveBull()",     meaning: "A bull OB zone is live",          tradingImplication: "Demand zone present" },
-      { name: "HasActiveBear()",     meaning: "A bear OB zone is live",          tradingImplication: "Supply zone present" },
-      { name: "BullJustConfirmed()", meaning: "Bull OB retested and confirmed",  tradingImplication: "ENTRY — institutional demand held" },
-      { name: "BearJustConfirmed()", meaning: "Bear OB confirmed",               tradingImplication: "ENTRY — institutional supply held" },
-      { name: "BullConfirmSL()",     meaning: "SL below the OB (OB low)",        tradingImplication: "Place SL below zone" },
-      { name: "BearConfirmSL()",     meaning: "SL above the OB (OB high)",       tradingImplication: "Place SL above zone" },
+      {
+        name: "HasActiveBull()",
+        meaning: "A bull OB zone is live",
+        tradingImplication: "Demand zone present",
+      },
+      {
+        name: "HasActiveBear()",
+        meaning: "A bear OB zone is live",
+        tradingImplication: "Supply zone present",
+      },
+      {
+        name: "BullJustConfirmed()",
+        meaning: "Bull OB retested and confirmed",
+        tradingImplication: "ENTRY — institutional demand held",
+      },
+      {
+        name: "BearJustConfirmed()",
+        meaning: "Bear OB confirmed",
+        tradingImplication: "ENTRY — institutional supply held",
+      },
+      {
+        name: "BullConfirmSL()",
+        meaning: "SL below the OB (OB low)",
+        tradingImplication: "Place SL below zone",
+      },
+      {
+        name: "BearConfirmSL()",
+        meaning: "SL above the OB (OB high)",
+        tradingImplication: "Place SL above zone",
+      },
     ],
     inlineApi: {
       tick: "OBSM_{id}_Tick(lookback)",
       signals: [
-        { fn: "OBSM_{id}_HasActiveBull()",     returns: "bool",   meaning: "Live bull OB" },
-        { fn: "OBSM_{id}_HasActiveBear()",     returns: "bool",   meaning: "Live bear OB" },
-        { fn: "OBSM_{id}_BullJustConfirmed()", returns: "bool",   meaning: "Bull OB confirmed — entry" },
-        { fn: "OBSM_{id}_BearJustConfirmed()", returns: "bool",   meaning: "Bear OB confirmed — entry" },
-        { fn: "OBSM_{id}_BullConfirmSL()",     returns: "double", meaning: "SL for bull entries" },
-        { fn: "OBSM_{id}_BearConfirmSL()",     returns: "double", meaning: "SL for bear entries" },
-        { fn: "OBSM_{id}_LatestBullLL()",      returns: "double", meaning: "Lower limit of most recent bull OB" },
-        { fn: "OBSM_{id}_LatestBearUL()",      returns: "double", meaning: "Upper limit of most recent bear OB" },
+        { fn: "OBSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live bull OB" },
+        { fn: "OBSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live bear OB" },
+        {
+          fn: "OBSM_{id}_BullJustConfirmed()",
+          returns: "bool",
+          meaning: "Bull OB confirmed — entry",
+        },
+        {
+          fn: "OBSM_{id}_BearJustConfirmed()",
+          returns: "bool",
+          meaning: "Bear OB confirmed — entry",
+        },
+        { fn: "OBSM_{id}_BullConfirmSL()", returns: "double", meaning: "SL for bull entries" },
+        { fn: "OBSM_{id}_BearConfirmSL()", returns: "double", meaning: "SL for bear entries" },
+        {
+          fn: "OBSM_{id}_LatestBullLL()",
+          returns: "double",
+          meaning: "Lower limit of most recent bull OB",
+        },
+        {
+          fn: "OBSM_{id}_LatestBearUL()",
+          returns: "double",
+          meaning: "Upper limit of most recent bear OB",
+        },
       ],
       reset: "OBSM_{id}_Reset()",
     },
@@ -411,35 +668,110 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "FVG with order block" },
       { phrase: "high probability order block" },
     ],
-    concept: "A high-probability confluence: a Fair Value Gap whose FIRST candle is the opposite colour to the gap — that first candle is the order block. Entry is at the OB body.",
-    detectionLogic: "Scans 3-candle FVGs (C1 oldest, C3 newest). A bullish OB+FVG is a bullish gap (high(C1) < low(C3)) where C1 is bearish; a bearish OB+FVG is a bearish gap (low(C1) > high(C3)) where C1 is bullish. The OB = C1's body. Only FRESH zones count — a zone is consumed the instant price tests the OB body (a wick into it). Entry fires on that tap; SL = the OB candle's low (bull) / high (bear).",
+    concept:
+      "A high-probability confluence: a Fair Value Gap whose FIRST candle is the opposite colour to the gap — that first candle is the order block. Entry is at the OB body.",
+    detectionLogic:
+      "Scans 3-candle FVGs (C1 oldest, C3 newest). A bullish OB+FVG is a bullish gap (high(C1) < low(C3)) where C1 is bearish; a bearish OB+FVG is a bearish gap (low(C1) > high(C3)) where C1 is bullish. The OB = C1's body. Only FRESH zones count — a zone is consumed the instant price tests the OB body (a wick into it). Entry fires on that tap; SL = the OB candle's low (bull) / high (bear).",
     roles: [
-      { role: "setup",     fit: "primary",   usage: "A fresh OB+FVG zone in the bias direction is the setup; HasActiveBull/Bear means a zone is waiting." },
-      { role: "execution", fit: "primary",   usage: "Entry triggers when price taps the OB body (BullJustConfirmed/BearJustConfirmed)." },
+      {
+        role: "setup",
+        fit: "primary",
+        usage:
+          "A fresh OB+FVG zone in the bias direction is the setup; HasActiveBull/Bear means a zone is waiting.",
+      },
+      {
+        role: "execution",
+        fit: "primary",
+        usage: "Entry triggers when price taps the OB body (BullJustConfirmed/BearJustConfirmed).",
+      },
     ],
-    lifecycle: "OB+FVG forms (fresh) → ACTIVE while untouched → CONSUMED when price taps the OB body (entry) | EXPIRED after expiryBars",
+    lifecycle:
+      "OB+FVG forms (fresh) → ACTIVE while untouched → CONSUMED when price taps the OB body (entry) | EXPIRED after expiryBars",
     params: [
-      { name: "expiryBars", type: "int", default: 250, range: [20, 600], description: "Bars before an untested zone expires", traderPhrases: [] },
+      {
+        name: "expiryBars",
+        type: "int",
+        default: 250,
+        range: [20, 600],
+        description: "Bars before an untested zone expires",
+        traderPhrases: [],
+      },
     ],
     outputStates: [
-      { name: "HasActiveBull()",     meaning: "A fresh bullish OB+FVG zone exists",  tradingImplication: "Setup armed — watch for a tap of the OB body" },
-      { name: "HasActiveBear()",     meaning: "A fresh bearish OB+FVG zone exists",  tradingImplication: "Setup armed — watch for a tap of the OB body" },
-      { name: "BullJustConfirmed()", meaning: "Price tapped a bullish OB body",      tradingImplication: "ENTRY LONG at the OB" },
-      { name: "BearJustConfirmed()", meaning: "Price tapped a bearish OB body",      tradingImplication: "ENTRY SHORT at the OB" },
-      { name: "BullConfirmSL()",     meaning: "The OB candle low",                   tradingImplication: "SL below the order block" },
-      { name: "BearConfirmSL()",     meaning: "The OB candle high",                  tradingImplication: "SL above the order block" },
+      {
+        name: "HasActiveBull()",
+        meaning: "A fresh bullish OB+FVG zone exists",
+        tradingImplication: "Setup armed — watch for a tap of the OB body",
+      },
+      {
+        name: "HasActiveBear()",
+        meaning: "A fresh bearish OB+FVG zone exists",
+        tradingImplication: "Setup armed — watch for a tap of the OB body",
+      },
+      {
+        name: "BullJustConfirmed()",
+        meaning: "Price tapped a bullish OB body",
+        tradingImplication: "ENTRY LONG at the OB",
+      },
+      {
+        name: "BearJustConfirmed()",
+        meaning: "Price tapped a bearish OB body",
+        tradingImplication: "ENTRY SHORT at the OB",
+      },
+      {
+        name: "BullConfirmSL()",
+        meaning: "The OB candle low",
+        tradingImplication: "SL below the order block",
+      },
+      {
+        name: "BearConfirmSL()",
+        meaning: "The OB candle high",
+        tradingImplication: "SL above the order block",
+      },
     ],
     inlineApi: {
       tick: "OBFVGSM_{id}_Tick(lookback)",
       signals: [
-        { fn: "OBFVGSM_{id}_HasActiveBull()",     returns: "bool",   meaning: "Fresh bullish OB+FVG zone" },
-        { fn: "OBFVGSM_{id}_HasActiveBear()",     returns: "bool",   meaning: "Fresh bearish OB+FVG zone" },
-        { fn: "OBFVGSM_{id}_BullJustConfirmed()", returns: "bool",   meaning: "OB body tapped — long entry" },
-        { fn: "OBFVGSM_{id}_BearJustConfirmed()", returns: "bool",   meaning: "OB body tapped — short entry" },
-        { fn: "OBFVGSM_{id}_BullConfirmSL()",     returns: "double", meaning: "SL below the OB (entry)" },
-        { fn: "OBFVGSM_{id}_BearConfirmSL()",     returns: "double", meaning: "SL above the OB (entry)" },
-        { fn: "OBFVGSM_{id}_ActiveBullSL()",      returns: "double", meaning: "Freshest live bull zone OB low (setup SL hint)" },
-        { fn: "OBFVGSM_{id}_ActiveBearSL()",      returns: "double", meaning: "Freshest live bear zone OB high (setup SL hint)" },
+        {
+          fn: "OBFVGSM_{id}_HasActiveBull()",
+          returns: "bool",
+          meaning: "Fresh bullish OB+FVG zone",
+        },
+        {
+          fn: "OBFVGSM_{id}_HasActiveBear()",
+          returns: "bool",
+          meaning: "Fresh bearish OB+FVG zone",
+        },
+        {
+          fn: "OBFVGSM_{id}_BullJustConfirmed()",
+          returns: "bool",
+          meaning: "OB body tapped — long entry",
+        },
+        {
+          fn: "OBFVGSM_{id}_BearJustConfirmed()",
+          returns: "bool",
+          meaning: "OB body tapped — short entry",
+        },
+        {
+          fn: "OBFVGSM_{id}_BullConfirmSL()",
+          returns: "double",
+          meaning: "SL below the OB (entry)",
+        },
+        {
+          fn: "OBFVGSM_{id}_BearConfirmSL()",
+          returns: "double",
+          meaning: "SL above the OB (entry)",
+        },
+        {
+          fn: "OBFVGSM_{id}_ActiveBullSL()",
+          returns: "double",
+          meaning: "Freshest live bull zone OB low (setup SL hint)",
+        },
+        {
+          fn: "OBFVGSM_{id}_ActiveBearSL()",
+          returns: "double",
+          meaning: "Freshest live bear zone OB high (setup SL hint)",
+        },
       ],
       reset: "OBFVGSM_{id}_Reset()",
     },
@@ -471,34 +803,71 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "upthrust" },
       { phrase: "hunt the stops then reverse" },
     ],
-    concept: "Price wicks beyond a swing extreme (sweeping liquidity/stops), then closes back inside. The close-back IS the confirmation signal.",
-    detectionLogic: "Confirms swing pivots. When a candle's wick pierces a swing level AND the SAME candle closes back on the correct side, a CONFIRMED sweep fires immediately. The wick extreme becomes the SL. No waiting for a separate retest candle — the close-back is the entry signal.",
+    concept:
+      "Price wicks beyond a swing extreme (sweeping liquidity/stops), then closes back inside. The close-back IS the confirmation signal.",
+    detectionLogic:
+      "Confirms swing pivots. When a candle's wick pierces a swing level AND the SAME candle closes back on the correct side, a CONFIRMED sweep fires immediately. The wick extreme becomes the SL. No waiting for a separate retest candle — the close-back is the entry signal.",
     roles: [
-      { role: "execution", fit: "primary",   usage: "Sweep CONFIRMED = immediate entry signal. SL at wick extreme." },
-      { role: "setup",     fit: "secondary", usage: "Sweep sets context that liquidity has been cleared — setup for continuation." },
+      {
+        role: "execution",
+        fit: "primary",
+        usage: "Sweep CONFIRMED = immediate entry signal. SL at wick extreme.",
+      },
+      {
+        role: "setup",
+        fit: "secondary",
+        usage: "Sweep sets context that liquidity has been cleared — setup for continuation.",
+      },
     ],
-    lifecycle: "Swing pivot confirmed → wick sweeps beyond it → SAME BAR close-back → CONFIRMED (SL = wick extreme)",
+    lifecycle:
+      "Swing pivot confirmed → wick sweeps beyond it → SAME BAR close-back → CONFIRMED (SL = wick extreme)",
     params: [
-      { name: "swingLen", type: "int", default: 3, range: [2, 10],
+      {
+        name: "swingLen",
+        type: "int",
+        default: 3,
+        range: [2, 10],
         description: "Bars each side to confirm a swing pivot",
-        traderPhrases: ["use 3-bar pivots", "strict swing confirmation"] },
-      { name: "lookback", type: "int", default: 20, range: [5, 50],
+        traderPhrases: ["use 3-bar pivots", "strict swing confirmation"],
+      },
+      {
+        name: "lookback",
+        type: "int",
+        default: 20,
+        range: [5, 50],
         description: "Bars to scan for swing levels",
-        traderPhrases: ["recent swings only", "look back 30 bars"] },
+        traderPhrases: ["recent swings only", "look back 30 bars"],
+      },
     ],
     outputStates: [
-      { name: "BullJustConfirmed()", meaning: "Bull sweep: wick below swing low + close above it",  tradingImplication: "ENTRY LONG — stops hunted, now go up" },
-      { name: "BearJustConfirmed()", meaning: "Bear sweep: wick above swing high + close below it", tradingImplication: "ENTRY SHORT — stops hunted, now go down" },
-      { name: "BullConfirmSL()",     meaning: "Wick low of the sweep candle",                       tradingImplication: "Tight SL — place just below the wick" },
-      { name: "BearConfirmSL()",     meaning: "Wick high of the sweep candle",                      tradingImplication: "Tight SL — place just above the wick" },
+      {
+        name: "BullJustConfirmed()",
+        meaning: "Bull sweep: wick below swing low + close above it",
+        tradingImplication: "ENTRY LONG — stops hunted, now go up",
+      },
+      {
+        name: "BearJustConfirmed()",
+        meaning: "Bear sweep: wick above swing high + close below it",
+        tradingImplication: "ENTRY SHORT — stops hunted, now go down",
+      },
+      {
+        name: "BullConfirmSL()",
+        meaning: "Wick low of the sweep candle",
+        tradingImplication: "Tight SL — place just below the wick",
+      },
+      {
+        name: "BearConfirmSL()",
+        meaning: "Wick high of the sweep candle",
+        tradingImplication: "Tight SL — place just above the wick",
+      },
     ],
     inlineApi: {
       tick: "LSSM_{id}_Tick(lookback)",
       signals: [
-        { fn: "LSSM_{id}_BullJustConfirmed()", returns: "bool",   meaning: "Bull sweep confirmed" },
-        { fn: "LSSM_{id}_BearJustConfirmed()", returns: "bool",   meaning: "Bear sweep confirmed" },
-        { fn: "LSSM_{id}_BullConfirmSL()",     returns: "double", meaning: "SL = wick low" },
-        { fn: "LSSM_{id}_BearConfirmSL()",     returns: "double", meaning: "SL = wick high" },
+        { fn: "LSSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Bull sweep confirmed" },
+        { fn: "LSSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "Bear sweep confirmed" },
+        { fn: "LSSM_{id}_BullConfirmSL()", returns: "double", meaning: "SL = wick low" },
+        { fn: "LSSM_{id}_BearConfirmSL()", returns: "double", meaning: "SL = wick high" },
       ],
       reset: "LSSM_{id}_Reset()",
     },
@@ -530,35 +899,92 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "bounce off support" },
       { phrase: "reject off resistance" },
     ],
-    concept: "Horizontal support/resistance levels from candle-pair reversals; tracks each level ACTIVE→RETESTED→CONFIRMED.",
-    detectionLogic: "A bullish candle followed by a bearish candle marks the first candle's close as RESISTANCE. A bearish candle followed by a bullish candle marks it as SUPPORT. The level is then watched: RETESTED when a wick reaches it, CONFIRMED when a close holds on the correct side, BROKEN when a close pushes through.",
+    concept:
+      "Horizontal support/resistance levels from candle-pair reversals; tracks each level ACTIVE→RETESTED→CONFIRMED.",
+    detectionLogic:
+      "A bullish candle followed by a bearish candle marks the first candle's close as RESISTANCE. A bearish candle followed by a bullish candle marks it as SUPPORT. The level is then watched: RETESTED when a wick reaches it, CONFIRMED when a close holds on the correct side, BROKEN when a close pushes through.",
     roles: [
-      { role: "setup",     fit: "primary",   usage: "Active level near price = setup zone in the bias direction." },
-      { role: "execution", fit: "primary",   usage: "Level CONFIRMED = price respected support/resistance → entry." },
-      { role: "direction", fit: "possible",  usage: "Price above/below a major level can indicate bias." },
+      {
+        role: "setup",
+        fit: "primary",
+        usage: "Active level near price = setup zone in the bias direction.",
+      },
+      {
+        role: "execution",
+        fit: "primary",
+        usage: "Level CONFIRMED = price respected support/resistance → entry.",
+      },
+      {
+        role: "direction",
+        fit: "possible",
+        usage: "Price above/below a major level can indicate bias.",
+      },
     ],
-    lifecycle: "Candle-pair forms level → ACTIVE → RETESTED (wick touches) → CONFIRMED (close holds) | BROKEN | EXPIRED",
+    lifecycle:
+      "Candle-pair forms level → ACTIVE → RETESTED (wick touches) → CONFIRMED (close holds) | BROKEN | EXPIRED",
     params: [
-      { name: "lookback",   type: "int", default: 20,  range: [5, 200],  description: "Bars scanned for new levels each tick", traderPhrases: ["recent levels only", "look back 30 bars"] },
-      { name: "expiryBars", type: "int", default: 100, range: [10, 500], description: "Bars before an untouched level expires", traderPhrases: ["keep levels for 200 bars"] },
+      {
+        name: "lookback",
+        type: "int",
+        default: 20,
+        range: [5, 200],
+        description: "Bars scanned for new levels each tick",
+        traderPhrases: ["recent levels only", "look back 30 bars"],
+      },
+      {
+        name: "expiryBars",
+        type: "int",
+        default: 100,
+        range: [10, 500],
+        description: "Bars before an untouched level expires",
+        traderPhrases: ["keep levels for 200 bars"],
+      },
     ],
     outputStates: [
-      { name: "HasActiveBull()",     meaning: "A live support level exists",       tradingImplication: "Watch for a bounce" },
-      { name: "HasActiveBear()",     meaning: "A live resistance level exists",     tradingImplication: "Watch for a rejection" },
-      { name: "BullJustConfirmed()", meaning: "Support held this bar",              tradingImplication: "ENTRY LONG — buyers defended the level" },
-      { name: "BearJustConfirmed()", meaning: "Resistance held this bar",           tradingImplication: "ENTRY SHORT — sellers defended the level" },
-      { name: "BullConfirmSL()",     meaning: "Retest low — SL below support",      tradingImplication: "SL just under the level" },
-      { name: "BearConfirmSL()",     meaning: "Retest high — SL above resistance",  tradingImplication: "SL just above the level" },
+      {
+        name: "HasActiveBull()",
+        meaning: "A live support level exists",
+        tradingImplication: "Watch for a bounce",
+      },
+      {
+        name: "HasActiveBear()",
+        meaning: "A live resistance level exists",
+        tradingImplication: "Watch for a rejection",
+      },
+      {
+        name: "BullJustConfirmed()",
+        meaning: "Support held this bar",
+        tradingImplication: "ENTRY LONG — buyers defended the level",
+      },
+      {
+        name: "BearJustConfirmed()",
+        meaning: "Resistance held this bar",
+        tradingImplication: "ENTRY SHORT — sellers defended the level",
+      },
+      {
+        name: "BullConfirmSL()",
+        meaning: "Retest low — SL below support",
+        tradingImplication: "SL just under the level",
+      },
+      {
+        name: "BearConfirmSL()",
+        meaning: "Retest high — SL above resistance",
+        tradingImplication: "SL just above the level",
+      },
     ],
     inlineApi: {
       tick: "SNRSM_{id}_Tick(lookback)",
       signals: [
-        { fn: "SNRSM_{id}_HasActiveBull()",     returns: "bool",   meaning: "Live support level" },
-        { fn: "SNRSM_{id}_HasActiveBear()",     returns: "bool",   meaning: "Live resistance level" },
-        { fn: "SNRSM_{id}_BullJustConfirmed()", returns: "bool",   meaning: "Support held — entry" },
-        { fn: "SNRSM_{id}_BearJustConfirmed()", returns: "bool",   meaning: "Resistance held — entry" },
-        { fn: "SNRSM_{id}_BullConfirmSL()",     returns: "double", meaning: "SL below support" },
-        { fn: "SNRSM_{id}_BearConfirmSL()",     returns: "double", meaning: "SL above resistance" },
+        { fn: "SNRSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live support level" },
+        { fn: "SNRSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live resistance level" },
+        { fn: "SNRSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Support held — entry" },
+        {
+          fn: "SNRSM_{id}_BearJustConfirmed()",
+          returns: "bool",
+          meaning: "Resistance held — entry",
+        },
+        { fn: "SNRSM_{id}_BullConfirmSL()", returns: "double", meaning: "SL below support" },
+        { fn: "SNRSM_{id}_BearConfirmSL()", returns: "double", meaning: "SL above resistance" },
       ],
       reset: "SNRSM_{id}_Reset()",
     },
@@ -586,34 +1012,99 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "momentum level" },
       { phrase: "continuation level" },
     ],
-    concept: "Horizontal levels from candle-pair CONTINUATION (same-direction pair). Same lifecycle as Classic S/R, different detection.",
-    detectionLogic: "Two consecutive bullish candles mark the first candle's close as SUPPORT (gap support). Two consecutive bearish candles mark it as RESISTANCE. Tracks each level ACTIVE→RETESTED→CONFIRMED, BROKEN when a close pushes through.",
+    concept:
+      "Horizontal levels from candle-pair CONTINUATION (same-direction pair). Same lifecycle as Classic S/R, different detection.",
+    detectionLogic:
+      "Two consecutive bullish candles mark the first candle's close as SUPPORT (gap support). Two consecutive bearish candles mark it as RESISTANCE. Tracks each level ACTIVE→RETESTED→CONFIRMED, BROKEN when a close pushes through.",
     roles: [
-      { role: "setup",     fit: "primary",   usage: "Active gap level near price = momentum setup zone in bias direction." },
-      { role: "execution", fit: "primary",   usage: "Gap level CONFIRMED = momentum level held → entry." },
+      {
+        role: "setup",
+        fit: "primary",
+        usage: "Active gap level near price = momentum setup zone in bias direction.",
+      },
+      {
+        role: "execution",
+        fit: "primary",
+        usage: "Gap level CONFIRMED = momentum level held → entry.",
+      },
     ],
-    lifecycle: "Same-direction candle pair forms level → ACTIVE → RETESTED → CONFIRMED | BROKEN | EXPIRED",
+    lifecycle:
+      "Same-direction candle pair forms level → ACTIVE → RETESTED → CONFIRMED | BROKEN | EXPIRED",
     params: [
-      { name: "lookback",   type: "int", default: 20,  range: [5, 200],  description: "Bars scanned for new levels each tick", traderPhrases: ["recent levels only"] },
-      { name: "expiryBars", type: "int", default: 100, range: [10, 500], description: "Bars before an untouched level expires", traderPhrases: ["keep levels for 200 bars"] },
+      {
+        name: "lookback",
+        type: "int",
+        default: 20,
+        range: [5, 200],
+        description: "Bars scanned for new levels each tick",
+        traderPhrases: ["recent levels only"],
+      },
+      {
+        name: "expiryBars",
+        type: "int",
+        default: 100,
+        range: [10, 500],
+        description: "Bars before an untouched level expires",
+        traderPhrases: ["keep levels for 200 bars"],
+      },
     ],
     outputStates: [
-      { name: "HasActiveBull()",     meaning: "A live gap support level exists",   tradingImplication: "Watch for a momentum bounce" },
-      { name: "HasActiveBear()",     meaning: "A live gap resistance level exists", tradingImplication: "Watch for a momentum rejection" },
-      { name: "BullJustConfirmed()", meaning: "Gap support held this bar",          tradingImplication: "ENTRY LONG" },
-      { name: "BearJustConfirmed()", meaning: "Gap resistance held this bar",       tradingImplication: "ENTRY SHORT" },
-      { name: "BullConfirmSL()",     meaning: "Retest low — SL below support",      tradingImplication: "SL under the level" },
-      { name: "BearConfirmSL()",     meaning: "Retest high — SL above resistance",  tradingImplication: "SL above the level" },
+      {
+        name: "HasActiveBull()",
+        meaning: "A live gap support level exists",
+        tradingImplication: "Watch for a momentum bounce",
+      },
+      {
+        name: "HasActiveBear()",
+        meaning: "A live gap resistance level exists",
+        tradingImplication: "Watch for a momentum rejection",
+      },
+      {
+        name: "BullJustConfirmed()",
+        meaning: "Gap support held this bar",
+        tradingImplication: "ENTRY LONG",
+      },
+      {
+        name: "BearJustConfirmed()",
+        meaning: "Gap resistance held this bar",
+        tradingImplication: "ENTRY SHORT",
+      },
+      {
+        name: "BullConfirmSL()",
+        meaning: "Retest low — SL below support",
+        tradingImplication: "SL under the level",
+      },
+      {
+        name: "BearConfirmSL()",
+        meaning: "Retest high — SL above resistance",
+        tradingImplication: "SL above the level",
+      },
     ],
     inlineApi: {
       tick: "GSNRSM_{id}_Tick(lookback)",
       signals: [
-        { fn: "GSNRSM_{id}_HasActiveBull()",     returns: "bool",   meaning: "Live gap support level" },
-        { fn: "GSNRSM_{id}_HasActiveBear()",     returns: "bool",   meaning: "Live gap resistance level" },
-        { fn: "GSNRSM_{id}_BullJustConfirmed()", returns: "bool",   meaning: "Gap support held — entry" },
-        { fn: "GSNRSM_{id}_BearJustConfirmed()", returns: "bool",   meaning: "Gap resistance held — entry" },
-        { fn: "GSNRSM_{id}_BullConfirmSL()",     returns: "double", meaning: "SL below gap support" },
-        { fn: "GSNRSM_{id}_BearConfirmSL()",     returns: "double", meaning: "SL above gap resistance" },
+        { fn: "GSNRSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live gap support level" },
+        {
+          fn: "GSNRSM_{id}_HasActiveBear()",
+          returns: "bool",
+          meaning: "Live gap resistance level",
+        },
+        {
+          fn: "GSNRSM_{id}_BullJustConfirmed()",
+          returns: "bool",
+          meaning: "Gap support held — entry",
+        },
+        {
+          fn: "GSNRSM_{id}_BearJustConfirmed()",
+          returns: "bool",
+          meaning: "Gap resistance held — entry",
+        },
+        { fn: "GSNRSM_{id}_BullConfirmSL()", returns: "double", meaning: "SL below gap support" },
+        {
+          fn: "GSNRSM_{id}_BearConfirmSL()",
+          returns: "double",
+          meaning: "SL above gap resistance",
+        },
       ],
       reset: "GSNRSM_{id}_Reset()",
     },
@@ -640,33 +1131,88 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "candle closed above support" },
       { phrase: "respected the level" },
     ],
-    concept: "A candle whose wick pierces an S/R level but CLOSES BACK on the origin side — the level held. (Reactive SNR Rule 2.)",
-    detectionLogic: "Embeds Classic + Gap S/R level detection. A bullish rejection fires when a candle's low pierces a support but the close stays above it, with a long lower wick (≥ minWickRatio of range). A bearish rejection fires when the high pierces a resistance but the close stays below it. SL = the rejection candle's wick extreme.",
+    concept:
+      "A candle whose wick pierces an S/R level but CLOSES BACK on the origin side — the level held. (Reactive SNR Rule 2.)",
+    detectionLogic:
+      "Embeds Classic + Gap S/R level detection. A bullish rejection fires when a candle's low pierces a support but the close stays above it, with a long lower wick (≥ minWickRatio of range). A bearish rejection fires when the high pierces a resistance but the close stays below it. SL = the rejection candle's wick extreme.",
     roles: [
-      { role: "execution", fit: "primary",   usage: "Rejection candle off a level in the bias direction = entry. SL at the wick." },
-      { role: "setup",     fit: "secondary", usage: "A rejection validates the level as an active setup zone." },
+      {
+        role: "execution",
+        fit: "primary",
+        usage: "Rejection candle off a level in the bias direction = entry. SL at the wick.",
+      },
+      {
+        role: "setup",
+        fit: "secondary",
+        usage: "A rejection validates the level as an active setup zone.",
+      },
     ],
     lifecycle: "Point-in-time — fires on the bar a rejection completes at a live S/R level",
     params: [
-      { name: "lookback",     type: "int",    default: 30,  range: [10, 200], description: "Bars scanned for S/R levels", traderPhrases: ["recent levels"] },
-      { name: "minWickRatio", type: "double", default: 0.5, range: [0.3, 0.8], description: "Rejection wick must be ≥ this fraction of candle range", traderPhrases: ["strong rejection only", "long wick"] },
-      { name: "expiryBars",   type: "int",    default: 150, range: [20, 500], description: "Bars before a level expires", traderPhrases: [] },
+      {
+        name: "lookback",
+        type: "int",
+        default: 30,
+        range: [10, 200],
+        description: "Bars scanned for S/R levels",
+        traderPhrases: ["recent levels"],
+      },
+      {
+        name: "minWickRatio",
+        type: "double",
+        default: 0.5,
+        range: [0.3, 0.8],
+        description: "Rejection wick must be ≥ this fraction of candle range",
+        traderPhrases: ["strong rejection only", "long wick"],
+      },
+      {
+        name: "expiryBars",
+        type: "int",
+        default: 150,
+        range: [20, 500],
+        description: "Bars before a level expires",
+        traderPhrases: [],
+      },
     ],
     outputStates: [
-      { name: "BullJustConfirmed()", meaning: "Bullish rejection off support",   tradingImplication: "ENTRY LONG — support held with a wick" },
-      { name: "BearJustConfirmed()", meaning: "Bearish rejection off resistance", tradingImplication: "ENTRY SHORT — resistance held with a wick" },
-      { name: "BullConfirmSL()",     meaning: "Wick low of rejection candle",     tradingImplication: "Tight SL below the wick" },
-      { name: "BearConfirmSL()",     meaning: "Wick high of rejection candle",    tradingImplication: "Tight SL above the wick" },
+      {
+        name: "BullJustConfirmed()",
+        meaning: "Bullish rejection off support",
+        tradingImplication: "ENTRY LONG — support held with a wick",
+      },
+      {
+        name: "BearJustConfirmed()",
+        meaning: "Bearish rejection off resistance",
+        tradingImplication: "ENTRY SHORT — resistance held with a wick",
+      },
+      {
+        name: "BullConfirmSL()",
+        meaning: "Wick low of rejection candle",
+        tradingImplication: "Tight SL below the wick",
+      },
+      {
+        name: "BearConfirmSL()",
+        meaning: "Wick high of rejection candle",
+        tradingImplication: "Tight SL above the wick",
+      },
     ],
     inlineApi: {
       tick: "REJSM_{id}_Tick(lookback)",
       signals: [
-        { fn: "REJSM_{id}_HasActiveBull()",     returns: "bool",   meaning: "Live support level" },
-        { fn: "REJSM_{id}_HasActiveBear()",     returns: "bool",   meaning: "Live resistance level" },
-        { fn: "REJSM_{id}_BullJustConfirmed()", returns: "bool",   meaning: "Bullish rejection — entry" },
-        { fn: "REJSM_{id}_BearJustConfirmed()", returns: "bool",   meaning: "Bearish rejection — entry" },
-        { fn: "REJSM_{id}_BullConfirmSL()",     returns: "double", meaning: "SL below rejection wick" },
-        { fn: "REJSM_{id}_BearConfirmSL()",     returns: "double", meaning: "SL above rejection wick" },
+        { fn: "REJSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live support level" },
+        { fn: "REJSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live resistance level" },
+        {
+          fn: "REJSM_{id}_BullJustConfirmed()",
+          returns: "bool",
+          meaning: "Bullish rejection — entry",
+        },
+        {
+          fn: "REJSM_{id}_BearJustConfirmed()",
+          returns: "bool",
+          meaning: "Bearish rejection — entry",
+        },
+        { fn: "REJSM_{id}_BullConfirmSL()", returns: "double", meaning: "SL below rejection wick" },
+        { fn: "REJSM_{id}_BearConfirmSL()", returns: "double", meaning: "SL above rejection wick" },
       ],
       reset: "REJSM_{id}_Reset()",
     },
@@ -692,34 +1238,97 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "liquidity miss" },
       { phrase: "near miss" },
     ],
-    concept: "Price turns away NEAR an S/R level without touching it — the level is respected/validated and the miss leaves liquidity behind. (Reactive SNR, Slide 27.)",
-    detectionLogic: "Embeds Classic + Gap S/R level detection and swing-pivot detection. A bullish miss fires when a confirmed swing LOW forms within nearPoints ABOVE a support without its low reaching the level. A bearish miss fires when a swing HIGH forms within nearPoints BELOW a resistance without its high reaching the level. SL = the missed swing extreme.",
+    concept:
+      "Price turns away NEAR an S/R level without touching it — the level is respected/validated and the miss leaves liquidity behind. (Reactive SNR, Slide 27.)",
+    detectionLogic:
+      "Embeds Classic + Gap S/R level detection and swing-pivot detection. A bullish miss fires when a confirmed swing LOW forms within nearPoints ABOVE a support without its low reaching the level. A bearish miss fires when a swing HIGH forms within nearPoints BELOW a resistance without its high reaching the level. SL = the missed swing extreme.",
     roles: [
-      { role: "execution", fit: "primary",   usage: "A miss is a strong reversal entry — price respected the level without testing it." },
-      { role: "setup",     fit: "secondary", usage: "A miss validates the level; the next approach is higher probability." },
+      {
+        role: "execution",
+        fit: "primary",
+        usage: "A miss is a strong reversal entry — price respected the level without testing it.",
+      },
+      {
+        role: "setup",
+        fit: "secondary",
+        usage: "A miss validates the level; the next approach is higher probability.",
+      },
     ],
-    lifecycle: "Point-in-time — fires when a swing pivot is confirmed near (but not touching) a live level",
+    lifecycle:
+      "Point-in-time — fires when a swing pivot is confirmed near (but not touching) a live level",
     params: [
-      { name: "lookback",   type: "int", default: 40, range: [10, 200], description: "Bars scanned for S/R levels", traderPhrases: [] },
-      { name: "swingLen",   type: "int", default: 3,  range: [1, 10],   description: "Pivot confirmation bars each side", traderPhrases: ["3-bar pivots"] },
-      { name: "nearPoints", type: "int", default: 50, range: [10, 300], description: "Max distance (points) the pivot can be from the level to count as a miss", traderPhrases: ["within 30 points", "very close to the level"] },
-      { name: "expiryBars", type: "int", default: 200, range: [20, 600], description: "Bars before a level expires", traderPhrases: [] },
+      {
+        name: "lookback",
+        type: "int",
+        default: 40,
+        range: [10, 200],
+        description: "Bars scanned for S/R levels",
+        traderPhrases: [],
+      },
+      {
+        name: "swingLen",
+        type: "int",
+        default: 3,
+        range: [1, 10],
+        description: "Pivot confirmation bars each side",
+        traderPhrases: ["3-bar pivots"],
+      },
+      {
+        name: "nearPoints",
+        type: "int",
+        default: 50,
+        range: [10, 300],
+        description: "Max distance (points) the pivot can be from the level to count as a miss",
+        traderPhrases: ["within 30 points", "very close to the level"],
+      },
+      {
+        name: "expiryBars",
+        type: "int",
+        default: 200,
+        range: [20, 600],
+        description: "Bars before a level expires",
+        traderPhrases: [],
+      },
     ],
     outputStates: [
-      { name: "BullJustConfirmed()", meaning: "Swing low missed support (stayed above)",   tradingImplication: "ENTRY LONG — strong demand respected the level" },
-      { name: "BearJustConfirmed()", meaning: "Swing high missed resistance (stayed below)", tradingImplication: "ENTRY SHORT — strong supply respected the level" },
-      { name: "BullConfirmSL()",     meaning: "The missed swing low",   tradingImplication: "SL below the turning point" },
-      { name: "BearConfirmSL()",     meaning: "The missed swing high",  tradingImplication: "SL above the turning point" },
+      {
+        name: "BullJustConfirmed()",
+        meaning: "Swing low missed support (stayed above)",
+        tradingImplication: "ENTRY LONG — strong demand respected the level",
+      },
+      {
+        name: "BearJustConfirmed()",
+        meaning: "Swing high missed resistance (stayed below)",
+        tradingImplication: "ENTRY SHORT — strong supply respected the level",
+      },
+      {
+        name: "BullConfirmSL()",
+        meaning: "The missed swing low",
+        tradingImplication: "SL below the turning point",
+      },
+      {
+        name: "BearConfirmSL()",
+        meaning: "The missed swing high",
+        tradingImplication: "SL above the turning point",
+      },
     ],
     inlineApi: {
       tick: "MISSSM_{id}_Tick(lookback)",
       signals: [
-        { fn: "MISSSM_{id}_HasActiveBull()",     returns: "bool",   meaning: "Live support level" },
-        { fn: "MISSSM_{id}_HasActiveBear()",     returns: "bool",   meaning: "Live resistance level" },
-        { fn: "MISSSM_{id}_BullJustConfirmed()", returns: "bool",   meaning: "Bullish miss — entry" },
-        { fn: "MISSSM_{id}_BearJustConfirmed()", returns: "bool",   meaning: "Bearish miss — entry" },
-        { fn: "MISSSM_{id}_BullConfirmSL()",     returns: "double", meaning: "SL below missed swing low" },
-        { fn: "MISSSM_{id}_BearConfirmSL()",     returns: "double", meaning: "SL above missed swing high" },
+        { fn: "MISSSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live support level" },
+        { fn: "MISSSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live resistance level" },
+        { fn: "MISSSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Bullish miss — entry" },
+        { fn: "MISSSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "Bearish miss — entry" },
+        {
+          fn: "MISSSM_{id}_BullConfirmSL()",
+          returns: "double",
+          meaning: "SL below missed swing low",
+        },
+        {
+          fn: "MISSSM_{id}_BearConfirmSL()",
+          returns: "double",
+          meaning: "SL above missed swing high",
+        },
       ],
       reset: "MISSSM_{id}_Reset()",
     },
@@ -747,35 +1356,125 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "hidden RSI div" },
       { phrase: "continuation divergence" },
     ],
-    concept: "Trend-CONTINUATION divergence between price and RSI during a pullback. Bullish HD: price makes a Higher Low while RSI makes a Lower Low. Bearish HD: price makes a Lower High while RSI makes a Higher High. Signals that the pullback is ending and the trend should resume.",
-    detectionLogic: "On each newly-confirmed swing pivot, compares it to the previous swing of the same kind. Bullish HD fires when the newer swing LOW is HIGHER than the prior swing low (price HL) but the RSI at that low is LOWER (RSI LL). Bearish HD fires when the newer swing HIGH is LOWER (price LH) but RSI is HIGHER (RSI HH). RSI is read at the pivot bar. SL = the second (newer) swing point.",
+    concept:
+      "Trend-CONTINUATION divergence between price and RSI during a pullback. Bullish HD: price makes a Higher Low while RSI makes a Lower Low. Bearish HD: price makes a Lower High while RSI makes a Higher High. Signals that the pullback is ending and the trend should resume.",
+    detectionLogic:
+      "On each newly-confirmed swing pivot, compares it to the previous swing of the same kind. Bullish HD fires when the newer swing LOW is HIGHER than the prior swing low (price HL) but the RSI at that low is LOWER (RSI LL). Bearish HD fires when the newer swing HIGH is LOWER (price LH) but RSI is HIGHER (RSI HH). RSI is read at the pivot bar. SL = the second (newer) swing point.",
     roles: [
-      { role: "setup", fit: "primary", usage: "A hidden divergence in the trend direction = continuation setup; pair with a Direction Brain that already set the trend." },
+      {
+        role: "setup",
+        fit: "primary",
+        usage:
+          "A hidden divergence in the trend direction = continuation setup; pair with a Direction Brain that already set the trend.",
+      },
     ],
-    lifecycle: "Two comparable swings form → divergence detected on the second pivot (ACTIVE) → pending continuation until the trend resumes or price closes beyond the second swing (invalidation)",
+    lifecycle:
+      "Two comparable swings form → divergence detected on the second pivot (ACTIVE) → pending continuation until the trend resumes or price closes beyond the second swing (invalidation)",
     params: [
-      { name: "rsiPeriod",  type: "int", default: 14, range: [2, 50],  description: "RSI period", traderPhrases: ["RSI 14", "9-period RSI"] },
-      { name: "pivotLeft",  type: "int", default: 3,  range: [1, 10],  description: "Pivot confirmation bars on the older side", traderPhrases: ["3-bar swings"] },
-      { name: "pivotRight", type: "int", default: 3,  range: [1, 10],  description: "Pivot confirmation bars on the newer side", traderPhrases: [] },
-      { name: "minBars",    type: "int", default: 5,  range: [1, 50],  description: "Minimum bars between the two swings", traderPhrases: [] },
-      { name: "maxBars",    type: "int", default: 50, range: [10, 200],description: "Maximum bars between the two swings", traderPhrases: [] },
-      { name: "expiryBars", type: "int", default: 60, range: [10, 300],description: "Bars a pending HD stays valid awaiting continuation", traderPhrases: [] },
+      {
+        name: "rsiPeriod",
+        type: "int",
+        default: 14,
+        range: [2, 50],
+        description: "RSI period",
+        traderPhrases: ["RSI 14", "9-period RSI"],
+      },
+      {
+        name: "pivotLeft",
+        type: "int",
+        default: 3,
+        range: [1, 10],
+        description: "Pivot confirmation bars on the older side",
+        traderPhrases: ["3-bar swings"],
+      },
+      {
+        name: "pivotRight",
+        type: "int",
+        default: 3,
+        range: [1, 10],
+        description: "Pivot confirmation bars on the newer side",
+        traderPhrases: [],
+      },
+      {
+        name: "minBars",
+        type: "int",
+        default: 5,
+        range: [1, 50],
+        description: "Minimum bars between the two swings",
+        traderPhrases: [],
+      },
+      {
+        name: "maxBars",
+        type: "int",
+        default: 50,
+        range: [10, 200],
+        description: "Maximum bars between the two swings",
+        traderPhrases: [],
+      },
+      {
+        name: "expiryBars",
+        type: "int",
+        default: 60,
+        range: [10, 300],
+        description: "Bars a pending HD stays valid awaiting continuation",
+        traderPhrases: [],
+      },
     ],
     outputStates: [
-      { name: "BullJustConfirmed()", meaning: "Bullish HD detected (price HL + RSI LL)",  tradingImplication: "Continuation LONG setup in an uptrend" },
-      { name: "BearJustConfirmed()", meaning: "Bearish HD detected (price LH + RSI HH)",  tradingImplication: "Continuation SHORT setup in a downtrend" },
-      { name: "BullConfirmSL()",     meaning: "The second (newer) swing low",   tradingImplication: "SL below the higher low" },
-      { name: "BearConfirmSL()",     meaning: "The second (newer) swing high",  tradingImplication: "SL above the lower high" },
+      {
+        name: "BullJustConfirmed()",
+        meaning: "Bullish HD detected (price HL + RSI LL)",
+        tradingImplication: "Continuation LONG setup in an uptrend",
+      },
+      {
+        name: "BearJustConfirmed()",
+        meaning: "Bearish HD detected (price LH + RSI HH)",
+        tradingImplication: "Continuation SHORT setup in a downtrend",
+      },
+      {
+        name: "BullConfirmSL()",
+        meaning: "The second (newer) swing low",
+        tradingImplication: "SL below the higher low",
+      },
+      {
+        name: "BearConfirmSL()",
+        meaning: "The second (newer) swing high",
+        tradingImplication: "SL above the lower high",
+      },
     ],
     inlineApi: {
       tick: "RSIHDSM_{id}_Tick(lookback)",
       signals: [
-        { fn: "RSIHDSM_{id}_HasActiveBull()",     returns: "bool",   meaning: "Pending bullish HD awaiting continuation" },
-        { fn: "RSIHDSM_{id}_HasActiveBear()",     returns: "bool",   meaning: "Pending bearish HD awaiting continuation" },
-        { fn: "RSIHDSM_{id}_BullJustConfirmed()", returns: "bool",   meaning: "Bullish HD detected this bar" },
-        { fn: "RSIHDSM_{id}_BearJustConfirmed()", returns: "bool",   meaning: "Bearish HD detected this bar" },
-        { fn: "RSIHDSM_{id}_BullConfirmSL()",     returns: "double", meaning: "SL below the second swing low" },
-        { fn: "RSIHDSM_{id}_BearConfirmSL()",     returns: "double", meaning: "SL above the second swing high" },
+        {
+          fn: "RSIHDSM_{id}_HasActiveBull()",
+          returns: "bool",
+          meaning: "Pending bullish HD awaiting continuation",
+        },
+        {
+          fn: "RSIHDSM_{id}_HasActiveBear()",
+          returns: "bool",
+          meaning: "Pending bearish HD awaiting continuation",
+        },
+        {
+          fn: "RSIHDSM_{id}_BullJustConfirmed()",
+          returns: "bool",
+          meaning: "Bullish HD detected this bar",
+        },
+        {
+          fn: "RSIHDSM_{id}_BearJustConfirmed()",
+          returns: "bool",
+          meaning: "Bearish HD detected this bar",
+        },
+        {
+          fn: "RSIHDSM_{id}_BullConfirmSL()",
+          returns: "double",
+          meaning: "SL below the second swing low",
+        },
+        {
+          fn: "RSIHDSM_{id}_BearConfirmSL()",
+          returns: "double",
+          meaning: "SL above the second swing high",
+        },
       ],
       reset: "RSIHDSM_{id}_Reset()",
     },
@@ -785,7 +1484,10 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       "Bullish hidden divergence entry in an uptrend",
       "H4 BOS direction, M15 hidden divergence setup, M5 IFVG entry",
     ],
-    notSuitedFor: ["Direction bias — it assumes a trend already exists", "Reversal trading — it is a continuation signal"],
+    notSuitedFor: [
+      "Direction bias — it assumes a trend already exists",
+      "Reversal trading — it is a continuation signal",
+    ],
     combinesWith: ["bos", "choch", "ema", "fvg_inversion", "order_block"],
   },
 
@@ -805,35 +1507,96 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "range breakout" },
       { phrase: "retest after breakout" },
     ],
-    concept: "Detects a candle-close break of a recent range, then tracks the broken level flipping polarity (RBS/SBR) and being retested.",
-    detectionLogic: "When a candle closes above the recent range high, the broken high flips to support (RBS — Resistance Becomes Support). When a candle closes below the range low, the broken low flips to resistance (SBR). The flipped level is then watched: RETESTED when price wicks back to it, CONFIRMED when a close holds on the breakout side, INVALIDATED when a close pushes back through.",
+    concept:
+      "Detects a candle-close break of a recent range, then tracks the broken level flipping polarity (RBS/SBR) and being retested.",
+    detectionLogic:
+      "When a candle closes above the recent range high, the broken high flips to support (RBS — Resistance Becomes Support). When a candle closes below the range low, the broken low flips to resistance (SBR). The flipped level is then watched: RETESTED when price wicks back to it, CONFIRMED when a close holds on the breakout side, INVALIDATED when a close pushes back through.",
     roles: [
-      { role: "setup",     fit: "primary",   usage: "Active flipped level = break-and-retest setup in the breakout direction." },
-      { role: "execution", fit: "primary",   usage: "RBS/SBR CONFIRMED = retest held → break-and-retest entry." },
-      { role: "direction", fit: "secondary", usage: "A breakout sets short-term directional bias." },
+      {
+        role: "setup",
+        fit: "primary",
+        usage: "Active flipped level = break-and-retest setup in the breakout direction.",
+      },
+      {
+        role: "execution",
+        fit: "primary",
+        usage: "RBS/SBR CONFIRMED = retest held → break-and-retest entry.",
+      },
+      {
+        role: "direction",
+        fit: "secondary",
+        usage: "A breakout sets short-term directional bias.",
+      },
     ],
-    lifecycle: "Close beyond range → level flips (RBS/SBR) → ACTIVE → RETESTED → CONFIRMED | INVALIDATED | EXPIRED",
+    lifecycle:
+      "Close beyond range → level flips (RBS/SBR) → ACTIVE → RETESTED → CONFIRMED | INVALIDATED | EXPIRED",
     params: [
-      { name: "lookback",   type: "int", default: 20,  range: [5, 100],  description: "Range whose high/low defines the breakout level", traderPhrases: ["20-bar range", "break the 50-bar high"] },
-      { name: "expiryBars", type: "int", default: 100, range: [10, 500], description: "Bars before a flipped level expires", traderPhrases: ["keep flips for 100 bars"] },
+      {
+        name: "lookback",
+        type: "int",
+        default: 20,
+        range: [5, 100],
+        description: "Range whose high/low defines the breakout level",
+        traderPhrases: ["20-bar range", "break the 50-bar high"],
+      },
+      {
+        name: "expiryBars",
+        type: "int",
+        default: 100,
+        range: [10, 500],
+        description: "Bars before a flipped level expires",
+        traderPhrases: ["keep flips for 100 bars"],
+      },
     ],
     outputStates: [
-      { name: "HasActiveBull()",     meaning: "A live RBS (flipped support) exists",  tradingImplication: "Watch for a retest buy" },
-      { name: "HasActiveBear()",     meaning: "A live SBR (flipped resistance) exists",tradingImplication: "Watch for a retest sell" },
-      { name: "BullJustConfirmed()", meaning: "RBS retest held this bar",             tradingImplication: "ENTRY LONG — break-and-retest" },
-      { name: "BearJustConfirmed()", meaning: "SBR retest held this bar",             tradingImplication: "ENTRY SHORT — break-and-retest" },
-      { name: "BullConfirmSL()",     meaning: "Retest low — SL below the flip",       tradingImplication: "SL under the flipped level" },
-      { name: "BearConfirmSL()",     meaning: "Retest high — SL above the flip",      tradingImplication: "SL above the flipped level" },
+      {
+        name: "HasActiveBull()",
+        meaning: "A live RBS (flipped support) exists",
+        tradingImplication: "Watch for a retest buy",
+      },
+      {
+        name: "HasActiveBear()",
+        meaning: "A live SBR (flipped resistance) exists",
+        tradingImplication: "Watch for a retest sell",
+      },
+      {
+        name: "BullJustConfirmed()",
+        meaning: "RBS retest held this bar",
+        tradingImplication: "ENTRY LONG — break-and-retest",
+      },
+      {
+        name: "BearJustConfirmed()",
+        meaning: "SBR retest held this bar",
+        tradingImplication: "ENTRY SHORT — break-and-retest",
+      },
+      {
+        name: "BullConfirmSL()",
+        meaning: "Retest low — SL below the flip",
+        tradingImplication: "SL under the flipped level",
+      },
+      {
+        name: "BearConfirmSL()",
+        meaning: "Retest high — SL above the flip",
+        tradingImplication: "SL above the flipped level",
+      },
     ],
     inlineApi: {
       tick: "BRKSM_{id}_Tick(lookback)",
       signals: [
-        { fn: "BRKSM_{id}_HasActiveBull()",     returns: "bool",   meaning: "Live RBS level" },
-        { fn: "BRKSM_{id}_HasActiveBear()",     returns: "bool",   meaning: "Live SBR level" },
-        { fn: "BRKSM_{id}_BullJustConfirmed()", returns: "bool",   meaning: "RBS retest held — entry" },
-        { fn: "BRKSM_{id}_BearJustConfirmed()", returns: "bool",   meaning: "SBR retest held — entry" },
-        { fn: "BRKSM_{id}_BullConfirmSL()",     returns: "double", meaning: "SL below RBS" },
-        { fn: "BRKSM_{id}_BearConfirmSL()",     returns: "double", meaning: "SL above SBR" },
+        { fn: "BRKSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live RBS level" },
+        { fn: "BRKSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live SBR level" },
+        {
+          fn: "BRKSM_{id}_BullJustConfirmed()",
+          returns: "bool",
+          meaning: "RBS retest held — entry",
+        },
+        {
+          fn: "BRKSM_{id}_BearJustConfirmed()",
+          returns: "bool",
+          meaning: "SBR retest held — entry",
+        },
+        { fn: "BRKSM_{id}_BullConfirmSL()", returns: "double", meaning: "SL below RBS" },
+        { fn: "BRKSM_{id}_BearConfirmSL()", returns: "double", meaning: "SL above SBR" },
       ],
       reset: "BRKSM_{id}_Reset()",
     },
@@ -868,45 +1631,116 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "death cross" },
       { phrase: "fast and slow EMA" },
     ],
-    concept: "Two moving averages (fast and slow) whose relative position defines the trend direction. When fast > slow = BULL. When fast < slow = BEAR.",
-    detectionLogic: "Real iMA handles (drawn on the chart via B4_MA). TWO usage modes: (1) SIMPLE CROSS for Direction — fast vs slow alignment checked inline every bar, persistent (no state machine). (2) CROSS→RETEST SEQUENCE for Setup+Execution — the verified EMASM state machine persists IDLE → CROSSED (fast/slow CROSS in the bias direction arms the setup) → ARMED (price retests the slow EMA within tolerance; the retest bar only arms) → CONFIRMED (a LATER bar closes outside the fast EMA → entry next bar, SL = swing). After a confirmation a NEW cross is required. Use EMASM for any multi-bar 'cross then retest then close outside' rule — never hand-write it inline (the phases collapse onto one bar).",
+    concept:
+      "Two moving averages (fast and slow) whose relative position defines the trend direction. When fast > slow = BULL. When fast < slow = BEAR.",
+    detectionLogic:
+      "Real iMA handles (drawn on the chart via B4_MA). TWO usage modes: (1) SIMPLE CROSS for Direction — fast vs slow alignment checked inline every bar, persistent (no state machine). (2) CROSS→RETEST SEQUENCE for Setup+Execution — the verified EMASM state machine persists IDLE → CROSSED (fast/slow CROSS in the bias direction arms the setup) → ARMED (price retests the slow EMA within tolerance; the retest bar only arms) → CONFIRMED (a LATER bar closes outside the fast EMA → entry next bar, SL = swing). After a confirmation a NEW cross is required. Use EMASM for any multi-bar 'cross then retest then close outside' rule — never hand-write it inline (the phases collapse onto one bar).",
     roles: [
-      { role: "direction", fit: "primary",   usage: "Fast > slow = BULL bias. Fast < slow = BEAR bias. Inline B4_MA or EMASM_{id}_Bias()." },
-      { role: "setup",     fit: "primary",   usage: "EMASM SetupActive() = an aligned fast/slow CROSS has occurred (setup armed), retest in progress." },
-      { role: "execution", fit: "primary",   usage: "EMASM JustConfirmed() = a bar closed outside the fast EMA after the retest → entry." },
+      {
+        role: "direction",
+        fit: "primary",
+        usage:
+          "Fast > slow = BULL bias. Fast < slow = BEAR bias. Inline B4_MA or EMASM_{id}_Bias().",
+      },
+      {
+        role: "setup",
+        fit: "primary",
+        usage:
+          "EMASM SetupActive() = an aligned fast/slow CROSS has occurred (setup armed), retest in progress.",
+      },
+      {
+        role: "execution",
+        fit: "primary",
+        usage:
+          "EMASM JustConfirmed() = a bar closed outside the fast EMA after the retest → entry.",
+      },
     ],
-    lifecycle: "Simple cross: persistent alignment. Cross→retest SM: IDLE → CROSSED (aligned cross) → ARMED (retest slow EMA) → CONFIRMED (close outside fast EMA) → consumed (new cross required); invalidated on bias flip, opposite cross, or close back through the slow EMA.",
+    lifecycle:
+      "Simple cross: persistent alignment. Cross→retest SM: IDLE → CROSSED (aligned cross) → ARMED (retest slow EMA) → CONFIRMED (close outside fast EMA) → consumed (new cross required); invalidated on bias flip, opposite cross, or close back through the slow EMA.",
     params: [
-      { name: "fastPeriod", type: "int", default: 21, range: [5, 50],
+      {
+        name: "fastPeriod",
+        type: "int",
+        default: 21,
+        range: [5, 50],
         description: "Fast EMA period",
-        traderPhrases: ["EMA 21", "fast EMA of 9", "12-period EMA", "use the 50 EMA as fast"] },
-      { name: "slowPeriod", type: "int", default: 50, range: [20, 200],
+        traderPhrases: ["EMA 21", "fast EMA of 9", "12-period EMA", "use the 50 EMA as fast"],
+      },
+      {
+        name: "slowPeriod",
+        type: "int",
+        default: 50,
+        range: [20, 200],
         description: "Slow EMA period",
-        traderPhrases: ["EMA 50", "slow EMA of 200", "use 200 as the trend filter"] },
-      { name: "retestPoints", type: "int", default: 100, range: [10, 500],
-        description: "Retest tolerance in POINTS for the EMASM (1 pip = 10 points on a 5-digit symbol)",
-        traderPhrases: ["within 10 pips of the EMA", "touch the slow MA within 5 pips"] },
-      { name: "requireCross", type: "bool", default: true,
-        description: "Require an aligned fast/slow cross BEFORE the retest (the canonical EMA pullback). False = pure retest, no cross required.",
-        traderPhrases: ["wait for the EMA cross first", "cross then retest", "any pullback to the EMA"] },
+        traderPhrases: ["EMA 50", "slow EMA of 200", "use 200 as the trend filter"],
+      },
+      {
+        name: "retestPoints",
+        type: "int",
+        default: 100,
+        range: [10, 500],
+        description:
+          "Retest tolerance in POINTS for the EMASM (1 pip = 10 points on a 5-digit symbol)",
+        traderPhrases: ["within 10 pips of the EMA", "touch the slow MA within 5 pips"],
+      },
+      {
+        name: "requireCross",
+        type: "bool",
+        default: true,
+        description:
+          "Require an aligned fast/slow cross BEFORE the retest (the canonical EMA pullback). False = pure retest, no cross required.",
+        traderPhrases: [
+          "wait for the EMA cross first",
+          "cross then retest",
+          "any pullback to the EMA",
+        ],
+      },
     ],
     outputStates: [
-      { name: "fast > slow",     meaning: "Bullish alignment",          tradingImplication: "Bias BULL / only buys" },
-      { name: "fast < slow",     meaning: "Bearish alignment",          tradingImplication: "Bias BEAR / only sells" },
-      { name: "SetupActive()",   meaning: "Aligned cross occurred — setup live", tradingImplication: "Setup armed — await retest+confirmation" },
-      { name: "JustConfirmed()", meaning: "Close outside fast EMA after retest",  tradingImplication: "ENTRY in bias direction" },
+      {
+        name: "fast > slow",
+        meaning: "Bullish alignment",
+        tradingImplication: "Bias BULL / only buys",
+      },
+      {
+        name: "fast < slow",
+        meaning: "Bearish alignment",
+        tradingImplication: "Bias BEAR / only sells",
+      },
+      {
+        name: "SetupActive()",
+        meaning: "Aligned cross occurred — setup live",
+        tradingImplication: "Setup armed — await retest+confirmation",
+      },
+      {
+        name: "JustConfirmed()",
+        meaning: "Close outside fast EMA after retest",
+        tradingImplication: "ENTRY in bias direction",
+      },
     ],
     inlineApi: {
       tick: "EMASM_{id}_Tick(gBias)   // cross→retest mode; simple cross uses inline B4_MA, no tick",
       signals: [
-        { fn: "EMASM_{id}_Bias()",          returns: "int",    meaning: "Own fast/slow alignment (1/-1/0)" },
-        { fn: "EMASM_{id}_SetupActive()",   returns: "bool",   meaning: "Aligned cross occurred — setup live (CROSSED or ARMED)" },
-        { fn: "EMASM_{id}_RetestActive()",  returns: "bool",   meaning: "Retest of the slow EMA in progress (ARMED)" },
-        { fn: "EMASM_{id}_ActiveDir()",     returns: "int",    meaning: "Direction of the live setup" },
-        { fn: "EMASM_{id}_ActiveSL()",      returns: "double", meaning: "Swing SL hint while live" },
-        { fn: "EMASM_{id}_JustConfirmed()", returns: "bool",   meaning: "Close outside fast EMA after retest (entry)" },
-        { fn: "EMASM_{id}_ConfirmDir()",    returns: "int",    meaning: "Direction of the confirmation" },
-        { fn: "EMASM_{id}_ConfirmSL()",     returns: "double", meaning: "Swing SL at confirmation" },
+        { fn: "EMASM_{id}_Bias()", returns: "int", meaning: "Own fast/slow alignment (1/-1/0)" },
+        {
+          fn: "EMASM_{id}_SetupActive()",
+          returns: "bool",
+          meaning: "Aligned cross occurred — setup live (CROSSED or ARMED)",
+        },
+        {
+          fn: "EMASM_{id}_RetestActive()",
+          returns: "bool",
+          meaning: "Retest of the slow EMA in progress (ARMED)",
+        },
+        { fn: "EMASM_{id}_ActiveDir()", returns: "int", meaning: "Direction of the live setup" },
+        { fn: "EMASM_{id}_ActiveSL()", returns: "double", meaning: "Swing SL hint while live" },
+        {
+          fn: "EMASM_{id}_JustConfirmed()",
+          returns: "bool",
+          meaning: "Close outside fast EMA after retest (entry)",
+        },
+        { fn: "EMASM_{id}_ConfirmDir()", returns: "int", meaning: "Direction of the confirmation" },
+        { fn: "EMASM_{id}_ConfirmSL()", returns: "double", meaning: "Swing SL at confirmation" },
       ],
       reset: "EMASM_{id}_Reset()",
     },
@@ -936,16 +1770,31 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "strong close candle" },
       { phrase: "outside bar" },
     ],
-    concept: "A strong reversal candle whose body completely engulfs the previous candle. Indicates decisive directional momentum.",
-    detectionLogic: "Checks the relationship between the current candle (c1) and the previous candle (c2). Bullish: c1 close > c1 open, c2 close < c2 open, c1 close >= c2 open, c1 open <= c2 close. Bearish: inverse. Point-in-time signal — no state machine.",
+    concept:
+      "A strong reversal candle whose body completely engulfs the previous candle. Indicates decisive directional momentum.",
+    detectionLogic:
+      "Checks the relationship between the current candle (c1) and the previous candle (c2). Bullish: c1 close > c1 open, c2 close < c2 open, c1 close >= c2 open, c1 open <= c2 close. Bearish: inverse. Point-in-time signal — no state machine.",
     roles: [
-      { role: "execution", fit: "primary", usage: "Engulfing pattern aligned with bias = entry signal. SL at wick of engulfing candle." },
+      {
+        role: "execution",
+        fit: "primary",
+        usage:
+          "Engulfing pattern aligned with bias = entry signal. SL at wick of engulfing candle.",
+      },
     ],
     lifecycle: "Point-in-time — fires on the bar the pattern completes",
     params: [],
     outputStates: [
-      { name: "Bull engulfing", meaning: "Bullish reversal candle",  tradingImplication: "ENTRY LONG — strong buying pressure" },
-      { name: "Bear engulfing", meaning: "Bearish reversal candle",  tradingImplication: "ENTRY SHORT" },
+      {
+        name: "Bull engulfing",
+        meaning: "Bullish reversal candle",
+        tradingImplication: "ENTRY LONG — strong buying pressure",
+      },
+      {
+        name: "Bear engulfing",
+        meaning: "Bearish reversal candle",
+        tradingImplication: "ENTRY SHORT",
+      },
     ],
     inlineApi: {
       tick: "(none — inline check at bar open)",
@@ -980,22 +1829,44 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "doji with wick" },
       { phrase: "pinocchio bar" },
     ],
-    concept: "A candle with a long wick (>= 60% of range) rejecting a level, with a small body (<= 35% of range). The wick represents failed price acceptance.",
-    detectionLogic: "Calculates wick and body ratios from the bar. Bull pin: lower wick >= 60% of range AND body <= 35% of range. Bear pin: upper wick >= 60%. Point-in-time signal.",
+    concept:
+      "A candle with a long wick (>= 60% of range) rejecting a level, with a small body (<= 35% of range). The wick represents failed price acceptance.",
+    detectionLogic:
+      "Calculates wick and body ratios from the bar. Bull pin: lower wick >= 60% of range AND body <= 35% of range. Bear pin: upper wick >= 60%. Point-in-time signal.",
     roles: [
-      { role: "execution", fit: "primary", usage: "Pin bar at key level aligned with bias = rejection entry. SL at wick tip." },
+      {
+        role: "execution",
+        fit: "primary",
+        usage: "Pin bar at key level aligned with bias = rejection entry. SL at wick tip.",
+      },
     ],
     lifecycle: "Point-in-time — fires on the bar the pattern completes",
     params: [],
     outputStates: [
-      { name: "Bull pin bar", meaning: "Lower wick rejection — price rejected lower prices",  tradingImplication: "ENTRY LONG" },
-      { name: "Bear pin bar", meaning: "Upper wick rejection — price rejected higher prices", tradingImplication: "ENTRY SHORT" },
+      {
+        name: "Bull pin bar",
+        meaning: "Lower wick rejection — price rejected lower prices",
+        tradingImplication: "ENTRY LONG",
+      },
+      {
+        name: "Bear pin bar",
+        meaning: "Upper wick rejection — price rejected higher prices",
+        tradingImplication: "ENTRY SHORT",
+      },
     ],
     inlineApi: {
       tick: "(none — inline check at bar open)",
       signals: [
-        { fn: "lwick >= range*0.6 && body <= range*0.35", returns: "bool", meaning: "Bull pin bar" },
-        { fn: "uwick >= range*0.6 && body <= range*0.35", returns: "bool", meaning: "Bear pin bar" },
+        {
+          fn: "lwick >= range*0.6 && body <= range*0.35",
+          returns: "bool",
+          meaning: "Bull pin bar",
+        },
+        {
+          fn: "uwick >= range*0.6 && body <= range*0.35",
+          returns: "bool",
+          meaning: "Bear pin bar",
+        },
       ],
       reset: "(none)",
     },
@@ -1019,81 +1890,360 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
  * Each entry maps module id → array of user-facing inputs.
  */
 export interface UIParam {
-  key: string;          // matches ConfigParam.name in the library + key in brain.params
-  label: string;        // user-facing label  e.g. "Fast EMA Period"
+  key: string; // matches ConfigParam.name in the library + key in brain.params
+  label: string; // user-facing label  e.g. "Fast EMA Period"
   type: "number";
   default: number;
   min: number;
   max: number;
   step: number;
-  hint: string;         // one-line tooltip  e.g. "12 = faster, more responsive"
+  hint: string; // one-line tooltip  e.g. "12 = faster, more responsive"
 }
 
 export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
   ema: [
-    { key: "fastPeriod", label: "Fast EMA Period",  type: "number", default: 21, min: 2,  max: 200,  step: 1, hint: "e.g. 9, 12, 21 — shorter = faster response" },
-    { key: "slowPeriod", label: "Slow EMA Period",  type: "number", default: 50, min: 5,  max: 500,  step: 1, hint: "e.g. 48, 50, 200 — longer = stronger trend filter" },
+    {
+      key: "fastPeriod",
+      label: "Fast EMA Period",
+      type: "number",
+      default: 21,
+      min: 2,
+      max: 200,
+      step: 1,
+      hint: "e.g. 9, 12, 21 — shorter = faster response",
+    },
+    {
+      key: "slowPeriod",
+      label: "Slow EMA Period",
+      type: "number",
+      default: 50,
+      min: 5,
+      max: 500,
+      step: 1,
+      hint: "e.g. 48, 50, 200 — longer = stronger trend filter",
+    },
   ],
   bos: [
-    { key: "lookback",  label: "Structure Lookback (bars)", type: "number", default: 20, min: 5,  max: 200, step: 1, hint: "How many bars back to scan for swing levels" },
-    { key: "swingLen",  label: "Pivot Strength (bars each side)", type: "number", default: 5, min: 1, max: 20, step: 1, hint: "Bars each side needed to confirm a pivot high/low" },
+    {
+      key: "lookback",
+      label: "Structure Lookback (bars)",
+      type: "number",
+      default: 20,
+      min: 5,
+      max: 200,
+      step: 1,
+      hint: "How many bars back to scan for swing levels",
+    },
+    {
+      key: "swingLen",
+      label: "Pivot Strength (bars each side)",
+      type: "number",
+      default: 5,
+      min: 1,
+      max: 20,
+      step: 1,
+      hint: "Bars each side needed to confirm a pivot high/low",
+    },
   ],
   choch: [
-    { key: "lookback",  label: "Structure Lookback (bars)", type: "number", default: 20, min: 5,  max: 200, step: 1, hint: "How many bars back to scan for swing levels" },
-    { key: "swingLen",  label: "Pivot Strength (bars each side)", type: "number", default: 5, min: 1, max: 20, step: 1, hint: "Bars each side needed to confirm a pivot" },
+    {
+      key: "lookback",
+      label: "Structure Lookback (bars)",
+      type: "number",
+      default: 20,
+      min: 5,
+      max: 200,
+      step: 1,
+      hint: "How many bars back to scan for swing levels",
+    },
+    {
+      key: "swingLen",
+      label: "Pivot Strength (bars each side)",
+      type: "number",
+      default: 5,
+      min: 1,
+      max: 20,
+      step: 1,
+      hint: "Bars each side needed to confirm a pivot",
+    },
   ],
   bos_choch: [
-    { key: "lookback",  label: "Structure Lookback (bars)", type: "number", default: 20, min: 5,  max: 200, step: 1, hint: "How many bars back to scan for swing levels" },
-    { key: "swingLen",  label: "Pivot Strength (bars each side)", type: "number", default: 5, min: 1, max: 20, step: 1, hint: "Bars each side needed to confirm a pivot" },
+    {
+      key: "lookback",
+      label: "Structure Lookback (bars)",
+      type: "number",
+      default: 20,
+      min: 5,
+      max: 200,
+      step: 1,
+      hint: "How many bars back to scan for swing levels",
+    },
+    {
+      key: "swingLen",
+      label: "Pivot Strength (bars each side)",
+      type: "number",
+      default: 5,
+      min: 1,
+      max: 20,
+      step: 1,
+      hint: "Bars each side needed to confirm a pivot",
+    },
   ],
   fvg: [
-    { key: "expiryBars", label: "Zone Expiry (bars)", type: "number", default: 100, min: 10, max: 500, step: 10, hint: "How many bars before an untouched FVG expires" },
+    {
+      key: "expiryBars",
+      label: "Zone Expiry (bars)",
+      type: "number",
+      default: 100,
+      min: 10,
+      max: 500,
+      step: 10,
+      hint: "How many bars before an untouched FVG expires",
+    },
   ],
   fvg_inversion: [
-    { key: "expiryBars", label: "Zone Expiry (bars)", type: "number", default: 100, min: 10, max: 500, step: 10, hint: "How many bars before an untouched iFVG expires" },
+    {
+      key: "expiryBars",
+      label: "Zone Expiry (bars)",
+      type: "number",
+      default: 100,
+      min: 10,
+      max: 500,
+      step: 10,
+      hint: "How many bars before an untouched iFVG expires",
+    },
   ],
   order_block: [
-    { key: "dispMult",   label: "Displacement Body %", type: "number", default: 0.6, min: 0.4, max: 0.9, step: 0.05, hint: "Minimum body as fraction of candle range (0.6 = 60%)" },
-    { key: "scanBack",   label: "OB Scan Lookback (bars)", type: "number", default: 5,   min: 1,   max: 15,  step: 1,    hint: "Bars before displacement to look for the OB candle" },
-    { key: "expiryBars", label: "Zone Expiry (bars)",  type: "number", default: 100, min: 10,  max: 500, step: 10,   hint: "How many bars before an untouched OB expires" },
+    {
+      key: "dispMult",
+      label: "Displacement Body %",
+      type: "number",
+      default: 0.6,
+      min: 0.4,
+      max: 0.9,
+      step: 0.05,
+      hint: "Minimum body as fraction of candle range (0.6 = 60%)",
+    },
+    {
+      key: "scanBack",
+      label: "OB Scan Lookback (bars)",
+      type: "number",
+      default: 5,
+      min: 1,
+      max: 15,
+      step: 1,
+      hint: "Bars before displacement to look for the OB candle",
+    },
+    {
+      key: "expiryBars",
+      label: "Zone Expiry (bars)",
+      type: "number",
+      default: 100,
+      min: 10,
+      max: 500,
+      step: 10,
+      hint: "How many bars before an untouched OB expires",
+    },
   ],
   liqsweep: [
-    { key: "swingLen",  label: "Pivot Strength (bars each side)", type: "number", default: 3, min: 1, max: 10, step: 1, hint: "Bars each side needed to confirm a swing pivot" },
-    { key: "lookback",  label: "Swing Lookback (bars)", type: "number", default: 20, min: 5, max: 100, step: 1, hint: "How many bars back to scan for swing levels to sweep" },
+    {
+      key: "swingLen",
+      label: "Pivot Strength (bars each side)",
+      type: "number",
+      default: 3,
+      min: 1,
+      max: 10,
+      step: 1,
+      hint: "Bars each side needed to confirm a swing pivot",
+    },
+    {
+      key: "lookback",
+      label: "Swing Lookback (bars)",
+      type: "number",
+      default: 20,
+      min: 5,
+      max: 100,
+      step: 1,
+      hint: "How many bars back to scan for swing levels to sweep",
+    },
   ],
   snr: [
-    { key: "lookback",  label: "Level Lookback (bars)", type: "number", default: 20, min: 5,  max: 200, step: 5,  hint: "How many bars back to identify S/R levels" },
+    {
+      key: "lookback",
+      label: "Level Lookback (bars)",
+      type: "number",
+      default: 20,
+      min: 5,
+      max: 200,
+      step: 5,
+      hint: "How many bars back to identify S/R levels",
+    },
   ],
   gap_snr: [
-    { key: "lookback",  label: "Level Lookback (bars)", type: "number", default: 20, min: 5,  max: 200, step: 5,  hint: "How many bars back to identify gap S/R levels" },
+    {
+      key: "lookback",
+      label: "Level Lookback (bars)",
+      type: "number",
+      default: 20,
+      min: 5,
+      max: 200,
+      step: 5,
+      hint: "How many bars back to identify gap S/R levels",
+    },
   ],
   rejection: [
-    { key: "lookback",     label: "Level Lookback (bars)", type: "number", default: 30,  min: 10, max: 200, step: 5,    hint: "Bars back to identify S/R levels to react from" },
-    { key: "minWickRatio", label: "Min Wick %",            type: "number", default: 0.5, min: 0.3, max: 0.8, step: 0.05, hint: "Rejection wick as fraction of candle range (0.5 = 50%)" },
+    {
+      key: "lookback",
+      label: "Level Lookback (bars)",
+      type: "number",
+      default: 30,
+      min: 10,
+      max: 200,
+      step: 5,
+      hint: "Bars back to identify S/R levels to react from",
+    },
+    {
+      key: "minWickRatio",
+      label: "Min Wick %",
+      type: "number",
+      default: 0.5,
+      min: 0.3,
+      max: 0.8,
+      step: 0.05,
+      hint: "Rejection wick as fraction of candle range (0.5 = 50%)",
+    },
   ],
   miss: [
-    { key: "lookback",   label: "Level Lookback (bars)", type: "number", default: 40, min: 10, max: 200, step: 5, hint: "Bars back to identify S/R levels" },
-    { key: "swingLen",   label: "Pivot Strength (bars)", type: "number", default: 3,  min: 1,  max: 10,  step: 1, hint: "Bars each side to confirm the swing turning point" },
-    { key: "nearPoints", label: "Near Distance (points)", type: "number", default: 50, min: 10, max: 300, step: 5, hint: "How close (points) the pivot must be to the level to count as a miss" },
+    {
+      key: "lookback",
+      label: "Level Lookback (bars)",
+      type: "number",
+      default: 40,
+      min: 10,
+      max: 200,
+      step: 5,
+      hint: "Bars back to identify S/R levels",
+    },
+    {
+      key: "swingLen",
+      label: "Pivot Strength (bars)",
+      type: "number",
+      default: 3,
+      min: 1,
+      max: 10,
+      step: 1,
+      hint: "Bars each side to confirm the swing turning point",
+    },
+    {
+      key: "nearPoints",
+      label: "Near Distance (points)",
+      type: "number",
+      default: 50,
+      min: 10,
+      max: 300,
+      step: 5,
+      hint: "How close (points) the pivot must be to the level to count as a miss",
+    },
   ],
   bb: [
-    { key: "period",    label: "Period",      type: "number", default: 20, min: 5,  max: 100, step: 1, hint: "Moving average period for the Bollinger midline" },
+    {
+      key: "period",
+      label: "Period",
+      type: "number",
+      default: 20,
+      min: 5,
+      max: 100,
+      step: 1,
+      hint: "Moving average period for the Bollinger midline",
+    },
   ],
   swing_structure: [
-    { key: "lookback",  label: "Range Lookback (bars)", type: "number", default: 50, min: 10, max: 200, step: 5, hint: "Bar range used to define the swing structure" },
+    {
+      key: "lookback",
+      label: "Range Lookback (bars)",
+      type: "number",
+      default: 50,
+      min: 10,
+      max: 200,
+      step: 5,
+      hint: "Bar range used to define the swing structure",
+    },
   ],
   breakout: [
-    { key: "lookback",  label: "Range Lookback (bars)", type: "number", default: 20, min: 5,  max: 100, step: 5, hint: "Bar range whose high/low defines the breakout level" },
+    {
+      key: "lookback",
+      label: "Range Lookback (bars)",
+      type: "number",
+      default: 20,
+      min: 5,
+      max: 100,
+      step: 5,
+      hint: "Bar range whose high/low defines the breakout level",
+    },
   ],
   ob_fvg: [
-    { key: "expiryBars", label: "Zone Expiry (bars)", type: "number", default: 250, min: 20, max: 600, step: 10, hint: "Bars an untested OB+FVG zone stays valid" },
+    {
+      key: "expiryBars",
+      label: "Zone Expiry (bars)",
+      type: "number",
+      default: 250,
+      min: 20,
+      max: 600,
+      step: 10,
+      hint: "Bars an untested OB+FVG zone stays valid",
+    },
   ],
   rsi_hd: [
-    { key: "rsiPeriod",  label: "RSI Period",            type: "number", default: 14, min: 2,  max: 50,  step: 1, hint: "RSI period used to measure momentum" },
-    { key: "pivotLeft",  label: "Pivot Strength (left)", type: "number", default: 3,  min: 1,  max: 10,  step: 1, hint: "Bars on the older side to confirm a swing" },
-    { key: "pivotRight", label: "Pivot Strength (right)",type: "number", default: 3,  min: 1,  max: 10,  step: 1, hint: "Bars on the newer side to confirm a swing" },
-    { key: "minBars",    label: "Min Bars Between Swings",type: "number", default: 5,  min: 1,  max: 50,  step: 1, hint: "Minimum spacing between the two swings" },
-    { key: "maxBars",    label: "Max Bars Between Swings",type: "number", default: 50, min: 10, max: 200, step: 5, hint: "Maximum spacing between the two swings" },
+    {
+      key: "rsiPeriod",
+      label: "RSI Period",
+      type: "number",
+      default: 14,
+      min: 2,
+      max: 50,
+      step: 1,
+      hint: "RSI period used to measure momentum",
+    },
+    {
+      key: "pivotLeft",
+      label: "Pivot Strength (left)",
+      type: "number",
+      default: 3,
+      min: 1,
+      max: 10,
+      step: 1,
+      hint: "Bars on the older side to confirm a swing",
+    },
+    {
+      key: "pivotRight",
+      label: "Pivot Strength (right)",
+      type: "number",
+      default: 3,
+      min: 1,
+      max: 10,
+      step: 1,
+      hint: "Bars on the newer side to confirm a swing",
+    },
+    {
+      key: "minBars",
+      label: "Min Bars Between Swings",
+      type: "number",
+      default: 5,
+      min: 1,
+      max: 50,
+      step: 1,
+      hint: "Minimum spacing between the two swings",
+    },
+    {
+      key: "maxBars",
+      label: "Max Bars Between Swings",
+      type: "number",
+      default: 50,
+      min: 10,
+      max: 200,
+      step: 5,
+      hint: "Maximum spacing between the two swings",
+    },
   ],
 };
 
@@ -1117,14 +2267,21 @@ export function buildCompactModuleLibraryContext(): string {
     lines.push(`[${m.id}] ${m.label}`);
     lines.push(`  Concept: ${m.concept}`);
     // Aliases — most critical for phrase matching
-    lines.push(`  Trader calls it: ${m.aliases.slice(0, 8).map(a => `"${a.phrase}"`).join(", ")}`);
+    lines.push(
+      `  Trader calls it: ${m.aliases
+        .slice(0, 8)
+        .map((a) => `"${a.phrase}"`)
+        .join(", ")}`,
+    );
     // Primary roles
-    const primary = m.roles.filter(r => r.fit === "primary").map(r => r.role);
-    const secondary = m.roles.filter(r => r.fit !== "primary").map(r => r.role);
-    lines.push(`  Best role: ${primary.join(", ")}${secondary.length ? ` | also works as: ${secondary.join(", ")}` : ""}`);
+    const primary = m.roles.filter((r) => r.fit === "primary").map((r) => r.role);
+    const secondary = m.roles.filter((r) => r.fit !== "primary").map((r) => r.role);
+    lines.push(
+      `  Best role: ${primary.join(", ")}${secondary.length ? ` | also works as: ${secondary.join(", ")}` : ""}`,
+    );
     // Params (compact)
     if (m.params.length > 0) {
-      const pList = m.params.map(p => `${p.name}=${p.default}`).join(", ");
+      const pList = m.params.map((p) => `${p.name}=${p.default}`).join(", ");
       lines.push(`  Params: ${pList}`);
     }
     // Inline API
@@ -1173,9 +2330,21 @@ export function buildModuleLibraryContext(): string {
   for (const m of MODULE_LIBRARY) {
     lines.push(`■ ${m.label.toUpperCase()} (id: "${m.id}")`);
     lines.push(`  Concept: ${m.concept}`);
-    lines.push(`  Aliases: ${m.aliases.map(a => `"${a.phrase}"`).join(", ")}`);
-    lines.push(`  Best roles: ${m.roles.filter(r => r.fit === "primary").map(r => r.role.toUpperCase()).join(", ")}`);
-    lines.push(`  Can also do: ${m.roles.filter(r => r.fit !== "primary").map(r => `${r.role} (${r.fit})`).join(", ") || "—"}`);
+    lines.push(`  Aliases: ${m.aliases.map((a) => `"${a.phrase}"`).join(", ")}`);
+    lines.push(
+      `  Best roles: ${m.roles
+        .filter((r) => r.fit === "primary")
+        .map((r) => r.role.toUpperCase())
+        .join(", ")}`,
+    );
+    lines.push(
+      `  Can also do: ${
+        m.roles
+          .filter((r) => r.fit !== "primary")
+          .map((r) => `${r.role} (${r.fit})`)
+          .join(", ") || "—"
+      }`,
+    );
     lines.push(`  Role usage:`);
     for (const r of m.roles) {
       lines.push(`    ${r.role.padEnd(12)}: ${r.usage}`);
@@ -1184,7 +2353,12 @@ export function buildModuleLibraryContext(): string {
       lines.push(`  Configurable params:`);
       for (const p of m.params) {
         lines.push(`    ${p.name} (default ${p.default}): ${p.description}`);
-        lines.push(`      Trader phrases: ${p.traderPhrases.slice(0, 3).map(s => `"${s}"`).join(", ")}`);
+        lines.push(
+          `      Trader phrases: ${p.traderPhrases
+            .slice(0, 3)
+            .map((s) => `"${s}"`)
+            .join(", ")}`,
+        );
       }
     }
     lines.push(`  Inline API:`);

@@ -54,14 +54,25 @@ export function AuthGate() {
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" autoComplete="email" value={email}
-              onChange={(e) => setEmail(e.target.value)} placeholder="trader@example.com" />
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="trader@example.com"
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password"
+            <Input
+              id="password"
+              type="password"
               autoComplete={mode === "signin" ? "current-password" : "new-password"}
-              value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+            />
           </div>
 
           {error && <p className="text-xs text-destructive">{error}</p>}
@@ -73,8 +84,15 @@ export function AuthGate() {
           </Button>
         </form>
 
-        <button type="button" className="text-xs text-muted-foreground hover:text-foreground transition w-full text-center"
-          onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(null); setInfo(null); }}>
+        <button
+          type="button"
+          className="text-xs text-muted-foreground hover:text-foreground transition w-full text-center"
+          onClick={() => {
+            setMode(mode === "signin" ? "signup" : "signin");
+            setError(null);
+            setInfo(null);
+          }}
+        >
           {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
         </button>
       </div>

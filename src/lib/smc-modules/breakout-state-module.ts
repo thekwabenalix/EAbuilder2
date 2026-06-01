@@ -56,7 +56,7 @@
  */
 
 export const BREAKOUT_STATE_MODULE_VERSION = "1.00";
-export const BREAKOUT_STATE_MODULE         = "Breakout_State_Module";
+export const BREAKOUT_STATE_MODULE = "Breakout_State_Module";
 
 export function generateBreakoutStateModule(): string {
   return `//+------------------------------------------------------------------+

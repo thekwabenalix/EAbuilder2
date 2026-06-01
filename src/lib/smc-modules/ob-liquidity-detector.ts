@@ -24,7 +24,7 @@
  */
 
 export const OB_LIQUIDITY_DETECTOR_VERSION = "1.1.0";
-export const OB_LIQUIDITY_DETECTOR_MODULE  = "OB_Liquidity_Detector";
+export const OB_LIQUIDITY_DETECTOR_MODULE = "OB_Liquidity_Detector";
 
 export function generateObLiquidityDetector(): string {
   return `//+------------------------------------------------------------------+

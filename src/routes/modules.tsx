@@ -51,20 +51,20 @@ import { generateGapSnrDetector } from "@/lib/smc-modules/gap-snr-detector";
 import { generateBreakoutDetector } from "@/lib/smc-modules/breakout-detector";
 import { generateRejectionDetector } from "@/lib/smc-modules/rejection-detector";
 import { generateMissDetector } from "@/lib/smc-modules/miss-detector";
-import { generateFvgStateModule }       from "@/lib/smc-modules/fvg-state-module";
-import { generateObStateModule }        from "@/lib/smc-modules/ob-state-module";
-import { generateBreakoutStateModule }  from "@/lib/smc-modules/breakout-state-module";
+import { generateFvgStateModule } from "@/lib/smc-modules/fvg-state-module";
+import { generateObStateModule } from "@/lib/smc-modules/ob-state-module";
+import { generateBreakoutStateModule } from "@/lib/smc-modules/breakout-state-module";
 import { generateRejectionStateModule } from "@/lib/smc-modules/rejection-state-module";
-import { generateMissStateModule }      from "@/lib/smc-modules/miss-state-module";
-import { generateRssSrrDetector }       from "@/lib/smc-modules/rss-srr-detector";
-import { generateRssSrrStateModule }    from "@/lib/smc-modules/rss-srr-state-module";
-import { generateBosStateModule }       from "@/lib/smc-modules/bos-state-module";
-import { generateBbStateModule }        from "@/lib/smc-modules/bb-state-module";
-import { generateLiqSweepStateModule }       from "@/lib/smc-modules/liqsweep-state-module";
-import { generateFvgInversionStateModule }  from "@/lib/smc-modules/fvg-inversion-state-module";
-import { generateChochStateModule }         from "@/lib/smc-modules/choch-state-module";
-import { generateClassicSnrStateModule }    from "@/lib/smc-modules/classic-snr-state-module";
-import { generateGapSnrStateModule }        from "@/lib/smc-modules/gap-snr-state-module";
+import { generateMissStateModule } from "@/lib/smc-modules/miss-state-module";
+import { generateRssSrrDetector } from "@/lib/smc-modules/rss-srr-detector";
+import { generateRssSrrStateModule } from "@/lib/smc-modules/rss-srr-state-module";
+import { generateBosStateModule } from "@/lib/smc-modules/bos-state-module";
+import { generateBbStateModule } from "@/lib/smc-modules/bb-state-module";
+import { generateLiqSweepStateModule } from "@/lib/smc-modules/liqsweep-state-module";
+import { generateFvgInversionStateModule } from "@/lib/smc-modules/fvg-inversion-state-module";
+import { generateChochStateModule } from "@/lib/smc-modules/choch-state-module";
+import { generateClassicSnrStateModule } from "@/lib/smc-modules/classic-snr-state-module";
+import { generateGapSnrStateModule } from "@/lib/smc-modules/gap-snr-state-module";
 import { generateFvgExecutionEa } from "@/lib/phase3-modules/fvg-execution-ea";
 import {
   generatePhase3Ea,
@@ -106,9 +106,9 @@ export const Route = createFileRoute("/modules")({
 
 function downloadMql5(filename: string, content: string) {
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement("a");
-  a.href     = url;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
@@ -133,10 +133,10 @@ interface ModuleEntry {
 
 interface ModuleCategory {
   id: string;
-  label: string;        // short tab label
-  fullName: string;     // expanded name
+  label: string; // short tab label
+  fullName: string; // expanded name
   icon: LucideIcon;
-  phaseTag: string;     // e.g. "Phase 1 Active" | "Roadmap"
+  phaseTag: string; // e.g. "Phase 1 Active" | "Roadmap"
   phaseActive: boolean; // drives the tag colour
   description: string;
   modules: ModuleEntry[];
@@ -145,7 +145,6 @@ interface ModuleCategory {
 // ─── Module Registry ──────────────────────────────────────────────────────────
 
 const TRADING_MODULES: ModuleCategory[] = [
-
   // ── 1. Smart Money Concepts ───────────────────────────────────────────────
   {
     id: "smc",
@@ -1467,10 +1466,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Step 2 (M30): BearConfirmBuf[1]==1.0 on M30 — activates only after Step 1",
           "Execution: SELL — SL from BearSLBuf on M30 module",
         ],
-        output: [
-          "2-step chain — mirror of 2-TF bull strategy",
-          "Magic number default: 20250604",
-        ],
+        output: ["2-step chain — mirror of 2-TF bull strategy", "Magic number default: 20250604"],
         status: "ready",
         generate: () => generateMtfOrchestrator(FVG_2TF_BEAR),
       },
@@ -1669,10 +1665,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Step 2 (H4 FVG): BearConfirmBuf[1]==1.0 — FVG retested + close held below LL",
           "Execution: SELL on H4 bar open — SL from H4 BearSLBuf (retest high)",
         ],
-        output: [
-          "Uses BOS_State_Module (bias) + FVG_State_Module (entry)",
-          "Magic: 20250802",
-        ],
+        output: ["Uses BOS_State_Module (bias) + FVG_State_Module (entry)", "Magic: 20250802"],
         status: "ready",
         generate: () => generateMtfOrchestrator(BOS_BIAS_FVG_BEAR),
       },
@@ -1689,10 +1682,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Step 2 (H4 OB): BullConfirmBuf[1]==1.0 — OB retested + close held above OB high",
           "Execution: BUY on H4 bar open — SL from H4 BullSLBuf (retest low)",
         ],
-        output: [
-          "Uses BOS_State_Module (bias) + OB_State_Module (entry)",
-          "Magic: 20250803",
-        ],
+        output: ["Uses BOS_State_Module (bias) + OB_State_Module (entry)", "Magic: 20250803"],
         status: "ready",
         generate: () => generateMtfOrchestrator(BOS_BIAS_OB_BULL),
       },
@@ -1708,10 +1698,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Step 2 (H4 OB): BearConfirmBuf[1]==1.0 — OB retested + close held below OB low",
           "Execution: SELL on H4 bar open — SL from H4 BearSLBuf (retest high)",
         ],
-        output: [
-          "Uses BOS_State_Module (bias) + OB_State_Module (entry)",
-          "Magic: 20250804",
-        ],
+        output: ["Uses BOS_State_Module (bias) + OB_State_Module (entry)", "Magic: 20250804"],
         status: "ready",
         generate: () => generateMtfOrchestrator(BOS_BIAS_OB_BEAR),
       },
@@ -1930,8 +1917,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "IND_SMA_Detector.mq5",
         name: "SMA",
         description:
-          "Simple Moving Average with golden/death cross detection and " +
-          "configurable periods.",
+          "Simple Moving Average with golden/death cross detection and " + "configurable periods.",
         status: "planned",
       },
       {
@@ -1975,8 +1961,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "IND_MACD_Detector.mq5",
         name: "MACD",
         description:
-          "MACD line, signal line, and histogram with crossover and zero-line " +
-          "cross logging.",
+          "MACD line, signal line, and histogram with crossover and zero-line " + "cross logging.",
         status: "planned",
       },
       {
@@ -2039,9 +2024,12 @@ const TRADING_MODULES: ModuleCategory[] = [
 
 // ─── EA Backtest Panel ───────────────────────────────────────────────────────
 
-function today() { return new Date().toISOString().slice(0, 10).replace(/-/g, "."); }
+function today() {
+  return new Date().toISOString().slice(0, 10).replace(/-/g, ".");
+}
 function oneYearAgo() {
-  const d = new Date(); d.setFullYear(d.getFullYear() - 1);
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 1);
   return d.toISOString().slice(0, 10).replace(/-/g, ".");
 }
 
@@ -2088,8 +2076,8 @@ function ModuleCard({ mod }: { mod: ModuleEntry }) {
         isReady
           ? "border-border"
           : mod.status === "pending"
-          ? "border-border/60 opacity-75"
-          : "border-border/30 opacity-50"
+            ? "border-border/60 opacity-75"
+            : "border-border/30 opacity-50"
       }`}
     >
       {/* Header */}
@@ -2154,7 +2142,7 @@ function ModuleCard({ mod }: { mod: ModuleEntry }) {
 // ─── Category tab content ─────────────────────────────────────────────────────
 
 function CategoryPanel({ category }: { category: ModuleCategory }) {
-  const readyCount   = category.modules.filter((m) => m.status === "ready").length;
+  const readyCount = category.modules.filter((m) => m.status === "ready").length;
   const pendingCount = category.modules.filter((m) => m.status === "pending").length;
 
   return (
@@ -2206,10 +2194,7 @@ function ModulesPage() {
     (sum, cat) => sum + cat.modules.filter((m) => m.status === "ready").length,
     0,
   );
-  const totalModules = TRADING_MODULES.reduce(
-    (sum, cat) => sum + cat.modules.length,
-    0,
-  );
+  const totalModules = TRADING_MODULES.reduce((sum, cat) => sum + cat.modules.length, 0);
 
   return (
     <div>
@@ -2219,7 +2204,6 @@ function ModulesPage() {
       />
 
       <div className="p-6 space-y-6 max-w-5xl">
-
         {/* Architecture banner */}
         <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 flex items-start gap-3">
           <FlaskConical className="h-4 w-4 text-primary shrink-0 mt-0.5" />
@@ -2228,13 +2212,12 @@ function ModulesPage() {
               Phase 1: Detection only — {totalReady} of {totalModules} modules ready
             </p>
             <p>
-              Each module is a standalone MQL5 indicator. Download → compile in MetaEditor →
-              attach to a chart → verify visually before any execution logic is added.
+              Each module is a standalone MQL5 indicator. Download → compile in MetaEditor → attach
+              to a chart → verify visually before any execution logic is added.
             </p>
             <p>
-              <span className="font-medium">Architecture:</span>{" "}
-              Phase 1 Detection → Phase 2 State → Phase 3 Execution.
-              Modules are independently testable and composable.
+              <span className="font-medium">Architecture:</span> Phase 1 Detection → Phase 2 State →
+              Phase 3 Execution. Modules are independently testable and composable.
             </p>
           </div>
         </div>
@@ -2245,7 +2228,7 @@ function ModulesPage() {
             <TabsList className="inline-flex h-auto gap-1 p-1">
               {TRADING_MODULES.map((cat) => {
                 const ready = cat.modules.filter((m) => m.status === "ready").length;
-                const Icon  = cat.icon;
+                const Icon = cat.icon;
                 return (
                   <TabsTrigger
                     key={cat.id}
@@ -2264,7 +2247,6 @@ function ModulesPage() {
               })}
             </TabsList>
           </div>
-
 
           {TRADING_MODULES.map((cat) => (
             <TabsContent key={cat.id} value={cat.id} className="mt-4">

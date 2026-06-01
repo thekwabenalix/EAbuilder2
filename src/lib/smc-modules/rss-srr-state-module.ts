@@ -12,7 +12,7 @@
  */
 
 export const RSS_SRR_STATE_MODULE_VERSION = "4.0.0";
-export const RSS_SRR_STATE_MODULE  = "RSS_SRR_State_Module";
+export const RSS_SRR_STATE_MODULE = "RSS_SRR_State_Module";
 
 export function generateRssSrrStateModule(): string {
   return `//+------------------------------------------------------------------+

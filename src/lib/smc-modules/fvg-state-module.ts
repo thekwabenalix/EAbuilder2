@@ -53,7 +53,7 @@
  */
 
 export const FVG_STATE_MODULE_VERSION = "1.1.0";
-export const FVG_STATE_MODULE         = "FVG_State_Module";
+export const FVG_STATE_MODULE = "FVG_State_Module";
 
 export function generateFvgStateModule(): string {
   return `//+------------------------------------------------------------------+

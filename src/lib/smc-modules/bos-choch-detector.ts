@@ -45,7 +45,7 @@
  */
 
 export const BOS_CHOCH_DETECTOR_VERSION = "1.0.0";
-export const BOS_CHOCH_DETECTOR_MODULE  = "BOS_CHoCH_Detector";
+export const BOS_CHOCH_DETECTOR_MODULE = "BOS_CHoCH_Detector";
 
 /**
  * Returns the complete MQL5 source code for the BOS/CHoCH Detector (v1.0).

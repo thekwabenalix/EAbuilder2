@@ -21,8 +21,8 @@ export function genObSM(
   id: string,
   TF: string,
   tf: string,
-  dispMult  = 0.6,   // body must be >= dispMult * candle range
-  scanBack  = 5,     // bars before displacement to look for OB candle
+  dispMult = 0.6, // body must be >= dispMult * candle range
+  scanBack = 5, // bars before displacement to look for OB candle
   expiryBars = 100,
 ): string {
   const P = `OBSM_${id}_`;

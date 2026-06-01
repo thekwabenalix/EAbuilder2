@@ -23,7 +23,7 @@
  */
 
 export const MISS_DETECTOR_VERSION = "2.0.0";
-export const MISS_DETECTOR_MODULE  = "Miss_Detector";
+export const MISS_DETECTOR_MODULE = "Miss_Detector";
 
 export function generateMissDetector(): string {
   return `//+------------------------------------------------------------------+

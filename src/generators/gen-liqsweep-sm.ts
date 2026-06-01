@@ -17,9 +17,9 @@ export function genLiqSweepSM(
   id: string,
   TF: string,
   tf: string,
-  swingLen   = 3,    // bars each side to confirm swing pivot
-  lookback   = 20,   // bars to scan for swing levels
-  maxWait    = 5,    // bars to wait for close-back after wick
+  swingLen = 3, // bars each side to confirm swing pivot
+  lookback = 20, // bars to scan for swing levels
+  maxWait = 5, // bars to wait for close-back after wick
 ): string {
   const P = `LSSM_${id}_`;
 

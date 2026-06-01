@@ -18,9 +18,9 @@
  */
 
 export function genFvgInversionSM(
-  id: string,         // e.g. "H1" → all names get IFVGSM_H1_ prefix
-  TF: string,         // e.g. "PERIOD_H1"
-  tf: string,         // e.g. "H1" (for log messages)
+  id: string, // e.g. "H1" → all names get IFVGSM_H1_ prefix
+  TF: string, // e.g. "PERIOD_H1"
+  tf: string, // e.g. "H1" (for log messages)
   expiryBars = 100,
 ): string {
   const P = `IFVGSM_${id}_`; // prefix for all names in this instance

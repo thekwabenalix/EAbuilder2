@@ -67,16 +67,28 @@ export function testModularGenerator(): {
       { name: "Direction Brain Present", test: output.includes("Direction_Brain_Execute") },
       { name: "Setup Brain Present", test: output.includes("Setup_Brain_Execute") },
       { name: "Execution Brain Present", test: output.includes("Execution_Brain_Execute") },
-      { name: "Management Brain Present", test: output.includes("Management_Brain_ManageBreakEven") },
+      {
+        name: "Management Brain Present",
+        test: output.includes("Management_Brain_ManageBreakEven"),
+      },
       { name: "OnTick Assembler Present", test: output.includes("void OnTick()") },
-      { name: "Confluence Gate Logic", test: output.includes("canTrade") || output.includes("Gate") },
+      {
+        name: "Confluence Gate Logic",
+        test: output.includes("canTrade") || output.includes("Gate"),
+      },
       { name: "Brain State Types Defined", test: output.includes("struct DirectionBrainState") },
-      { name: "Global States Declared", test: output.includes("gDirState") && output.includes("gSetupState") },
+      {
+        name: "Global States Declared",
+        test: output.includes("gDirState") && output.includes("gSetupState"),
+      },
       { name: "Imports Present", test: output.includes("#include <Trade/Trade.mqh>") },
       { name: "OnInit Present", test: output.includes("int OnInit()") },
       { name: "OnDeinit Present", test: output.includes("void OnDeinit(") },
       { name: "Inputs Generated", test: output.includes("input") },
-      { name: "No Unresolved Placeholders", test: !output.includes("{{") && !output.includes("}}") },
+      {
+        name: "No Unresolved Placeholders",
+        test: !output.includes("{{") && !output.includes("}}"),
+      },
       { name: "Logging Statements Present", test: output.includes("PrintFormat") },
     ];
 

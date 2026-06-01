@@ -34,11 +34,17 @@ export function CodeViewer({
       <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground font-mono">{filename}</span>
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground/60">{language}</span>
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground/60">
+            {language}
+          </span>
         </div>
         <div className="flex items-center gap-1">
           <Button size="sm" variant="ghost" onClick={onCopy}>
-            {copied ? <Check className="h-3.5 w-3.5 mr-1" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
+            {copied ? (
+              <Check className="h-3.5 w-3.5 mr-1" />
+            ) : (
+              <Copy className="h-3.5 w-3.5 mr-1" />
+            )}
             {copied ? "Copied" : "Copy"}
           </Button>
           <Button size="sm" variant="ghost" onClick={onDownload}>

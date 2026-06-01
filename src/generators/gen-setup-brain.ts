@@ -25,13 +25,19 @@ import type { BrainConfig } from "@/types/blueprint";
 /** Read a numeric param from brain.params, falling back to the default. */
 function p(params: Record<string, unknown> | undefined, key: string, def: number): number {
   const v = params?.[key];
-  return (typeof v === "number" && isFinite(v)) ? v : def;
+  return typeof v === "number" && isFinite(v) ? v : def;
 }
 
 function tfConst(tf: string): string {
   const map: Record<string, string> = {
-    M1: "PERIOD_M1",  M5: "PERIOD_M5",  M15: "PERIOD_M15", M30: "PERIOD_M30",
-    H1: "PERIOD_H1",  H4: "PERIOD_H4",  D1: "PERIOD_D1",   W1: "PERIOD_W1",
+    M1: "PERIOD_M1",
+    M5: "PERIOD_M5",
+    M15: "PERIOD_M15",
+    M30: "PERIOD_M30",
+    H1: "PERIOD_H1",
+    H4: "PERIOD_H4",
+    D1: "PERIOD_D1",
+    W1: "PERIOD_W1",
     MN: "PERIOD_MN1",
   };
   return map[tf.toUpperCase()] ?? "PERIOD_H1";

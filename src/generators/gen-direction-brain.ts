@@ -15,13 +15,19 @@ import type { BrainConfig, BrainModuleType } from "@/types/blueprint";
 /** Read a numeric param from brain.params, falling back to the default. */
 function p(params: Record<string, unknown> | undefined, key: string, def: number): number {
   const v = params?.[key];
-  return (typeof v === "number" && isFinite(v)) ? v : def;
+  return typeof v === "number" && isFinite(v) ? v : def;
 }
 
 function tfConst(tf: string): string {
   const map: Record<string, string> = {
-    M1: "PERIOD_M1",  M5: "PERIOD_M5",  M15: "PERIOD_M15", M30: "PERIOD_M30",
-    H1: "PERIOD_H1",  H4: "PERIOD_H4",  D1: "PERIOD_D1",   W1: "PERIOD_W1",
+    M1: "PERIOD_M1",
+    M5: "PERIOD_M5",
+    M15: "PERIOD_M15",
+    M30: "PERIOD_M30",
+    H1: "PERIOD_H1",
+    H4: "PERIOD_H4",
+    D1: "PERIOD_D1",
+    W1: "PERIOD_W1",
     MN: "PERIOD_MN1",
   };
   return map[tf.toUpperCase()] ?? "PERIOD_H1";
@@ -33,7 +39,7 @@ function genModuleSignal(
   tf: string,
   TF: string,
   varName: string,
-  params?: Record<string, unknown>
+  params?: Record<string, unknown>,
 ): string {
   switch (mod) {
     case "bos":
@@ -290,15 +296,20 @@ ${sigCode}
 
   // Multiple modules: AND logic — all must agree on the same direction
   const varDecls = modules.map((m, i) => `   int _sig${i} = 0;  // ${m}`).join("\n");
-  const detections = modules.map((m, i) => genModuleSignal(m, tf, TF, `_sig${i}`, brainParams)).join("\n");
+  const detections = modules
+    .map((m, i) => genModuleSignal(m, tf, TF, `_sig${i}`, brainParams))
+    .join("\n");
 
   // AND check: all non-zero and all equal
   const allVars = modules.map((_, i) => `_sig${i}`);
-  const nonZeroCheck = allVars.map(v => `${v} != 0`).join(" && ");
-  const agreeCheck = allVars.slice(1).map(v => `${v} == _sig0`).join(" && ");
+  const nonZeroCheck = allVars.map((v) => `${v} != 0`).join(" && ");
+  const agreeCheck = allVars
+    .slice(1)
+    .map((v) => `${v} == _sig0`)
+    .join(" && ");
 
   return `
-// ─── Direction Brain: ${modules.map(m => m.toUpperCase()).join(" + ")} @ ${tf} ─────────────
+// ─── Direction Brain: ${modules.map((m) => m.toUpperCase()).join(" + ")} @ ${tf} ─────────────
 // AND logic: ALL modules must confirm the SAME direction before gBias changes.
 // gBias is PERSISTENT — only flips when opposite break fires.
 void Direction_Brain_Execute()
@@ -315,7 +326,7 @@ ${detections}
       int _combined = _sig0;
       if(gBias != _combined)
       {
-         PrintFormat("[DIR/${tf}] ${modules.map(m => m.toUpperCase()).join("+")} %s confirmed",
+         PrintFormat("[DIR/${tf}] ${modules.map((m) => m.toUpperCase()).join("+")} %s confirmed",
                      _combined>0?"BULL":"BEAR");
          gBias = _combined;
 
@@ -334,7 +345,7 @@ ${detections}
                         : iHigh(InpSymbol, PERIOD_CURRENT, 1) * 1.0003;
          if(ObjectCreate(0, _dlbl, OBJ_TEXT, 0, _dt, _dp))
          {
-            string _dtxt = StringFormat("${tf} DIR: ${modules.map(m => m.toUpperCase()).join("+")} %s ✓",
+            string _dtxt = StringFormat("${tf} DIR: ${modules.map((m) => m.toUpperCase()).join("+")} %s ✓",
                                          _combined > 0 ? "BULL" : "BEAR");
             ObjectSetString (0, _dlbl, OBJPROP_TEXT,     _dtxt);
             ObjectSetInteger(0, _dlbl, OBJPROP_COLOR,    _combined>0 ? clrDodgerBlue : clrOrangeRed);

@@ -31,13 +31,13 @@ reports.
 
 Lovable Cloud auto-provisions and writes `.env`. The variables are:
 
-| Variable | Where used |
-| --- | --- |
-| `VITE_SUPABASE_URL` | Browser Supabase client |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | Browser Supabase client |
-| `SUPABASE_URL` | Edge function runtime |
-| `SUPABASE_PUBLISHABLE_KEY` | Edge function runtime |
-| `LOVABLE_API_KEY` | Optional — enables real AI parsing in `mt5-strategy-parser` |
+| Variable                        | Where used                                                  |
+| ------------------------------- | ----------------------------------------------------------- |
+| `VITE_SUPABASE_URL`             | Browser Supabase client                                     |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Browser Supabase client                                     |
+| `SUPABASE_URL`                  | Edge function runtime                                       |
+| `SUPABASE_PUBLISHABLE_KEY`      | Edge function runtime                                       |
+| `LOVABLE_API_KEY`               | Optional — enables real AI parsing in `mt5-strategy-parser` |
 
 If `LOVABLE_API_KEY` is missing, the edge function falls back to a deterministic
 mock parser so the UI still works end-to-end.

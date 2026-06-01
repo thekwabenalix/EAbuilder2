@@ -29,9 +29,9 @@ export function genMissSM(
   id: string,
   TF: string,
   tf: string,
-  lookback = 40,        // bars scanned for S/R levels each tick
-  swingLen = 3,         // pivot confirmation bars each side
-  nearPoints = 50,      // pivot must be within this many POINTS of the level
+  lookback = 40, // bars scanned for S/R levels each tick
+  swingLen = 3, // pivot confirmation bars each side
+  nearPoints = 50, // pivot must be within this many POINTS of the level
   expiryBars = 200,
 ): string {
   const P = `MISSSM_${id}_`;

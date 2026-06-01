@@ -42,7 +42,7 @@
  */
 
 export const LIQSWEEP_DETECTOR_VERSION = "1.0.0";
-export const LIQSWEEP_DETECTOR_MODULE  = "LiqSweep_Detector";
+export const LIQSWEEP_DETECTOR_MODULE = "LiqSweep_Detector";
 
 /**
  * Returns the complete MQL5 source code for the Liquidity Sweep Detector (v1.0).
