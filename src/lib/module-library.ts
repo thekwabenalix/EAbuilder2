@@ -678,6 +678,62 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     combinesWith: ["snr", "gap_snr", "bos", "ema"],
   },
 
+  // ─── RSI Hidden Divergence ───────────────────────────────────────────────────
+  {
+    id: "rsi_hd",
+    label: "RSI Hidden Divergence",
+    aliases: [
+      { phrase: "hidden divergence" },
+      { phrase: "RSI hidden divergence" },
+      { phrase: "bullish hidden divergence" },
+      { phrase: "bearish hidden divergence" },
+      { phrase: "HD" },
+      { phrase: "RSI HD" },
+      { phrase: "hidden RSI div" },
+      { phrase: "continuation divergence" },
+    ],
+    concept: "Trend-CONTINUATION divergence between price and RSI during a pullback. Bullish HD: price makes a Higher Low while RSI makes a Lower Low. Bearish HD: price makes a Lower High while RSI makes a Higher High. Signals that the pullback is ending and the trend should resume.",
+    detectionLogic: "On each newly-confirmed swing pivot, compares it to the previous swing of the same kind. Bullish HD fires when the newer swing LOW is HIGHER than the prior swing low (price HL) but the RSI at that low is LOWER (RSI LL). Bearish HD fires when the newer swing HIGH is LOWER (price LH) but RSI is HIGHER (RSI HH). RSI is read at the pivot bar. SL = the second (newer) swing point.",
+    roles: [
+      { role: "setup", fit: "primary", usage: "A hidden divergence in the trend direction = continuation setup; pair with a Direction Brain that already set the trend." },
+    ],
+    lifecycle: "Two comparable swings form → divergence detected on the second pivot (ACTIVE) → pending continuation until the trend resumes or price closes beyond the second swing (invalidation)",
+    params: [
+      { name: "rsiPeriod",  type: "int", default: 14, range: [2, 50],  description: "RSI period", traderPhrases: ["RSI 14", "9-period RSI"] },
+      { name: "pivotLeft",  type: "int", default: 3,  range: [1, 10],  description: "Pivot confirmation bars on the older side", traderPhrases: ["3-bar swings"] },
+      { name: "pivotRight", type: "int", default: 3,  range: [1, 10],  description: "Pivot confirmation bars on the newer side", traderPhrases: [] },
+      { name: "minBars",    type: "int", default: 5,  range: [1, 50],  description: "Minimum bars between the two swings", traderPhrases: [] },
+      { name: "maxBars",    type: "int", default: 50, range: [10, 200],description: "Maximum bars between the two swings", traderPhrases: [] },
+      { name: "expiryBars", type: "int", default: 60, range: [10, 300],description: "Bars a pending HD stays valid awaiting continuation", traderPhrases: [] },
+    ],
+    outputStates: [
+      { name: "BullJustConfirmed()", meaning: "Bullish HD detected (price HL + RSI LL)",  tradingImplication: "Continuation LONG setup in an uptrend" },
+      { name: "BearJustConfirmed()", meaning: "Bearish HD detected (price LH + RSI HH)",  tradingImplication: "Continuation SHORT setup in a downtrend" },
+      { name: "BullConfirmSL()",     meaning: "The second (newer) swing low",   tradingImplication: "SL below the higher low" },
+      { name: "BearConfirmSL()",     meaning: "The second (newer) swing high",  tradingImplication: "SL above the lower high" },
+    ],
+    inlineApi: {
+      tick: "RSIHDSM_{id}_Tick(lookback)",
+      signals: [
+        { fn: "RSIHDSM_{id}_HasActiveBull()",     returns: "bool",   meaning: "Pending bullish HD awaiting continuation" },
+        { fn: "RSIHDSM_{id}_HasActiveBear()",     returns: "bool",   meaning: "Pending bearish HD awaiting continuation" },
+        { fn: "RSIHDSM_{id}_BullJustConfirmed()", returns: "bool",   meaning: "Bullish HD detected this bar" },
+        { fn: "RSIHDSM_{id}_BearJustConfirmed()", returns: "bool",   meaning: "Bearish HD detected this bar" },
+        { fn: "RSIHDSM_{id}_BullConfirmSL()",     returns: "double", meaning: "SL below the second swing low" },
+        { fn: "RSIHDSM_{id}_BearConfirmSL()",     returns: "double", meaning: "SL above the second swing high" },
+      ],
+      reset: "RSIHDSM_{id}_Reset()",
+    },
+    examplePhrases: [
+      "M15 hidden divergence setup",
+      "Continuation on RSI hidden divergence",
+      "Bullish hidden divergence entry in an uptrend",
+      "H4 BOS direction, M15 hidden divergence setup, M5 IFVG entry",
+    ],
+    notSuitedFor: ["Direction bias — it assumes a trend already exists", "Reversal trading — it is a continuation signal"],
+    combinesWith: ["bos", "choch", "ema", "fvg_inversion", "order_block"],
+  },
+
   // ─── Breakout ──────────────────────────────────────────────────────────────
   {
     id: "breakout",
@@ -960,6 +1016,13 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
   ],
   breakout: [
     { key: "lookback",  label: "Range Lookback (bars)", type: "number", default: 20, min: 5,  max: 100, step: 5, hint: "Bar range whose high/low defines the breakout level" },
+  ],
+  rsi_hd: [
+    { key: "rsiPeriod",  label: "RSI Period",            type: "number", default: 14, min: 2,  max: 50,  step: 1, hint: "RSI period used to measure momentum" },
+    { key: "pivotLeft",  label: "Pivot Strength (left)", type: "number", default: 3,  min: 1,  max: 10,  step: 1, hint: "Bars on the older side to confirm a swing" },
+    { key: "pivotRight", label: "Pivot Strength (right)",type: "number", default: 3,  min: 1,  max: 10,  step: 1, hint: "Bars on the newer side to confirm a swing" },
+    { key: "minBars",    label: "Min Bars Between Swings",type: "number", default: 5,  min: 1,  max: 50,  step: 1, hint: "Minimum spacing between the two swings" },
+    { key: "maxBars",    label: "Max Bars Between Swings",type: "number", default: 50, min: 10, max: 200, step: 5, hint: "Maximum spacing between the two swings" },
   ],
 };
 
