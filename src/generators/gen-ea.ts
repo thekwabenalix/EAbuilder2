@@ -300,7 +300,7 @@ function buildAiStateMachines(configs: AiBrainWiring["sm_configs"]): string {
             tf,
             (p.fastPeriod as number) ?? 12,
             (p.slowPeriod as number) ?? 48,
-            (p.retestPoints as number) ?? 100,
+            (p.retestPoints as number) ?? 0,
             (p.requireCross as boolean) ?? true,
           ),
         );

@@ -172,7 +172,7 @@ CODE GENERATION RULES
     EMASM state machine (type "ema", prefix EMASM): IDLE → CROSSED (aligned
     fast/slow cross) → ARMED (retest slow EMA) → CONFIRMED (close outside fast EMA).
       // sm_configs: { "ema_M5": { type:"ema", id:"M5", TF:"PERIOD_M5", tf:"M5",
-      //   params:{ fastPeriod:12, slowPeriod:48, retestPoints:100, requireCross:true } } }
+      //   params:{ fastPeriod:12, slowPeriod:48, retestPoints:0, requireCross:true } } }
       void Setup_Brain_Execute() {     // setup = the M5 cross occurred (setup live)
         EMASM_M5_Tick(gBias);          // advance once (safe if Exec also ticks)
         if(EMASM_M5_SetupActive()) {
@@ -193,7 +193,8 @@ CODE GENERATION RULES
     set false ONLY for a pure retest-with-no-cross strategy.
     EMASM on the SAME TF for both Setup and Execution is correct — Tick is once-per-bar
     guarded, so SetupActive() and JustConfirmed() are both valid on the confirmation bar.
-    retestPoints = tolerance in POINTS (1 pip = 10 points on a 5-digit symbol; "10 pips" → 100).
+    retestPoints = tolerance in POINTS. Default to 0 for a real touch of the slow EMA.
+    Use a positive tolerance only when the trader explicitly says "within N points/pips".
 
     ★★★ NEVER add a manual "arm now, fire next bar" defer for entries (no
     gExecSignalArmed / gExecSignalBar pattern, no waiting one bar before setting

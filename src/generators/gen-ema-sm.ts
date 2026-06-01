@@ -47,7 +47,7 @@ export function genEmaSM(
   tf: string,
   fast = 12,
   slow = 48,
-  retestPoints = 100, // retest tolerance in POINTS (≈10 pips on a 5-digit symbol)
+  retestPoints = 0, // retest tolerance in POINTS; 0 means the candle must touch the slow EMA
   requireCross = true, // require an aligned fast/slow cross before the retest
 ): string {
   const P = `EMASM_${id}_`;
@@ -100,6 +100,41 @@ int ${P}Bias()
    return (f > s) ? 1 : (f < s ? -1 : 0);
 }
 
+bool ${P}BootstrapCross(int bias, int hF, int hS)
+{
+   if(bias == 0) return false;
+
+   double fNow, sNow;
+   if(!${P}Val(hF, 1, fNow) || !${P}Val(hS, 1, sNow)) return false;
+   if(bias == 1 && fNow <= sNow) return false;
+   if(bias == -1 && fNow >= sNow) return false;
+
+   for(int shift = 2; shift <= 200; shift++)
+   {
+      double fCur, sCur, fPrev, sPrev;
+      if(!${P}Val(hF, shift, fCur) || !${P}Val(hS, shift, sCur)) break;
+      if(!${P}Val(hF, shift + 1, fPrev) || !${P}Val(hS, shift + 1, sPrev)) break;
+
+      bool bullCross = (fPrev <= sPrev && fCur > sCur);
+      bool bearCross = (fPrev >= sPrev && fCur < sCur);
+
+      if(bias == 1 && bullCross)
+      {
+         ${P}phase = ${P}CROSSED; ${P}activeDir = 1;
+         PrintFormat("[EMASM_${tf}] BULL cross bootstrapped from recent history");
+         return true;
+      }
+      if(bias == -1 && bearCross)
+      {
+         ${P}phase = ${P}CROSSED; ${P}activeDir = -1;
+         PrintFormat("[EMASM_${tf}] BEAR cross bootstrapped from recent history");
+         return true;
+      }
+      if((bias == 1 && bearCross) || (bias == -1 && bullCross)) return false;
+   }
+   return false;
+}
+
 void ${P}Tick(int bias)
 {
    datetime _bt = iTime(InpSymbol, ${TF}, 0);
@@ -118,6 +153,8 @@ void ${P}Tick(int bias)
    double lo = iLow  (InpSymbol, ${TF}, 1);
    double cl = iClose(InpSymbol, ${TF}, 1);
    double tol = ${retestPoints} * SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   bool bullRetestSlow = (lo <= s1 + tol && hi >= s1 - tol);
+   bool bearRetestSlow = (hi >= s1 - tol && lo <= s1 + tol);
 
    bool bullCross = (f2 <= s2 && f1 > s1);   // 12 crossed ABOVE 48 on the last bar
    bool bearCross = (f2 >= s2 && f1 < s1);   // 12 crossed BELOW 48 on the last bar
@@ -130,16 +167,17 @@ void ${P}Tick(int bias)
    {
       if(${P}phase == ${P}IDLE)
       {
-         if(!requireCross && lo <= s1 + tol)        // retest-only mode: arm directly
+         if(!requireCross && bullRetestSlow)        // retest-only mode: arm directly
          { ${P}phase = ${P}ARMED; ${P}activeDir = 1; ${P}swingLow = lo; }
          else if(requireCross && bullCross)         // cross arms the setup
          { ${P}phase = ${P}CROSSED; ${P}activeDir = 1;
            PrintFormat("[EMASM_${tf}] BULL cross — setup armed (12 over 48)"); }
+         else if(requireCross) ${P}BootstrapCross(1, hF, hS);
       }
       else if(${P}phase == ${P}CROSSED)
       {
-         if(bearCross) { ${P}phase = ${P}IDLE; ${P}activeDir = 0; }      // regime flipped
-         else if(lo <= s1 + tol)                    // retest of the slow EMA
+         if(bearCross || cl < s1) { ${P}phase = ${P}IDLE; ${P}activeDir = 0; }      // regime flipped / slow EMA failed
+         else if(bullRetestSlow)                    // candle actually touched the slow EMA
          { ${P}phase = ${P}ARMED; ${P}swingLow = lo;
            PrintFormat("[EMASM_${tf}] BULL retest of slow=%.5f low=%.5f", s1, lo); }
       }
@@ -157,16 +195,17 @@ void ${P}Tick(int bias)
    {
       if(${P}phase == ${P}IDLE)
       {
-         if(!requireCross && hi >= s1 - tol)
+         if(!requireCross && bearRetestSlow)
          { ${P}phase = ${P}ARMED; ${P}activeDir = -1; ${P}swingHigh = hi; }
          else if(requireCross && bearCross)
          { ${P}phase = ${P}CROSSED; ${P}activeDir = -1;
            PrintFormat("[EMASM_${tf}] BEAR cross — setup armed (12 under 48)"); }
+         else if(requireCross) ${P}BootstrapCross(-1, hF, hS);
       }
       else if(${P}phase == ${P}CROSSED)
       {
-         if(bullCross) { ${P}phase = ${P}IDLE; ${P}activeDir = 0; }
-         else if(hi >= s1 - tol)
+         if(bullCross || cl > s1) { ${P}phase = ${P}IDLE; ${P}activeDir = 0; }
+         else if(bearRetestSlow)
          { ${P}phase = ${P}ARMED; ${P}swingHigh = hi;
            PrintFormat("[EMASM_${tf}] BEAR retest of slow=%.5f high=%.5f", s1, hi); }
       }

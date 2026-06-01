@@ -158,7 +158,7 @@ function buildAiEa(): { code: string; checks: Array<[string, boolean]> } {
     management: {
       riskPercent: 1.0,
       rewardRisk: 3.0,
-      stopBuffer: 0.0005,
+      stopBuffer: 50,
       breakEvenEnabled: true,
       breakEvenAtR: 1.5,
       maxOpenTrades: 3,
@@ -213,7 +213,7 @@ function buildObFvgAiEa(): { code: string; checks: Array<[string, boolean]> } {
     management: {
       riskPercent: 1.0,
       rewardRisk: 3.0,
-      stopBuffer: 0.0005,
+      stopBuffer: 50,
       breakEvenEnabled: true,
       breakEvenAtR: 1.5,
       maxOpenTrades: 3,
@@ -285,7 +285,7 @@ runAiTest(
       management: {
         riskPercent: 1.0,
         rewardRisk: 2.0,
-        stopBuffer: 0.0002,
+        stopBuffer: 20,
         breakEvenEnabled: true,
         breakEvenAtR: 1.0,
         maxOpenTrades: 3,
@@ -312,7 +312,7 @@ runAiTest(
           id: "M5",
           TF: "PERIOD_M5",
           tf: "M5",
-          params: { fastPeriod: 12, slowPeriod: 48, retestPoints: 100, requireCross: true },
+          params: { fastPeriod: 12, slowPeriod: 48, retestPoints: 0, requireCross: true },
         },
       },
     };
@@ -354,7 +354,7 @@ runAiTest("EMA cross (template, drawn MAs)", "EMA_Cross_Template_Test.mq5", () =
     management: {
       riskPercent: 1.0,
       rewardRisk: 2.0,
-      stopBuffer: 0.0005,
+      stopBuffer: 50,
       breakEvenEnabled: true,
       breakEvenAtR: 1.5,
       maxOpenTrades: 3,
