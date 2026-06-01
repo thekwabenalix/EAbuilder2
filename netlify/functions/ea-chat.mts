@@ -89,6 +89,38 @@ The user will click "Apply Fix" and the corrected code will be generated automat
 Keep the summary to 3–8 lines maximum. No code snippets, no code blocks — ever.
 
 ══════════════════════════════════════════════
+DIAGNOSING WRONG BEHAVIOUR (screenshots + journal + "the entries are wrong")
+══════════════════════════════════════════════
+You may be given a CHART SCREENSHOT. Use it. This is a 4-Brain EA: a Direction
+Brain sets bias, a Setup Brain arms a zone, an Execution Brain triggers entry,
+and a confluence gate requires all active brains to AGREE before a trade opens.
+
+When the user says the EA mis-traded, produce a STRUCTURED diagnosis:
+1. INTENDED — restate what the strategy should do, per the blueprint/description.
+2. OBSERVED — what the screenshot/journal/code actually shows (entry locations vs
+   the drawn indicators/zones; which arrows are wrong and why).
+3. ROOT CAUSE — name the SPECIFIC logic gap, in brain terms. Common ones:
+   • Entries fire on the same bar as the setup → a multi-bar sequence is collapsed.
+   • Setup has no memory (resets every bar) → can't "wait then confirm".
+   • Execution direction not aligned with bias → confluence not enforced.
+   • An indicator value read returned 0.0 when not ready → phantom signals.
+4. CLASSIFY the fix as exactly ONE of:
+   [A] RECONFIGURE — fixable by regenerating with a different module / parameter /
+       timeframe (e.g. wrong module chosen for a role, wrong period, wrong TF).
+       Recommend the specific change and tell the user to Regenerate / AI Rebuild.
+   [B] BUILDING-BLOCK — the verified inline module itself (a state machine such as
+       EMASM / FVGSM / OBSM / the assembler gate) needs a code change. This is NOT
+       fixable by editing this .mq5. Name the module and the exact behaviour that
+       must change, and say it must be reported to the developer / generator.
+
+CRITICAL — for a 4-Brain EA (inline state machines, brain functions) you must
+NEVER attempt a freeform logic rewrite via [FIX_READY]. Rewriting 800+ lines
+truncates and removes working features. Logic bugs in a 4-Brain EA are class [A]
+(regenerate) or class [B] (building-block report) — never a surgical .mq5 patch.
+Reserve [FIX_READY] for genuine, isolated code-level fixes (a bad input default,
+a missing brace) on AI-generated code only.
+
+══════════════════════════════════════════════
 WHEN EXPLAINING (not modifying code)
 ══════════════════════════════════════════════
 Answer normally. Do NOT include [FIX_READY] or any code blocks.
@@ -129,6 +161,10 @@ export default async (req: Request): Promise<Response> => {
   const messages = body.messages as { role: "user" | "assistant"; content: string }[];
   const blueprint = body.blueprint;
   const code = typeof body.code === "string" ? body.code : "";
+  // Chart screenshots for behaviour diagnosis (base64 data URLs from the client)
+  const images = Array.isArray(body.images)
+    ? (body.images as unknown[]).filter((s): s is string => typeof s === "string")
+    : [];
   const backtestSummary = body.backtestSummary ?? null;
   const rawLog = typeof body.compileLog === "string" ? body.compileLog : null;
   const compileLog = rawLog ? trimCompileLog(rawLog) : null;
@@ -152,9 +188,26 @@ export default async (req: Request): Promise<Response> => {
     .filter(Boolean)
     .join("\n");
 
-  const enrichedMessages = messages.map((m, i) =>
-    i === 0 ? { ...m, content: `${contextBlock}\n\n=== USER MESSAGE ===\n${m.content}` } : m,
-  );
+  // Convert a base64 data URL into an Anthropic image content block.
+  const toImageBlock = (dataUrl: string) => {
+    const m = /^data:(image\/(?:png|jpe?g|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl.trim());
+    if (!m) return null;
+    const media_type = m[1] === "image/jpg" ? "image/jpeg" : m[1];
+    return { type: "image" as const, source: { type: "base64" as const, media_type, data: m[2] } };
+  };
+  const imageBlocks = images.map(toImageBlock).filter(Boolean) as Array<{
+    type: "image"; source: { type: "base64"; media_type: string; data: string };
+  }>;
+
+  const lastIdx = messages.length - 1;
+  const enrichedMessages = messages.map((m, i) => {
+    const text = i === 0 ? `${contextBlock}\n\n=== USER MESSAGE ===\n${m.content}` : m.content;
+    // Attach any screenshots to the most recent user message as image blocks.
+    if (i === lastIdx && m.role === "user" && imageBlocks.length > 0) {
+      return { role: m.role, content: [...imageBlocks, { type: "text" as const, text }] };
+    }
+    return { role: m.role, content: text };
+  });
 
   // Stream the response so Netlify doesn't time out on long code outputs
   const readable = new ReadableStream({

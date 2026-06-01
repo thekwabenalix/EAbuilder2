@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send, Bot, User, Wrench } from "lucide-react";
+import { Loader2, Send, Bot, User, Wrench, ImagePlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { applyFix } from "@/lib/api-client";
 import type { EaChatMessage } from "@/lib/api-client";
@@ -49,6 +49,9 @@ export function EaChatDrawer({
 }: EaChatDrawerProps) {
   const [messages, setMessages] = useState<EaChatMessage[]>([]);
   const [input, setInput] = useState("");
+  /** Attached chart screenshots (base64 data URLs) sent with the next message. */
+  const [pendingImages, setPendingImages] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   /** True when the last AI response contained [FIX_READY] — shows the Apply Fix banner. */
   const [fixReady, setFixReady] = useState(false);
@@ -88,15 +91,38 @@ export function EaChatDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]); // intentionally only re-runs when open changes
 
+  /** Read an image File into a base64 data URL and queue it. */
+  const addImageFile = (file: File) => {
+    if (!file.type.startsWith("image/")) return;
+    if (file.size > 4 * 1024 * 1024) { toast.error("Image too large (max 4 MB)"); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = typeof reader.result === "string" ? reader.result : "";
+      if (url) setPendingImages((prev) => (prev.length >= 3 ? prev : [...prev, url]));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  /** Capture pasted screenshots (Cmd/Ctrl+V of an image). */
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = Array.from(e.clipboardData?.items ?? []);
+    const imgs = items.filter((it) => it.type.startsWith("image/"));
+    if (imgs.length === 0) return;
+    e.preventDefault();
+    for (const it of imgs) { const f = it.getAsFile(); if (f) addImageFile(f); }
+  };
+
   /** Send a message. Pass `textArg` to bypass the input field (used for auto-send). */
   const send = async (textArg?: string) => {
     const text = (textArg ?? input).trim();
-    if (!text || loading) return;
+    const imgs = pendingImages;
+    if ((!text && imgs.length === 0) || loading) return;
 
-    const userMsg: EaChatMessage = { role: "user", content: text };
+    const userMsg: EaChatMessage = { role: "user", content: text || "(screenshot attached)" };
     const nextMessages: EaChatMessage[] = [...messages, userMsg];
     setMessages([...nextMessages, { role: "assistant", content: "" }]);
     setInput("");
+    setPendingImages([]);
     setLoading(true);
     setFixReady(false);
 
@@ -113,6 +139,7 @@ export function EaChatDrawer({
           code,
           compileLog: compileLog ?? null,
           backtestSummary: backtestSummary ?? null,
+          images: imgs,
         }),
       });
 
@@ -202,6 +229,7 @@ export function EaChatDrawer({
     { label: "Code", active: Boolean(code) },
     { label: "Compile log", active: Boolean(compileLog) },
     { label: "Backtest", active: Boolean(backtestSummary) },
+    { label: "Screenshot", active: pendingImages.length > 0 },
   ].filter((t) => t.active);
 
   return (
@@ -313,28 +341,69 @@ export function EaChatDrawer({
         )}
 
         {/* Input */}
-        <div className="px-4 py-3 border-t border-border shrink-0 flex gap-2 items-end">
-          <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
-            placeholder="Ask about your EA… (Enter to send, Shift+Enter for newline)"
-            className="min-h-[60px] max-h-32 resize-none text-xs flex-1"
-            disabled={loading || applyLoading}
-          />
-          <Button
-            size="sm"
-            onClick={() => send()}
-            disabled={loading || applyLoading || !input.trim()}
-            className="self-end shrink-0"
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          </Button>
+        <div className="px-4 py-3 border-t border-border shrink-0 space-y-2">
+          {/* Attached screenshot thumbnails */}
+          {pendingImages.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {pendingImages.map((src, idx) => (
+                <div key={idx} className="relative h-14 w-14 rounded border border-border overflow-hidden group">
+                  <img src={src} alt="screenshot" className="h-full w-full object-cover" />
+                  <button
+                    onClick={() => setPendingImages((prev) => prev.filter((_, i) => i !== idx))}
+                    className="absolute top-0 right-0 bg-black/60 text-white rounded-bl p-0.5 opacity-0 group-hover:opacity-100"
+                    aria-label="Remove screenshot"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2 items-end">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                Array.from(e.target.files ?? []).forEach(addImageFile);
+                e.target.value = "";
+              }}
+            />
+            <Button
+              size="icon"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={loading || applyLoading || pendingImages.length >= 3}
+              className="self-end shrink-0 h-9 w-9"
+              title="Attach a chart screenshot"
+            >
+              <ImagePlus className="h-4 w-4" />
+            </Button>
+            <Textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onPaste={handlePaste}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
+              placeholder="Ask about your EA, or paste a chart screenshot… (Enter to send)"
+              className="min-h-[60px] max-h-32 resize-none text-xs flex-1"
+              disabled={loading || applyLoading}
+            />
+            <Button
+              size="sm"
+              onClick={() => send()}
+              disabled={loading || applyLoading || (!input.trim() && pendingImages.length === 0)}
+              className="self-end shrink-0"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
+          </div>
         </div>
       </SheetContent>
     </Sheet>
