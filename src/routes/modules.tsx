@@ -53,6 +53,7 @@ import { generateRejectionDetector } from "@/lib/smc-modules/rejection-detector"
 import { generateMissDetector } from "@/lib/smc-modules/miss-detector";
 import { generateEngulfingDetector } from "@/lib/smc-modules/engulfing-detector";
 import { generateStrongEngulfingDetector } from "@/lib/smc-modules/strong-engulfing-detector";
+import { generateRbrDbdDetector } from "@/lib/smc-modules/rbr-dbd-detector";
 import { generateFvgStateModule } from "@/lib/smc-modules/fvg-state-module";
 import { generateObStateModule } from "@/lib/smc-modules/ob-state-module";
 import { generateBreakoutStateModule } from "@/lib/smc-modules/breakout-state-module";
@@ -1900,6 +1901,31 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         status: "ready",
         generate: generateStrongEngulfingDetector,
+      },
+      {
+        id: "rbr-dbd-detector",
+        filename: "RBR_DBD_Detector.mq5",
+        name: "RBR / DBD (Supply & Demand)",
+        description:
+          "Detects Rally-Base-Rally (RBR → Demand) and Drop-Base-Drop (DBD → Supply) " +
+          "base zones. A strong impulse leg, a 1–6 candle small-bodied base, then a " +
+          "strong leg in the same direction breaking out of the base. Zone = base range.",
+        rules: [
+          "Leg candle: strong body (body/range ≥ InpImpulseRatio) in the move direction",
+          "Base: 1–6 small-bodied candles (body/range ≤ InpBaseMaxRatio), any direction",
+          "Legs must be larger than the base (leg range ≥ InpLegBaseMult × avg base range)",
+          "Leg-out must close OUT of the base (above base high for RBR, below base low for DBD)",
+          "RBR (bull legs) → Demand zone; DBD (bear legs) → Supply zone",
+          "Zone = base high..low; traded through (close beyond) → invalid",
+        ],
+        output: [
+          "Green rectangle for RBR demand zones",
+          "Red rectangle for DBD supply zones",
+          "Zone label: 'RBR (Demand)' / 'DBD (Supply)'",
+          "Journal: RBR_DEMAND | DBD_SUPPLY | *_INVALIDATED | RBR_DBD_EXPIRED",
+        ],
+        status: "ready",
+        generate: generateRbrDbdDetector,
       },
     ],
   },

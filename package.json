@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "verify:mql5": "tsx scripts/verify-mql5.ts"
+    "verify": "npm run verify:ai && npm run verify:mql5",
+    "verify:mql5": "tsx scripts/verify-mql5.ts",
+    "verify:ai": "tsx scripts/verify-ai-regressions.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.40.0",

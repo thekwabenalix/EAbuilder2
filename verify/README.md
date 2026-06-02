@@ -1,39 +1,70 @@
-# MQL5 Compile Verification
+# Project Verification
 
-`tsc` and `npm run build` only validate the **TypeScript generators** — not the
-**MQL5 they emit**. This step closes that gap.
+`tsc` and `npm run build` validate the TypeScript app and generators, but they do
+not prove that the AI wiring contract stayed faithful to the trader's prompt or
+that emitted MQL5 avoids known MT5 pitfalls. These checks close that gap.
 
-## 1. Emit + static lint
+## 1. Run The Normal Verifier
+
+```bash
+npm run verify
+```
+
+This runs both:
+
+- `npm run verify:ai` - raw-text and semantic regression tests for AI wiring
+- `npm run verify:mql5` - MQL5 emit and static lint for generated modules and EAs
+
+Use this before trusting a build.
+
+## 2. AI Wiring Regressions
+
+```bash
+npm run verify:ai
+```
+
+This catches failures where the AI or deterministic adapter changes the trader's
+rules while translating text into structured wiring. Current protected cases
+include:
+
+- `only 48 EMA` must stay `slow`, not widen to `either`
+- `either 12 or 48 EMA` is allowed only when the trader says either
+- IFVG formation entries must use `JustInverted()`, not later IFVG retest confirmation
+- IFVG entries must stay timestamp-gated after the EMA test
+
+## 3. Emit And Static Lint
 
 ```bash
 npm run verify:mql5
 ```
 
-This writes every recently-built generator's output to `verify/mql5/*.mq5`
-(git-ignored) and runs a static lint for the CLAUDE.md MQL5 pitfalls
-(MQL4-isms, brace/paren balance, bare `Ask`/`Bid`, `SetMagicNumber`,
-`GetPointer`, struct-in-function). It also assembles a **full 4-Brain EA** that
-uses `rsi_hd` as the Setup Brain via the AI path and asserts the inline SM is
-auto-embedded and reset.
+This writes every recently built generator's output to `verify/mql5/*.mq5`
+(git-ignored) and runs a static lint for known MQL5 pitfalls from the project
+rules: MQL4-style series access, bare `Ask`/`Bid`, `SetMagicNumber`,
+`GetPointer`, brace/paren imbalance, and structs declared inside functions.
 
-A clean report means "no obvious red flags" — it is **not** a compiler.
+It also assembles full 4-Brain EA fixtures and checks important generator
+contracts, including state-machine auto-embedding, reset calls, EMA retest gates,
+IFVG formation entries, and the module contract registry.
 
-## 2. Compile in MetaEditor (the real gate)
+A clean report means "no obvious red flags"; it is not a compiler.
 
-Copy the emitted files and press **F7**:
+## 4. Compile In MetaEditor
 
-| File                                   | Drop into          | Compile                            |
-| -------------------------------------- | ------------------ | ---------------------------------- |
-| `*_Detector.mq5`, `*_State_Module.mq5` | `MQL5/Indicators/` | F7 → 0 errors                      |
-| `_TEST_RSIHDSM_M15.mq5`                | `MQL5/Indicators/` | F7 → 0 errors (isolated inline SM) |
-| `RSI_HD_Continuation_Test.mq5`         | `MQL5/Experts/`    | F7 → 0 errors (full 4-Brain EA)    |
+Copy the emitted files and press F7:
 
-### Priority order (riskiest first)
+| File                                   | Drop into          | Compile                         |
+| -------------------------------------- | ------------------ | ------------------------------- |
+| `*_Detector.mq5`, `*_State_Module.mq5` | `MQL5/Indicators/` | F7 -> 0 errors                  |
+| `_TEST_*.mq5`                          | `MQL5/Indicators/` | F7 -> 0 errors                  |
+| `*_Test.mq5` full EAs                  | `MQL5/Experts/`    | F7 -> 0 errors                  |
 
-1. `_TEST_RSIHDSM_M15.mq5` — novel `iRSI` handle inside an inline SM
-2. `RSI_HD_Continuation_Test.mq5` — full assembled EA using the new SM
-3. `RSI_Hidden_Divergence_Detector.mq5` — separate-window indicator + dual-pane objects
-4. The remaining detectors / state modules
+### Priority Order
 
-Record any compiler errors and fix them in the **generator** (the `.ts` file),
-then re-run `npm run verify:mql5` — never hand-edit the emitted `.mq5`.
+1. New or recently changed inline state-machine harnesses, for example `_TEST_EGSM_M5.mq5`
+2. Full assembled EA fixtures, for example `EMA_Test_Then_IFVG_Test.mq5`
+3. New standalone detectors or state modules
+4. Older unchanged detectors and state modules
+
+Record compiler errors and fix them in the generator `.ts` file, then re-run
+`npm run verify`. Never hand-edit the emitted `.mq5`.

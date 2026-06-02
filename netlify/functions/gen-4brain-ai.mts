@@ -385,7 +385,7 @@ interface GenRequest {
   prompt?: string;
 }
 
-interface AiBrainWiringResponse {
+export interface AiBrainWiringResponse {
   direction_brain: string;
   setup_brain: string;
   execution_brain: string;
@@ -405,7 +405,7 @@ interface AiBrainWiringResponse {
   notes: string;
 }
 
-interface StrategySemantics {
+export interface StrategySemantics {
   version: 1;
   source: "ai" | "deterministic_adapter" | "local_extractor";
   timeframe: string;
@@ -433,7 +433,7 @@ interface StrategySemantics {
 
 type ExecutionEntryEvent = NonNullable<StrategySemantics["execution"]>["entryEvent"];
 
-interface WiringValidation {
+export interface WiringValidation {
   status: "pass" | "warn" | "fail";
   errors: string[];
   warnings: string[];
@@ -638,7 +638,7 @@ function isEmaTestThenIfvgFormation(text: string, config?: FourBrainConfig): boo
   return hasEma && hasIfvg && hasEmaTest && hasAfterGate && hasFormationEntry;
 }
 
-function inferLocalSemantics(text: string, config?: FourBrainConfig): StrategySemantics {
+export function inferLocalSemantics(text: string, config?: FourBrainConfig): StrategySemantics {
   const tf = extractSingleTimeframe(text, config);
   const { fast, slow } = extractEmaPeriods(text, config);
   const hasEma =
@@ -698,7 +698,7 @@ function inferLocalSemantics(text: string, config?: FourBrainConfig): StrategySe
   };
 }
 
-function validateWiringAgainstSemantics(response: AiBrainWiringResponse): WiringValidation {
+export function validateWiringAgainstSemantics(response: AiBrainWiringResponse): WiringValidation {
   const errors: string[] = [];
   const warnings: string[] = [];
   const dirCode = response.direction_brain ?? "";
@@ -822,7 +822,7 @@ function validateWiringAgainstSemantics(response: AiBrainWiringResponse): Wiring
   return { status, errors, warnings };
 }
 
-function normalizeAiResponse(
+export function normalizeAiResponse(
   parsed: Record<string, unknown>,
   fullText: string,
   config?: FourBrainConfig,
@@ -835,7 +835,7 @@ function normalizeAiResponse(
   return response;
 }
 
-function buildEmaTestThenIfvgFormationWiring(
+export function buildEmaTestThenIfvgFormationWiring(
   text: string,
   config?: FourBrainConfig,
 ): AiBrainWiringResponse {

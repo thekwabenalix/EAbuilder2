@@ -28,6 +28,7 @@ import { generateRsiHiddenDivergenceDetector } from "../src/lib/indicator-module
 import { generateRsiHiddenDivergenceStateModule } from "../src/lib/indicator-modules/rsi-hidden-divergence-state-module";
 import { generateEngulfingDetector } from "../src/lib/smc-modules/engulfing-detector";
 import { generateStrongEngulfingDetector } from "../src/lib/smc-modules/strong-engulfing-detector";
+import { generateRbrDbdDetector } from "../src/lib/smc-modules/rbr-dbd-detector";
 
 // Inline state-machine fragment generators
 import { genRsiHdSM } from "../src/generators/gen-rsi-hd-sm";
@@ -102,6 +103,10 @@ const items: Item[] = [
   {
     file: "SEG_Detector.mq5",
     code: generateStrongEngulfingDetector(),
+  },
+  {
+    file: "RBR_DBD_Detector.mq5",
+    code: generateRbrDbdDetector(),
   },
   {
     file: "_TEST_RSIHDSM_M15.mq5",
