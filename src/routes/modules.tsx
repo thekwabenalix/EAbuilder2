@@ -55,6 +55,7 @@ import { generateStrongEngulfingDetector } from "@/lib/smc-modules/strong-engulf
 import { generateRbrDbdDetector } from "@/lib/smc-modules/rbr-dbd-detector";
 import { generateMefDetector } from "@/lib/smc-modules/mef-detector";
 import { generateQmMefDetector } from "@/lib/smc-modules/qm-mef-detector";
+import { generateSnrc2Detector } from "@/lib/smc-modules/snrc2-detector";
 import { generateFvgStateModule } from "@/lib/smc-modules/fvg-state-module";
 import { generateObStateModule } from "@/lib/smc-modules/ob-state-module";
 import { generateBreakoutStateModule } from "@/lib/smc-modules/breakout-state-module";
@@ -1915,6 +1916,31 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         status: "ready",
         generate: generateQmMefDetector,
+      },
+      {
+        id: "snrc2-detector",
+        filename: "SNRC2_Detector.mq5",
+        name: "SNRC2 (S&R Continuation 2)",
+        description:
+          "Continuation pattern after a Classic SNR break with a manipulation " +
+          "pullback back across the broken level before continuation. Detects both " +
+          "bearish and bullish. The original level becomes the entry.",
+        rules: [
+          "Bearish: 1st Low → pullback → 2nd Low (break below 1st) → manipulation high (above 1st Low) → continuation lower low",
+          "Bullish: 1st High → pullback → 2nd High (break above 1st) → manipulation low (below 1st High) → continuation higher high",
+          "Built from alternating close-confirmed swing pivots (InpSwingStrength)",
+          "Entry = original 1st level (Classic SNR)",
+          "SL = manipulation extreme (high for bear, low for bull)",
+          "Invalidation: close beyond the manipulation extreme",
+        ],
+        output: [
+          "Gold entry line at the 1st level (short line, freezes when tapped)",
+          "Red SL box around the manipulation extreme",
+          "Markers: 1st Low/High, 2nd Low/High, Cont LL/HH",
+          "Journal: SNRC2_CREATED | dir | entry | SL | 2nd | cont | SNRC2_ENTRY_TAPPED | SNRC2_INVALIDATED",
+        ],
+        status: "ready",
+        generate: generateSnrc2Detector,
       },
       {
         id: "supply-zone",

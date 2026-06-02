@@ -31,6 +31,7 @@ import { generateStrongEngulfingDetector } from "../src/lib/smc-modules/strong-e
 import { generateRbrDbdDetector } from "../src/lib/smc-modules/rbr-dbd-detector";
 import { generateMefDetector } from "../src/lib/smc-modules/mef-detector";
 import { generateQmMefDetector } from "../src/lib/smc-modules/qm-mef-detector";
+import { generateSnrc2Detector } from "../src/lib/smc-modules/snrc2-detector";
 
 // Inline state-machine fragment generators
 import { genRsiHdSM } from "../src/generators/gen-rsi-hd-sm";
@@ -117,6 +118,10 @@ const items: Item[] = [
   {
     file: "QM_MEF_Detector.mq5",
     code: generateQmMefDetector(),
+  },
+  {
+    file: "SNRC2_Detector.mq5",
+    code: generateSnrc2Detector(),
   },
   {
     file: "_TEST_RSIHDSM_M15.mq5",
