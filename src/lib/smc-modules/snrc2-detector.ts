@@ -47,7 +47,7 @@ export function generateSnrc2Detector(): string {
 #define PV_HIGH     1
 #define PV_LOW     -1
 #define MAX_PIV     400
-#define MAX_REC     200
+#define MAX_REC     600   // dead records are kept for dedup, so allow plenty
 #define OBJ_PREFIX  "SMSNRC2_"
 
 input ENUM_TIMEFRAMES InpTF          = PERIOD_CURRENT;
@@ -246,14 +246,12 @@ void KillRec(int i)
 void AddRec(int dir, double entry, double sl, double secondExt, double contExt, double resLevel,
             datetime t1, datetime tRes, datetime tManip, datetime tConf)
 {
+   // Dedup against ALL records (alive OR dead) so a killed setup is never re-added.
    for(int _k = 0; _k < recTotal; _k++)
-      if(!recs[_k].dead && recs[_k].t1 == t1 && recs[_k].dir == dir) return;
+      if(recs[_k].t1 == t1 && recs[_k].dir == dir) return;
 
-   int idx = -1;
-   for(int _k = 0; _k < recTotal; _k++)
-      if(recs[_k].dead) { idx = _k; break; }
-   if(idx < 0 && recTotal < MAX_REC) idx = recTotal++;
-   if(idx < 0) return;
+   if(recTotal >= MAX_REC) return;
+   int idx = recTotal++;
 
    recs[idx].id        = nextId++;
    recs[idx].dir       = dir;
@@ -439,8 +437,8 @@ void Rebuild()
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   lastBarTime = 0;
    Rebuild();
+   lastBarTime = iTime(_Symbol, InpTF, 0);  // avoid an immediate re-Detect on the first tick
    return INIT_SUCCEEDED;
 }
 
