@@ -52,6 +52,7 @@ export function generateSnrc2Detector(): string {
 
 input ENUM_TIMEFRAMES InpTF          = PERIOD_CURRENT;
 input ENUM_TIMEFRAMES InpHtfTF       = PERIOD_H4;   // higher TF that must show an engulfing
+input int             InpHtfLookback = 4;     // HTF bars before the pattern to find the engulfing
 input int             InpLookback    = 400;   // bars to scan
 input int             InpSwingStrength = 2;   // fractal strength (bars each side)
 input int             InpExpiryBars  = 250;   // bars until an unfilled pattern is removed
@@ -320,16 +321,15 @@ double ClassicLevel(datetime pivT, int dir)
 }
 
 //+------------------------------------------------------------------+
-// SNRC2 must be validated by a higher-timeframe engulfing of the same direction
-// overlapping (or just preceding) the structure's time span. No HTF engulfing → ignore.
-bool HtfEngulfingPresent(int dir, datetime tStart, datetime tEnd)
+// The setup is, like MEF, an HTF engulfing FIRST, then the pattern. So the HTF
+// engulfing must occur at or BEFORE the pattern start (the candle that contains
+// the first pivot, or up to InpHtfLookback HTF candles before it).
+// No qualifying HTF engulfing → ignore the pattern.
+bool HtfEngulfingPresent(int dir, datetime tPatternStart)
 {
-   int shOld = iBarShift(_Symbol, InpHtfTF, tStart);
-   int shNew = iBarShift(_Symbol, InpHtfTF, tEnd);
-   if(shOld < 0) return false;
-   if(shNew < 0) shNew = 0;
-   // bars overlapping the structure, plus a couple older (the HTF candle it expands from)
-   for(int e = shNew; e <= shOld + 2; e++)
+   int e0 = iBarShift(_Symbol, InpHtfTF, tPatternStart);
+   if(e0 < 0) return false;
+   for(int e = e0; e <= e0 + InpHtfLookback; e++)   // e0 = at start, higher e = older
       if(StrongEngulf(InpHtfTF, e, dir)) return true;
    return false;
 }
@@ -348,13 +348,14 @@ void Detect()
       {
          double L1 = pvPrice[i+1], L2 = pvPrice[i+3],
                 H2 = pvPrice[i+4], L3 = pvPrice[i+5];
-         // Resistance that created the 1st low = Classic SNR resistance near H0.
-         double res = ClassicLevel(pvTime[i], DIR_BEAR);
-         // break first low, manipulation above first low, continuation lower low,
-         // and the manipulation must NOT exceed the Classic SNR resistance (no higher high).
-         if(res > 0.0 && L2 < L1 && L3 < L2 && H2 > L1 && H2 < res
-            && HtfEngulfingPresent(DIR_BEAR, pvTime[i+1], pvTime[i+5]))
-            AddRec(DIR_BEAR, L1, H2, L2, L3, res,
+         double res   = ClassicLevel(pvTime[i],   DIR_BEAR); // resistance that created the 1st low
+         double entry = ClassicLevel(pvTime[i+1], DIR_BULL); // 1st low = Classic SUPPORT (entry on SNR)
+         // break first low, manipulation above the SNR entry, continuation lower low,
+         // manipulation must NOT exceed the Classic SNR resistance (no higher high),
+         // and an HTF engulfing must precede the pattern.
+         if(res > 0.0 && entry > 0.0 && L2 < L1 && L3 < L2 && H2 > entry && H2 < res
+            && HtfEngulfingPresent(DIR_BEAR, pvTime[i+1]))
+            AddRec(DIR_BEAR, entry, H2, L2, L3, res,
                    pvTime[i+1], pvTime[i], pvTime[i+4], pvTime[i+5]);
       }
       // Bullish: L0 R1 L1 R2 ML R3
@@ -364,13 +365,14 @@ void Detect()
       {
          double R1 = pvPrice[i+1], R2 = pvPrice[i+3],
                 ML = pvPrice[i+4], R3 = pvPrice[i+5];
-         // Support that created the 1st high = Classic SNR support near L0.
-         double sup = ClassicLevel(pvTime[i], DIR_BULL);
-         // break first high, manipulation below first high, continuation higher high,
-         // and the manipulation must NOT exceed the Classic SNR support (no lower low).
-         if(sup > 0.0 && R2 > R1 && R3 > R2 && ML < R1 && ML > sup
-            && HtfEngulfingPresent(DIR_BULL, pvTime[i+1], pvTime[i+5]))
-            AddRec(DIR_BULL, R1, ML, R2, R3, sup,
+         double sup   = ClassicLevel(pvTime[i],   DIR_BULL); // support that created the 1st high
+         double entry = ClassicLevel(pvTime[i+1], DIR_BEAR); // 1st high = Classic RESISTANCE (entry on SNR)
+         // break first high, manipulation below the SNR entry, continuation higher high,
+         // manipulation must NOT exceed the Classic SNR support (no lower low),
+         // and an HTF engulfing must precede the pattern.
+         if(sup > 0.0 && entry > 0.0 && R2 > R1 && R3 > R2 && ML < entry && ML > sup
+            && HtfEngulfingPresent(DIR_BULL, pvTime[i+1]))
+            AddRec(DIR_BULL, entry, ML, R2, R3, sup,
                    pvTime[i+1], pvTime[i], pvTime[i+4], pvTime[i+5]);
       }
    }
@@ -402,14 +404,15 @@ void Maintain(int sh)
          }
       }
 
-      // Invalidation: close beyond the manipulation extreme (SL).
-      if(recs[i].dir == DIR_BEAR && cl > recs[i].sl) {
-         if(InpShowLog) PrintFormat("SNRC2_INVALIDATED (SL broken) | SL=%.5f", recs[i].sl);
+      // Invalidation: price CLOSES beyond the setup (the SNR entry level).
+      // Bearish setup dies on a close above the entry; bullish on a close below.
+      if(recs[i].dir == DIR_BEAR && cl > recs[i].entry) {
+         if(InpShowLog) PrintFormat("SNRC2_INVALIDATED (closed above setup) | entry=%.5f", recs[i].entry);
          KillRec(i);
          continue;
       }
-      if(recs[i].dir == DIR_BULL && cl < recs[i].sl) {
-         if(InpShowLog) PrintFormat("SNRC2_INVALIDATED (SL broken) | SL=%.5f", recs[i].sl);
+      if(recs[i].dir == DIR_BULL && cl < recs[i].entry) {
+         if(InpShowLog) PrintFormat("SNRC2_INVALIDATED (closed below setup) | entry=%.5f", recs[i].entry);
          KillRec(i);
          continue;
       }

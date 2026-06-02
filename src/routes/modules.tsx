@@ -1926,17 +1926,17 @@ const TRADING_MODULES: ModuleCategory[] = [
           "pullback back across the broken level before continuation. Detects both " +
           "bearish and bullish. The original level becomes the entry.",
         rules: [
-          "Validated by a higher-TF engulfing (InpHtfTF) of matching direction — no HTF engulfing, no pattern",
+          "Setup = HTF engulfing FIRST, then the pattern (like MEF): the engulfing must precede the structure (InpHtfTF / InpHtfLookback)",
           "Bearish: 1st Low → 2nd Low (break below 1st) → manipulation high (above 1st Low) → continuation lower low",
           "Bullish: 1st High → 2nd High (break above 1st) → manipulation low (below 1st High) → continuation higher high",
           "Resistance/support = Classic SNR levels (candle-pair reversal close): bull→bear = resistance, bear→bull = support",
           "Manipulation must NOT exceed that Classic SNR level (no higher high in a downtrend / no lower low in an uptrend)",
           "Built from alternating close-confirmed swing pivots (InpSwingStrength)",
-          "Entry = original 1st level (Classic SNR); SL = manipulation extreme",
-          "Invalidation: close beyond the manipulation extreme",
+          "Entry = the Classic SNR level of the 1st low/high (on the SNR, not the wick); SL = manipulation extreme",
+          "Invalidation: price CLOSES beyond the setup (the SNR entry level) → deleted",
         ],
         output: [
-          "Gold entry line at the 1st level (short line, freezes when tapped)",
+          "Gold entry line on the Classic SNR level (short line, freezes when tapped)",
           "Red SL box around the manipulation extreme",
           "Markers: 1st Low/High, 2nd Low/High, Cont LL/HH",
           "Journal: SNRC2_CREATED | dir | entry | SL | 2nd | cont | SNRC2_ENTRY_TAPPED | SNRC2_INVALIDATED",
