@@ -38,8 +38,9 @@ export function genEgSM(
   id: string,
   TF: string,        // MQL5 PERIOD constant e.g. "PERIOD_M5"
   tf: string,        // Human-readable label e.g. "M5"
-  scanBack = 3,      // bars to scan back for new EG patterns each tick
+  scanBack = 3,      // bars to scan back for new completing candles each tick
   expiryBars = 100,  // bars until an untested zone expires
+  maxEngBars = 20,   // max candles an engulf may take to complete (multi-candle)
 ): string {
   const P = `EGSM_${id}_`;
 
@@ -89,27 +90,9 @@ void ${P}Reset()
    ${P}_bearSL        = 0.0;
 }
 
-// ── Detect EG at bar sh (C2 = sh, C1 = sh+1) ────────────────────────────────
-// MES rule: close beyond the WICK of the opposite candle, not just the body.
-void ${P}Detect(int sh)
+// ── Register a confirmed EG zone (engulfed candle c1, completed at c2) ────────
+void ${P}AddZone(int c1, int c2, bool isBull, double c1H, double c1L, datetime c1T)
 {
-   int total = iBars(InpSymbol, ${TF});
-   if(sh + 1 >= total) return;
-
-   double c2O = iOpen (InpSymbol, ${TF}, sh);
-   double c2C = iClose(InpSymbol, ${TF}, sh);
-   double c1O = iOpen (InpSymbol, ${TF}, sh + 1);
-   double c1C = iClose(InpSymbol, ${TF}, sh + 1);
-   double c1H = iHigh (InpSymbol, ${TF}, sh + 1);   // upper wick of engulfed candle
-   double c1L = iLow  (InpSymbol, ${TF}, sh + 1);   // lower wick of engulfed candle
-   datetime c1T = iTime(InpSymbol, ${TF}, sh + 1);
-
-   // Bullish EG: C1 bearish, C2 bullish and closes ABOVE C1 upper wick
-   bool isBullEG = (c1C < c1O) && (c2C > c2O) && (c2C > c1H);
-   // Bearish EG: C1 bullish, C2 bearish and closes BELOW C1 lower wick
-   bool isBearEG = (c1C > c1O) && (c2C < c2O) && (c2C < c1L);
-   if(!isBullEG && !isBearEG) return;
-
    // Dedup: one zone per C1 time
    for(int _k = 0; _k < ${P}zoneCount; _k++)
       if(${P}zones[_k].c1Time == c1T) return;
@@ -135,7 +118,7 @@ void ${P}Detect(int sh)
       idx = ${P}zoneCount++;
    }
 
-   ${P}zones[idx].dir           = isBullEG ? 1 : -1;
+   ${P}zones[idx].dir           = isBull ? 1 : -1;
    ${P}zones[idx].isEF          = false;
    ${P}zones[idx].hi            = c1H;
    ${P}zones[idx].lo            = c1L;
@@ -147,9 +130,59 @@ void ${P}Detect(int sh)
    ${P}zones[idx].justConfirmed = false;
    ${P}zones[idx].confirmSL     = 0.0;
 
-   PrintFormat("[EGSM_${tf}] %s EG detected | hi=%.5f lo=%.5f | C1=%s",
-               isBullEG?"BULL":"BEAR", c1H, c1L,
+   PrintFormat("[EGSM_${tf}] %s EG detected | hi=%.5f lo=%.5f | took %d candle(s) | C1=%s",
+               isBull?"BULL":"BEAR", c1H, c1L, (c1 - c2),
                TimeToString(c1T, TIME_DATE|TIME_MINUTES));
+}
+
+// ── Detect EG completed at bar c2 (multi-candle aware) ───────────────────────
+// MES rule: an engulfing is a candle whose OPPOSITE wick is closed through, no
+// matter how many candles it takes. Treat c2 as the completing candle; scan back
+// to the NEAREST prior candle C1 whose opposite wick c2 just closed beyond, and
+// require c2 to be the FIRST bar to break it (so each event fires once).
+void ${P}Detect(int c2)
+{
+   int total = iBars(InpSymbol, ${TF});
+   if(c2 + 1 >= total) return;
+
+   double c2O = iOpen (InpSymbol, ${TF}, c2);
+   double c2C = iClose(InpSymbol, ${TF}, c2);
+
+   int maxBack = ${maxEngBars};
+
+   for(int k = 1; k <= maxBack; k++)
+   {
+      int c1 = c2 + k;
+      if(c1 >= total) break;
+
+      double c1O = iOpen (InpSymbol, ${TF}, c1);
+      double c1C = iClose(InpSymbol, ${TF}, c1);
+      double c1H = iHigh (InpSymbol, ${TF}, c1);
+      double c1L = iLow  (InpSymbol, ${TF}, c1);
+      datetime c1T = iTime(InpSymbol, ${TF}, c1);
+
+      bool c1Bear = (c1C < c1O);
+      bool c1Bull = (c1C > c1O);
+
+      // Bullish EG: bearish C1, completing candle bullish & closes ABOVE C1 upper wick
+      bool isBullEG = c1Bear && (c2C > c2O) && (c2C > c1H);
+      // Bearish EG: bullish C1, completing candle bearish & closes BELOW C1 lower wick
+      bool isBearEG = c1Bull && (c2C < c2O) && (c2C < c1L);
+      if(!isBullEG && !isBearEG) continue;
+
+      // c2 must be the FIRST bar after C1 to close beyond that wick
+      bool firstBreak = true;
+      for(int m = c1 - 1; m > c2; m--)
+      {
+         double mc = iClose(InpSymbol, ${TF}, m);
+         if(isBullEG && mc > c1H) { firstBreak = false; break; }
+         if(isBearEG && mc < c1L) { firstBreak = false; break; }
+      }
+      if(!firstBreak) continue;
+
+      ${P}AddZone(c1, c2, isBullEG, c1H, c1L, c1T);
+      return;  // nearest qualifying C1 only — one engulfing per completing candle
+   }
 }
 
 // ── Advance all live zone states for the last closed bar (sh = 1) ────────────
