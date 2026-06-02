@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { jsonrepair } from "jsonrepair";
+import { collectBuiltinIndicatorRefs } from "../../src/lib/indicator-boundary.js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -324,6 +325,15 @@ function blueprintText(blueprint: Record<string, unknown>, sourceText = ""): str
   ]
     .filter(Boolean)
     .join(" ");
+}
+
+function blueprintIndicatorText(blueprint: Record<string, unknown>, sourceText = ""): string {
+  const rules = Array.isArray(blueprint.rules)
+    ? blueprint.rules
+        .filter((rule) => rule && typeof rule === "object")
+        .map((rule) => ruleText(rule as Record<string, unknown>))
+    : [];
+  return [blueprintText(blueprint, sourceText), ...rules].join(" ");
 }
 
 function paramNumber(
@@ -662,6 +672,13 @@ export function normalizeBlueprint(
   blueprint: Record<string, unknown>,
   sourceText = "",
 ): Record<string, unknown> {
+  const indicatorRefs = collectBuiltinIndicatorRefs(blueprintIndicatorText(blueprint, sourceText));
+  if (indicatorRefs.length > 0) {
+    blueprint.indicatorRefs = indicatorRefs;
+  } else {
+    delete blueprint.indicatorRefs;
+  }
+
   if (!blueprint.fourBrain) {
     const inferred = inferFourBrain(blueprint, sourceText);
     if (inferred) blueprint.fourBrain = inferred;

@@ -2027,11 +2027,7 @@ const TRADING_MODULES: ModuleCategory[] = [
             ? ind.params.map(
                 (p) =>
                   `${p.name} = ${p.default}` +
-                  (p.note
-                    ? ` (${p.note})`
-                    : p.min !== undefined
-                      ? ` [${p.min}–${p.max}]`
-                      : ""),
+                  (p.note ? ` (${p.note})` : p.min !== undefined ? ` [${p.min}–${p.max}]` : ""),
               )
             : ["no parameters"]),
           `renders ${ind.subWindow ? "in a separate sub-window" : "on the price chart"}`,

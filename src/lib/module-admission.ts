@@ -317,4 +317,31 @@ export const MODULE_ADMISSION: Record<string, ModuleAdmissionRecord> = {
     notes:
       "Standalone detector currently emitted by verifier. Not admitted to AI wiring until a contract and state machine are added.",
   },
+  qm_mef: {
+    id: "qm_mef",
+    label: "QM MEF Detector",
+    status: "detector_only",
+    aiVocabulary: false,
+    contractRequired: false,
+    notes:
+      "Standalone Quasimodo MEF detector emitted by verifier. Not admitted to AI wiring until a contract and state machine are added.",
+  },
+  snrc2: {
+    id: "snrc2",
+    label: "SNRC2 Detector",
+    status: "detector_only",
+    aiVocabulary: false,
+    contractRequired: false,
+    notes:
+      "Standalone Support/Resistance Continuation 2 detector emitted by verifier. Not admitted to AI wiring until a contract and state machine are added.",
+  },
+  seg: {
+    id: "seg",
+    label: "Strong Engulfing Detector",
+    status: "detector_only",
+    aiVocabulary: false,
+    contractRequired: false,
+    notes:
+      "Standalone strong-engulfing detector emitted by verifier. AI wiring uses the verified engulfing/EGSM contract instead.",
+  },
 };

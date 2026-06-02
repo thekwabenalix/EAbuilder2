@@ -106,7 +106,8 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     id: "ama",
     name: "Adaptive Moving Average (AMA)",
     mql5: "iAMA",
-    signature: "iAMA(symbol, tf, ama_period, fast_ema_period, slow_ema_period, ama_shift, applied_price)",
+    signature:
+      "iAMA(symbol, tf, ama_period, fast_ema_period, slow_ema_period, ama_shift, applied_price)",
     category: "trend",
     via: "builtin",
     params: [
@@ -297,10 +298,7 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     signature: "iCCI(symbol, tf, ma_period, applied_price)",
     category: "oscillator",
     via: "builtin",
-    params: [
-      { name: "ma_period", type: "int", default: 14, min: 1, max: 1000 },
-      APPLIED_PRICE,
-    ],
+    params: [{ name: "ma_period", type: "int", default: 14, min: 1, max: 1000 }, APPLIED_PRICE],
     buffers: [{ index: 0, name: "CCI value" }],
     subWindow: true,
     aliases: ["cci", "commodity channel index"],
@@ -368,10 +366,7 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     signature: "iMomentum(symbol, tf, mom_period, applied_price)",
     category: "oscillator",
     via: "builtin",
-    params: [
-      { name: "mom_period", type: "int", default: 14, min: 1, max: 1000 },
-      APPLIED_PRICE,
-    ],
+    params: [{ name: "mom_period", type: "int", default: 14, min: 1, max: 1000 }, APPLIED_PRICE],
     buffers: [{ index: 0, name: "Momentum (%)" }],
     subWindow: true,
     aliases: ["momentum", "mom"],
@@ -404,10 +399,7 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     signature: "iRSI(symbol, tf, ma_period, applied_price)",
     category: "oscillator",
     via: "builtin",
-    params: [
-      { name: "ma_period", type: "int", default: 14, min: 2, max: 1000 },
-      APPLIED_PRICE,
-    ],
+    params: [{ name: "ma_period", type: "int", default: 14, min: 2, max: 1000 }, APPLIED_PRICE],
     buffers: [{ index: 0, name: "RSI value (0–100)" }],
     subWindow: true,
     aliases: ["rsi", "relative strength index"],
@@ -443,7 +435,12 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
       { name: "Dperiod", type: "int", default: 3, min: 1, max: 1000 },
       { name: "slowing", type: "int", default: 3, min: 1, max: 1000 },
       MA_METHOD,
-      { name: "price_field", type: "enum", default: "STO_LOWHIGH", note: "STO_LOWHIGH | STO_CLOSECLOSE" },
+      {
+        name: "price_field",
+        type: "enum",
+        default: "STO_LOWHIGH",
+        note: "STO_LOWHIGH | STO_CLOSECLOSE",
+      },
     ],
     buffers: [
       { index: 0, name: "MAIN (%K)" },
@@ -491,10 +488,7 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     signature: "iMFI(symbol, tf, ma_period, applied_volume)",
     category: "volume",
     via: "builtin",
-    params: [
-      { name: "ma_period", type: "int", default: 14, min: 1, max: 1000 },
-      APPLIED_VOLUME,
-    ],
+    params: [{ name: "ma_period", type: "int", default: 14, min: 1, max: 1000 }, APPLIED_VOLUME],
     buffers: [{ index: 0, name: "MFI (0–100)" }],
     subWindow: true,
     aliases: ["money flow index", "mfi"],
@@ -549,7 +543,8 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     id: "alligator",
     name: "Alligator",
     mql5: "iAlligator",
-    signature: "iAlligator(symbol, tf, jaw_period, jaw_shift, teeth_period, teeth_shift, lips_period, lips_shift, ma_method, applied_price)",
+    signature:
+      "iAlligator(symbol, tf, jaw_period, jaw_shift, teeth_period, teeth_shift, lips_period, lips_shift, ma_method, applied_price)",
     category: "bill_williams",
     via: "builtin",
     params: [
@@ -600,15 +595,15 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     ],
     subWindow: false,
     aliases: ["fractals", "fractal"],
-    description:
-      "Marks 5-bar swing highs/lows (confirms 2 bars late). A swing-point primitive.",
+    description: "Marks 5-bar swing highs/lows (confirms 2 bars late). A swing-point primitive.",
     applications: ["Swing high/low", "BOS", "CHoCH", "Structure detection"],
   },
   {
     id: "gator",
     name: "Gator Oscillator",
     mql5: "iGator",
-    signature: "iGator(symbol, tf, jaw_period, jaw_shift, teeth_period, teeth_shift, lips_period, lips_shift, ma_method, applied_price)",
+    signature:
+      "iGator(symbol, tf, jaw_period, jaw_shift, teeth_period, teeth_shift, lips_period, lips_shift, ma_method, applied_price)",
     category: "bill_williams",
     via: "builtin",
     params: [
@@ -653,10 +648,7 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     signature: 'iCustom(symbol, tf, "Examples\\\\TEMA", period, applied_price)',
     category: "custom_included",
     via: "icustom",
-    params: [
-      { name: "period", type: "int", default: 14, min: 1, max: 1000 },
-      APPLIED_PRICE,
-    ],
+    params: [{ name: "period", type: "int", default: 14, min: 1, max: 1000 }, APPLIED_PRICE],
     buffers: [{ index: 0, name: "TEMA line" }],
     subWindow: false,
     aliases: ["tema", "triple ema"],
@@ -667,7 +659,8 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     id: "vidya",
     name: "Variable Index Dynamic Average (VIDYA)",
     mql5: "iCustom",
-    signature: 'iCustom(symbol, tf, "Examples\\\\VIDYA", cmo_period, ema_period, shift, applied_price)',
+    signature:
+      'iCustom(symbol, tf, "Examples\\\\VIDYA", cmo_period, ema_period, shift, applied_price)',
     category: "custom_included",
     via: "icustom",
     params: [
@@ -689,10 +682,7 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     signature: 'iCustom(symbol, tf, "Examples\\\\ZeroLag", period, applied_price)',
     category: "custom_included",
     via: "icustom",
-    params: [
-      { name: "period", type: "int", default: 14, min: 1, max: 1000 },
-      APPLIED_PRICE,
-    ],
+    params: [{ name: "period", type: "int", default: 14, min: 1, max: 1000 }, APPLIED_PRICE],
     buffers: [{ index: 0, name: "ZeroLag line" }],
     subWindow: false,
     aliases: ["zero lag", "zerolag", "zlma"],
@@ -717,7 +707,8 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     id: "rsi-of-rsi",
     name: "RSI of RSI",
     mql5: "iCustom",
-    signature: 'iCustom(symbol, tf, "Examples\\\\RSI_of_RSI", rsi_period, rsi2_period, applied_price)',
+    signature:
+      'iCustom(symbol, tf, "Examples\\\\RSI_of_RSI", rsi_period, rsi2_period, applied_price)',
     category: "custom_included",
     via: "icustom",
     params: [

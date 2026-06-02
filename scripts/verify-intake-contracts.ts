@@ -50,6 +50,15 @@ function paramsOf(brain: Record<string, unknown>): Record<string, unknown> {
   return brain.params as Record<string, unknown>;
 }
 
+function indicatorIdsOf(blueprint: Blueprint): string[] {
+  const refs = blueprint.indicatorRefs;
+  assertOk(Array.isArray(refs), "expected indicatorRefs array");
+  return refs.map((ref) => {
+    assertOk(ref && typeof ref === "object", "expected indicator ref object");
+    return String((ref as Record<string, unknown>).id);
+  });
+}
+
 const baseBlueprint = {
   version: "2.0",
   name: "Fixture",
@@ -254,6 +263,41 @@ const cases: ContractCase[] = [
         !blueprint.fourBrain,
         "SMA must not be mapped to EMA until SMA has a verified module",
       );
+      assertOk(indicatorIdsOf(blueprint).includes("ma"), "SMA should be recognized as MA built-in");
+    },
+  },
+  {
+    name: "built-in indicators are recognized without becoming fake modules",
+    run: () => {
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          rules: [
+            {
+              id: "m15_rsi_macd_filter",
+              type: "custom",
+              side: "filter",
+              label: "Use RSI above 50 and MACD histogram above zero as filters.",
+              parameters: { timeframe: "M15" },
+              compilable: true,
+            },
+            {
+              id: "atr_stop",
+              type: "atr_volatility",
+              side: "filter",
+              label: "Use ATR 14 to size the stop loss.",
+              parameters: { timeframe: "M15", period: 14 },
+              compilable: true,
+            },
+          ],
+        }),
+      );
+
+      const ids = indicatorIdsOf(blueprint);
+      assertOk(ids.includes("rsi"), "RSI should be recognized");
+      assertOk(ids.includes("macd"), "MACD should be recognized");
+      assertOk(ids.includes("atr"), "ATR should be recognized");
+      assertOk(!blueprint.fourBrain, "built-in filters alone must not create a fake 4-Brain EA");
     },
   },
   {

@@ -6,6 +6,7 @@
  * wiring, but it must be declared deliberately.
  */
 import { ALL_BRAIN_MODULES } from "../src/lib/brain-modules";
+import { INDICATOR_REGISTRY } from "../src/lib/indicator-registry";
 import {
   buildModuleRepairPlan,
   MODULE_ADMISSION,
@@ -28,6 +29,8 @@ const uiIds = Object.keys(MODULE_UI_PARAMS);
 const brainIds = ALL_BRAIN_MODULES.map((module) => module.id);
 const contractIds = Object.keys(MODULE_CONTRACTS);
 const admissionIds = Object.keys(MODULE_ADMISSION);
+const indicatorIds = INDICATOR_REGISTRY.map((indicator) => indicator.id);
+const emittedDetectorIds = ["rbr_dbd", "mef", "qm_mef", "snrc2", "seg"];
 
 function unique(values: string[]): string[] {
   return [...new Set(values)].sort();
@@ -130,6 +133,23 @@ add(
   detectorOnlyWithContract.join(", "),
 );
 
+const missingEmittedDetectors = emittedDetectorIds.filter((id) => !MODULE_ADMISSION[id]);
+add(
+  "emitted standalone detectors are admitted",
+  missingEmittedDetectors.length === 0,
+  missingEmittedDetectors.join(", "),
+);
+
+const emittedDetectorNotDetectorOnly = emittedDetectorIds.filter((id) => {
+  const admission = MODULE_ADMISSION[id];
+  return admission && admission.status !== "detector_only";
+});
+add(
+  "emitted standalone detectors stay detector-only",
+  emittedDetectorNotDetectorOnly.length === 0,
+  emittedDetectorNotDetectorOnly.map((id) => `${id}: ${MODULE_ADMISSION[id].status}`).join(", "),
+);
+
 const admissionWithoutKnownSurface = admissionIds.filter((id) => {
   const admission = MODULE_ADMISSION[id];
   if (admission.status === "detector_only") return false;
@@ -167,6 +187,24 @@ add(
   "repair suggestions only point to verified modules",
   suggestedUnsafeModules.length === 0,
   suggestedUnsafeModules.map((module) => module.id).join(", "),
+);
+
+const indicatorsAdmittedAsAiModules = indicatorIds.filter(
+  (id) => MODULE_ADMISSION[id]?.aiVocabulary,
+);
+add(
+  "built-in indicators are not admitted as AI modules",
+  indicatorsAdmittedAsAiModules.length === 0,
+  indicatorsAdmittedAsAiModules.join(", "),
+);
+
+const indicatorsMissingLookup = INDICATOR_REGISTRY.filter(
+  (indicator) => indicator.aliases.length === 0 || indicator.buffers.length === 0,
+);
+add(
+  "built-in indicators declare aliases and buffers",
+  indicatorsMissingLookup.length === 0,
+  indicatorsMissingLookup.map((indicator) => indicator.id).join(", "),
 );
 
 console.log("\nModule admission verifier\n");

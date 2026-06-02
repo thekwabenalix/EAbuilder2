@@ -122,6 +122,16 @@ export interface StrategyBlueprint {
   summary?: string;
   /** Cross-brain notes used by the 4-Brain AI wiring path. */
   strategyNotes?: string;
+  /** Built-in MT5 indicators mentioned by the trader. These are primitives, not modules. */
+  indicatorRefs?: Array<{
+    id: string;
+    name: string;
+    category: string;
+    via: "builtin" | "icustom";
+    mql5: string;
+    status: "builtin_indicator";
+    note: string;
+  }>;
 
   /**
    * Optional 4-brain configuration.

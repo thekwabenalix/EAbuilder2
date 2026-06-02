@@ -250,13 +250,13 @@ CODE GENERATION RULES
 
     ★ VISUALISE EVERY INDICATOR. Any classic indicator you use MUST be visible:
       - Moving averages: use B4_MA(tf, period, method) — it draws automatically.
-      - Other indicators (RSI, MACD, Bollinger, ATR, Stochastic): create the
-        handle once and pass it to B4_Draw(handle, subWindow). Use subWindow 0
-        for on-chart overlays (Bollinger) and 1 for oscillators (RSI/MACD/ATR).
-        Example: int hRsi = iRSI(InpSymbol, PERIOD_M15, 14, PRICE_CLOSE);
-                 B4_Draw(hRsi, 1);
-                 double rsi = B4_MAval(hRsi, 1);
-      Create indicator handles ONCE (guard with a static/global), never every tick.
+      - Other built-ins (RSI, MACD, Bollinger, ATR, Stochastic, Ichimoku, Fractals)
+        are referenceable primitives, not 4-Brain modules by themselves.
+      - Do NOT put built-in indicator IDs such as rsi/macd/atr/stochastic into
+        semantics.modules or sm_configs unless there is a verified module contract.
+      - For RSI Hidden Divergence, use the verified rsi_hd state machine module.
+      - For any other built-in-only idea, state the limitation in notes instead
+        of inventing raw indicator MQL5.
 
     State machines that DO need an sm_config entry: fvg, fvg_inversion, ob, bos,
     choch, bos_choch, liqsweep, snr, gap_snr, breakout, rejection, miss, rsi_hd,
