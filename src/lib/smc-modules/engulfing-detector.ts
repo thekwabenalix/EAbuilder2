@@ -54,7 +54,7 @@ input int             InpExpiryBars  = 100;
 input bool            InpDraw        = true;
 input int             InpFontSize    = 8;
 input color           InpBullColor   = clrDodgerBlue;
-input color           InpBearColor   = clrOrangeRed;
+input color           InpBearColor   = clrRed;
 input color           InpEFColor     = clrOrange;
 input bool            InpShowLog     = true;
 
