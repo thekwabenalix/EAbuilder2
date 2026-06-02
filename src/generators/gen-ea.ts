@@ -328,13 +328,7 @@ function buildAiStateMachines(configs: AiBrainWiring["sm_configs"]): string {
         break;
       case "engulfing":
         parts.push(
-          genEgSM(
-            id,
-            TF,
-            tf,
-            (p.scanBack as number) ?? 3,
-            (p.expiryBars as number) ?? 100,
-          ),
+          genEgSM(id, TF, tf, (p.scanBack as number) ?? 3, (p.expiryBars as number) ?? 100),
         );
         break;
       default:

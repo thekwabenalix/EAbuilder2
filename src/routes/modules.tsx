@@ -52,6 +52,7 @@ import { generateBreakoutDetector } from "@/lib/smc-modules/breakout-detector";
 import { generateRejectionDetector } from "@/lib/smc-modules/rejection-detector";
 import { generateMissDetector } from "@/lib/smc-modules/miss-detector";
 import { generateEngulfingDetector } from "@/lib/smc-modules/engulfing-detector";
+import { generateStrongEngulfingDetector } from "@/lib/smc-modules/strong-engulfing-detector";
 import { generateFvgStateModule } from "@/lib/smc-modules/fvg-state-module";
 import { generateObStateModule } from "@/lib/smc-modules/ob-state-module";
 import { generateBreakoutStateModule } from "@/lib/smc-modules/breakout-state-module";
@@ -1868,6 +1869,30 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         status: "ready",
         generate: generateEngulfingDetector,
+      },
+      {
+        id: "seg-detector",
+        filename: "SEG_Detector.mq5",
+        name: "Strong Engulfing",
+        description:
+          "Detects STRONG engulfings only — the decisive 2-candle case where the " +
+          "second candle alone breaks and closes beyond the wick of the first. " +
+          "Marks the C1 wick-range zone (blue bull / red bear). No EF lifecycle.",
+        rules: [
+          "Strong = exactly 2 candles (no multi-candle build-up)",
+          "Bullish SEG: C1 bearish, C2 bullish, C2 close > C1.High (upper wick)",
+          "Bearish SEG: C1 bullish, C2 bearish, C2 close < C1.Low (lower wick)",
+          "Zone = C1 full wick range (hi=C1.High, lo=C1.Low)",
+          "Zones expire after InpExpiryBars bars",
+        ],
+        output: [
+          "Blue rectangle for bullish strong engulfing zones",
+          "Red rectangle for bearish strong engulfing zones",
+          "Zone label: 'SEG'",
+          "Journal: SEG_BULL | SEG_BEAR | SEG_EXPIRED",
+        ],
+        status: "ready",
+        generate: generateStrongEngulfingDetector,
       },
     ],
   },

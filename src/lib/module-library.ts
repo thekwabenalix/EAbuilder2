@@ -1908,18 +1908,58 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     inlineApi: {
       tick: "EGSM_{id}_Tick(lookback)",
       signals: [
-        { fn: "EGSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Bull EG/EF confirmed — long entry" },
-        { fn: "EGSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "Bear EG/EF confirmed — short entry" },
-        { fn: "EGSM_{id}_BullConfirmSL()", returns: "double", meaning: "SL level for bull entry (retestLow)" },
-        { fn: "EGSM_{id}_BearConfirmSL()", returns: "double", meaning: "SL level for bear entry (retestHigh)" },
+        {
+          fn: "EGSM_{id}_BullJustConfirmed()",
+          returns: "bool",
+          meaning: "Bull EG/EF confirmed — long entry",
+        },
+        {
+          fn: "EGSM_{id}_BearJustConfirmed()",
+          returns: "bool",
+          meaning: "Bear EG/EF confirmed — short entry",
+        },
+        {
+          fn: "EGSM_{id}_BullConfirmSL()",
+          returns: "double",
+          meaning: "SL level for bull entry (retestLow)",
+        },
+        {
+          fn: "EGSM_{id}_BearConfirmSL()",
+          returns: "double",
+          meaning: "SL level for bear entry (retestHigh)",
+        },
         { fn: "EGSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live bull zone exists" },
         { fn: "EGSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live bear zone exists" },
-        { fn: "EGSM_{id}_LatestBullUL()", returns: "double", meaning: "Upper limit of most recent bull zone" },
-        { fn: "EGSM_{id}_LatestBullLL()", returns: "double", meaning: "Lower limit of most recent bull zone" },
-        { fn: "EGSM_{id}_LatestBearUL()", returns: "double", meaning: "Upper limit of most recent bear zone" },
-        { fn: "EGSM_{id}_LatestBearLL()", returns: "double", meaning: "Lower limit of most recent bear zone" },
-        { fn: "EGSM_{id}_LatestBullZoneTime()", returns: "datetime", meaning: "C1 time of most recent bull zone (for chart drawing)" },
-        { fn: "EGSM_{id}_LatestBearZoneTime()", returns: "datetime", meaning: "C1 time of most recent bear zone (for chart drawing)" },
+        {
+          fn: "EGSM_{id}_LatestBullUL()",
+          returns: "double",
+          meaning: "Upper limit of most recent bull zone",
+        },
+        {
+          fn: "EGSM_{id}_LatestBullLL()",
+          returns: "double",
+          meaning: "Lower limit of most recent bull zone",
+        },
+        {
+          fn: "EGSM_{id}_LatestBearUL()",
+          returns: "double",
+          meaning: "Upper limit of most recent bear zone",
+        },
+        {
+          fn: "EGSM_{id}_LatestBearLL()",
+          returns: "double",
+          meaning: "Lower limit of most recent bear zone",
+        },
+        {
+          fn: "EGSM_{id}_LatestBullZoneTime()",
+          returns: "datetime",
+          meaning: "C1 time of most recent bull zone (for chart drawing)",
+        },
+        {
+          fn: "EGSM_{id}_LatestBearZoneTime()",
+          returns: "datetime",
+          meaning: "C1 time of most recent bear zone (for chart drawing)",
+        },
       ],
       reset: "EGSM_{id}_Reset()",
     },

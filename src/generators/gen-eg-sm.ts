@@ -36,11 +36,11 @@
 
 export function genEgSM(
   id: string,
-  TF: string,        // MQL5 PERIOD constant e.g. "PERIOD_M5"
-  tf: string,        // Human-readable label e.g. "M5"
-  scanBack = 3,      // bars to scan back for new completing candles each tick
-  expiryBars = 100,  // bars until an untested zone expires
-  maxEngBars = 20,   // max candles an engulf may take to complete (multi-candle)
+  TF: string, // MQL5 PERIOD constant e.g. "PERIOD_M5"
+  tf: string, // Human-readable label e.g. "M5"
+  scanBack = 3, // bars to scan back for new completing candles each tick
+  expiryBars = 100, // bars until an untested zone expires
+  maxEngBars = 20, // max candles an engulf may take to complete (multi-candle)
 ): string {
   const P = `EGSM_${id}_`;
 
