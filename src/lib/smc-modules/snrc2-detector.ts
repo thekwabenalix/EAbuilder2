@@ -210,7 +210,8 @@ void DrawRec(int i)
       ObjectSetInteger(0, rl, OBJPROP_BACK,       true);
    }
    Tag(recs[i].id, "res", recs[i].tRes, recs[i].resLevel,
-       recs[i].dir == DIR_BEAR ? "Res (no higher high)" : "Sup (no lower low)", clrSlateGray,
+       recs[i].dir == DIR_BEAR ? "Classic Res (no higher high)" : "Classic Sup (no lower low)",
+       clrSlateGray,
        recs[i].dir == DIR_BEAR ? ANCHOR_LEFT_LOWER : ANCHOR_LEFT_UPPER);
 
    // Structure markers.
@@ -293,6 +294,32 @@ bool StrongEngulf(ENUM_TIMEFRAMES tf, int e, int dir)
 }
 
 //+------------------------------------------------------------------+
+// Classic SNR level at/around a pivot bar (the resistance/support that created
+// the 1st level). Classic SNR = candle-pair reversal, level = candle A close:
+//   Resistance: bullish A → bearish B    Support: bearish A → bullish B
+// Returns the level, or 0.0 if no classic reversal is found near the pivot.
+double ClassicLevel(datetime pivT, int dir)
+{
+   int p = iBarShift(_Symbol, InpTF, pivT);
+   if(p < 1) return 0.0;
+   int hiS = p + 3;
+   int loS = MathMax(1, p - 1);
+   for(int s = hiS; s >= loS; s--)              // A = s (older), B = s-1 (newer)
+   {
+      if(s - 1 < 0) continue;
+      bool aBull = iClose(_Symbol, InpTF, s)   > iOpen(_Symbol, InpTF, s);
+      bool aBear = iClose(_Symbol, InpTF, s)   < iOpen(_Symbol, InpTF, s);
+      bool bBull = iClose(_Symbol, InpTF, s-1) > iOpen(_Symbol, InpTF, s-1);
+      bool bBear = iClose(_Symbol, InpTF, s-1) < iOpen(_Symbol, InpTF, s-1);
+      // bear SNRC2 needs the Classic RESISTANCE that created the 1st low
+      if(dir == DIR_BEAR && aBull && bBear) return iClose(_Symbol, InpTF, s);
+      // bull SNRC2 needs the Classic SUPPORT that created the 1st high
+      if(dir == DIR_BULL && aBear && bBull) return iClose(_Symbol, InpTF, s);
+   }
+   return 0.0;
+}
+
+//+------------------------------------------------------------------+
 // SNRC2 must be validated by a higher-timeframe engulfing of the same direction
 // overlapping (or just preceding) the structure's time span. No HTF engulfing → ignore.
 bool HtfEngulfingPresent(int dir, datetime tStart, datetime tEnd)
@@ -319,13 +346,15 @@ void Detect()
          pvType[i+2] == PV_HIGH && pvType[i+3] == PV_LOW  &&
          pvType[i+4] == PV_HIGH && pvType[i+5] == PV_LOW)
       {
-         double H0 = pvPrice[i], L1 = pvPrice[i+1], L2 = pvPrice[i+3],
+         double L1 = pvPrice[i+1], L2 = pvPrice[i+3],
                 H2 = pvPrice[i+4], L3 = pvPrice[i+5];
+         // Resistance that created the 1st low = Classic SNR resistance near H0.
+         double res = ClassicLevel(pvTime[i], DIR_BEAR);
          // break first low, manipulation above first low, continuation lower low,
-         // and the manipulation must NOT exceed the resistance (no higher high).
-         if(L2 < L1 && L3 < L2 && H2 > L1 && H2 < H0
+         // and the manipulation must NOT exceed the Classic SNR resistance (no higher high).
+         if(res > 0.0 && L2 < L1 && L3 < L2 && H2 > L1 && H2 < res
             && HtfEngulfingPresent(DIR_BEAR, pvTime[i+1], pvTime[i+5]))
-            AddRec(DIR_BEAR, L1, H2, L2, L3, H0,
+            AddRec(DIR_BEAR, L1, H2, L2, L3, res,
                    pvTime[i+1], pvTime[i], pvTime[i+4], pvTime[i+5]);
       }
       // Bullish: L0 R1 L1 R2 ML R3
@@ -333,13 +362,15 @@ void Detect()
          pvType[i+2] == PV_LOW  && pvType[i+3] == PV_HIGH &&
          pvType[i+4] == PV_LOW  && pvType[i+5] == PV_HIGH)
       {
-         double L0 = pvPrice[i], R1 = pvPrice[i+1], R2 = pvPrice[i+3],
+         double R1 = pvPrice[i+1], R2 = pvPrice[i+3],
                 ML = pvPrice[i+4], R3 = pvPrice[i+5];
+         // Support that created the 1st high = Classic SNR support near L0.
+         double sup = ClassicLevel(pvTime[i], DIR_BULL);
          // break first high, manipulation below first high, continuation higher high,
-         // and the manipulation must NOT exceed the support (no lower low).
-         if(R2 > R1 && R3 > R2 && ML < R1 && ML > L0
+         // and the manipulation must NOT exceed the Classic SNR support (no lower low).
+         if(sup > 0.0 && R2 > R1 && R3 > R2 && ML < R1 && ML > sup
             && HtfEngulfingPresent(DIR_BULL, pvTime[i+1], pvTime[i+5]))
-            AddRec(DIR_BULL, R1, ML, R2, R3, L0,
+            AddRec(DIR_BULL, R1, ML, R2, R3, sup,
                    pvTime[i+1], pvTime[i], pvTime[i+4], pvTime[i+5]);
       }
    }
