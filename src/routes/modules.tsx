@@ -56,6 +56,7 @@ import { generateRbrDbdDetector } from "@/lib/smc-modules/rbr-dbd-detector";
 import { generateMefDetector } from "@/lib/smc-modules/mef-detector";
 import { generateQmMefDetector } from "@/lib/smc-modules/qm-mef-detector";
 import { generateSnrc2Detector } from "@/lib/smc-modules/snrc2-detector";
+import { INDICATOR_REGISTRY } from "@/lib/indicator-registry";
 import { generateFvgStateModule } from "@/lib/smc-modules/fvg-state-module";
 import { generateObStateModule } from "@/lib/smc-modules/ob-state-module";
 import { generateBreakoutStateModule } from "@/lib/smc-modules/breakout-state-module";
@@ -130,7 +131,7 @@ function downloadMql5(filename: string, content: string) {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ModuleStatus = "ready" | "pending" | "planned";
+type ModuleStatus = "ready" | "pending" | "planned" | "builtin";
 
 interface ModuleEntry {
   id: string;
@@ -2001,7 +2002,47 @@ const TRADING_MODULES: ModuleCategory[] = [
     ],
   },
 
-  // ── 7. Indicators ─────────────────────────────────────────────────────────
+  // ── 7. Built-in MT5 Indicators (referenceable primitives) ──────────────────
+  {
+    id: "builtin-indicators",
+    label: "Built-ins",
+    fullName: "Built-in MT5 Indicators",
+    icon: BarChart2,
+    phaseTag: "Referenceable",
+    phaseActive: true,
+    description:
+      "Native MT5 indicators. These are NOT rebuilt as custom modules — the AI " +
+      "references them through MQL5's built-in functions (iX handle + CopyBuffer), " +
+      "then combines them with strategy primitives (cross, divergence, filters). " +
+      "Custom modules are reserved for concepts MT5 can't express natively.",
+    modules: INDICATOR_REGISTRY.map(
+      (ind): ModuleEntry => ({
+        id: `builtin-${ind.id}`,
+        filename: ind.signature,
+        name: ind.name,
+        description: ind.description,
+        rules: [
+          `MQL5 function: ${ind.mql5}`,
+          ...(ind.params.length > 0
+            ? ind.params.map(
+                (p) =>
+                  `${p.name} = ${p.default}` +
+                  (p.note
+                    ? ` (${p.note})`
+                    : p.min !== undefined
+                      ? ` [${p.min}–${p.max}]`
+                      : ""),
+              )
+            : ["no parameters"]),
+          `renders ${ind.subWindow ? "in a separate sub-window" : "on the price chart"}`,
+        ],
+        output: ind.buffers.map((b) => `buffer ${b.index}: ${b.name}`),
+        status: "builtin",
+      }),
+    ),
+  },
+
+  // ── 8. Indicators ─────────────────────────────────────────────────────────
   {
     id: "indicators",
     label: "Indicators",
@@ -2156,6 +2197,13 @@ function StatusBadge({ status }: { status: ModuleStatus }) {
     return (
       <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1 shrink-0">
         <Clock className="h-2.5 w-2.5" /> Coming soon
+      </span>
+    );
+  }
+  if (status === "builtin") {
+    return (
+      <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20 flex items-center gap-1 shrink-0">
+        <BarChart2 className="h-2.5 w-2.5" /> Built-in
       </span>
     );
   }
