@@ -210,35 +210,22 @@ void DetectEG(int sh)
 }
 
 //+------------------------------------------------------------------+
-// Create an EF zone when an EG fails
-void CreateEFZone(double zoneHi, double zoneLo, int efDir, datetime t)
+// Flip an EG zone into an EF zone (in place, once only)
+void FlipToEF(int i, int efDir)
 {
-   int idx = -1;
-   for(int _k = 0; _k < zonesTotal; _k++)
-      if(zones[_k].dead) { idx = _k; break; }
-   if(idx < 0 && zonesTotal < MAX_ZONES) idx = zonesTotal++;
-   if(idx < 0) return;
-
-   zones[idx].id         = nextId++;
-   zones[idx].dir        = efDir;
-   zones[idx].isEF       = true;
-   zones[idx].state      = ST_ACTIVE;
-   zones[idx].hi         = zoneHi;
-   zones[idx].lo         = zoneLo;
-   zones[idx].c1Time     = t;
-   zones[idx].confirmTime = t;
-   zones[idx].dead       = false;
-   zones[idx].ageCounter = 0;
-   zones[idx].parentId   = -1;
-
-   DrawZone(idx);
+   zones[i].dir   = efDir;
+   zones[i].isEF  = true;
+   zones[i].state = ST_ACTIVE;
+   // keep ageCounter so EF still expires relative to original; reset for fresh life
+   zones[i].ageCounter = 0;
+   UpdateZoneBox(i);  // recolor to orange + relabel "EF"
    if(InpShowLog)
-      PrintFormat("EF_%s_CREATED | zone=[%.5f,%.5f]",
-                  efDir == DIR_BULL ? "BULL" : "BEAR", zoneHi, zoneLo);
+      PrintFormat("EF_%s_FORMED | zone=[%.5f,%.5f]",
+                  efDir == DIR_BULL ? "BULL" : "BEAR", zones[i].hi, zones[i].lo);
 }
 
 //+------------------------------------------------------------------+
-// Lifecycle: retested, confirmed, failed->EF, expired
+// Lifecycle: retest, confirm, EG->EF flip (once), EF break (delete), expire
 void Lifecycle(int sh)
 {
    double hi = iHigh (_Symbol, InpTF, sh);
@@ -254,7 +241,7 @@ void Lifecycle(int sh)
 
       zones[i].ageCounter++;
       if(zones[i].ageCounter >= InpExpiryBars) {
-         if(InpShowLog) PrintFormat("EG_%s_EXPIRED", zones[i].isEF ? "EF" : "EG");
+         if(InpShowLog) PrintFormat("%s_EXPIRED", zones[i].isEF ? "EF" : "EG");
          KillZone(i);
          continue;
       }
@@ -262,61 +249,55 @@ void Lifecycle(int sh)
       double zoneHi = zones[i].hi;
       double zoneLo = zones[i].lo;
 
-      if(zones[i].dir == DIR_BULL) {
-         // EF that failed: if close goes below lo, delete EF
-         if(zones[i].isEF && cl < zoneLo) {
-            if(InpShowLog) PrintFormat("BULL_EF_BROKEN | zone=[%.5f,%.5f]", zoneHi, zoneLo);
+      // ---------------- EF zones: break = delete (a second flip is invalid) ----------
+      if(zones[i].isEF) {
+         // Bullish EF (was bear EG) breaks when price closes back below the zone
+         if(zones[i].dir == DIR_BULL && cl < zoneLo) {
+            if(InpShowLog) PrintFormat("BULL_EF_BROKEN -> DELETE | zone=[%.5f,%.5f]", zoneHi, zoneLo);
             KillZone(i);
             continue;
          }
-
-         // EG that failed: create new EF zone (don't flip original)
-         if(!zones[i].isEF && cl < zoneLo) {
-            if(InpShowLog)
-               PrintFormat("EG_BULL_FAILED -> CREATE_BEAR_EF | zone=[%.5f,%.5f]", zoneHi, zoneLo);
-            CreateEFZone(zoneHi, zoneLo, DIR_BEAR, t);
+         // Bearish EF (was bull EG) breaks when price closes back above the zone
+         if(zones[i].dir == DIR_BEAR && cl > zoneHi) {
+            if(InpShowLog) PrintFormat("BEAR_EF_BROKEN -> DELETE | zone=[%.5f,%.5f]", zoneHi, zoneLo);
+            KillZone(i);
             continue;
          }
+         continue; // EF zones do not run EG retest/confirm logic
+      }
 
-         // Bull zone lifecycle: ACTIVE → RETESTED → CONFIRMED
+      // ---------------- EG zones: flip once on failure, else retest/confirm ----------
+      if(zones[i].dir == DIR_BULL) {
+         // Bull EG fails when price CLOSES below the zone -> flip to bearish EF
+         if(cl < zoneLo) {
+            if(InpShowLog) PrintFormat("EG_BULL_FAILED -> EF | zone=[%.5f,%.5f]", zoneHi, zoneLo);
+            FlipToEF(i, DIR_BEAR);
+            continue;
+         }
+         // Bull EG lifecycle: ACTIVE -> RETESTED -> CONFIRMED
          if(zones[i].state == ST_ACTIVE && lo <= zoneHi) {
             zones[i].state = ST_RETESTED;
-            if(InpShowLog)
-               PrintFormat("EG_%s_RETESTED", zones[i].isEF ? "EF" : "EG");
+            if(InpShowLog) Print("EG_BULL_RETESTED");
          }
          if(zones[i].state == ST_RETESTED && cl > zoneHi) {
             zones[i].state = ST_CONFIRM;
-            if(InpShowLog)
-               PrintFormat("EG_%s_CONFIRMED | zone=%.5f,%.5f",
-                           zones[i].isEF ? "EF" : "EG", zoneHi, zoneLo);
+            if(InpShowLog) PrintFormat("EG_BULL_CONFIRMED | zone=%.5f,%.5f", zoneHi, zoneLo);
          }
       } else {
-         // EF that failed: if close goes above hi, delete EF
-         if(zones[i].isEF && cl > zoneHi) {
-            if(InpShowLog) PrintFormat("BEAR_EF_BROKEN | zone=[%.5f,%.5f]", zoneHi, zoneLo);
-            KillZone(i);
+         // Bear EG fails when price CLOSES above the zone -> flip to bullish EF
+         if(cl > zoneHi) {
+            if(InpShowLog) PrintFormat("EG_BEAR_FAILED -> EF | zone=[%.5f,%.5f]", zoneHi, zoneLo);
+            FlipToEF(i, DIR_BULL);
             continue;
          }
-
-         // EG that failed: create new EF zone (don't flip original)
-         if(!zones[i].isEF && cl > zoneHi) {
-            if(InpShowLog)
-               PrintFormat("EG_BEAR_FAILED -> CREATE_BULL_EF | zone=[%.5f,%.5f]", zoneHi, zoneLo);
-            CreateEFZone(zoneHi, zoneLo, DIR_BULL, t);
-            continue;
-         }
-
-         // Bear zone lifecycle: ACTIVE → RETESTED → CONFIRMED
+         // Bear EG lifecycle: ACTIVE -> RETESTED -> CONFIRMED
          if(zones[i].state == ST_ACTIVE && hi >= zoneLo) {
             zones[i].state = ST_RETESTED;
-            if(InpShowLog)
-               PrintFormat("EG_%s_RETESTED", zones[i].isEF ? "EF" : "EG");
+            if(InpShowLog) Print("EG_BEAR_RETESTED");
          }
          if(zones[i].state == ST_RETESTED && cl < zoneLo) {
             zones[i].state = ST_CONFIRM;
-            if(InpShowLog)
-               PrintFormat("EG_%s_CONFIRMED | zone=%.5f,%.5f",
-                           zones[i].isEF ? "EF" : "EG", zoneHi, zoneLo);
+            if(InpShowLog) PrintFormat("EG_BEAR_CONFIRMED | zone=%.5f,%.5f", zoneHi, zoneLo);
          }
       }
    }
