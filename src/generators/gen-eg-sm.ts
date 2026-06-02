@@ -368,5 +368,37 @@ datetime ${P}LatestBearZoneTime()
          return ${P}zones[_k].c1Time;
    return 0;
 }
+
+// ── Roadblock detection (MES) ─────────────────────────────────────────────────
+// An opposing live EG/EF zone sitting in the path of a move can halt price.
+// A BULL move is roadblocked by an active BEAR zone ABOVE current price.
+// A BEAR move is roadblocked by an active BULL zone BELOW current price.
+// Returns the near edge of the nearest blocking zone, or 0.0 if the path is clear.
+double ${P}RoadblockBull()
+{
+   double _px   = SymbolInfoDouble(InpSymbol, SYMBOL_BID);
+   double _best = 0.0;
+   for(int _k=0;_k<${P}zoneCount;_k++)
+   {
+      if(${P}zones[_k].dir != -1 || ${P}zones[_k].state >= ${P}MITIGATED) continue;
+      if(${P}zones[_k].lo <= _px) continue;                 // not ahead (above price)
+      if(_best == 0.0 || ${P}zones[_k].lo < _best) _best = ${P}zones[_k].lo;
+   }
+   return _best;   // nearest bear-zone lower edge above price (0 = clear)
+}
+double ${P}RoadblockBear()
+{
+   double _px   = SymbolInfoDouble(InpSymbol, SYMBOL_BID);
+   double _best = 0.0;
+   for(int _k=0;_k<${P}zoneCount;_k++)
+   {
+      if(${P}zones[_k].dir != 1 || ${P}zones[_k].state >= ${P}MITIGATED) continue;
+      if(${P}zones[_k].hi >= _px) continue;                 // not ahead (below price)
+      if(_best == 0.0 || ${P}zones[_k].hi > _best) _best = ${P}zones[_k].hi;
+   }
+   return _best;   // nearest bull-zone upper edge below price (0 = clear)
+}
+bool ${P}PathClearBull() { return ${P}RoadblockBull() == 0.0; }
+bool ${P}PathClearBear() { return ${P}RoadblockBear() == 0.0; }
 `;
 }

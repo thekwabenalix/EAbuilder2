@@ -38,7 +38,11 @@ import { generateEA } from "../src/generators/gen-ea";
 import type { FourBrainConfig, MQL5CodeGenParams } from "../src/types/blueprint";
 import type { AiBrainWiring } from "../src/lib/api-client";
 import { MODULE_LIBRARY, MODULE_UI_PARAMS } from "../src/lib/module-library";
-import { MODULE_CONTRACTS, getModuleContract } from "../src/lib/module-contracts";
+import {
+  MODULE_CONTRACTS,
+  getModuleContract,
+  moduleContractAllowsSmFunction,
+} from "../src/lib/module-contracts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT = resolve(__dirname, "..", "verify", "mql5");
@@ -442,6 +446,8 @@ runAiTest("MES engulfing (template, verified EGSM)", "MES_Engulfing_Template_Tes
     ["EGSM reset (M30)", code.includes("EGSM_M30_Reset();")],
     ["multi-candle detect present", code.includes("took %d candle(s)")],
     ["NO fake inline body-engulf", !code.includes("c1 >= o2 && o1 <= c2")],
+    ["roadblock query emitted", code.includes("double EGSM_D1_RoadblockBull()")],
+    ["path-clear query emitted", code.includes("bool EGSM_D1_PathClearBull()")],
   ];
   return { code, checks };
 });
@@ -651,7 +657,7 @@ runAiTest("EG+EF as Setup→Execution (MES)", "EG_EF_Setup_Exec_Test.mq5", () =>
     aiWiring,
   });
   const checks: Array<[string, boolean]> = [
-    ["EGSM_H4 SM embedded",  code.includes("EGSM_H4_Reset()")],
+    ["EGSM_H4 SM embedded", code.includes("EGSM_H4_Reset()")],
     ["EGSM_M30 SM embedded", code.includes("EGSM_M30_Reset()")],
     ["EG detection fn present", code.includes("EGSM_H4_Detect(")],
     ["EF flip logic present — BULL→BEAR", code.includes("BULL EG FAILED")],
@@ -687,6 +693,14 @@ function runModuleContractAudit() {
     "contract ids are backed by library or UI vocabulary",
     orphanContracts.length === 0,
     orphanContracts.join(", "),
+  ]);
+  checks.push([
+    "registered SM function is allowed",
+    moduleContractAllowsSmFunction("IFVGSM", "IFVGSM_M5_BullJustInverted("),
+  ]);
+  checks.push([
+    "invented SM function is rejected",
+    !moduleContractAllowsSmFunction("IFVGSM", "IFVGSM_M5_DoMagicThing("),
   ]);
 
   for (const [id, contract] of Object.entries(MODULE_CONTRACTS)) {

@@ -16,6 +16,7 @@ import { buildCompactModuleLibraryContext } from "../../src/lib/module-library.j
 import {
   buildCompactModuleContractContext,
   getModuleContract,
+  moduleContractAllowsSmFunction,
   moduleSupportsEvent,
 } from "../../src/lib/module-contracts.js";
 
@@ -510,7 +511,8 @@ function extractEmaRetestTarget(
     if (option.patterns.some((pattern) => pattern.test(hay))) return option.target;
   }
 
-  const targetWindow = /(?:test|touch|retest)\s+(?:must\s+be\s+(?:on\s+)?)?(?:only\s+)?(?:the\s+)?([^.\n;]+)/g;
+  const targetWindow =
+    /(?:test|touch|retest)\s+(?:must\s+be\s+(?:on\s+)?)?(?:only\s+)?(?:the\s+)?([^.\n;]+)/g;
   for (const match of hay.matchAll(targetWindow)) {
     const phrase = match[1] ?? "";
     if (/\b(?:either|any|both|or)\b/.test(phrase)) return "either";
@@ -519,7 +521,9 @@ function extractEmaRetestTarget(
   }
 
   const eitherPatterns = [
-    new RegExp(`\\b(?:either|any)\\s+(?:the\\s+)?(?:${fast}\\s*(?:period\\s*)?ema|fast\\s+ema).{0,40}\\b(?:or|/)\\b.{0,40}(?:${slow}\\s*(?:period\\s*)?ema|slow\\s+ema)`),
+    new RegExp(
+      `\\b(?:either|any)\\s+(?:the\\s+)?(?:${fast}\\s*(?:period\\s*)?ema|fast\\s+ema).{0,40}\\b(?:or|/)\\b.{0,40}(?:${slow}\\s*(?:period\\s*)?ema|slow\\s+ema)`,
+    ),
     /\b(?:either|any|both)\s+emas?\b/,
   ];
   if (eitherPatterns.some((pattern) => pattern.test(hay))) return "either";
@@ -570,7 +574,9 @@ function buildEmaIfvgSemantics(
   const entryEvent = extractIfvgEntryEvent(text);
   const assumptions: string[] = [];
   if (entryEvent === "unknown") {
-    assumptions.push("IFVG entry event was not explicit; defaulted to formation for verified wiring.");
+    assumptions.push(
+      "IFVG entry event was not explicit; defaulted to formation for verified wiring.",
+    );
   }
 
   return {
@@ -625,7 +631,9 @@ function isEmaTestThenIfvgFormation(text: string, config?: FourBrainConfig): boo
   const hasEmaTest = /(ema|moving average).{0,80}(test|touch|retest)/.test(hay);
   const hasAfterGate = /(after|only after|ignore.{0,40}before|must.{0,80}before)/.test(hay);
   const hasFormationEntry =
-    /(forms?|formation|becomes?|closes?\s+(above|below).{0,80}(boundary|fvg|gap)|inverted)/.test(hay);
+    /(forms?|formation|becomes?|closes?\s+(above|below).{0,80}(boundary|fvg|gap)|inverted)/.test(
+      hay,
+    );
 
   return hasEma && hasIfvg && hasEmaTest && hasAfterGate && hasFormationEntry;
 }
@@ -633,11 +641,13 @@ function isEmaTestThenIfvgFormation(text: string, config?: FourBrainConfig): boo
 function inferLocalSemantics(text: string, config?: FourBrainConfig): StrategySemantics {
   const tf = extractSingleTimeframe(text, config);
   const { fast, slow } = extractEmaPeriods(text, config);
-  const hasEma = /\bema\b/i.test(text) || [
-    ...(config?.direction?.modules ?? []),
-    ...(config?.setup?.modules ?? []),
-    ...(config?.execution?.modules ?? []),
-  ].some((m) => m.toLowerCase() === "ema");
+  const hasEma =
+    /\bema\b/i.test(text) ||
+    [
+      ...(config?.direction?.modules ?? []),
+      ...(config?.setup?.modules ?? []),
+      ...(config?.execution?.modules ?? []),
+    ].some((m) => m.toLowerCase() === "ema");
   const hasIfvg =
     /\bifvg\b/i.test(text) ||
     /inversion\s+fair\s+value\s+gap/i.test(text) ||
@@ -678,7 +688,11 @@ function inferLocalSemantics(text: string, config?: FourBrainConfig): StrategySe
     execution: {
       module: config?.execution?.modules?.[0] ?? "unknown",
       entryEvent: "unknown",
-      mustOccurAfter: config?.setup ? "setup_gate" : config?.direction ? "direction_event" : undefined,
+      mustOccurAfter: config?.setup
+        ? "setup_gate"
+        : config?.direction
+          ? "direction_event"
+          : undefined,
     },
     assumptions: ["Claude did not return semantics; server attached a minimal local extraction."],
   };
@@ -687,8 +701,10 @@ function inferLocalSemantics(text: string, config?: FourBrainConfig): StrategySe
 function validateWiringAgainstSemantics(response: AiBrainWiringResponse): WiringValidation {
   const errors: string[] = [];
   const warnings: string[] = [];
+  const dirCode = response.direction_brain ?? "";
   const setupCode = response.setup_brain ?? "";
   const execCode = response.execution_brain ?? "";
+  const allCode = [dirCode, setupCode, execCode].join("\n");
   const semantics = response.semantics;
 
   if (!semantics) {
@@ -702,6 +718,20 @@ function validateWiringAgainstSemantics(response: AiBrainWiringResponse): Wiring
     }
   }
 
+  const smCallRe =
+    /\b(RSIHDSM|OBFVGSM|EMASM|IFVGSM|FVGSM|EGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM)_([A-Za-z0-9]+)_([A-Za-z0-9_]+)\s*\(/g;
+  const badSmCalls = new Set<string>();
+  let smMatch: RegExpExecArray | null;
+  while ((smMatch = smCallRe.exec(allCode)) !== null) {
+    const fullCall = `${smMatch[1]}_${smMatch[2]}_${smMatch[3]}(`;
+    if (!moduleContractAllowsSmFunction(smMatch[1], fullCall)) badSmCalls.add(fullCall);
+  }
+  if (badSmCalls.size > 0) {
+    errors.push(
+      `AI wiring references unregistered state-machine function(s): ${[...badSmCalls].join(", ")}`,
+    );
+  }
+
   if (semantics.setup?.gate === "ema_retest") {
     if (!moduleSupportsEvent("ema", "ema_retest", "setup")) {
       errors.push("Module contract registry does not support EMA retest setup semantics.");
@@ -709,30 +739,39 @@ function validateWiringAgainstSemantics(response: AiBrainWiringResponse): Wiring
     const target = String(semantics.setup.target ?? "either").toLowerCase();
     const usesFast = /\btouchedFast\b/.test(setupCode);
     const usesSlow = /\btouchedSlow\b/.test(setupCode);
-    const usesEither = /\btouchedFast\s*\|\|\s*touchedSlow\b|\btouchedSlow\s*\|\|\s*touchedFast\b/.test(
-      setupCode,
-    );
+    const usesEither =
+      /\btouchedFast\s*\|\|\s*touchedSlow\b|\btouchedSlow\s*\|\|\s*touchedFast\b/.test(setupCode);
 
     if (target === "fast") {
-      if (!usesFast) errors.push("Semantics require fast EMA retest, but setup wiring does not test touchedFast.");
+      if (!usesFast)
+        errors.push(
+          "Semantics require fast EMA retest, but setup wiring does not test touchedFast.",
+        );
       if (usesEither || /&&\s*touchedSlow\b/.test(setupCode)) {
         errors.push("Semantics require fast EMA only, but setup wiring also allows the slow EMA.");
       }
     } else if (target === "slow") {
-      if (!usesSlow) errors.push("Semantics require slow EMA retest, but setup wiring does not test touchedSlow.");
+      if (!usesSlow)
+        errors.push(
+          "Semantics require slow EMA retest, but setup wiring does not test touchedSlow.",
+        );
       if (usesEither || /&&\s*touchedFast\b/.test(setupCode)) {
         errors.push("Semantics require slow EMA only, but setup wiring also allows the fast EMA.");
       }
     } else if (target === "either") {
       if (!(usesEither || (usesFast && usesSlow))) {
-        errors.push("Semantics require either EMA retest, but setup wiring does not test both EMA touch states.");
+        errors.push(
+          "Semantics require either EMA retest, but setup wiring does not test both EMA touch states.",
+        );
       }
     } else {
       warnings.push(`Unknown EMA retest target "${target}".`);
     }
 
     if (!/\bgEmaIfvgTestTime_[A-Z0-9]+\b/.test(setupCode + execCode)) {
-      errors.push("EMA retest semantics require a timestamp gate, but wiring does not reference gEmaIfvgTestTime.");
+      errors.push(
+        "EMA retest semantics require a timestamp gate, but wiring does not reference gEmaIfvgTestTime.",
+      );
     }
   }
 
@@ -742,29 +781,40 @@ function validateWiringAgainstSemantics(response: AiBrainWiringResponse): Wiring
       entryEvent !== "unknown" &&
       !moduleSupportsEvent("fvg_inversion", entryEvent, "execution")
     ) {
-      errors.push(`Module contract registry does not support fvg_inversion execution event "${entryEvent}".`);
+      errors.push(
+        `Module contract registry does not support fvg_inversion execution event "${entryEvent}".`,
+      );
     }
-    const usesIfvgInversion = /(?:^|[^A-Za-z0-9_])(?:IFVGSM_[A-Z0-9]+_)?(?:Bull|Bear)JustInverted\s*\(/.test(
-      execCode,
-    );
-    const usesIfvgConfirmation = /(?:^|[^A-Za-z0-9_])(?:IFVGSM_[A-Z0-9]+_)?(?:Bull|Bear)JustConfirmed\s*\(/.test(
-      execCode,
-    );
+    const usesIfvgInversion =
+      /(?:^|[^A-Za-z0-9_])(?:IFVGSM_[A-Z0-9]+_)?(?:Bull|Bear)JustInverted\s*\(/.test(execCode);
+    const usesIfvgConfirmation =
+      /(?:^|[^A-Za-z0-9_])(?:IFVGSM_[A-Z0-9]+_)?(?:Bull|Bear)JustConfirmed\s*\(/.test(execCode);
     if (entryEvent === "formation") {
       if (!usesIfvgInversion) {
-        errors.push("Semantics require IFVG formation entry, but execution wiring does not use JustInverted().");
+        errors.push(
+          "Semantics require IFVG formation entry, but execution wiring does not use JustInverted().",
+        );
       }
       if (usesIfvgConfirmation) {
-        errors.push("Semantics require IFVG formation entry, but execution wiring uses IFVG retest confirmation.");
+        errors.push(
+          "Semantics require IFVG formation entry, but execution wiring uses IFVG retest confirmation.",
+        );
       }
     } else if (entryEvent === "retest" || entryEvent === "confirmation") {
       if (!usesIfvgConfirmation) {
-        warnings.push("Semantics request IFVG retest/confirmation entry, but execution wiring does not use JustConfirmed().");
+        warnings.push(
+          "Semantics request IFVG retest/confirmation entry, but execution wiring does not use JustConfirmed().",
+        );
       }
     }
 
-    if (semantics.execution.mustOccurAfter === "setup_gate" && !/>\s*gEmaIfvgTestTime_[A-Z0-9]+\b/.test(execCode)) {
-      errors.push("Execution must occur after setup gate, but execution wiring does not compare IFVG time against EMA test time.");
+    if (
+      semantics.execution.mustOccurAfter === "setup_gate" &&
+      !/>\s*gEmaIfvgTestTime_[A-Z0-9]+\b/.test(execCode)
+    ) {
+      errors.push(
+        "Execution must occur after setup gate, but execution wiring does not compare IFVG time against EMA test time.",
+      );
     }
   }
 

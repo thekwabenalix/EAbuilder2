@@ -232,13 +232,25 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       {
         id: "confluence_zone",
         roles: ["setup"],
-        queryFunctions: ["OBFVGSM_{id}_HasBullSetup()", "OBFVGSM_{id}_HasBearSetup()"],
+        queryFunctions: [
+          "OBFVGSM_{id}_HasBullSetup()",
+          "OBFVGSM_{id}_HasBearSetup()",
+          "OBFVGSM_{id}_HasActiveBull()",
+          "OBFVGSM_{id}_HasActiveBear()",
+          "OBFVGSM_{id}_ActiveBullSL()",
+          "OBFVGSM_{id}_ActiveBearSL()",
+        ],
         meaning: "Order block and FVG confluence zone exists.",
       },
       {
         id: "entry",
         roles: ["execution"],
-        queryFunctions: ["OBFVGSM_{id}_BullJustConfirmed()", "OBFVGSM_{id}_BearJustConfirmed()"],
+        queryFunctions: [
+          "OBFVGSM_{id}_BullJustConfirmed()",
+          "OBFVGSM_{id}_BearJustConfirmed()",
+          "OBFVGSM_{id}_BullConfirmSL()",
+          "OBFVGSM_{id}_BearConfirmSL()",
+        ],
         meaning: "OB+FVG confluence entry has confirmed.",
       },
     ],
@@ -265,7 +277,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       {
         id: "bias",
         roles: ["direction"],
-        queryFunctions: ["BOSSM_{id}_Trend()"],
+        queryFunctions: ["BOSSM_{id}_Trend()", "BOSSM_{id}_BullBias()", "BOSSM_{id}_BearBias()"],
         meaning: "Latest structural break sets persistent trend direction.",
       },
       {
@@ -295,7 +307,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       {
         id: "bias_flip",
         roles: ["direction"],
-        queryFunctions: ["BOSSM_{id}_Trend()"],
+        queryFunctions: ["BOSSM_{id}_Trend()", "BOSSM_{id}_BullBias()", "BOSSM_{id}_BearBias()"],
         meaning: "Structure changes character and flips directional bias.",
       },
       {
@@ -326,6 +338,8 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         roles: ["direction", "setup", "execution"],
         queryFunctions: [
           "BOSSM_{id}_Trend()",
+          "BOSSM_{id}_BullBias()",
+          "BOSSM_{id}_BearBias()",
           "BOSSM_{id}_BullJustBroke()",
           "BOSSM_{id}_BearJustBroke()",
         ],
@@ -534,7 +548,14 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       {
         id: "hidden_divergence",
         roles: ["setup", "execution"],
-        queryFunctions: ["RSIHDSM_{id}_BullJustDiverged()", "RSIHDSM_{id}_BearJustDiverged()"],
+        queryFunctions: [
+          "RSIHDSM_{id}_BullJustDiverged()",
+          "RSIHDSM_{id}_BearJustDiverged()",
+          "RSIHDSM_{id}_BullJustConfirmed()",
+          "RSIHDSM_{id}_BearJustConfirmed()",
+          "RSIHDSM_{id}_BullConfirmSL()",
+          "RSIHDSM_{id}_BearConfirmSL()",
+        ],
         meaning: "RSI hidden divergence continuation event.",
       },
     ],
@@ -596,8 +617,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "EGSM_{id}_BullConfirmSL()",
           "EGSM_{id}_BearConfirmSL()",
         ],
-        meaning:
-          "Price retested the EG/EF zone and closed back outside — zone held. Entry signal.",
+        meaning: "Price retested the EG/EF zone and closed back outside — zone held. Entry signal.",
       },
       {
         id: "ef_formed",
@@ -663,6 +683,29 @@ export function moduleSupportsEvent(moduleId: string, eventId: string, role?: Br
   if (!contract) return false;
   return contract.semanticEvents.some(
     (event) => event.id === eventId && (!role || event.roles.includes(role)),
+  );
+}
+
+export function getContractsBySmPrefix(prefix: string): ModuleContract[] {
+  return Object.values(MODULE_CONTRACTS).filter((contract) => contract.smPrefix === prefix);
+}
+
+function queryFunctionSuffix(queryFunction: string): string | null {
+  const match = queryFunction.match(/^[A-Z]+SM_\{id\}_(\w+)\(\)$/);
+  return match?.[1] ?? null;
+}
+
+export function moduleContractAllowsSmFunction(prefix: string, fnName: string): boolean {
+  const contracts = getContractsBySmPrefix(prefix);
+  if (!contracts.length) return false;
+
+  const suffix = fnName.replace(new RegExp(`^${prefix}_[A-Za-z0-9]+_`), "").replace(/\($/, "");
+  if (suffix === "Tick" || suffix === "Reset") return true;
+
+  return contracts.some((contract) =>
+    contract.semanticEvents.some((event) =>
+      event.queryFunctions.some((query) => queryFunctionSuffix(query) === suffix),
+    ),
   );
 }
 

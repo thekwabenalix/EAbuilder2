@@ -58,6 +58,8 @@ input int             InpFontSize    = 8;
 input color           InpBullColor   = clrDodgerBlue;
 input color           InpBearColor   = clrRed;
 input color           InpEFColor     = clrOrange;
+input bool            InpShowRoadblock = true;             // mark opposing zones in the path
+input color           InpRoadblockColor = clrMagenta;
 input bool            InpShowLog     = true;
 
 struct ZoneRec
@@ -347,6 +349,62 @@ void Lifecycle(int sh)
 }
 
 //+------------------------------------------------------------------+
+// Roadblock: the nearest opposing live zone in the path of a move.
+// Bull move blocked by nearest active BEAR zone ABOVE price; bear move blocked
+// by nearest active BULL zone BELOW price. Drawn as magenta lines labelled RB.
+void MarkRoadblocks()
+{
+   ObjectsDeleteAll(0, OBJ_PREFIX + "RB_");
+   if(!InpShowRoadblock) return;
+
+   double px = iClose(_Symbol, InpTF, 0);
+   double bullBlock = 0.0;   // nearest bear-zone lower edge above price
+   double bearBlock = 0.0;   // nearest bull-zone upper edge below price
+
+   for(int i = 0; i < zonesTotal; i++) {
+      if(zones[i].dead) continue;
+      if(zones[i].dir == DIR_BEAR && zones[i].lo > px)
+         if(bullBlock == 0.0 || zones[i].lo < bullBlock) bullBlock = zones[i].lo;
+      if(zones[i].dir == DIR_BULL && zones[i].hi < px)
+         if(bearBlock == 0.0 || zones[i].hi > bearBlock) bearBlock = zones[i].hi;
+   }
+
+   datetime t0 = iTime(_Symbol, InpTF, 0);
+   if(bullBlock > 0.0) {
+      string ln = OBJ_PREFIX + "RB_UP";
+      if(ObjectCreate(0, ln, OBJ_HLINE, 0, 0, bullBlock)) {
+         ObjectSetInteger(0, ln, OBJPROP_COLOR, InpRoadblockColor);
+         ObjectSetInteger(0, ln, OBJPROP_STYLE, STYLE_DASH);
+         ObjectSetInteger(0, ln, OBJPROP_SELECTABLE, false);
+      }
+      string lb = OBJ_PREFIX + "RB_UP_LBL";
+      if(ObjectCreate(0, lb, OBJ_TEXT, 0, t0, bullBlock)) {
+         ObjectSetString(0, lb, OBJPROP_TEXT, "RB (bull blocked)");
+         ObjectSetInteger(0, lb, OBJPROP_COLOR, InpRoadblockColor);
+         ObjectSetInteger(0, lb, OBJPROP_FONTSIZE, InpFontSize);
+         ObjectSetInteger(0, lb, OBJPROP_ANCHOR, ANCHOR_LOWER);
+         ObjectSetInteger(0, lb, OBJPROP_SELECTABLE, false);
+      }
+   }
+   if(bearBlock > 0.0) {
+      string ln = OBJ_PREFIX + "RB_DN";
+      if(ObjectCreate(0, ln, OBJ_HLINE, 0, 0, bearBlock)) {
+         ObjectSetInteger(0, ln, OBJPROP_COLOR, InpRoadblockColor);
+         ObjectSetInteger(0, ln, OBJPROP_STYLE, STYLE_DASH);
+         ObjectSetInteger(0, ln, OBJPROP_SELECTABLE, false);
+      }
+      string lb = OBJ_PREFIX + "RB_DN_LBL";
+      if(ObjectCreate(0, lb, OBJ_TEXT, 0, t0, bearBlock)) {
+         ObjectSetString(0, lb, OBJPROP_TEXT, "RB (bear blocked)");
+         ObjectSetInteger(0, lb, OBJPROP_COLOR, InpRoadblockColor);
+         ObjectSetInteger(0, lb, OBJPROP_FONTSIZE, InpFontSize);
+         ObjectSetInteger(0, lb, OBJPROP_ANCHOR, ANCHOR_UPPER);
+         ObjectSetInteger(0, lb, OBJPROP_SELECTABLE, false);
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
 void Rebuild()
 {
    ObjectsDeleteAll(0, OBJ_PREFIX);
@@ -357,6 +415,7 @@ void Rebuild()
       DetectEG(sh);
       Lifecycle(sh);
    }
+   MarkRoadblocks();
 }
 
 //+------------------------------------------------------------------+
@@ -381,6 +440,7 @@ int OnCalculate(const int rates_total, const int prev_calculated,
       lastBarTime = curBar;
       DetectEG(1);
       Lifecycle(1);
+      MarkRoadblocks();
    }
    return rates_total;
 }
