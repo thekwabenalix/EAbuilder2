@@ -225,6 +225,36 @@ export interface AiBrainWiring {
   direction_brain: string;
   setup_brain: string;
   execution_brain: string;
+  semantics?: {
+    version: 1;
+    source: "ai" | "deterministic_adapter" | "local_extractor";
+    timeframe: string;
+    modules: string[];
+    direction?: {
+      module: string;
+      event: string;
+      fastPeriod?: number;
+      slowPeriod?: number;
+      resetPolicy?: string;
+    };
+    setup?: {
+      gate: string;
+      target?: string;
+      targetLabel?: string;
+      mustOccurAfter?: string;
+    };
+    execution?: {
+      module: string;
+      entryEvent: string;
+      mustOccurAfter?: string;
+    };
+    assumptions: string[];
+  };
+  validation?: {
+    status: "pass" | "warn" | "fail";
+    errors: string[];
+    warnings: string[];
+  };
   required_sms: string[];
   sm_configs: Record<
     string,

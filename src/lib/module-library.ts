@@ -1806,63 +1806,136 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     combinesWith: ["fvg", "fvg_inversion", "order_block", "liqsweep"],
   },
 
-  // ─── Engulfing ───────────────────────────────────────────────────────────────
+  // ─── Engulfing / Engulfing Failed (MES) ─────────────────────────────────────
   {
     id: "engulfing",
-    label: "Engulfing Candle",
+    label: "Engulfing / Engulfing Failed",
     aliases: [
       { phrase: "engulfing" },
+      { phrase: "EG" },
+      { phrase: "EF" },
+      { phrase: "engulfing failed" },
       { phrase: "engulfing candle" },
       { phrase: "engulfing pattern" },
       { phrase: "bullish engulfing" },
       { phrase: "bearish engulfing" },
-      { phrase: "reversal candle" },
-      { phrase: "strong close candle" },
+      { phrase: "Malaysian engulfing" },
+      { phrase: "MES" },
+      { phrase: "reversal zone" },
       { phrase: "outside bar" },
     ],
     concept:
-      "A strong reversal candle whose body completely engulfs the previous candle. Indicates decisive directional momentum.",
+      "Malaysian Engulfing Strategy (MES) zones. " +
+      "EG (Engulfing): C2 closes beyond C1's full wick — zone = C1 wick range (hi=C1.High, lo=C1.Low). " +
+      "EF (Engulfing Failed): a failed EG — price closes through the EG zone (bearish close below a bull EG's lower wick, or bullish close above a bear EG's upper wick). " +
+      "The EF is the same C1 wick zone, now acting in the opposite direction. " +
+      "EF is NOT a Breaker Block — it needs no BOS or displacement context. It is simply an EG that price closed through. " +
+      "Both EG and EF are tracked in one SM with the same ACTIVE → RETESTED → CONFIRMED lifecycle.",
     detectionLogic:
-      "Checks the relationship between the current candle (c1) and the previous candle (c2). Bullish: c1 close > c1 open, c2 close < c2 open, c1 close >= c2 open, c1 open <= c2 close. Bearish: inverse. Point-in-time signal — no state machine.",
+      "Scans C1 (engulfed candle) and C2 (engulfing candle). " +
+      "Bullish EG: C1 bearish, C2 bullish and close > C1.High (upper wick). " +
+      "Bearish EG: C1 bullish, C2 bearish and close < C1.Low (lower wick). " +
+      "Zone = C1 full wick range (hi=C1.High, lo=C1.Low). " +
+      "EF flip: bull EG zone — a bearish candle closes below C1.Low → zone becomes bear EF. " +
+      "Bear EG zone — a bullish candle closes above C1.High → zone becomes bull EF. " +
+      "CONFIRMED fires when price retests the EG or EF zone and closes back outside it in the zone's direction.",
     roles: [
+      {
+        role: "direction",
+        fit: "primary",
+        usage:
+          "W1 or D1 EG/EF zones establish directional bias. Price moves from one EG/EF zone to an opposing zone. " +
+          "HasActiveBull/Bear with a higher-TF instance drives gBias.",
+      },
+      {
+        role: "setup",
+        fit: "primary",
+        usage:
+          "H4 EG or EF zone in the bias direction = Direction Setup (DS). Setup is active while the zone is live (HasActiveBull/Bear). " +
+          "SL hint = zone lo (bull) or hi (bear).",
+      },
       {
         role: "execution",
         fit: "primary",
         usage:
-          "Engulfing pattern aligned with bias = entry signal. SL at wick of engulfing candle.",
+          "M30 or M5 EG/EF zone CONFIRMED = entry signal. BullJustConfirmed/BearJustConfirmed fires the trade. " +
+          "SL from BullConfirmSL/BearConfirmSL (retest extreme).",
       },
     ],
-    lifecycle: "Point-in-time — fires on the bar the pattern completes",
-    params: [],
-    outputStates: [
+    lifecycle:
+      "C2 closes beyond C1 wick → EG ACTIVE → price enters zone: RETESTED → close back outside: CONFIRMED (entry) | " +
+      "close through zone: MITIGATED | zone violated: → EF ACTIVE (dir flipped) → same lifecycle → CONFIRMED (EF entry)",
+    params: [
       {
-        name: "Bull engulfing",
-        meaning: "Bullish reversal candle",
-        tradingImplication: "ENTRY LONG — strong buying pressure",
+        name: "scanBack",
+        type: "int",
+        default: 3,
+        range: [1, 10],
+        description: "Bars scanned each tick for new EG patterns",
+        traderPhrases: ["look back 3 bars", "scan 5 candles for engulfing"],
       },
       {
-        name: "Bear engulfing",
-        meaning: "Bearish reversal candle",
-        tradingImplication: "ENTRY SHORT",
+        name: "expiryBars",
+        type: "int",
+        default: 100,
+        range: [20, 500],
+        description: "Bars until an untested zone expires",
+        traderPhrases: ["expire after 50 bars", "keep zones for 200 candles"],
+      },
+    ],
+    outputStates: [
+      {
+        name: "HasActiveBull()",
+        meaning: "A live bull EG or bull EF zone exists",
+        tradingImplication: "Setup armed — watch for zone to be retested and confirmed",
+      },
+      {
+        name: "HasActiveBear()",
+        meaning: "A live bear EG or bear EF zone exists",
+        tradingImplication: "Setup armed — watch for zone to be retested and confirmed",
+      },
+      {
+        name: "BullJustConfirmed()",
+        meaning: "Bull EG or EF confirmed this bar — zone held as support",
+        tradingImplication: "ENTRY LONG — SL from BullConfirmSL()",
+      },
+      {
+        name: "BearJustConfirmed()",
+        meaning: "Bear EG or EF confirmed this bar — zone held as resistance",
+        tradingImplication: "ENTRY SHORT — SL from BearConfirmSL()",
       },
     ],
     inlineApi: {
-      tick: "(none — inline check at bar open)",
+      tick: "EGSM_{id}_Tick(lookback)",
       signals: [
-        { fn: "c1>o1 && c2<o2 && c1>=o2 && o1<=c2", returns: "bool", meaning: "Bullish engulfing" },
-        { fn: "c1<o1 && c2>o2 && c1<=o2 && o1>=c2", returns: "bool", meaning: "Bearish engulfing" },
+        { fn: "EGSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Bull EG/EF confirmed — long entry" },
+        { fn: "EGSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "Bear EG/EF confirmed — short entry" },
+        { fn: "EGSM_{id}_BullConfirmSL()", returns: "double", meaning: "SL level for bull entry (retestLow)" },
+        { fn: "EGSM_{id}_BearConfirmSL()", returns: "double", meaning: "SL level for bear entry (retestHigh)" },
+        { fn: "EGSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live bull zone exists" },
+        { fn: "EGSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live bear zone exists" },
+        { fn: "EGSM_{id}_LatestBullUL()", returns: "double", meaning: "Upper limit of most recent bull zone" },
+        { fn: "EGSM_{id}_LatestBullLL()", returns: "double", meaning: "Lower limit of most recent bull zone" },
+        { fn: "EGSM_{id}_LatestBearUL()", returns: "double", meaning: "Upper limit of most recent bear zone" },
+        { fn: "EGSM_{id}_LatestBearLL()", returns: "double", meaning: "Lower limit of most recent bear zone" },
+        { fn: "EGSM_{id}_LatestBullZoneTime()", returns: "datetime", meaning: "C1 time of most recent bull zone (for chart drawing)" },
+        { fn: "EGSM_{id}_LatestBearZoneTime()", returns: "datetime", meaning: "C1 time of most recent bear zone (for chart drawing)" },
       ],
-      reset: "(none)",
+      reset: "EGSM_{id}_Reset()",
     },
     examplePhrases: [
-      "Enter on engulfing candle after FVG setup",
-      "Use engulfing candle for execution",
-      "Wait for a strong reversal candle at the zone",
-      "Bullish engulfing at the demand zone = buy signal",
-      "Enter on an outside bar at the order block",
+      "Use W1 and D1 engulfing zones for direction",
+      "H4 EG or EF as my setup zone",
+      "Enter on M30 engulfing after H4 setup",
+      "Trade the EF zone when the EG fails",
+      "Malaysian engulfing strategy — EG for direction, EF for continuation",
+      "Bullish engulfing failed on H4 is my buy zone",
+      "Enter when price retests the engulfing zone",
+      "Direction from weekly EG, setup from daily EF, entry on H4 confirm",
+      "MES strategy with EG and EF zones",
     ],
-    notSuitedFor: ["Direction bias or setup — this is purely an entry trigger"],
-    combinesWith: ["fvg", "order_block", "liqsweep", "bos"],
+    notSuitedFor: ["Strategies needing FVG-style gap detection — use fvg or fvg_inversion instead"],
+    combinesWith: ["bos", "ema", "liqsweep", "snr", "fvg"],
   },
 
   // ─── Pin Bar ─────────────────────────────────────────────────────────────────

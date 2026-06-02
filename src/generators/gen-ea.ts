@@ -33,7 +33,9 @@ import { genMissSM } from "./gen-miss-sm";
 import { genRsiHdSM } from "./gen-rsi-hd-sm";
 import { genObFvgSM } from "./gen-obfvg-sm";
 import { genEmaSM } from "./gen-ema-sm";
+import { genEgSM } from "./gen-eg-sm";
 import type { AiBrainWiring } from "@/lib/api-client";
+import { getModuleContract } from "@/lib/module-contracts";
 
 /** Collect all unique TFs that need an iFVG state machine instance. */
 function collectIfvgTFs(config: FourBrainConfig): Map<string, string> {
@@ -76,6 +78,7 @@ const SM_PREFIX_TYPE: Record<string, string> = {
   IFVGSM: "fvg_inversion",
   FVGSM: "fvg",
   OBSM: "ob",
+  EGSM: "engulfing",
   BOSSM: "bos",
   LSSM: "liqsweep",
   SNRSM: "snr",
@@ -115,12 +118,14 @@ function smPrefixForType(type: string): string {
       return "OBFVGSM";
     case "ema":
       return "EMASM";
+    case "engulfing":
+      return "EGSM";
     case "bos":
     case "choch":
     case "bos_choch":
       return "BOSSM";
     default:
-      return "BOSSM";
+      return type.toUpperCase();
   }
 }
 
@@ -157,7 +162,7 @@ function reconcileStateMachines(aiWiring: AiBrainWiring): AiBrainWiring["sm_conf
   // Match  PREFIX_ID_  where PREFIX is a known SM prefix and ID is the TF label.
   // IFVGSM must precede FVGSM in the alternation so the longer prefix wins.
   const re =
-    /\b(RSIHDSM|OBFVGSM|EMASM|IFVGSM|FVGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM)_([A-Za-z0-9]+)_/g;
+    /\b(RSIHDSM|OBFVGSM|EMASM|IFVGSM|FVGSM|EGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM)_([A-Za-z0-9]+)_/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(allCode)) !== null) {
     const prefix = m[1];
@@ -305,6 +310,17 @@ function buildAiStateMachines(configs: AiBrainWiring["sm_configs"]): string {
           ),
         );
         break;
+      case "engulfing":
+        parts.push(
+          genEgSM(
+            id,
+            TF,
+            tf,
+            (p.scanBack as number) ?? 3,
+            (p.expiryBars as number) ?? 100,
+          ),
+        );
+        break;
       default:
         parts.push(`// Unknown SM type: ${type} (key=${key})`);
     }
@@ -313,6 +329,152 @@ function buildAiStateMachines(configs: AiBrainWiring["sm_configs"]): string {
 }
 
 // ─── Main generator ───────────────────────────────────────────────────────────
+
+function tickArgForConfig(cfg: AiBrainWiring["sm_configs"][string]): string {
+  const p = cfg.params ?? {};
+  const contract = getModuleContract(cfg.type);
+  if (contract?.tickArgPolicy === "just_closed_bar") return "1";
+  if (contract?.tickArgPolicy === "external_bias") return "gBias";
+  if (contract?.tickArgPolicy === "none") return "";
+
+  switch (cfg.type) {
+    case "fvg_inversion":
+      return "1";
+    case "ema":
+      return "gBias";
+    case "ob":
+      return String((p.lookback as number) ?? (p.scanBack as number) ?? 20);
+    case "rsi_hd":
+      return String((p.lookback as number) ?? (p.maxBars as number) ?? 50);
+    case "ob_fvg":
+      return String((p.lookback as number) ?? 50);
+    case "engulfing":
+      return String((p.scanBack as number) ?? (p.lookback as number) ?? 3);
+    default:
+      return String((p.lookback as number) ?? 20);
+  }
+}
+
+function smInstanceName(cfg: AiBrainWiring["sm_configs"][string]): string {
+  return `${smPrefixForType(cfg.type)}_${cfg.id}`;
+}
+
+function smWrapperName(cfg: AiBrainWiring["sm_configs"][string]): string {
+  return `B4_TickOnce_${smInstanceName(cfg)}`;
+}
+
+function buildAiTickWrappers(configs: AiBrainWiring["sm_configs"]): string {
+  const emitted = new Set<string>();
+  const wrappers: string[] = [];
+
+  for (const cfg of Object.values(configs)) {
+    const instance = smInstanceName(cfg);
+    if (emitted.has(instance)) continue;
+    emitted.add(instance);
+
+    const wrapper = smWrapperName(cfg);
+    const lastBar = `${wrapper}_lastBar`;
+    wrappers.push(`
+datetime ${lastBar} = 0;
+void ${wrapper}()
+{
+   datetime _bt = iTime(InpSymbol, ${cfg.TF}, 0);
+   if(_bt == ${lastBar}) return;
+   ${lastBar} = _bt;
+   ${instance}_Tick(${tickArgForConfig(cfg)});
+}`);
+  }
+
+  return wrappers.join("\n");
+}
+
+function referencedSmConfigs(
+  code: string,
+  configs: AiBrainWiring["sm_configs"],
+): AiBrainWiring["sm_configs"][string][] {
+  const refs: AiBrainWiring["sm_configs"][string][] = [];
+  const seen = new Set<string>();
+
+  for (const cfg of Object.values(configs)) {
+    const instance = smInstanceName(cfg);
+    if (seen.has(instance)) continue;
+    if (!new RegExp(`\\b${instance}_`).test(code)) continue;
+    seen.add(instance);
+    refs.push(cfg);
+  }
+
+  return refs;
+}
+
+function buildAiBrainTickPreamble(code: string, configs: AiBrainWiring["sm_configs"]): string {
+  return referencedSmConfigs(code, configs)
+    .map((cfg) => `${smWrapperName(cfg)}();`)
+    .join(" ");
+}
+
+function stripAiTickCalls(code: string): string {
+  return code.replace(
+    /\s*\b(?:RSIHDSM|OBFVGSM|EMASM|IFVGSM|FVGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM)_[A-Za-z0-9]+_Tick\s*\([^;]*\);/g,
+    "",
+  );
+}
+
+function auditText(value: unknown): string {
+  return String(value ?? "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/[^\x20-\x7E]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function truncateAudit(value: unknown, max = 120): string {
+  const text = auditText(value);
+  return text.length > max ? `${text.slice(0, max - 3)}...` : text;
+}
+
+function buildAiAuditHeader(aiWiring?: AiBrainWiring): string {
+  if (!aiWiring) return "";
+
+  const semantics = aiWiring.semantics;
+  const validation = aiWiring.validation;
+  const lines: string[] = [];
+
+  lines.push(`//| AI validation: ${auditText(validation?.status ?? "not_reported")}`);
+  if (validation?.errors?.length) {
+    lines.push(`//| AI errors    : ${truncateAudit(validation.errors.join(" | "))}`);
+  }
+  if (validation?.warnings?.length) {
+    lines.push(`//| AI warnings  : ${truncateAudit(validation.warnings.join(" | "))}`);
+  }
+  if (semantics?.source) lines.push(`//| AI source    : ${auditText(semantics.source)}`);
+  if (semantics?.timeframe) lines.push(`//| AI timeframe : ${auditText(semantics.timeframe)}`);
+  if (semantics?.direction) {
+    const periods =
+      semantics.direction.fastPeriod && semantics.direction.slowPeriod
+        ? ` ${semantics.direction.fastPeriod}/${semantics.direction.slowPeriod}`
+        : "";
+    lines.push(
+      `//| AI direction : ${truncateAudit(`${semantics.direction.module} ${semantics.direction.event}${periods}`)}`,
+    );
+  }
+  if (semantics?.setup) {
+    const target = semantics.setup.targetLabel ?? semantics.setup.target ?? "";
+    lines.push(
+      `//| AI setup     : ${truncateAudit(`${semantics.setup.gate}${target ? ` on ${target}` : ""}`)}`,
+    );
+  }
+  if (semantics?.execution) {
+    lines.push(
+      `//| AI entry     : ${truncateAudit(`${semantics.execution.module} ${semantics.execution.entryEvent}`)}`,
+    );
+  }
+  if (semantics?.assumptions?.length) {
+    lines.push(`//| AI assumes   : ${truncateAudit(semantics.assumptions.join(" | "))}`);
+  }
+  if (aiWiring.notes) lines.push(`//| AI notes     : ${truncateAudit(aiWiring.notes)}`);
+
+  return lines.join("\n");
+}
 
 export function generateEA(params: MQL5CodeGenParams): string {
   const { eaName, config, globalSymbol = "EURUSD", globalMagic = 990001, aiWiring } = params;
@@ -332,6 +494,7 @@ export function generateEA(params: MQL5CodeGenParams): string {
   const beAtR = mgmt?.breakEvenAtR ?? 1.0;
   const maxTrades = mgmt?.maxOpenTrades ?? 1;
   const maxStopPts = mgmt?.maxStopPoints ?? 0; // 0 = no limit
+  const aiAuditHeader = buildAiAuditHeader(aiWiring);
 
   const hasDirBrain = Boolean(config.direction);
   const hasSetupBrain = Boolean(config.setup);
@@ -344,8 +507,10 @@ export function generateEA(params: MQL5CodeGenParams): string {
   const reconciledConfigs = aiWiring ? reconcileStateMachines(aiWiring) : {};
 
   let smCode: string;
+  let aiTickWrappers = "";
   if (aiWiring) {
     smCode = buildAiStateMachines(reconciledConfigs);
+    aiTickWrappers = buildAiTickWrappers(reconciledConfigs);
   } else {
     const ifvgTFs = collectIfvgTFs(config);
     smCode = [...ifvgTFs.entries()]
@@ -359,9 +524,9 @@ export function generateEA(params: MQL5CodeGenParams): string {
   let dirCode: string, setupCode: string, execCode: string;
   let aiModeLabel = "";
   if (aiWiring) {
-    dirCode = aiWiring.direction_brain;
-    setupCode = aiWiring.setup_brain;
-    execCode = aiWiring.execution_brain;
+    dirCode = stripAiTickCalls(aiWiring.direction_brain);
+    setupCode = stripAiTickCalls(aiWiring.setup_brain);
+    execCode = stripAiTickCalls(aiWiring.execution_brain);
     aiModeLabel = `// Generated by Claude AI — module library wiring\n// ${aiWiring.notes ?? ""}`;
   } else {
     dirCode = genDirectionBrain(config.direction);
@@ -373,12 +538,16 @@ export function generateEA(params: MQL5CodeGenParams): string {
   const setupTFUpper = (config.setup?.timeframe ?? "").toUpperCase();
   const execTFUpper = config.execution.timeframe.toUpperCase();
 
-  // In AI mode: Claude's brain functions include their own Tick() calls inline.
+  // In AI mode: the assembler emits canonical Tick() wrappers and strips AI Tick() calls.
   // In template mode: only iFVG SMs need explicit pre-brain Tick() calls.
   let dirSmTick = "",
     setupSmTick = "",
     execSmTick = "";
-  if (!aiWiring) {
+  if (aiWiring) {
+    dirSmTick = buildAiBrainTickPreamble(dirCode, reconciledConfigs);
+    setupSmTick = buildAiBrainTickPreamble(setupCode, reconciledConfigs);
+    execSmTick = buildAiBrainTickPreamble(execCode, reconciledConfigs);
+  } else {
     const ifvgTFsForTick = collectIfvgTFs(config);
     const smTickCall = (tf: string) => (ifvgTFsForTick.has(tf) ? `IFVGSM_${tf}_Tick(1);` : "");
     dirSmTick = smTickCall(dirTFUpper);
@@ -457,7 +626,7 @@ export function generateEA(params: MQL5CodeGenParams): string {
 //| Setup     : ${setupMods} @ ${setupTF}
 //| Execution : ${execMods} @ ${execTF}
 //| Management: ${riskPct}% risk · ${rrRatio}R TP${beEnabled ? ` · BE@${beAtR}R` : ""}
-${aiWiring ? `//| AI notes  : ${(aiWiring.notes ?? "").slice(0, 60)}` : ""}
+${aiAuditHeader}
 //+------------------------------------------------------------------+
 #property copyright "Generated by EAbuilder2"
 #property version   "1.00"
@@ -662,6 +831,7 @@ void B4_Draw(int handle, int subWindow)
 //| Inline State Machine instances (embedded, zero dependencies)    |
 //+------------------------------------------------------------------+
 ${smCode}
+${aiTickWrappers}
 //+------------------------------------------------------------------+
 //| Brain implementations${aiWiring ? " — AI-generated wiring" : " — template generators"}
 //+------------------------------------------------------------------+

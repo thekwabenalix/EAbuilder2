@@ -60,7 +60,11 @@ import type { FourBrainConfig, BrainConfig, BrainModuleType } from "@/types/blue
 import { ALL_BRAIN_MODULES, TIMEFRAMES as TF_LIST, formatBrainChain } from "@/lib/brain-modules";
 import { MODULE_UI_PARAMS } from "@/lib/module-library";
 import type { UIParam } from "@/lib/module-library";
-import { generateAiBrainWiring, generateAiEaFromDescription } from "@/lib/api-client";
+import {
+  generateAiBrainWiring,
+  generateAiEaFromDescription,
+  type AiBrainWiring,
+} from "@/lib/api-client";
 import {
   getLocalRunnerHealth,
   getMt5Status,
@@ -86,6 +90,100 @@ function downloadText(filename: string, content: string, mime = "text/plain") {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function assertAiWiringValid(wiring: AiBrainWiring) {
+  if (wiring.validation?.status !== "fail") return;
+  const message =
+    wiring.validation.errors[0] ??
+    "AI wiring does not match the extracted strategy rules. Please regenerate.";
+  throw new Error(`AI wiring blocked: ${message}`);
+}
+
+function AiWiringInsight({ wiring }: { wiring: AiBrainWiring | null }) {
+  if (!wiring) return null;
+
+  const validation = wiring.validation;
+  const semantics = wiring.semantics;
+  const status = validation?.status ?? "warn";
+  const statusStyle =
+    status === "pass"
+      ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-300"
+      : status === "fail"
+        ? "border-destructive/30 bg-destructive/5 text-destructive"
+        : "border-amber-500/30 bg-amber-500/5 text-amber-300";
+  const statusIcon =
+    status === "pass" ? (
+      <CheckCircle2 className="h-3.5 w-3.5" />
+    ) : status === "fail" ? (
+      <XCircle className="h-3.5 w-3.5" />
+    ) : (
+      <AlertTriangle className="h-3.5 w-3.5" />
+    );
+
+  const items = [
+    semantics?.timeframe ? `Timeframe: ${semantics.timeframe}` : null,
+    semantics?.direction
+      ? `Direction: ${semantics.direction.module} ${semantics.direction.event}${
+          semantics.direction.fastPeriod && semantics.direction.slowPeriod
+            ? ` ${semantics.direction.fastPeriod}/${semantics.direction.slowPeriod}`
+            : ""
+        }`
+      : null,
+    semantics?.setup
+      ? `Setup gate: ${semantics.setup.gate}${
+          semantics.setup.targetLabel ? ` on ${semantics.setup.targetLabel}` : ""
+        }`
+      : null,
+    semantics?.execution
+      ? `Entry: ${semantics.execution.module} ${semantics.execution.entryEvent}`
+      : null,
+  ].filter(Boolean);
+
+  return (
+    <div className={`rounded-md border p-3 text-xs space-y-2 ${statusStyle}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 font-medium">
+          {statusIcon}
+          <span>AI wiring validation: {status}</span>
+        </div>
+        {semantics?.source && (
+          <span className="text-[10px] uppercase tracking-wide opacity-70">{semantics.source}</span>
+        )}
+      </div>
+
+      {items.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1 text-muted-foreground">
+          {items.map((item) => (
+            <span key={item}>{item}</span>
+          ))}
+        </div>
+      )}
+
+      {wiring.notes && (
+        <p className="text-muted-foreground">
+          <span className="font-medium text-foreground">Notes: </span>
+          {wiring.notes}
+        </p>
+      )}
+
+      {validation?.errors.length ? (
+        <div className="space-y-1">
+          {validation.errors.map((error) => (
+            <p key={error}>{error}</p>
+          ))}
+        </div>
+      ) : null}
+
+      {validation?.warnings.length || semantics?.assumptions.length ? (
+        <div className="space-y-1 text-muted-foreground">
+          {[...(validation?.warnings ?? []), ...(semantics?.assumptions ?? [])].map((warning) => (
+            <p key={warning}>{warning}</p>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function safeDownloadName(name: string) {
@@ -787,7 +885,7 @@ function FourBrainTab({
 
   const canRegenerate = execution.modules.length > 0 && execution.timeframe;
   const [aiGenerating, setAiGenerating] = useState(false);
-  const [aiNotes, setAiNotes] = useState<string | null>(null);
+  const [aiWiring, setAiWiring] = useState<AiBrainWiring | null>(null);
 
   async function onAiGenerate() {
     if (!canRegenerate) {
@@ -795,7 +893,7 @@ function FourBrainTab({
       return;
     }
     setAiGenerating(true);
-    setAiNotes(null);
+    setAiWiring(null);
     const bp = buildUpdatedBp();
     onChange(bp);
     try {
@@ -821,7 +919,8 @@ function FourBrainTab({
         bp.name,
         fullDescription || undefined,
       );
-      setAiNotes(wiring.notes ?? null);
+      assertAiWiringValid(wiring);
+      setAiWiring(wiring);
       // Generate EA with AI wiring embedded
       const { generateEA } = await import("@/generators/gen-ea");
       const code = generateEA({
@@ -1002,13 +1101,7 @@ function FourBrainTab({
         </div>
       </div>
 
-      {/* AI notes */}
-      {aiNotes && (
-        <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
-          <span className="font-medium text-primary">AI notes: </span>
-          {aiNotes}
-        </div>
-      )}
+      <AiWiringInsight wiring={aiWiring} />
 
       {/* Two generation options */}
       <div className="grid grid-cols-2 gap-3">
@@ -1122,7 +1215,7 @@ function CodeTab({
   const [generating, setGenerating] = useState(false);
   const [compiling, setCompiling] = useState(false);
   const [compileLog, setCompileLog] = useState<string | null>(null);
-  const [aiNotes, setAiNotes] = useState<string | null>(null);
+  const [aiWiring, setAiWiring] = useState<AiBrainWiring | null>(null);
   const canUseFourBrainAi = Boolean(
     blueprint.fourBrain?.execution?.modules?.length && blueprint.fourBrain.execution.timeframe,
   );
@@ -1187,10 +1280,11 @@ function CodeTab({
       return;
     }
     setGenerating(true);
-    setAiNotes(null);
+    setAiWiring(null);
     try {
       const wiring = await generateAiEaFromDescription(userPrompt, strategyName);
-      setAiNotes(wiring.notes ?? null);
+      assertAiWiringValid(wiring);
+      setAiWiring(wiring);
       const { generateEA } = await import("@/generators/gen-ea");
       const generatedCode = generateEA({
         eaName: strategyName.replace(/[^\w\s-]/g, "").trim(),
@@ -1374,13 +1468,7 @@ function CodeTab({
           )}
         </div>
 
-        {/* AI notes when generating */}
-        {aiNotes && (
-          <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
-            <span className="font-medium text-primary">AI reasoning: </span>
-            {aiNotes}
-          </div>
-        )}
+        <AiWiringInsight wiring={aiWiring} />
       </div>
     );
   }
@@ -1452,6 +1540,7 @@ function CodeTab({
           </Button>
         </div>
       </div>
+      <AiWiringInsight wiring={aiWiring} />
       <CodeViewer code={code} filename={buildExportFilename(blueprint, "mq5")} />
       {compileLog && (
         <div className="space-y-1">

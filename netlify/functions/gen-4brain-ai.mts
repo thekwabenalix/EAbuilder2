@@ -13,6 +13,11 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { buildCompactModuleLibraryContext } from "../../src/lib/module-library.js";
+import {
+  buildCompactModuleContractContext,
+  getModuleContract,
+  moduleSupportsEvent,
+} from "../../src/lib/module-contracts.js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -37,6 +42,8 @@ Every EA you generate must reflect the specific strategy the trader described.
 Do not force traders into predefined patterns. Understand their intent first.
 
 ${buildCompactModuleLibraryContext()}
+
+${buildCompactModuleContractContext()}
 
 ═══════════════════════════════════════════════════════════════════════
 ARCHITECTURE: 4-BRAIN CONFLUENCE SYSTEM
@@ -87,6 +94,31 @@ Return a JSON object with EXACTLY this structure:
   "direction_brain": "void Direction_Brain_Execute()\\n{\\n  ...\\n}",
   "setup_brain":     "void Setup_Brain_Execute()\\n{\\n  ...\\n}",
   "execution_brain": "void Execution_Brain_Execute()\\n{\\n  ...\\n}",
+  "semantics": {
+    "version": 1,
+    "source": "ai",
+    "timeframe": "M5",
+    "modules": ["ema", "fvg_inversion"],
+    "direction": {
+      "module": "ema",
+      "event": "cross",
+      "fastPeriod": 12,
+      "slowPeriod": 48,
+      "resetPolicy": "opposite_cross"
+    },
+    "setup": {
+      "gate": "ema_retest",
+      "target": "slow",
+      "targetLabel": "slow EMA (48)",
+      "mustOccurAfter": "direction_event"
+    },
+    "execution": {
+      "module": "fvg_inversion",
+      "entryEvent": "formation",
+      "mustOccurAfter": "setup_gate"
+    },
+    "assumptions": []
+  },
   "sm_configs": {
     "<unique_key>": {
       "type":   "<module_id>",     // fvg | fvg_inversion | ob | bos | choch | bos_choch | liqsweep | snr | gap_snr | breakout | rejection | miss
@@ -98,6 +130,13 @@ Return a JSON object with EXACTLY this structure:
   },
   "notes": "One paragraph: which modules you chose, which role they play, how they wire together, and how you interpreted the trader's description."
 }
+
+The "semantics" object is the contract the wiring must obey. It is not prose.
+Fill it with the concrete rules you extracted before writing MQL wiring. If a
+trader says "only 48 EMA", semantics.setup.target MUST be "slow"; do not widen
+it to "either". If they say IFVG "forms", "becomes", or is "confirmed" by closing
+through the old FVG boundary, semantics.execution.entryEvent MUST be "formation".
+Use "retest" only when the trader explicitly asks to enter on a later IFVG retest.
 
 sm_configs example — BOS direction D1, FVG setup H4, FVG execution M15:
 {
@@ -263,8 +302,15 @@ CODE GENERATION RULES
       static datetime _emaTestTime = 0;
     → On opposite EMA cross / bias flip: update _emaCrossTime to the cross bar,
       reset _emaTestTime = 0, gSetupActive=false.
+    -> Extract the EMA retest target from the trader's words:
+      - "only 48 EMA" / "48 EMA only" / "slow EMA only" => slow EMA only
+      - "only 12 EMA" / "12 EMA only" / "fast EMA only" => fast EMA only
+      - "either 12 or 48 EMA" / "any EMA" / "both EMAs" => either EMA
+      Never widen a specific "only" target into "either EMA".
     → When a closed candle touches either EMA after _emaCrossTime:
       _emaTestTime = barTime.
+      If the extracted target is fast-only or slow-only, the touch condition must use
+      only that EMA; use an either-EMA OR condition only when the trader asked for either.
     → For iFVG: accept only if IFVGSM_M5_LatestBullInversionTime() > _emaTestTime
       (or LatestBearInversionTime for sells). Execution confirmation must also be
       after _emaTestTime: IFVGSM_M5_BullConfirmTime() > _emaTestTime.
@@ -342,6 +388,8 @@ interface AiBrainWiringResponse {
   direction_brain: string;
   setup_brain: string;
   execution_brain: string;
+  semantics?: StrategySemantics;
+  validation?: WiringValidation;
   required_sms: string[];
   sm_configs: Record<
     string,
@@ -356,6 +404,40 @@ interface AiBrainWiringResponse {
   notes: string;
 }
 
+interface StrategySemantics {
+  version: 1;
+  source: "ai" | "deterministic_adapter" | "local_extractor";
+  timeframe: string;
+  modules: string[];
+  direction?: {
+    module: string;
+    event: string;
+    fastPeriod?: number;
+    slowPeriod?: number;
+    resetPolicy?: string;
+  };
+  setup?: {
+    gate: string;
+    target?: EmaRetestTarget | string;
+    targetLabel?: string;
+    mustOccurAfter?: string;
+  };
+  execution?: {
+    module: string;
+    entryEvent: "formation" | "retest" | "confirmation" | "unknown" | string;
+    mustOccurAfter?: string;
+  };
+  assumptions: string[];
+}
+
+type ExecutionEntryEvent = NonNullable<StrategySemantics["execution"]>["entryEvent"];
+
+interface WiringValidation {
+  status: "pass" | "warn" | "fail";
+  errors: string[];
+  warnings: string[];
+}
+
 function periodConst(tf: string): string {
   const label = (tf || "M5").toUpperCase();
   return label === "MN" ? "PERIOD_MN1" : `PERIOD_${label}`;
@@ -364,6 +446,8 @@ function periodConst(tf: string): string {
 function numFrom(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
+
+type EmaRetestTarget = "fast" | "slow" | "either";
 
 function extractEmaPeriods(text: string, config?: FourBrainConfig): { fast: number; slow: number } {
   const params = {
@@ -382,6 +466,138 @@ function extractEmaPeriods(text: string, config?: FourBrainConfig): { fast: numb
     .filter((n) => Number.isFinite(n));
   if (matches.length >= 2) return { fast: matches[0], slow: matches[1] };
   return { fast: 12, slow: 48 };
+}
+
+function extractEmaRetestTarget(
+  text: string,
+  fast: number,
+  slow: number,
+  config?: FourBrainConfig,
+): EmaRetestTarget {
+  const params = {
+    ...(config?.setup?.params ?? {}),
+    ...(config?.execution?.params ?? {}),
+  };
+  const configured = String(params.retestTarget ?? params.target ?? "").toLowerCase();
+  if (/\b(either|any|both)\b/.test(configured)) return "either";
+  if (/\b(fast|fast_ema|fast-ma|fast ma)\b/.test(configured)) return "fast";
+  if (/\b(slow|slow_ema|slow-ma|slow ma)\b/.test(configured)) return "slow";
+
+  const hay = text.toLowerCase().replace(/[–—]/g, "-");
+  const fastPattern = new RegExp(`\\b${fast}\\s*(?:period\\s*)?ema\\b`);
+  const slowPattern = new RegExp(`\\b${slow}\\s*(?:period\\s*)?ema\\b`);
+  const onlyPatterns = [
+    {
+      target: "fast" as const,
+      patterns: [
+        new RegExp(`\\bonly\\s+(?:the\\s+)?${fast}\\s*(?:period\\s*)?ema\\b`),
+        new RegExp(`\\b${fast}\\s*(?:period\\s*)?ema\\s+only\\b`),
+        /\bonly\s+(?:the\s+)?fast\s+ema\b/,
+        /\bfast\s+ema\s+only\b/,
+      ],
+    },
+    {
+      target: "slow" as const,
+      patterns: [
+        new RegExp(`\\bonly\\s+(?:the\\s+)?${slow}\\s*(?:period\\s*)?ema\\b`),
+        new RegExp(`\\b${slow}\\s*(?:period\\s*)?ema\\s+only\\b`),
+        /\bonly\s+(?:the\s+)?slow\s+ema\b/,
+        /\bslow\s+ema\s+only\b/,
+      ],
+    },
+  ];
+  for (const option of onlyPatterns) {
+    if (option.patterns.some((pattern) => pattern.test(hay))) return option.target;
+  }
+
+  const targetWindow = /(?:test|touch|retest)\s+(?:must\s+be\s+(?:on\s+)?)?(?:only\s+)?(?:the\s+)?([^.\n;]+)/g;
+  for (const match of hay.matchAll(targetWindow)) {
+    const phrase = match[1] ?? "";
+    if (/\b(?:either|any|both|or)\b/.test(phrase)) return "either";
+    if (fastPattern.test(phrase) || /\bfast\s+ema\b/.test(phrase)) return "fast";
+    if (slowPattern.test(phrase) || /\bslow\s+ema\b/.test(phrase)) return "slow";
+  }
+
+  const eitherPatterns = [
+    new RegExp(`\\b(?:either|any)\\s+(?:the\\s+)?(?:${fast}\\s*(?:period\\s*)?ema|fast\\s+ema).{0,40}\\b(?:or|/)\\b.{0,40}(?:${slow}\\s*(?:period\\s*)?ema|slow\\s+ema)`),
+    /\b(?:either|any|both)\s+emas?\b/,
+  ];
+  if (eitherPatterns.some((pattern) => pattern.test(hay))) return "either";
+
+  return "either";
+}
+
+function emaRetestCondition(target: EmaRetestTarget): string {
+  if (target === "fast") return "touchedFast";
+  if (target === "slow") return "touchedSlow";
+  return "(touchedFast || touchedSlow)";
+}
+
+function emaRetestLabel(target: EmaRetestTarget, fast: number, slow: number): string {
+  if (target === "fast") return `fast EMA (${fast})`;
+  if (target === "slow") return `slow EMA (${slow})`;
+  return `either EMA (${fast} or ${slow})`;
+}
+
+function extractIfvgEntryEvent(text: string): ExecutionEntryEvent {
+  const hay = text.toLowerCase();
+  const mentionsRetestEntry =
+    /\b(?:enter|entry|trigger|execute).{0,80}\b(?:retest|return\s+to|tap|touch)\b.{0,40}\b(?:ifvg|inversion\s+fair\s+value\s+gap)\b/.test(
+      hay,
+    ) ||
+    /\b(?:ifvg|inversion\s+fair\s+value\s+gap).{0,80}\b(?:retest|return\s+to|tap|touch)\b.{0,40}\b(?:entry|enter|trigger|execute)\b/.test(
+      hay,
+    );
+  if (mentionsRetestEntry) return "retest";
+
+  const mentionsFormation =
+    /\b(?:forms?|formation|becomes?|inverts?|inversion|closes?\s+(?:above|below).{0,80}(?:boundary|fvg|gap))\b/.test(
+      hay,
+    );
+  if (mentionsFormation) return "formation";
+
+  return "unknown";
+}
+
+function buildEmaIfvgSemantics(
+  text: string,
+  tf: string,
+  fast: number,
+  slow: number,
+  retestTarget: EmaRetestTarget,
+  source: StrategySemantics["source"],
+): StrategySemantics {
+  const entryEvent = extractIfvgEntryEvent(text);
+  const assumptions: string[] = [];
+  if (entryEvent === "unknown") {
+    assumptions.push("IFVG entry event was not explicit; defaulted to formation for verified wiring.");
+  }
+
+  return {
+    version: 1,
+    source,
+    timeframe: tf,
+    modules: ["ema", "fvg_inversion"],
+    direction: {
+      module: "ema",
+      event: "cross",
+      fastPeriod: fast,
+      slowPeriod: slow,
+      resetPolicy: "opposite_cross",
+    },
+    setup: {
+      gate: "ema_retest",
+      target: retestTarget,
+      targetLabel: emaRetestLabel(retestTarget, fast, slow),
+      mustOccurAfter: "direction_event",
+    },
+    execution: {
+      module: "fvg_inversion",
+      entryEvent: entryEvent === "unknown" ? "formation" : entryEvent,
+      mustOccurAfter: "setup_gate",
+    },
+    assumptions,
+  };
 }
 
 function extractSingleTimeframe(text: string, config?: FourBrainConfig): string {
@@ -414,6 +630,161 @@ function isEmaTestThenIfvgFormation(text: string, config?: FourBrainConfig): boo
   return hasEma && hasIfvg && hasEmaTest && hasAfterGate && hasFormationEntry;
 }
 
+function inferLocalSemantics(text: string, config?: FourBrainConfig): StrategySemantics {
+  const tf = extractSingleTimeframe(text, config);
+  const { fast, slow } = extractEmaPeriods(text, config);
+  const hasEma = /\bema\b/i.test(text) || [
+    ...(config?.direction?.modules ?? []),
+    ...(config?.setup?.modules ?? []),
+    ...(config?.execution?.modules ?? []),
+  ].some((m) => m.toLowerCase() === "ema");
+  const hasIfvg =
+    /\bifvg\b/i.test(text) ||
+    /inversion\s+fair\s+value\s+gap/i.test(text) ||
+    [
+      ...(config?.direction?.modules ?? []),
+      ...(config?.setup?.modules ?? []),
+      ...(config?.execution?.modules ?? []),
+    ].some((m) => m.toLowerCase() === "fvg_inversion");
+
+  if (hasEma && hasIfvg) {
+    const retestTarget = extractEmaRetestTarget(text, fast, slow, config);
+    return buildEmaIfvgSemantics(text, tf, fast, slow, retestTarget, "local_extractor");
+  }
+
+  const modules = [
+    ...(config?.direction?.modules ?? []),
+    ...(config?.setup?.modules ?? []),
+    ...(config?.execution?.modules ?? []),
+  ];
+
+  return {
+    version: 1,
+    source: "local_extractor",
+    timeframe: tf,
+    modules: [...new Set(modules.map((m) => m.toLowerCase()))],
+    direction: config?.direction
+      ? {
+          module: config.direction.modules[0] ?? "unknown",
+          event: "module_signal",
+        }
+      : undefined,
+    setup: config?.setup
+      ? {
+          gate: "module_signal",
+          mustOccurAfter: config.direction ? "direction_event" : undefined,
+        }
+      : undefined,
+    execution: {
+      module: config?.execution?.modules?.[0] ?? "unknown",
+      entryEvent: "unknown",
+      mustOccurAfter: config?.setup ? "setup_gate" : config?.direction ? "direction_event" : undefined,
+    },
+    assumptions: ["Claude did not return semantics; server attached a minimal local extraction."],
+  };
+}
+
+function validateWiringAgainstSemantics(response: AiBrainWiringResponse): WiringValidation {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const setupCode = response.setup_brain ?? "";
+  const execCode = response.execution_brain ?? "";
+  const semantics = response.semantics;
+
+  if (!semantics) {
+    errors.push("Missing strategy semantics contract.");
+    return { status: "fail", errors, warnings };
+  }
+
+  for (const moduleId of semantics.modules ?? []) {
+    if (!getModuleContract(moduleId)) {
+      warnings.push(`No module contract is registered for "${moduleId}".`);
+    }
+  }
+
+  if (semantics.setup?.gate === "ema_retest") {
+    if (!moduleSupportsEvent("ema", "ema_retest", "setup")) {
+      errors.push("Module contract registry does not support EMA retest setup semantics.");
+    }
+    const target = String(semantics.setup.target ?? "either").toLowerCase();
+    const usesFast = /\btouchedFast\b/.test(setupCode);
+    const usesSlow = /\btouchedSlow\b/.test(setupCode);
+    const usesEither = /\btouchedFast\s*\|\|\s*touchedSlow\b|\btouchedSlow\s*\|\|\s*touchedFast\b/.test(
+      setupCode,
+    );
+
+    if (target === "fast") {
+      if (!usesFast) errors.push("Semantics require fast EMA retest, but setup wiring does not test touchedFast.");
+      if (usesEither || /&&\s*touchedSlow\b/.test(setupCode)) {
+        errors.push("Semantics require fast EMA only, but setup wiring also allows the slow EMA.");
+      }
+    } else if (target === "slow") {
+      if (!usesSlow) errors.push("Semantics require slow EMA retest, but setup wiring does not test touchedSlow.");
+      if (usesEither || /&&\s*touchedFast\b/.test(setupCode)) {
+        errors.push("Semantics require slow EMA only, but setup wiring also allows the fast EMA.");
+      }
+    } else if (target === "either") {
+      if (!(usesEither || (usesFast && usesSlow))) {
+        errors.push("Semantics require either EMA retest, but setup wiring does not test both EMA touch states.");
+      }
+    } else {
+      warnings.push(`Unknown EMA retest target "${target}".`);
+    }
+
+    if (!/\bgEmaIfvgTestTime_[A-Z0-9]+\b/.test(setupCode + execCode)) {
+      errors.push("EMA retest semantics require a timestamp gate, but wiring does not reference gEmaIfvgTestTime.");
+    }
+  }
+
+  if (semantics.execution?.module === "fvg_inversion") {
+    const entryEvent = String(semantics.execution.entryEvent ?? "unknown").toLowerCase();
+    if (
+      entryEvent !== "unknown" &&
+      !moduleSupportsEvent("fvg_inversion", entryEvent, "execution")
+    ) {
+      errors.push(`Module contract registry does not support fvg_inversion execution event "${entryEvent}".`);
+    }
+    const usesIfvgInversion = /(?:^|[^A-Za-z0-9_])(?:IFVGSM_[A-Z0-9]+_)?(?:Bull|Bear)JustInverted\s*\(/.test(
+      execCode,
+    );
+    const usesIfvgConfirmation = /(?:^|[^A-Za-z0-9_])(?:IFVGSM_[A-Z0-9]+_)?(?:Bull|Bear)JustConfirmed\s*\(/.test(
+      execCode,
+    );
+    if (entryEvent === "formation") {
+      if (!usesIfvgInversion) {
+        errors.push("Semantics require IFVG formation entry, but execution wiring does not use JustInverted().");
+      }
+      if (usesIfvgConfirmation) {
+        errors.push("Semantics require IFVG formation entry, but execution wiring uses IFVG retest confirmation.");
+      }
+    } else if (entryEvent === "retest" || entryEvent === "confirmation") {
+      if (!usesIfvgConfirmation) {
+        warnings.push("Semantics request IFVG retest/confirmation entry, but execution wiring does not use JustConfirmed().");
+      }
+    }
+
+    if (semantics.execution.mustOccurAfter === "setup_gate" && !/>\s*gEmaIfvgTestTime_[A-Z0-9]+\b/.test(execCode)) {
+      errors.push("Execution must occur after setup gate, but execution wiring does not compare IFVG time against EMA test time.");
+    }
+  }
+
+  const status = errors.length ? "fail" : warnings.length ? "warn" : "pass";
+  return { status, errors, warnings };
+}
+
+function normalizeAiResponse(
+  parsed: Record<string, unknown>,
+  fullText: string,
+  config?: FourBrainConfig,
+): AiBrainWiringResponse {
+  const response = parsed as unknown as AiBrainWiringResponse;
+  if (!response.semantics || typeof response.semantics !== "object") {
+    response.semantics = inferLocalSemantics(fullText, config);
+  }
+  response.validation = validateWiringAgainstSemantics(response);
+  return response;
+}
+
 function buildEmaTestThenIfvgFormationWiring(
   text: string,
   config?: FourBrainConfig,
@@ -421,13 +792,16 @@ function buildEmaTestThenIfvgFormationWiring(
   const tf = extractSingleTimeframe(text, config);
   const TF = periodConst(tf);
   const { fast, slow } = extractEmaPeriods(text, config);
+  const retestTarget = extractEmaRetestTarget(text, fast, slow, config);
+  const retestCondition = emaRetestCondition(retestTarget);
+  const retestLabel = emaRetestLabel(retestTarget, fast, slow);
   const params = {
     ...(config?.setup?.params ?? {}),
     ...(config?.execution?.params ?? {}),
   };
   const expiryBars = numFrom(params.expiryBars, 100);
 
-  return {
+  const response: AiBrainWiringResponse = {
     direction_brain: `int gEmaIfvgSeqBias_${tf} = 0;
 datetime gEmaIfvgCrossTime_${tf} = 0;
 datetime gEmaIfvgTestTime_${tf} = 0;
@@ -481,9 +855,10 @@ void Direction_Brain_Execute() {
    double hi = iHigh(InpSymbol, ${TF}, 1), lo = iLow(InpSymbol, ${TF}, 1);
    bool touchedFast = (lo <= fastMa && hi >= fastMa);
    bool touchedSlow = (lo <= slowMa && hi >= slowMa);
-   if(gEmaIfvgTestTime_${tf} == 0 && gEmaIfvgCrossTime_${tf} > 0 && barTime > gEmaIfvgCrossTime_${tf} && (touchedFast || touchedSlow)) {
+   if(gEmaIfvgTestTime_${tf} == 0 && gEmaIfvgCrossTime_${tf} > 0 && barTime > gEmaIfvgCrossTime_${tf} && ${retestCondition}) {
       gEmaIfvgTestTime_${tf} = barTime;
-      PrintFormat("[SETUP] EMA test accepted at %s", TimeToString(gEmaIfvgTestTime_${tf}, TIME_DATE|TIME_MINUTES));
+      PrintFormat("[SETUP] EMA test accepted target=${retestLabel} at %s fastTouch=%d slowTouch=%d",
+                  TimeToString(gEmaIfvgTestTime_${tf}, TIME_DATE|TIME_MINUTES), touchedFast, touchedSlow);
    }
 
    IFVGSM_${tf}_Tick(1);
@@ -518,6 +893,7 @@ void Direction_Brain_Execute() {
                TimeToString(bullInv, TIME_DATE|TIME_MINUTES),
                TimeToString(bearInv, TIME_DATE|TIME_MINUTES));
 }`,
+    semantics: buildEmaIfvgSemantics(text, tf, fast, slow, retestTarget, "deterministic_adapter"),
     required_sms: [`IFVGSM_${tf}`],
     sm_configs: {
       [`ifvg_${tf}`]: {
@@ -528,8 +904,10 @@ void Direction_Brain_Execute() {
         params: { expiryBars },
       },
     },
-    notes: `Deterministic adapter: ${fast}/${slow} EMA cross on ${tf} sets direction, a later candle must touch either EMA, and only iFVG formations after that EMA-test timestamp can trigger entries. The EA uses the verified IFVGSM_${tf} state machine and fires on BullJustInverted/BearJustInverted, not on iFVG retest confirmation.`,
+    notes: `Deterministic adapter: ${fast}/${slow} EMA cross on ${tf} sets direction, the EMA test target is ${retestLabel}, and only iFVG formations after that EMA-test timestamp can trigger entries. The EA uses the verified IFVGSM_${tf} state machine and fires on BullJustInverted/BearJustInverted, not on iFVG retest confirmation.`,
   };
+  response.validation = validateWiringAgainstSemantics(response);
+  return response;
 }
 
 export default async (req: Request): Promise<Response> => {
@@ -669,7 +1047,9 @@ In "notes", explain how you mapped their module selections to state machines.`;
       parsed = JSON.parse(match[0]);
     }
 
-    return Response.json(parsed, { headers: { ...CORS, "Content-Type": "application/json" } });
+    return Response.json(normalizeAiResponse(parsed, fullText, config), {
+      headers: { ...CORS, "Content-Type": "application/json" },
+    });
   } catch (err) {
     console.error("gen-4brain-ai error:", err);
     const msg = err instanceof Error ? err.message : "Internal server error";

@@ -30,11 +30,14 @@ import { generateRsiHiddenDivergenceStateModule } from "../src/lib/indicator-mod
 // Inline state-machine fragment generators
 import { genRsiHdSM } from "../src/generators/gen-rsi-hd-sm";
 import { genObFvgSM } from "../src/generators/gen-obfvg-sm";
+import { genEgSM } from "../src/generators/gen-eg-sm";
 
 // Full 4-brain assembler (AI path)
 import { generateEA } from "../src/generators/gen-ea";
 import type { FourBrainConfig, MQL5CodeGenParams } from "../src/types/blueprint";
 import type { AiBrainWiring } from "../src/lib/api-client";
+import { MODULE_LIBRARY, MODULE_UI_PARAMS } from "../src/lib/module-library";
+import { MODULE_CONTRACTS, getModuleContract } from "../src/lib/module-contracts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT = resolve(__dirname, "..", "verify", "mql5");
@@ -102,6 +105,26 @@ const items: Item[] = [
       genObFvgSM("M15", "PERIOD_M15", "M15"),
       "OBFVGSM_M15_Reset();",
       "OBFVGSM_M15_Tick(50);",
+    ),
+  },
+  // ── EG+EF (Engulfing / Engulfing Failed) — M5 instance ─────────────────────
+  {
+    file: "_TEST_EGSM_M5.mq5",
+    code: wrapInlineSM(
+      "EGSM M5 (Engulfing + Engulfing Failed)",
+      genEgSM("M5", "PERIOD_M5", "M5", 3, 100),
+      "EGSM_M5_Reset();",
+      "EGSM_M5_Tick(10);",
+    ),
+  },
+  // ── EG+EF — H4 instance (Direction / Setup role) ───────────────────────────
+  {
+    file: "_TEST_EGSM_H4.mq5",
+    code: wrapInlineSM(
+      "EGSM H4 (Engulfing + Engulfing Failed)",
+      genEgSM("H4", "PERIOD_H4", "H4", 3, 200),
+      "EGSM_H4_Reset();",
+      "EGSM_H4_Tick(20);",
     ),
   },
 ];
@@ -423,7 +446,7 @@ void Direction_Brain_Execute() {
    double hi = iHigh(InpSymbol, PERIOD_M5, 1), lo = iLow(InpSymbol, PERIOD_M5, 1);
    bool touchedFast = (lo <= fast && hi >= fast);
    bool touchedSlow = (lo <= slow && hi >= slow);
-   if(gEmaIfvgTestTime_M5 == 0 && gEmaIfvgCrossTime_M5 > 0 && barTime > gEmaIfvgCrossTime_M5 && (touchedFast || touchedSlow))
+   if(gEmaIfvgTestTime_M5 == 0 && gEmaIfvgCrossTime_M5 > 0 && barTime > gEmaIfvgCrossTime_M5 && touchedSlow)
       gEmaIfvgTestTime_M5 = barTime;
    IFVGSM_M5_Tick(1);
    datetime invTime = (gBias == 1) ? IFVGSM_M5_BullInversionTime() : IFVGSM_M5_BearInversionTime();
@@ -440,6 +463,36 @@ void Direction_Brain_Execute() {
       gExecSignal = true; gExecDir = -1; gExecSL = IFVGSM_M5_BearInversionSL();
    }
 }`,
+    semantics: {
+      version: 1,
+      source: "deterministic_adapter",
+      timeframe: "M5",
+      modules: ["ema", "fvg_inversion"],
+      direction: {
+        module: "ema",
+        event: "cross",
+        fastPeriod: 12,
+        slowPeriod: 48,
+        resetPolicy: "opposite_cross",
+      },
+      setup: {
+        gate: "ema_retest",
+        target: "slow",
+        targetLabel: "slow EMA (48)",
+        mustOccurAfter: "direction_event",
+      },
+      execution: {
+        module: "fvg_inversion",
+        entryEvent: "formation",
+        mustOccurAfter: "setup_gate",
+      },
+      assumptions: [],
+    },
+    validation: {
+      status: "pass",
+      errors: [],
+      warnings: [],
+    },
     sm_configs: {
       ifvg_M5: {
         type: "fvg_inversion",
@@ -463,6 +516,10 @@ void Direction_Brain_Execute() {
       "setup compares just-formed IFVG after EMA test",
       code.includes("invTime > gEmaIfvgTestTime_M5"),
     ],
+    [
+      "slow-only EMA retest gate is preserved",
+      code.includes("&& touchedSlow") && !code.includes("touchedFast || touchedSlow"),
+    ],
     ["execution uses iFVG formation signal", code.includes("BullJustInverted()")],
     [
       "execution rechecks bias/setup/time gate",
@@ -470,9 +527,160 @@ void Direction_Brain_Execute() {
     ],
     ["execution uses formation SL", code.includes("BullInversionSL()")],
     ["uses just-closed bar tick", code.includes("IFVGSM_M5_Tick(1)")],
+    ["AI audit header emitted", code.includes("AI validation: pass")],
+    ["AI audit shows slow EMA target", code.includes("AI setup") && code.includes("slow EMA (48)")],
   ];
   return { code, checks };
 });
+
+// ── EG+EF (Engulfing / Engulfing Failed) as Setup→Execution via AI path ─────
+runAiTest("EG+EF as Setup→Execution (MES)", "EG_EF_Setup_Exec_Test.mq5", () => {
+  const config: FourBrainConfig = {
+    direction: { modules: ["bos"], timeframe: "H4" },
+    setup: { modules: ["engulfing"], timeframe: "H4" },
+    execution: { modules: ["engulfing"], timeframe: "M30" },
+    management: {
+      riskPercent: 1.0,
+      rewardRisk: 3.0,
+      stopBuffer: 20,
+      breakEvenEnabled: true,
+      breakEvenAtR: 1.5,
+      maxOpenTrades: 1,
+    },
+  };
+  const aiWiring: AiBrainWiring = {
+    direction_brain: `void Direction_Brain_Execute() {
+  if(BOSSM_H4_BullBias()) { gBias = 1; }
+  else if(BOSSM_H4_BearBias()) { gBias = -1; }
+  else { gBias = 0; }
+}`,
+    setup_brain: `void Setup_Brain_Execute() {
+  gSetupActive = false; gSetupDir = 0; gSetupSLHint = 0.0;
+  if(gBias == 1 && EGSM_H4_HasActiveBull()) {
+    gSetupActive = true; gSetupDir = 1; gSetupSLHint = EGSM_H4_LatestBullLL();
+  } else if(gBias == -1 && EGSM_H4_HasActiveBear()) {
+    gSetupActive = true; gSetupDir = -1; gSetupSLHint = EGSM_H4_LatestBearUL();
+  }
+}`,
+    execution_brain: `void Execution_Brain_Execute() {
+  gExecSignal = false; gExecDir = 0; gExecSL = 0.0;
+  if(!gSetupActive) return;
+  if(gSetupDir == 1 && EGSM_M30_BullJustConfirmed()) {
+    gExecSignal = true; gExecDir = 1; gExecSL = EGSM_M30_BullConfirmSL();
+  } else if(gSetupDir == -1 && EGSM_M30_BearJustConfirmed()) {
+    gExecSignal = true; gExecDir = -1; gExecSL = EGSM_M30_BearConfirmSL();
+  }
+}`,
+    required_sms: ["BOSSM_H4", "EGSM_H4", "EGSM_M30"],
+    sm_configs: {
+      bos_H4: {
+        type: "bos",
+        id: "H4",
+        TF: "PERIOD_H4",
+        tf: "H4",
+        params: { swingLen: 5, lookback: 20 },
+      },
+      eg_H4: {
+        type: "engulfing",
+        id: "H4",
+        TF: "PERIOD_H4",
+        tf: "H4",
+        params: { scanBack: 3, expiryBars: 200 },
+      },
+      eg_M30: {
+        type: "engulfing",
+        id: "M30",
+        TF: "PERIOD_M30",
+        tf: "M30",
+        params: { scanBack: 3, expiryBars: 100 },
+      },
+    },
+  };
+  const code = generateEA({
+    eaName: "EG_EF_Setup_Exec_Test",
+    config,
+    globalSymbol: "EURUSD",
+    globalMagic: 990790,
+    aiWiring,
+  });
+  const checks: Array<[string, boolean]> = [
+    ["EGSM_H4 SM embedded",  code.includes("EGSM_H4_Reset()")],
+    ["EGSM_M30 SM embedded", code.includes("EGSM_M30_Reset()")],
+    ["EG detection fn present", code.includes("EGSM_H4_Detect(")],
+    ["EF flip logic present — BULL→BEAR", code.includes("BULL EG FAILED")],
+    ["EF flip logic present — BEAR→BULL", code.includes("BEAR EG FAILED")],
+    ["BullJustConfirmed accessor present", code.includes("EGSM_M30_BullJustConfirmed()")],
+    ["BearJustConfirmed accessor present", code.includes("EGSM_M30_BearJustConfirmed()")],
+    ["HasActiveBull setup gate", code.includes("EGSM_H4_HasActiveBull()")],
+    ["LatestBullLL SL hint", code.includes("EGSM_H4_LatestBullLL()")],
+    ["Assembler controls Tick — EGSM_H4_Tick(3)", code.includes("EGSM_H4_Tick(3)")],
+    ["Assembler controls Tick — EGSM_M30_Tick(3)", code.includes("EGSM_M30_Tick(3)")],
+  ];
+  return { code, checks };
+});
+
+function runModuleContractAudit() {
+  console.log(`\n── Module contract registry audit ──`);
+
+  const checks: Array<[string, boolean, string?]> = [];
+  const libraryIds = MODULE_LIBRARY.map((m) => m.id);
+  const uiIds = Object.keys(MODULE_UI_PARAMS);
+  const contractIds = Object.keys(MODULE_CONTRACTS);
+  const knownIds = [...new Set([...libraryIds, ...uiIds])];
+
+  const missingContracts = knownIds.filter((id) => !getModuleContract(id));
+  checks.push([
+    "every library/UI module has a contract",
+    missingContracts.length === 0,
+    missingContracts.join(", "),
+  ]);
+
+  const orphanContracts = contractIds.filter((id) => !knownIds.includes(id));
+  checks.push([
+    "contract ids are backed by library or UI vocabulary",
+    orphanContracts.length === 0,
+    orphanContracts.join(", "),
+  ]);
+
+  for (const [id, contract] of Object.entries(MODULE_CONTRACTS)) {
+    const eventless = contract.semanticEvents.length === 0;
+    checks.push([`${id}: has semantic events`, !eventless]);
+
+    const roleless = contract.supportedRoles.length === 0;
+    checks.push([`${id}: has supported roles`, !roleless]);
+
+    const eventsOutsideRoles = contract.semanticEvents.filter((event) =>
+      event.roles.some((role) => !contract.supportedRoles.includes(role)),
+    );
+    checks.push([
+      `${id}: event roles are supported`,
+      eventsOutsideRoles.length === 0,
+      eventsOutsideRoles.map((event) => event.id).join(", "),
+    ]);
+
+    const eventsWithoutQueries = contract.semanticEvents.filter(
+      (event) => event.queryFunctions.length === 0,
+    );
+    checks.push([
+      `${id}: events expose query functions`,
+      eventsWithoutQueries.length === 0,
+      eventsWithoutQueries.map((event) => event.id).join(", "),
+    ]);
+
+    if (contract.implementation === "state_machine") {
+      checks.push([`${id}: state-machine prefix declared`, Boolean(contract.smPrefix)]);
+      checks.push([`${id}: state-machine type declared`, Boolean(contract.smType)]);
+      checks.push([`${id}: state-machine tick policy declared`, contract.tickArgPolicy !== "none"]);
+    }
+  }
+
+  for (const [name, ok, detail] of checks) {
+    console.log(`        ${ok ? "✓" : "✗"} ${name}${!ok && detail ? ` (${detail})` : ""}`);
+  }
+  if (checks.some(([, ok]) => !ok)) totalWarn++;
+}
+
+runModuleContractAudit();
 
 console.log(`\n${items.length + 1} files emitted, ${totalWarn} static warning(s).`);
 console.log(`Next: open verify/mql5/*.mq5 in MetaEditor and compile (F7).\n`);
