@@ -51,6 +51,7 @@ import { generateGapSnrDetector } from "@/lib/smc-modules/gap-snr-detector";
 import { generateBreakoutDetector } from "@/lib/smc-modules/breakout-detector";
 import { generateRejectionDetector } from "@/lib/smc-modules/rejection-detector";
 import { generateMissDetector } from "@/lib/smc-modules/miss-detector";
+import { generateEngulfingDetector } from "@/lib/smc-modules/engulfing-detector";
 import { generateFvgStateModule } from "@/lib/smc-modules/fvg-state-module";
 import { generateObStateModule } from "@/lib/smc-modules/ob-state-module";
 import { generateBreakoutStateModule } from "@/lib/smc-modules/breakout-state-module";
@@ -1851,7 +1852,22 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Detects 2-candle engulfing patterns (EG zones). Tracks lifecycle: " +
           "ACTIVE → RETESTED → CONFIRMED. When price closes through zone, " +
           "zone flips to EF (opposite direction). EG zones blue/red, EF zones orange.",
+        rules: [
+          "Bullish EG: C1 bearish, C2 bullish close > C1.High (upper wick)",
+          "Bearish EG: C1 bullish, C2 bearish close < C1.Low (lower wick)",
+          "Zone = C1 full wick range (hi=C1.High, lo=C1.Low)",
+          "Bull EG fails when close < lo → flips to Bear EF (same zone)",
+          "Bear EG fails when close > hi → flips to Bull EF (same zone)",
+          "Lifecycle: ACTIVE (detected) → RETESTED (wick enters) → CONFIRMED (close beyond)",
+        ],
+        output: [
+          "Blue/Red rectangle for EG zones (bull/bear direction)",
+          "Orange rectangle for EF zones (failed, direction flipped)",
+          "Zone label: 'EG' for active engulfing, 'EF' for failed",
+          "Journal: EG_BULL | EG_BEAR | EG_*_RETESTED | EG_*_CONFIRMED | EG_*_FAILED",
+        ],
         status: "ready",
+        generate: generateEngulfingDetector,
       },
     ],
   },
