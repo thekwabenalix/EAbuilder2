@@ -56,7 +56,7 @@ import { generateRbrDbdDetector } from "@/lib/smc-modules/rbr-dbd-detector";
 import { generateMefDetector } from "@/lib/smc-modules/mef-detector";
 import { generateQmMefDetector } from "@/lib/smc-modules/qm-mef-detector";
 import { generateSnrc2Detector } from "@/lib/smc-modules/snrc2-detector";
-import { INDICATOR_REGISTRY } from "@/lib/indicator-registry";
+import { INDICATOR_REGISTRY, INDICATOR_CATEGORY_LABEL } from "@/lib/indicator-registry";
 import { generateFvgStateModule } from "@/lib/smc-modules/fvg-state-module";
 import { generateObStateModule } from "@/lib/smc-modules/ob-state-module";
 import { generateBreakoutStateModule } from "@/lib/smc-modules/breakout-state-module";
@@ -2022,7 +2022,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         name: ind.name,
         description: ind.description,
         rules: [
-          `MQL5 function: ${ind.mql5}`,
+          `Category: ${INDICATOR_CATEGORY_LABEL[ind.category]} · ${ind.via === "icustom" ? "iCustom (Examples)" : "native " + ind.mql5 + "()"}`,
           ...(ind.params.length > 0
             ? ind.params.map(
                 (p) =>
@@ -2036,7 +2036,10 @@ const TRADING_MODULES: ModuleCategory[] = [
             : ["no parameters"]),
           `renders ${ind.subWindow ? "in a separate sub-window" : "on the price chart"}`,
         ],
-        output: ind.buffers.map((b) => `buffer ${b.index}: ${b.name}`),
+        output: [
+          ...ind.buffers.map((b) => `buffer ${b.index}: ${b.name}`),
+          `Applications: ${ind.applications.join(", ")}`,
+        ],
         status: "builtin",
       }),
     ),
