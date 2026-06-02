@@ -7,6 +7,18 @@ const API_BASE =
     ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, "")
     : "";
 
+export class ApiError extends Error {
+  details: unknown;
+  status: number;
+
+  constructor(message: string, status: number, details: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.details = details;
+  }
+}
+
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
@@ -18,7 +30,11 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 
   if (!res.ok) {
     const msg = (data as { error?: string })?.error;
-    throw new Error(msg ?? `Request to ${path} failed with status ${res.status}`);
+    throw new ApiError(
+      msg ?? `Request to ${path} failed with status ${res.status}`,
+      res.status,
+      data,
+    );
   }
 
   return data as T;
@@ -254,6 +270,20 @@ export interface AiBrainWiring {
     status: "pass" | "warn" | "fail";
     errors: string[];
     warnings: string[];
+  };
+  repair?: {
+    blocked: Array<{
+      id: string;
+      label: string;
+      status: string;
+      statusLabel: string;
+      reason: string;
+      recommendation: string;
+      suggestedModules: Array<{ id: string; label: string }>;
+    }>;
+    hasBlockedModules: boolean;
+    hasTemplateFallback: boolean;
+    summary: string;
   };
   required_sms: string[];
   sm_configs: Record<

@@ -25,6 +25,6 @@ AI-buildable just because an indicator file exists.
 
 ## Current Important Rule
 
-`RBR_DBD` is currently `detector_only`. It may be emitted and tested as an indicator,
-but it is not part of AI 4-Brain wiring until it has a contract and verified state
-machine behavior.
+`RBR_DBD` and `MEF` are currently `detector_only`. They may be emitted and tested
+as indicators, but they are not part of AI 4-Brain wiring until they have
+contracts and verified state-machine behavior.

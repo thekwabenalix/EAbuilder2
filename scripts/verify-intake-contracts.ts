@@ -256,6 +256,78 @@ const cases: ContractCase[] = [
       );
     },
   },
+  {
+    name: "raw text fallback maps EMA retest then IFVG without relying on AI rules",
+    run: () => {
+      const prompt = `
+        M5 only. The 12 EMA crosses above or below the 48 EMA to set direction.
+        After the cross, price must test only the 48 EMA before any setup is valid.
+        Only IFVGs that form after the EMA test are valid. Enter at the next candle.
+        Take profit is 1:3. Move stop to breakeven at 1.5R. Ignore trades if stop loss exceeds 7 pips.
+      `;
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          rules: [],
+          summary: "EMA direction with IFVG entry.",
+        }),
+        prompt,
+      );
+
+      const fb = fourBrainOf(blueprint);
+      const direction = brainOf(fb, "direction");
+      const setup = brainOf(fb, "setup");
+      const execution = brainOf(fb, "execution");
+      const management = brainOf(fb, "management");
+      assertEq(modulesOf(direction)[0], "ema", "direction module");
+      assertEq(direction.timeframe, "M5", "direction timeframe");
+      assertEq(paramsOf(direction).fastPeriod, 12, "direction fast EMA");
+      assertEq(paramsOf(direction).slowPeriod, 48, "direction slow EMA");
+      assertEq(modulesOf(setup)[0], "ema", "setup module");
+      assertEq(paramsOf(setup).retestTarget, "slow", "setup retest target");
+      assertEq(modulesOf(execution)[0], "fvg_inversion", "execution module");
+      assertEq(execution.timeframe, "M5", "execution timeframe");
+      assertEq(management.rewardRisk, 3, "reward risk");
+      assertEq(management.breakEvenEnabled, true, "breakeven enabled");
+      assertEq(management.breakEvenAtR, 1.5, "breakeven R");
+      assertEq(management.maxStopPoints, 70, "max stop points");
+    },
+  },
+  {
+    name: "prompt retest target overrides AI default either target",
+    run: () => {
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          fourBrain: {
+            direction: {
+              modules: ["ema"],
+              timeframe: "M5",
+              params: { fastPeriod: 12, slowPeriod: 48, retestTarget: "either" },
+              description: "EMA cross sets direction.",
+            },
+            setup: {
+              modules: ["ema"],
+              timeframe: "M5",
+              params: { retestTarget: "either" },
+              description: "EMA retest arms setup.",
+            },
+            execution: {
+              modules: ["fvg_inversion"],
+              timeframe: "M5",
+              params: {},
+              description: "IFVG entry.",
+            },
+          },
+        }),
+        "The retest must be on only the 48 EMA before any IFVG entry.",
+      );
+
+      const fb = fourBrainOf(blueprint);
+      assertEq(paramsOf(brainOf(fb, "direction")).retestTarget, "slow", "direction target");
+      assertEq(paramsOf(brainOf(fb, "setup")).retestTarget, "slow", "setup target");
+    },
+  },
 ];
 
 console.log("\nStrategy intake contract tests\n");

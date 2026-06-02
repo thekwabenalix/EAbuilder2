@@ -6,7 +6,11 @@
  * wiring, but it must be declared deliberately.
  */
 import { ALL_BRAIN_MODULES } from "../src/lib/brain-modules";
-import { MODULE_ADMISSION, type ModuleAdmissionStatus } from "../src/lib/module-admission";
+import {
+  buildModuleRepairPlan,
+  MODULE_ADMISSION,
+  type ModuleAdmissionStatus,
+} from "../src/lib/module-admission";
 import { MODULE_CONTRACTS } from "../src/lib/module-contracts";
 import { MODULE_LIBRARY, MODULE_UI_PARAMS } from "../src/lib/module-library";
 
@@ -140,6 +144,29 @@ add(
   "non-detector admission records appear in a module surface",
   admissionWithoutKnownSurface.length === 0,
   admissionWithoutKnownSurface.join(", "),
+);
+
+const bbRepair = buildModuleRepairPlan(["bb"]);
+add(
+  "repair plan explains blocked template modules",
+  bbRepair.hasBlockedModules &&
+    bbRepair.hasTemplateFallback &&
+    bbRepair.blocked[0]?.id === "bb" &&
+    bbRepair.blocked[0].suggestedModules.length > 0,
+  JSON.stringify(bbRepair),
+);
+
+const mixedRepair = buildModuleRepairPlan(["ema", "bb", "swing_structure", "rbr_dbd"]);
+const suggestedUnsafeModules = mixedRepair.blocked.flatMap((item) =>
+  item.suggestedModules.filter((suggestion) => {
+    const admission = MODULE_ADMISSION[suggestion.id];
+    return !admission || admission.status !== "verified_state_machine";
+  }),
+);
+add(
+  "repair suggestions only point to verified modules",
+  suggestedUnsafeModules.length === 0,
+  suggestedUnsafeModules.map((module) => module.id).join(", "),
 );
 
 console.log("\nModule admission verifier\n");

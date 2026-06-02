@@ -20,6 +20,23 @@ export interface ModuleAdmissionRecord {
   notes: string;
 }
 
+export interface ModuleRepairItem {
+  id: string;
+  label: string;
+  status: ModuleAdmissionStatus | "unknown";
+  statusLabel: string;
+  reason: string;
+  recommendation: string;
+  suggestedModules: Array<{ id: string; label: string }>;
+}
+
+export interface ModuleRepairPlan {
+  blocked: ModuleRepairItem[];
+  hasBlockedModules: boolean;
+  hasTemplateFallback: boolean;
+  summary: string;
+}
+
 export const MODULE_ADMISSION_STATUS_META: Record<
   ModuleAdmissionStatus,
   {
@@ -57,6 +74,76 @@ export const MODULE_ADMISSION_STATUS_META: Record<
 
 export function getModuleAdmission(moduleId: string): ModuleAdmissionRecord | undefined {
   return MODULE_ADMISSION[moduleId] ?? MODULE_ADMISSION[moduleId.replace(/^ob$/, "order_block")];
+}
+
+const MODULE_REPAIR_SUGGESTIONS: Record<string, string[]> = {
+  bb: ["snr", "rejection", "breakout"],
+  pin_bar: ["engulfing", "rejection"],
+  swing_structure: ["bos", "choch", "bos_choch"],
+  rbr_dbd: ["order_block", "snr"],
+  mef: ["fvg", "fvg_inversion"],
+};
+
+function uniqueModuleIds(modules: string[]): string[] {
+  return [...new Set(modules.filter(Boolean).map((moduleId) => moduleId.toLowerCase()))];
+}
+
+function repairRecommendation(admission?: ModuleAdmissionRecord): string {
+  if (!admission) {
+    return "This module is not in the admission registry yet. Add a module contract and verified state machine before AI wiring can use it.";
+  }
+  if (admission.status === "template_only") {
+    return "Use Template mode for this module, or replace it with a verified state-machine module before AI wiring.";
+  }
+  if (admission.status === "detector_only") {
+    return "This detector can be tested visually, but it needs a state-machine contract before it can become an EA brain.";
+  }
+  if (admission.status === "not_verified") {
+    return "Replace it with a verified structure module, or promote it by adding a verified inline state machine.";
+  }
+  return "This module is already admitted for AI wiring.";
+}
+
+export function buildModuleRepairPlan(modules: string[]): ModuleRepairPlan {
+  const blocked = uniqueModuleIds(modules)
+    .map((moduleId): ModuleRepairItem | null => {
+      const admission = getModuleAdmission(moduleId);
+      if (admission?.status === "verified_state_machine") return null;
+      const status = admission?.status ?? "unknown";
+      const statusLabel =
+        admission && status !== "unknown"
+          ? MODULE_ADMISSION_STATUS_META[admission.status].label
+          : "Unknown Module";
+      const suggestedModules = (MODULE_REPAIR_SUGGESTIONS[moduleId] ?? [])
+        .map((id) => getModuleAdmission(id))
+        .filter(
+          (candidate): candidate is ModuleAdmissionRecord =>
+            candidate !== undefined && candidate.status === "verified_state_machine",
+        )
+        .map((candidate) => ({ id: candidate.id, label: candidate.label }));
+
+      return {
+        id: moduleId,
+        label: admission?.label ?? moduleId,
+        status,
+        statusLabel,
+        reason: admission?.notes ?? "No admission record exists for this module.",
+        recommendation: repairRecommendation(admission),
+        suggestedModules,
+      };
+    })
+    .filter((item): item is ModuleRepairItem => Boolean(item));
+
+  const labels = blocked.map((item) => `${item.label} (${item.statusLabel})`);
+  return {
+    blocked,
+    hasBlockedModules: blocked.length > 0,
+    hasTemplateFallback: blocked.some((item) => item.status === "template_only"),
+    summary:
+      blocked.length > 0
+        ? `AI wiring is blocked for ${labels.join(", ")}.`
+        : "All selected modules are admitted for AI wiring.",
+  };
 }
 
 export const MODULE_ADMISSION: Record<string, ModuleAdmissionRecord> = {
@@ -215,6 +302,15 @@ export const MODULE_ADMISSION: Record<string, ModuleAdmissionRecord> = {
   rbr_dbd: {
     id: "rbr_dbd",
     label: "RBR / DBD Supply-Demand Detector",
+    status: "detector_only",
+    aiVocabulary: false,
+    contractRequired: false,
+    notes:
+      "Standalone detector currently emitted by verifier. Not admitted to AI wiring until a contract and state machine are added.",
+  },
+  mef: {
+    id: "mef",
+    label: "MEF Detector",
     status: "detector_only",
     aiVocabulary: false,
     contractRequired: false,

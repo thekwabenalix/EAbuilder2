@@ -314,6 +314,18 @@ function ruleText(rule: Record<string, unknown>): string {
   return `${textOf(rule.type)} ${textOf(rule.label)} ${JSON.stringify(rule.parameters ?? {}).toLowerCase()}`;
 }
 
+function blueprintText(blueprint: Record<string, unknown>, sourceText = ""): string {
+  return [
+    sourceText.toLowerCase(),
+    textOf(blueprint.name),
+    textOf(blueprint.marketPhilosophy),
+    textOf(blueprint.summary),
+    textOf(blueprint.strategyNotes),
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function paramNumber(
   params: Record<string, unknown>,
   keys: string[],
@@ -338,6 +350,7 @@ function extractTfFromRule(rule: Record<string, unknown>, fallback: string): str
 
 function moduleFromRule(rule: Record<string, unknown>): string | undefined {
   const text = ruleText(rule);
+  if (text.includes("sma") || text.includes("simple moving average")) return undefined;
   if (
     text.includes("ifvg") ||
     text.includes("inversion fvg") ||
@@ -373,26 +386,152 @@ function moduleFromRule(rule: Record<string, unknown>): string | undefined {
   if (text.includes("engulf")) return "engulfing";
   if (text.includes("pin bar") || text.includes("hammer") || text.includes("shooting star"))
     return "pin_bar";
-  if (text.includes("ema") || text.includes("moving average")) return "ema";
+  if (text.includes("ema") || text.includes("exponential moving average")) return "ema";
+  return undefined;
+}
+
+function extractEmaPeriodsFromText(text: string): { fastPeriod: number; slowPeriod: number } {
+  const matches = [...text.matchAll(/\b(\d{1,3})\s*(?:period\s*)?ema\b/g)]
+    .map((match) => Number(match[1]))
+    .filter((value) => Number.isFinite(value));
+  if (matches.length >= 2) return { fastPeriod: matches[0], slowPeriod: matches[1] };
+  return { fastPeriod: 12, slowPeriod: 48 };
+}
+
+function extractEmaRetestTargetFromText(
+  text: string,
+  fastPeriod: number,
+  slowPeriod: number,
+): "fast" | "slow" | "either" | undefined {
+  if (/\b(either|any|both)\b.{0,40}\bema\b/.test(text)) return "either";
+  const fastOnly = [
+    new RegExp(`\\bonly\\s+(?:the\\s+)?${fastPeriod}\\s*(?:period\\s*)?ema\\b`),
+    new RegExp(`\\b${fastPeriod}\\s*(?:period\\s*)?ema\\s+only\\b`),
+    new RegExp(`\\btest\\s+(?:the\\s+)?${fastPeriod}\\s*(?:period\\s*)?ema\\b`),
+  ];
+  const slowOnly = [
+    new RegExp(`\\bonly\\s+(?:the\\s+)?${slowPeriod}\\s*(?:period\\s*)?ema\\b`),
+    new RegExp(`\\b${slowPeriod}\\s*(?:period\\s*)?ema\\s+only\\b`),
+    new RegExp(`\\btest\\s+(?:the\\s+)?${slowPeriod}\\s*(?:period\\s*)?ema\\b`),
+  ];
+  if (fastOnly.some((pattern) => pattern.test(text))) return "fast";
+  if (slowOnly.some((pattern) => pattern.test(text))) return "slow";
+  return undefined;
+}
+
+function syntheticRulesFromText(text: string, fallbackTf: string): Record<string, unknown>[] {
+  const rules: Record<string, unknown>[] = [];
+  const hasEma = /\bema\b|exponential moving average/.test(text);
+  const hasIfvg =
+    /\bifvg\b|inversion fvg|inversion fair value gap|inverted fair value gap/.test(text);
+  const hasRetest = /\bretest\b|\btest\b|\btouch\b/.test(text);
+  const { fastPeriod, slowPeriod } = extractEmaPeriodsFromText(text);
+  const retestTarget = extractEmaRetestTargetFromText(text, fastPeriod, slowPeriod);
+
+  if (hasEma && /\bcross/.test(text)) {
+    rules.push({
+      id: "synthetic_ema_direction",
+      type: "ema_cross",
+      side: "both",
+      label: "EMA cross sets direction.",
+      parameters: { timeframe: fallbackTf, fastPeriod, slowPeriod },
+    });
+  }
+
+  if (hasEma && hasRetest) {
+    rules.push({
+      id: "synthetic_ema_retest_setup",
+      type: "ema_retest",
+      side: "both",
+      label: "Price must retest the selected EMA before setup is valid.",
+      parameters: {
+        timeframe: fallbackTf,
+        fastPeriod,
+        slowPeriod,
+        ...(retestTarget ? { retestTarget } : {}),
+      },
+    });
+  }
+
+  if (hasIfvg) {
+    rules.push({
+      id: "synthetic_ifvg_execution",
+      type: "ifvg_entry",
+      side: "both",
+      label: "IFVG formation is the execution trigger.",
+      parameters: { timeframe: fallbackTf, expiryBars: 100 },
+    });
+  }
+
+  return rules;
+}
+
+function enrichBrainFromText(
+  brain: ReturnType<typeof cleanBrain>,
+  sourceText: string,
+): ReturnType<typeof cleanBrain> {
+  if (!brain?.modules.includes("ema")) return brain;
+  const { fastPeriod, slowPeriod } = extractEmaPeriodsFromText(sourceText);
+  const retestTarget = extractEmaRetestTargetFromText(sourceText, fastPeriod, slowPeriod);
+  return {
+    ...brain,
+    params: {
+      fastPeriod,
+      slowPeriod,
+      ...(brain.params ?? {}),
+      ...(retestTarget ? { retestTarget } : {}),
+    },
+  };
+}
+
+function extractRewardRisk(text: string): number | undefined {
+  const colon = text.match(/\b(?:rr|r:r|risk[-\s]*to[-\s]*reward|risk reward)\D{0,10}1\s*[:/]\s*(\d+(?:\.\d+)?)\b/);
+  if (colon) return Number(colon[1]);
+  const takeProfitColon = text.match(/\b(?:tp|take profit)\D{0,20}1\s*[:/]\s*(\d+(?:\.\d+)?)\b/);
+  if (takeProfitColon) return Number(takeProfitColon[1]);
+  const fixed = text.match(/\b(?:tp|take profit|reward)\D{0,10}(\d+(?:\.\d+)?)\s*r\b/);
+  if (fixed) return Number(fixed[1]);
+  return undefined;
+}
+
+function extractBreakEvenAtR(text: string): number | undefined {
+  const match = text.match(/\b(?:breakeven|break even|break-even)\D{0,30}(\d+(?:\.\d+)?)\s*r\b/);
+  return match ? Number(match[1]) : undefined;
+}
+
+function mentionsBreakEven(text: string): boolean {
+  return /\bbreakeven\b|\bbreak even\b|\bbreak-even\b/.test(text);
+}
+
+function extractMaxStopPoints(text: string): number | undefined {
+  const pointMatch = text.match(/\b(?:max(?:imum)?\s+)?stop(?:\s+loss)?\D{0,30}(\d+(?:\.\d+)?)\s*points?\b/);
+  if (pointMatch) return Number(pointMatch[1]);
+  const pipMatch = text.match(/\b(?:max(?:imum)?\s+)?stop(?:\s+loss)?\D{0,30}(\d+(?:\.\d+)?)\s*pips?\b/);
+  if (pipMatch) return Number(pipMatch[1]) * 10;
   return undefined;
 }
 
 function paramsFromRule(rule: Record<string, unknown>, module: string): Record<string, unknown> {
   const params = cleanParams(rule.parameters);
   if (module === "ema") {
+    const text = ruleText(rule);
     const fastPeriod =
       paramNumber(params, ["fastPeriod", "fast", "shortPeriod", "periodFast"]) ??
-      (ruleText(rule).match(/\b(\d+)\s*ema\b/)
-        ? Number(ruleText(rule).match(/\b(\d+)\s*ema\b/)![1])
+      (text.match(/\b(\d+)\s*ema\b/)
+        ? Number(text.match(/\b(\d+)\s*ema\b/)![1])
         : undefined) ??
       12;
     const slowPeriod =
       paramNumber(params, ["slowPeriod", "slow", "longPeriod", "periodSlow"]) ??
-      (ruleText(rule).match(/\b(\d+)\s*ema\b.*\b(\d+)\s*ema\b/)
-        ? Number(ruleText(rule).match(/\b(\d+)\s*ema\b.*\b(\d+)\s*ema\b/)![2])
+      (text.match(/\b(\d+)\s*ema\b.*\b(\d+)\s*ema\b/)
+        ? Number(text.match(/\b(\d+)\s*ema\b.*\b(\d+)\s*ema\b/)![2])
         : undefined) ??
       48;
-    return { fastPeriod, slowPeriod };
+    const configuredTarget =
+      typeof params.retestTarget === "string" ? params.retestTarget : undefined;
+    const retestTarget =
+      configuredTarget ?? extractEmaRetestTargetFromText(text, fastPeriod, slowPeriod);
+    return { fastPeriod, slowPeriod, ...(retestTarget ? { retestTarget } : {}) };
   }
   if (module === "fvg" || module === "fvg_inversion") {
     return { expiryBars: paramNumber(params, ["expiryBars", "expiry", "setupExpiryBars"], 100) };
@@ -413,10 +552,28 @@ function paramsFromRule(rule: Record<string, unknown>, module: string): Record<s
   return {};
 }
 
-function inferFourBrain(blueprint: Record<string, unknown>) {
-  const rules = Array.isArray(blueprint.rules)
+function inferFourBrain(blueprint: Record<string, unknown>, sourceText = "") {
+  const baseRules = Array.isArray(blueprint.rules)
     ? (blueprint.rules.filter((r) => r && typeof r === "object") as Record<string, unknown>[])
     : [];
+  const corpus = blueprintText(blueprint, sourceText);
+  const fallbackTf = extractTfFromRule(
+    { type: "context", label: corpus, parameters: blueprint.execution ?? {} },
+    "M5",
+  );
+  const syntheticRules = syntheticRulesFromText(corpus, fallbackTf);
+  const rules = [...baseRules, ...syntheticRules].filter((rule, index, allRules) => {
+    const module = moduleFromRule(rule);
+    if (!module) return false;
+    return (
+      allRules.findIndex(
+        (candidate) =>
+          moduleFromRule(candidate) === module &&
+          extractTfFromRule(candidate, fallbackTf) === extractTfFromRule(rule, fallbackTf) &&
+          ruleText(candidate).includes(ruleText(rule).slice(0, 30)),
+      ) === index
+    );
+  });
   if (rules.length === 0) return undefined;
 
   const findRule = (predicate: (rule: Record<string, unknown>) => boolean) => rules.find(predicate);
@@ -441,7 +598,8 @@ function inferFourBrain(blueprint: Record<string, unknown>) {
       text.includes("touch") ||
       text.includes("zone") ||
       text.includes("fvg") ||
-      text.includes("order block")
+      text.includes("order block") ||
+      text.includes("ema_retest")
     );
   };
   const isExecution = (rule: Record<string, unknown>) => {
@@ -453,7 +611,8 @@ function inferFourBrain(blueprint: Record<string, unknown>) {
       text.includes("next candle") ||
       text.includes("engulf") ||
       text.includes("pin bar") ||
-      text.includes("liquidity sweep")
+      text.includes("liquidity sweep") ||
+      text.includes("ifvg_entry")
     );
   };
 
@@ -499,9 +658,12 @@ function inferFourBrain(blueprint: Record<string, unknown>) {
   };
 }
 
-export function normalizeBlueprint(blueprint: Record<string, unknown>): Record<string, unknown> {
+export function normalizeBlueprint(
+  blueprint: Record<string, unknown>,
+  sourceText = "",
+): Record<string, unknown> {
   if (!blueprint.fourBrain) {
-    const inferred = inferFourBrain(blueprint);
+    const inferred = inferFourBrain(blueprint, sourceText);
     if (inferred) blueprint.fourBrain = inferred;
   }
 
@@ -528,19 +690,29 @@ export function normalizeBlueprint(blueprint: Record<string, unknown>): Record<s
     typeof value === "number" && Number.isFinite(value) ? value : fallback;
   const bool = (value: unknown, fallback: boolean) =>
     typeof value === "boolean" ? value : fallback;
+  const corpus = blueprintText(blueprint, sourceText);
+  const rewardRiskFromText = extractRewardRisk(corpus);
+  const breakEvenAtRFromText = extractBreakEvenAtR(corpus);
+  const breakEvenMentioned = mentionsBreakEven(corpus);
+  const maxStopPointsFromText = extractMaxStopPoints(corpus);
+  const direction = enrichBrainFromText(cleanBrain(raw.direction, "D1"), corpus);
+  const setup = enrichBrainFromText(cleanBrain(raw.setup, "H4"), corpus);
+  const enrichedExecution = enrichBrainFromText(execution, corpus);
 
   blueprint.fourBrain = {
-    direction: cleanBrain(raw.direction, "D1"),
-    setup: cleanBrain(raw.setup, "H4"),
-    execution,
+    direction,
+    setup,
+    execution: enrichedExecution,
     management: {
       riskPercent: num(rawMgmt.riskPercent, num(risk.riskPercent, 1)),
-      rewardRisk: num(rawMgmt.rewardRisk, num(risk.rewardRisk, 2)),
+      rewardRisk: rewardRiskFromText ?? num(rawMgmt.rewardRisk, num(risk.rewardRisk, 2)),
       stopBuffer: num(rawMgmt.stopBuffer, num(risk.stopBufferPoints, 20)),
-      breakEvenEnabled: bool(rawMgmt.breakEvenEnabled, bool(risk.breakevenEnabled, false)),
-      breakEvenAtR: num(rawMgmt.breakEvenAtR, 1),
+      breakEvenEnabled: breakEvenMentioned
+        ? true
+        : bool(rawMgmt.breakEvenEnabled, bool(risk.breakevenEnabled, false)),
+      breakEvenAtR: breakEvenAtRFromText ?? num(rawMgmt.breakEvenAtR, 1),
       maxOpenTrades: num(rawMgmt.maxOpenTrades, num(risk.maxOpenTrades, 1)),
-      maxStopPoints: num(rawMgmt.maxStopPoints, 0),
+      maxStopPoints: maxStopPointsFromText ?? num(rawMgmt.maxStopPoints, 0),
     },
   };
 
@@ -646,7 +818,7 @@ export default async (req: Request): Promise<Response> => {
   }
 
   try {
-    const blueprint = normalizeBlueprint(await extractBlueprint(prompt));
+    const blueprint = normalizeBlueprint(await extractBlueprint(prompt), prompt);
     return Response.json(
       { blueprint, source: "ai" },
       { headers: { ...CORS, "Content-Type": "application/json" } },

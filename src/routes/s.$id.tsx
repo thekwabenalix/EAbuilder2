@@ -60,7 +60,9 @@ import type { FourBrainConfig, BrainConfig, BrainModuleType } from "@/types/blue
 import { ALL_BRAIN_MODULES, TIMEFRAMES as TF_LIST, formatBrainChain } from "@/lib/brain-modules";
 import { MODULE_UI_PARAMS } from "@/lib/module-library";
 import type { UIParam } from "@/lib/module-library";
+import { getModuleAdmission, MODULE_ADMISSION_STATUS_META } from "@/lib/module-admission";
 import {
+  ApiError,
   generateAiBrainWiring,
   generateAiEaFromDescription,
   type AiBrainWiring,
@@ -94,10 +96,33 @@ function downloadText(filename: string, content: string, mime = "text/plain") {
 
 function assertAiWiringValid(wiring: AiBrainWiring) {
   if (wiring.validation?.status !== "fail") return;
+  if (wiring.repair?.hasBlockedModules) {
+    throw new Error(`AI wiring blocked: ${formatRepairSummary(wiring.repair)}`);
+  }
   const message =
     wiring.validation.errors[0] ??
     "AI wiring does not match the extracted strategy rules. Please regenerate.";
   throw new Error(`AI wiring blocked: ${message}`);
+}
+
+function formatRepairSummary(repair: AiBrainWiring["repair"]): string {
+  if (!repair?.hasBlockedModules) return "";
+  const fixes = repair.blocked.map((item) => {
+    const alternatives = item.suggestedModules.map((mod) => mod.label).join(", ");
+    return alternatives
+      ? `${item.label}: ${item.recommendation} Suggested verified modules: ${alternatives}.`
+      : `${item.label}: ${item.recommendation}`;
+  });
+  return [repair.summary, ...fixes].join(" ");
+}
+
+function aiGenerationErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    const repair = (error.details as { repair?: AiBrainWiring["repair"] })?.repair;
+    const repairSummary = formatRepairSummary(repair);
+    if (repairSummary) return repairSummary;
+  }
+  return error instanceof Error ? error.message : "AI generation failed";
 }
 
 function AiWiringInsight({ wiring }: { wiring: AiBrainWiring | null }) {
@@ -582,6 +607,8 @@ function BrainModuleChips({
         <div className="rounded-lg border border-border bg-card p-3 grid grid-cols-2 gap-1 max-h-64 overflow-y-auto">
           {ALL_BRAIN_MODULES.map((m) => {
             const active = selected.includes(m.id);
+            const admission = getModuleAdmission(m.id);
+            const admissionMeta = admission ? MODULE_ADMISSION_STATUS_META[admission.status] : null;
             return (
               <button
                 key={m.id}
@@ -594,7 +621,15 @@ function BrainModuleChips({
                 ].join(" ")}
               >
                 <span className={`${m.color} text-sm`}>{m.symbol}</span>
-                <span>{m.label}</span>
+                <span className="min-w-0 flex-1">{m.label}</span>
+                {admissionMeta && (
+                  <span
+                    className={`text-[9px] px-1.5 py-0.5 rounded border font-medium ${admissionMeta.tone}`}
+                    title={admission?.notes ?? admissionMeta.description}
+                  >
+                    {admissionMeta.shortLabel}
+                  </span>
+                )}
                 {active && <CheckCircle2 className="h-3 w-3 ml-auto text-primary" />}
               </button>
             );
@@ -603,6 +638,32 @@ function BrainModuleChips({
       )}
     </div>
   );
+}
+
+function unsafeAiModuleLabels(modules: Array<BrainModuleType | string | undefined>): string[] {
+  return [
+    ...new Set(
+      modules
+        .filter((moduleId): moduleId is BrainModuleType | string => Boolean(moduleId))
+        .map((moduleId) => moduleId.toLowerCase()),
+    ),
+  ]
+    .map((moduleId) => {
+      const admission = getModuleAdmission(moduleId);
+      if (!admission || admission.status === "verified_state_machine") return null;
+      const meta = MODULE_ADMISSION_STATUS_META[admission.status];
+      return `${admission.label} (${meta.shortLabel})`;
+    })
+    .filter((label): label is string => Boolean(label));
+}
+
+function unsafeFourBrainAiModules(config?: FourBrainConfig): string[] {
+  if (!config) return [];
+  return unsafeAiModuleLabels([
+    ...(config.direction?.modules ?? []),
+    ...(config.setup?.modules ?? []),
+    ...(config.execution?.modules ?? []),
+  ]);
 }
 
 function TfPicker({ value, onChange }: { value: string; onChange: (tf: string) => void }) {
@@ -883,13 +944,23 @@ function FourBrainTab({
     maxTrades,
   ]);
 
+  const unsafeAiModules = unsafeAiModuleLabels([
+    ...(direction?.modules ?? []),
+    ...(setup?.modules ?? []),
+    ...(execution.modules ?? []),
+  ]);
   const canRegenerate = execution.modules.length > 0 && execution.timeframe;
+  const canAiRegenerate = canRegenerate && unsafeAiModules.length === 0;
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiWiring, setAiWiring] = useState<AiBrainWiring | null>(null);
 
   async function onAiGenerate() {
     if (!canRegenerate) {
       toast.error("Execution Brain needs at least one module and a timeframe.");
+      return;
+    }
+    if (unsafeAiModules.length > 0) {
+      toast.error(`AI 4-Brain wiring is blocked for: ${unsafeAiModules.join(", ")}`);
       return;
     }
     setAiGenerating(true);
@@ -931,7 +1002,7 @@ function FourBrainTab({
       toast.success("AI-powered EA generated — Claude wired the modules intelligently");
       onRegenerate(bp, code);
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "AI generation failed");
+      toast.error(aiGenerationErrorMessage(e));
     } finally {
       setAiGenerating(false);
     }
@@ -1126,7 +1197,7 @@ function FourBrainTab({
         {/* AI — Claude interprets and wires */}
         <Button
           onClick={onAiGenerate}
-          disabled={aiGenerating}
+          disabled={aiGenerating || !canAiRegenerate}
           className="bg-primary hover:bg-primary/90 text-primary-foreground"
         >
           {aiGenerating ? (
@@ -1216,8 +1287,11 @@ function CodeTab({
   const [compiling, setCompiling] = useState(false);
   const [compileLog, setCompileLog] = useState<string | null>(null);
   const [aiWiring, setAiWiring] = useState<AiBrainWiring | null>(null);
+  const unsafeAiModules = unsafeFourBrainAiModules(blueprint.fourBrain);
   const canUseFourBrainAi = Boolean(
-    blueprint.fourBrain?.execution?.modules?.length && blueprint.fourBrain.execution.timeframe,
+    blueprint.fourBrain?.execution?.modules?.length &&
+    blueprint.fourBrain.execution.timeframe &&
+    unsafeAiModules.length === 0,
   );
 
   const companion = useQuery({
@@ -1268,6 +1342,10 @@ function CodeTab({
 
   const generateWithAi = async () => {
     if (!canUseFourBrainAi || !blueprint.fourBrain) {
+      if (unsafeAiModules.length > 0) {
+        toast.error(`AI 4-Brain wiring is blocked for: ${unsafeAiModules.join(", ")}`);
+        return;
+      }
       toast.error("AI 4-Brain generation needs a real 4-Brain strategy. Use the 4-Brain Builder.");
       return;
     }
@@ -1299,7 +1377,7 @@ function CodeTab({
         toast.success("AI-built EA ready");
       }
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "AI generation failed");
+      toast.error(aiGenerationErrorMessage(e));
     } finally {
       setGenerating(false);
     }
@@ -1427,9 +1505,11 @@ function CodeTab({
             )}
           </Button>
           <p className="text-[11px] text-center text-muted-foreground">
-            {canUseFourBrainAi
-              ? "Claude reads your strategy description, selects the right detection modules, and generates a self-contained EA."
-              : "AI 4-Brain generation is available after creating a strategy with the 4-Brain Builder."}
+            {unsafeAiModules.length > 0
+              ? `AI wiring is blocked for: ${unsafeAiModules.join(", ")}`
+              : canUseFourBrainAi
+                ? "Claude reads your strategy description, selects the right detection modules, and generates a self-contained EA."
+                : "AI 4-Brain generation is available after creating a strategy with the 4-Brain Builder."}
           </p>
 
           {/* Divider */}

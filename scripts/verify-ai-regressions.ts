@@ -7,6 +7,7 @@
  */
 import {
   buildEmaTestThenIfvgFormationWiring,
+  findUnsafeAiModules,
   inferLocalSemantics,
   validateWiringAgainstSemantics,
   type AiBrainWiringResponse,
@@ -88,6 +89,28 @@ function badMissingAfterSetupGate(): AiBrainWiringResponse {
   };
 }
 
+function badUnsafeTemplateModule(): AiBrainWiringResponse {
+  return {
+    direction_brain: "void Direction_Brain_Execute() { gBias = 1; }",
+    setup_brain: "void Setup_Brain_Execute() { gSetupActive = true; gSetupDir = gBias; }",
+    execution_brain: "void Execution_Brain_Execute() { gExecSignal = false; }",
+    semantics: {
+      version: 1,
+      source: "ai",
+      timeframe: "M5",
+      modules: ["bb"],
+      execution: {
+        module: "bb",
+        entryEvent: "band_touch",
+      },
+      assumptions: [],
+    },
+    required_sms: [],
+    sm_configs: {},
+    notes: "Intentional bad fixture: Bollinger Bands are template-only, not AI SM-safe.",
+  };
+}
+
 const cases: RegressionCase[] = [
   {
     name: "extracts slow-only EMA retest from raw text",
@@ -158,6 +181,36 @@ const cases: RegressionCase[] = [
       assertOk(
         validation.errors.some((error) => error.includes("does not compare IFVG time")),
         `expected missing time-gate error, got: ${validation.errors.join(" | ")}`,
+      );
+    },
+  },
+  {
+    name: "module admission blocks template and guarded modules for AI wiring",
+    run: () => {
+      const unsafe = findUnsafeAiModules(["ema", "bb", "swing_structure", "rbr_dbd"]);
+      assertEq(unsafe.length, 3, "unsafe module count");
+      assertOk(
+        unsafe.some((item) => item.startsWith("bb:")),
+        "expected bb to be unsafe",
+      );
+      assertOk(
+        unsafe.some((item) => item.startsWith("swing_structure:")),
+        "expected swing_structure to be unsafe",
+      );
+      assertOk(
+        unsafe.some((item) => item.startsWith("rbr_dbd:")),
+        "expected rbr_dbd to be unsafe",
+      );
+    },
+  },
+  {
+    name: "validator rejects unsafe module semantics returned by AI",
+    run: () => {
+      const validation = validateWiringAgainstSemantics(badUnsafeTemplateModule());
+      assertEq(validation.status, "fail", "validation status");
+      assertOk(
+        validation.errors.some((error) => error.includes("not admitted for AI 4-Brain")),
+        `expected unsafe admission error, got: ${validation.errors.join(" | ")}`,
       );
     },
   },

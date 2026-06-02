@@ -19,6 +19,7 @@ import {
   moduleContractAllowsSmFunction,
   moduleSupportsEvent,
 } from "../../src/lib/module-contracts.js";
+import { buildModuleRepairPlan, getModuleAdmission } from "../../src/lib/module-admission.js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -383,6 +384,8 @@ interface GenRequest {
   description?: string;
   /** Raw user prompt from the /new page — Claude interprets it as a complete strategy */
   prompt?: string;
+  /** Internal escape hatch only. Normal SaaS generation must leave this false. */
+  allowUnsafeModules?: boolean;
 }
 
 export interface AiBrainWiringResponse {
@@ -391,6 +394,7 @@ export interface AiBrainWiringResponse {
   execution_brain: string;
   semantics?: StrategySemantics;
   validation?: WiringValidation;
+  repair?: ReturnType<typeof buildModuleRepairPlan>;
   required_sms: string[];
   sm_configs: Record<
     string,
@@ -437,6 +441,36 @@ export interface WiringValidation {
   status: "pass" | "warn" | "fail";
   errors: string[];
   warnings: string[];
+}
+
+function unsafeAiModuleReason(moduleId: string): string | null {
+  const admission = getModuleAdmission(moduleId);
+  if (!admission) return `module "${moduleId}" has no admission record`;
+  if (admission.status !== "verified_state_machine") {
+    return `${admission.label} is ${admission.status.replace(/_/g, " ")}; ${admission.notes}`;
+  }
+  return null;
+}
+
+function uniqueModules(modules: string[]): string[] {
+  return [...new Set(modules.filter(Boolean).map((m) => m.toLowerCase()))];
+}
+
+function modulesFromConfig(config?: FourBrainConfig): string[] {
+  return uniqueModules([
+    ...(config?.direction?.modules ?? []),
+    ...(config?.setup?.modules ?? []),
+    ...(config?.execution?.modules ?? []),
+  ]);
+}
+
+export function findUnsafeAiModules(modules: string[]): string[] {
+  return uniqueModules(modules)
+    .map((moduleId) => {
+      const reason = unsafeAiModuleReason(moduleId);
+      return reason ? `${moduleId}: ${reason}` : null;
+    })
+    .filter((reason): reason is string => Boolean(reason));
 }
 
 function periodConst(tf: string): string {
@@ -712,6 +746,13 @@ export function validateWiringAgainstSemantics(response: AiBrainWiringResponse):
     return { status: "fail", errors, warnings };
   }
 
+  const unsafeSemanticModules = findUnsafeAiModules(semantics.modules ?? []);
+  if (unsafeSemanticModules.length > 0) {
+    errors.push(
+      `AI wiring uses module(s) that are not admitted for AI 4-Brain generation: ${unsafeSemanticModules.join(" | ")}`,
+    );
+  }
+
   for (const moduleId of semantics.modules ?? []) {
     if (!getModuleContract(moduleId)) {
       warnings.push(`No module contract is registered for "${moduleId}".`);
@@ -832,6 +873,8 @@ export function normalizeAiResponse(
     response.semantics = inferLocalSemantics(fullText, config);
   }
   response.validation = validateWiringAgainstSemantics(response);
+  const repair = buildModuleRepairPlan(response.semantics.modules ?? []);
+  if (repair.hasBlockedModules) response.repair = repair;
   return response;
 }
 
@@ -972,7 +1015,7 @@ export default async (req: Request): Promise<Response> => {
     return Response.json({ error: "Invalid JSON body" }, { status: 400, headers: CORS });
   }
 
-  const { config, eaName, description, prompt } = body;
+  const { config, eaName, description, prompt, allowUnsafeModules } = body;
   const fullText = [
     prompt,
     description,
@@ -982,6 +1025,21 @@ export default async (req: Request): Promise<Response> => {
   ]
     .filter(Boolean)
     .join("\n");
+
+  if (config && !allowUnsafeModules) {
+    const configModules = modulesFromConfig(config);
+    const unsafeModules = findUnsafeAiModules(configModules);
+    if (unsafeModules.length > 0) {
+      const repair = buildModuleRepairPlan(configModules);
+      return Response.json(
+        {
+          error: `AI 4-Brain generation is blocked because this strategy uses module(s) that are not admitted for AI wiring: ${unsafeModules.join(" | ")}`,
+          repair,
+        },
+        { status: 400, headers: CORS },
+      );
+    }
+  }
 
   if (isEmaTestThenIfvgFormation(fullText, config)) {
     return Response.json(buildEmaTestThenIfvgFormationWiring(fullText, config), {

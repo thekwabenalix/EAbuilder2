@@ -54,6 +54,7 @@ import { generateEngulfingDetector } from "@/lib/smc-modules/engulfing-detector"
 import { generateStrongEngulfingDetector } from "@/lib/smc-modules/strong-engulfing-detector";
 import { generateRbrDbdDetector } from "@/lib/smc-modules/rbr-dbd-detector";
 import { generateMefDetector } from "@/lib/smc-modules/mef-detector";
+import { generateQmMefDetector } from "@/lib/smc-modules/qm-mef-detector";
 import { generateFvgStateModule } from "@/lib/smc-modules/fvg-state-module";
 import { generateObStateModule } from "@/lib/smc-modules/ob-state-module";
 import { generateBreakoutStateModule } from "@/lib/smc-modules/breakout-state-module";
@@ -101,11 +102,7 @@ import {
   BOS_OB_FVG_BEAR,
 } from "@/lib/mtf-modules/mtf-orchestrator";
 import { ALL_BRAIN_MODULES } from "@/lib/brain-modules";
-import {
-  getModuleContract,
-  MODULE_CONTRACTS,
-  type ModuleImplementation,
-} from "@/lib/module-contracts";
+import { getModuleContract, MODULE_CONTRACTS } from "@/lib/module-contracts";
 import {
   MODULE_ADMISSION,
   MODULE_ADMISSION_STATUS_META,
@@ -1888,6 +1885,32 @@ const TRADING_MODULES: ModuleCategory[] = [
         generate: generateMefDetector,
       },
       {
+        id: "qm-mef-detector",
+        filename: "QM_MEF_Detector.mq5",
+        name: "QM_MEF (Quasimodo MEF)",
+        description:
+          "Detects a close-based Quasimodo that is born from a higher-TF strong " +
+          "engulfing candle (not a general Quasimodo). The left shoulder is the entry. " +
+          "Stronger when a Gap SNR / RBR / DBD sits near the left shoulder.",
+        rules: [
+          "HTF: a STRONG (2-candle) engulfing candle — no engulfing, no QM_MEF",
+          "Quasimodo uses candle CLOSES, not wicks (highs/lows = closes)",
+          "Bullish QM: LS low → pullback high → lower low → higher high; entry = LS low",
+          "Bearish QM: LS high → pullback low → higher high → lower low; entry = LS high",
+          "QM must form inside the engulfing candle's time/range on the LTF",
+          "Strength = STRONG if Gap SNR / RBR / DBD sits near the left shoulder, else normal",
+        ],
+        output: [
+          "HTF engulfing zone (green bull / red bear) + 'Bull/Bear QM_MEF [STRONG|normal]'",
+          "Gold left-shoulder entry level (ray) labelled 'LS (entry)'",
+          "Dotted vertical line at the Quasimodo head (LL bull / HH bear)",
+          "Purple confluence marker (Gap SNR line or RBR/DBD base box) if present",
+          "Journal: QM_MEF_CREATED | dir | HTF | LTF | engulf | left_shoulder | confluence | strength",
+        ],
+        status: "ready",
+        generate: generateQmMefDetector,
+      },
+      {
         id: "supply-zone",
         filename: "SD_Supply_Detector.mq5",
         name: "Supply Zone",
@@ -2111,74 +2134,53 @@ function StatusBadge({ status }: { status: ModuleStatus }) {
 
 // ─── Module card ─────────────────────────────────────────────────────────────
 
-const CONTRACT_STATUS_META: Record<
-  ModuleImplementation,
-  { label: string; tone: string; description: string }
-> = {
-  state_machine: {
-    label: "Verified SM",
-    tone: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-    description: "AI can wire these into 4-Brain EAs through verified inline state machines.",
-  },
-  template: {
-    label: "Template",
-    tone: "bg-sky-500/10 text-sky-300 border-sky-500/20",
-    description:
-      "Available as deterministic template logic, but not yet a full inline SM contract.",
-  },
-  not_verified: {
-    label: "Not verified",
-    tone: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-    description: "Known vocabulary only. AI should not depend on it for live EA wiring yet.",
-  },
-};
-
-function ContractBadge({ implementation }: { implementation: ModuleImplementation }) {
-  const meta = CONTRACT_STATUS_META[implementation];
+function AdmissionBadge({ status }: { status: ModuleAdmissionStatus }) {
+  const meta = MODULE_ADMISSION_STATUS_META[status];
   return (
     <span
       className={`text-[10px] px-1.5 py-0.5 rounded border font-medium whitespace-nowrap ${meta.tone}`}
     >
-      {meta.label}
+      {meta.shortLabel}
     </span>
   );
 }
 
-function ModuleContractReadinessReport() {
-  const contracts = Object.values(MODULE_CONTRACTS).sort((a, b) => a.label.localeCompare(b.label));
-  const verified = contracts.filter((c) => c.implementation === "state_machine");
-  const template = contracts.filter((c) => c.implementation === "template");
-  const notVerified = contracts.filter((c) => c.implementation === "not_verified");
+function ModuleAdmissionReport() {
+  const admissions = Object.values(MODULE_ADMISSION).sort((a, b) => a.label.localeCompare(b.label));
+  const verified = admissions.filter((m) => m.status === "verified_state_machine");
+  const template = admissions.filter((m) => m.status === "template_only");
+  const notVerified = admissions.filter((m) => m.status === "not_verified");
+  const detectorOnly = admissions.filter((m) => m.status === "detector_only");
   const coveredBrainModules = ALL_BRAIN_MODULES.filter((m) => getModuleContract(m.id));
   const missingBrainModules = ALL_BRAIN_MODULES.filter((m) => !getModuleContract(m.id));
+  const contractlessAi = admissions.filter(
+    (m) => m.aiVocabulary && m.contractRequired && !MODULE_CONTRACTS[m.id],
+  );
 
   const stats = [
     {
-      label: "Verified SM",
+      label: "Verified",
       value: verified.length,
-      tone: CONTRACT_STATUS_META.state_machine.tone,
+      tone: MODULE_ADMISSION_STATUS_META.verified_state_machine.tone,
       helper: "safe for AI 4-Brain wiring",
     },
     {
       label: "Template",
       value: template.length,
-      tone: CONTRACT_STATUS_META.template.tone,
+      tone: MODULE_ADMISSION_STATUS_META.template_only.tone,
       helper: "deterministic, limited contract",
     },
     {
-      label: "Not verified",
+      label: "Guarded",
       value: notVerified.length,
-      tone: CONTRACT_STATUS_META.not_verified.tone,
+      tone: MODULE_ADMISSION_STATUS_META.not_verified.tone,
       helper: "visible but guarded",
     },
     {
-      label: "Missing contracts",
-      value: missingBrainModules.length,
-      tone:
-        missingBrainModules.length === 0
-          ? CONTRACT_STATUS_META.state_machine.tone
-          : CONTRACT_STATUS_META.not_verified.tone,
-      helper: `${coveredBrainModules.length}/${ALL_BRAIN_MODULES.length} builder modules covered`,
+      label: "Detector only",
+      value: detectorOnly.length,
+      tone: MODULE_ADMISSION_STATUS_META.detector_only.tone,
+      helper: `${coveredBrainModules.length}/${ALL_BRAIN_MODULES.length} builder modules contracted`,
     },
   ];
 
@@ -2188,14 +2190,14 @@ function ModuleContractReadinessReport() {
         <Network className="h-4 w-4 text-primary shrink-0 mt-0.5" />
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="font-semibold text-sm">Module contract readiness</p>
+            <p className="font-semibold text-sm">Module admission status</p>
             <span className="text-[10px] px-1.5 py-0.5 rounded border bg-primary/10 text-primary border-primary/20">
-              Phase 1C registry
+              Phase 1H visible
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            This is the AI builder vocabulary boundary. A module must have a contract before AI mode
-            can safely wire it into a generated EA.
+            This is the AI builder admission boundary. A module must be verified or deliberately
+            marked as guarded, template-only, or detector-only before the system can trust it.
           </p>
         </div>
       </div>
@@ -2211,27 +2213,49 @@ function ModuleContractReadinessReport() {
       </div>
 
       <div className="grid sm:grid-cols-2 gap-2">
-        {contracts.map((contract) => (
-          <div
-            key={contract.id}
-            className="rounded border border-border/50 bg-background/35 px-3 py-2 text-xs"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-medium truncate">{contract.label}</span>
-              <ContractBadge implementation={contract.implementation} />
+        {admissions.map((admission) => {
+          const contract = getModuleContract(admission.id);
+          return (
+            <div
+              key={admission.id}
+              className="rounded border border-border/50 bg-background/35 px-3 py-2 text-xs"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium truncate">{admission.label}</span>
+                <AdmissionBadge status={admission.status} />
+              </div>
+              <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
+                {contract?.smPrefix && <span className="font-mono">{contract.smPrefix}</span>}
+                {contract ? (
+                  <>
+                    <span>{contract.supportedRoles.join(" / ")}</span>
+                    <span>{contract.semanticEvents.length} events</span>
+                  </>
+                ) : (
+                  <span>{admission.aiVocabulary ? "AI vocabulary" : "not AI vocabulary"}</span>
+                )}
+              </div>
+              <p className="mt-1 text-[10px] text-muted-foreground/70 leading-snug">
+                {admission.notes}
+              </p>
             </div>
-            <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
-              {contract.smPrefix && <span className="font-mono">{contract.smPrefix}</span>}
-              <span>{contract.supportedRoles.join(" / ")}</span>
-              <span>{contract.semanticEvents.length} events</span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {missingBrainModules.length > 0 && (
+      {(missingBrainModules.length > 0 || contractlessAi.length > 0) && (
         <div className="text-xs text-amber-300 border border-amber-500/20 bg-amber-500/10 rounded px-3 py-2">
-          Missing contracts: {missingBrainModules.map((m) => m.label).join(", ")}
+          {missingBrainModules.length > 0 && (
+            <span>
+              Missing builder contracts: {missingBrainModules.map((m) => m.label).join(", ")}
+            </span>
+          )}
+          {contractlessAi.length > 0 && (
+            <span>
+              {missingBrainModules.length > 0 ? " | " : ""}AI vocabulary without contract:{" "}
+              {contractlessAi.map((m) => m.label).join(", ")}
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -2403,7 +2427,7 @@ function ModulesPage() {
           </div>
         </div>
 
-        <ModuleContractReadinessReport />
+        <ModuleAdmissionReport />
 
         {/* Category tabs */}
         <Tabs defaultValue="smc">

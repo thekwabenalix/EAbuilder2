@@ -32,6 +32,7 @@ import { ALL_BRAIN_MODULES, TIMEFRAMES as TF_LIST } from "@/lib/brain-modules";
 import type { BrainModuleDef } from "@/lib/brain-modules";
 import { MODULE_UI_PARAMS } from "@/lib/module-library";
 import type { UIParam } from "@/lib/module-library";
+import { getModuleAdmission, MODULE_ADMISSION_STATUS_META } from "@/lib/module-admission";
 
 export const Route = createFileRoute("/build")({
   component: FourBrainBuilderPage,
@@ -212,26 +213,45 @@ function ModuleMultiSelect({
       {open && (
         <div className="absolute top-full left-0 right-0 mt-2 z-10 rounded-lg border border-border bg-card shadow-xl">
           <div className="max-h-64 overflow-y-auto p-2 space-y-1">
-            {modules.map((def) => (
-              <label
-                key={def.id}
-                className="flex items-start gap-3 p-2.5 rounded hover:bg-muted/30 cursor-pointer transition-colors"
-              >
-                <input
-                  type="checkbox"
-                  checked={selected.includes(def.id)}
-                  onChange={() => toggleModule(def.id)}
-                  className="mt-0.5"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className={`text-lg leading-none ${def.color}`}>{def.symbol}</span>
-                    <span className="text-xs font-semibold">{def.label}</span>
+            {modules.map((def) => {
+              const admission = getModuleAdmission(def.id);
+              const admissionMeta = admission
+                ? MODULE_ADMISSION_STATUS_META[admission.status]
+                : null;
+              return (
+                <label
+                  key={def.id}
+                  className="flex items-start gap-3 p-2.5 rounded hover:bg-muted/30 cursor-pointer transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(def.id)}
+                    onChange={() => toggleModule(def.id)}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`text-lg leading-none ${def.color}`}>{def.symbol}</span>
+                      <span className="text-xs font-semibold">{def.label}</span>
+                      {admissionMeta && (
+                        <span
+                          className={`text-[9px] px-1.5 py-0.5 rounded border font-medium ${admissionMeta.tone}`}
+                          title={admissionMeta.description}
+                        >
+                          {admissionMeta.shortLabel}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{def.desc}</p>
+                    {admission && (
+                      <p className="text-[9px] text-muted-foreground/60 mt-0.5 leading-tight">
+                        {admission.notes}
+                      </p>
+                    )}
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{def.desc}</p>
-                </div>
-              </label>
-            ))}
+                </label>
+              );
+            })}
           </div>
         </div>
       )}
