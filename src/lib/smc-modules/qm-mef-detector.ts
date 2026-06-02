@@ -77,7 +77,7 @@ input double InpLegBaseMult     = 1.3;
 input double InpConfTolFrac     = 0.30;  // "near left shoulder" tolerance as frac of QM range
 
 input bool   InpDraw           = true;
-input int    InpFontSize       = 6;
+input int    InpFontSize       = 8;
 input color  InpBullColor      = clrLimeGreen;
 input color  InpBearColor      = clrOrangeRed;
 input color  InpShoulderColor  = clrGold;
