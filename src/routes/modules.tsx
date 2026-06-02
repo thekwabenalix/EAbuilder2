@@ -20,7 +20,6 @@ import {
   TrendingUp,
   Minus,
   ArrowUpDown,
-  Activity,
   BarChart2,
   Layers,
   Zap,
@@ -1774,95 +1773,25 @@ const TRADING_MODULES: ModuleCategory[] = [
     label: "S&D",
     fullName: "Supply & Demand",
     icon: ArrowUpDown,
-    phaseTag: "Roadmap",
-    phaseActive: false,
-    description:
-      "Institutional supply and demand zone detection based on base-and-move " +
-      "patterns. Each module handles a specific zone type — from fresh untested " +
-      "zones to flip zones that have changed polarity.",
-    modules: [
-      {
-        id: "supply-zone",
-        filename: "SD_Supply_Detector.mq5",
-        name: "Supply Zone",
-        description:
-          "Marks supply zones using drop-base-drop (DBD) and rally-base-drop " +
-          "(RBD) patterns. The base candles form the zone rectangle.",
-        status: "planned",
-      },
-      {
-        id: "demand-zone",
-        filename: "SD_Demand_Detector.mq5",
-        name: "Demand Zone",
-        description:
-          "Marks demand zones using rally-base-rally (RBR) and drop-base-rally " +
-          "(DBR) patterns. Tracks mitigation and invalidation of each zone.",
-        status: "planned",
-      },
-      {
-        id: "fresh-zone",
-        filename: "SD_Fresh_Detector.mq5",
-        name: "Fresh Zone",
-        description:
-          "Highlights supply/demand zones that have not yet been retested by " +
-          "price — statistically the highest-probability zones.",
-        status: "planned",
-      },
-      {
-        id: "mitigated-zone",
-        filename: "SD_Mitigated_Detector.mq5",
-        name: "Mitigated Zone",
-        description:
-          "Identifies zones where price has returned and partially or fully " +
-          "consumed the unfilled orders. Tracks the mitigation percentage.",
-        status: "planned",
-      },
-      {
-        id: "flip-zone",
-        filename: "SD_Flip_Detector.mq5",
-        name: "Flip Zone",
-        description:
-          "Detects supply/demand zones that have flipped polarity — former " +
-          "supply that has become a demand zone and vice versa.",
-        status: "planned",
-      },
-      {
-        id: "nested-zone",
-        filename: "SD_Nested_Detector.mq5",
-        name: "Nested Zone",
-        description:
-          "Identifies supply/demand zones that contain smaller zones within " +
-          "them — confluence of two timeframe zones in one area.",
-        status: "planned",
-      },
-    ],
-  },
-
-  // ── 6. Engulfing ──────────────────────────────────────────────────────────
-  {
-    id: "engulfing",
-    label: "Engulfing",
-    fullName: "Engulfing Patterns",
-    icon: Activity,
     phaseTag: "Phase 1",
     phaseActive: true,
     description:
-      "Malaysian Engulfing Strategy (MES) — detects EG (engulfing) zones and " +
-      "tracks their lifecycle. When price closes through an EG zone, it becomes " +
-      "an EF (engulfing failed) zone with opposite direction. MES definition: " +
-      "zone = C1 full wick range, not just body. Visual indicator shows lifecycle.",
+      "Institutional supply & demand zone detection. Engulfing patterns fall under " +
+      "S&D too — every engulfing/base zone marks an area where orders accumulated and " +
+      "price is expected to react. Includes engulfing (EG/EF), strong engulfing, and " +
+      "rally/drop base zones (RBR/DBD), plus planned zone-state variants.",
     modules: [
       {
         id: "eng-detector",
         filename: "ENG_Detector.mq5",
         name: "Engulfing + Engulfing Failed",
         description:
-          "Detects 2-candle engulfing patterns (EG zones). Tracks lifecycle: " +
-          "ACTIVE → RETESTED → CONFIRMED. When price closes through zone, " +
-          "zone flips to EF (opposite direction). EG zones blue/red, EF zones orange.",
+          "Detects engulfing zones (EG) and tracks their lifecycle. When price closes " +
+          "through an EG zone, it becomes an EF (engulfing failed) zone with opposite " +
+          "direction. MES definition: zone = C1 full wick range. Multi-candle aware.",
         rules: [
-          "Bullish EG: C1 bearish, C2 bullish close > C1.High (upper wick)",
-          "Bearish EG: C1 bullish, C2 bearish close < C1.Low (lower wick)",
+          "Bullish EG: C1 bearish, C2 closes > C1.High (upper wick) — any # of candles",
+          "Bearish EG: C1 bullish, C2 closes < C1.Low (lower wick) — any # of candles",
           "Zone = C1 full wick range (hi=C1.High, lo=C1.Low)",
           "Bull EG fails when close < lo → flips to Bear EF (same zone)",
           "Bear EG fails when close > hi → flips to Bull EF (same zone)",
@@ -1926,6 +1855,60 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         status: "ready",
         generate: generateRbrDbdDetector,
+      },
+      {
+        id: "supply-zone",
+        filename: "SD_Supply_Detector.mq5",
+        name: "Supply Zone",
+        description:
+          "Marks supply zones using drop-base-drop (DBD) and rally-base-drop " +
+          "(RBD) patterns. The base candles form the zone rectangle.",
+        status: "planned",
+      },
+      {
+        id: "demand-zone",
+        filename: "SD_Demand_Detector.mq5",
+        name: "Demand Zone",
+        description:
+          "Marks demand zones using rally-base-rally (RBR) and drop-base-rally " +
+          "(DBR) patterns. Tracks mitigation and invalidation of each zone.",
+        status: "planned",
+      },
+      {
+        id: "fresh-zone",
+        filename: "SD_Fresh_Detector.mq5",
+        name: "Fresh Zone",
+        description:
+          "Highlights supply/demand zones that have not yet been retested by " +
+          "price — statistically the highest-probability zones.",
+        status: "planned",
+      },
+      {
+        id: "mitigated-zone",
+        filename: "SD_Mitigated_Detector.mq5",
+        name: "Mitigated Zone",
+        description:
+          "Identifies zones where price has returned and partially or fully " +
+          "consumed the unfilled orders. Tracks the mitigation percentage.",
+        status: "planned",
+      },
+      {
+        id: "flip-zone",
+        filename: "SD_Flip_Detector.mq5",
+        name: "Flip Zone",
+        description:
+          "Detects supply/demand zones that have flipped polarity — former " +
+          "supply that has become a demand zone and vice versa.",
+        status: "planned",
+      },
+      {
+        id: "nested-zone",
+        filename: "SD_Nested_Detector.mq5",
+        name: "Nested Zone",
+        description:
+          "Identifies supply/demand zones that contain smaller zones within " +
+          "them — confluence of two timeframe zones in one area.",
+        status: "planned",
       },
     ],
   },

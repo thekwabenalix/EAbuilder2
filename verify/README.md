@@ -10,14 +10,30 @@ that emitted MQL5 avoids known MT5 pitfalls. These checks close that gap.
 npm run verify
 ```
 
-This runs both:
+This runs:
 
+- `npm run verify:intake` - StrategyBlueprint/FourBrain intake contract tests
 - `npm run verify:ai` - raw-text and semantic regression tests for AI wiring
 - `npm run verify:mql5` - MQL5 emit and static lint for generated modules and EAs
 
 Use this before trusting a build.
 
-## 2. AI Wiring Regressions
+## 2. Strategy Intake Contracts
+
+```bash
+npm run verify:intake
+```
+
+This protects the boundary where interview output becomes a normalized
+StrategyBlueprint and FourBrainConfig. Current protected cases include:
+
+- explicit 4-Brain configs preserve modules and params
+- BOS direction, order-block setup, and engulfing execution infer correctly from rules
+- supply/demand zones map to the order-block family instead of disappearing
+- IFVG text maps to `fvg_inversion`, not generic `fvg`
+- unsupported SMA does not silently become EMA
+
+## 3. AI Wiring Regressions
 
 ```bash
 npm run verify:ai
@@ -32,7 +48,7 @@ include:
 - IFVG formation entries must use `JustInverted()`, not later IFVG retest confirmation
 - IFVG entries must stay timestamp-gated after the EMA test
 
-## 3. Emit And Static Lint
+## 4. Emit And Static Lint
 
 ```bash
 npm run verify:mql5
@@ -49,7 +65,7 @@ IFVG formation entries, and the module contract registry.
 
 A clean report means "no obvious red flags"; it is not a compiler.
 
-## 4. Compile In MetaEditor
+## 5. Compile In MetaEditor
 
 Copy the emitted files and press F7:
 

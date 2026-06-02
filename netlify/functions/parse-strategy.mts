@@ -334,9 +334,25 @@ function extractTfFromRule(rule: Record<string, unknown>, fallback: string): str
 
 function moduleFromRule(rule: Record<string, unknown>): string | undefined {
   const text = ruleText(rule);
+  if (
+    text.includes("ifvg") ||
+    text.includes("inversion fvg") ||
+    text.includes("inversion fair value gap") ||
+    text.includes("inverted fvg")
+  )
+    return "fvg_inversion";
   if (text.includes("fvg") || text.includes("fair value gap") || text.includes("imbalance"))
     return "fvg";
-  if (text.includes("order_block") || text.includes("order block")) return "order_block";
+  if (
+    text.includes("order_block") ||
+    text.includes("order block") ||
+    text.includes("supply_zone") ||
+    text.includes("demand_zone") ||
+    text.includes("supply zone") ||
+    text.includes("demand zone") ||
+    text.includes("supply and demand")
+  )
+    return "order_block";
   if (text.includes("liquidity_sweep") || text.includes("liquidity sweep") || text.includes("sweep"))
     return "liqsweep";
   if (text.includes("choch") || text.includes("change of character")) return "choch";
@@ -474,7 +490,7 @@ function inferFourBrain(blueprint: Record<string, unknown>) {
   };
 }
 
-function normalizeBlueprint(blueprint: Record<string, unknown>): Record<string, unknown> {
+export function normalizeBlueprint(blueprint: Record<string, unknown>): Record<string, unknown> {
   if (!blueprint.fourBrain) {
     const inferred = inferFourBrain(blueprint);
     if (inferred) blueprint.fourBrain = inferred;
