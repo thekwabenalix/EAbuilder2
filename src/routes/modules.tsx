@@ -53,6 +53,7 @@ import { generateMissDetector } from "@/lib/smc-modules/miss-detector";
 import { generateEngulfingDetector } from "@/lib/smc-modules/engulfing-detector";
 import { generateStrongEngulfingDetector } from "@/lib/smc-modules/strong-engulfing-detector";
 import { generateRbrDbdDetector } from "@/lib/smc-modules/rbr-dbd-detector";
+import { generateMefDetector } from "@/lib/smc-modules/mef-detector";
 import { generateFvgStateModule } from "@/lib/smc-modules/fvg-state-module";
 import { generateObStateModule } from "@/lib/smc-modules/ob-state-module";
 import { generateBreakoutStateModule } from "@/lib/smc-modules/breakout-state-module";
@@ -105,6 +106,11 @@ import {
   MODULE_CONTRACTS,
   type ModuleImplementation,
 } from "@/lib/module-contracts";
+import {
+  MODULE_ADMISSION,
+  MODULE_ADMISSION_STATUS_META,
+  type ModuleAdmissionStatus,
+} from "@/lib/module-admission";
 
 export const Route = createFileRoute("/modules")({
   component: ModulesPage,
@@ -1855,6 +1861,31 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         status: "ready",
         generate: generateRbrDbdDetector,
+      },
+      {
+        id: "mef-detector",
+        filename: "MEF_Detector.mq5",
+        name: "MEF (Manipulation Entry Formula)",
+        description:
+          "Multi-timeframe engulfing confluence. A strong engulfing on the main TF " +
+          "that contains a Gap SNR one TF lower, which in turn contains an RBR (bull) " +
+          "or DBD (bear) two TFs lower. Marks the confluence zone. Detection only.",
+        rules: [
+          "Main TF: STRONG (2-candle) engulfing only — C2 closes beyond C1's wick",
+          "1 TF lower: a Gap SNR forms inside the engulfing candle (Support=bull, Resistance=bear)",
+          "2 TF lower: an RBR (bull) / DBD (bear) base forms inside that area",
+          "Bullish MEF = strong bull engulfing + Gap Support + RBR",
+          "Bearish MEF = strong bear engulfing + Gap Resistance + DBD",
+          "Gap level + RBR/DBD base must sit within the engulfing candle's range & time",
+        ],
+        output: [
+          "Engulfing candle zone (green bull / red bear) with 'Bull MEF' / 'Bear MEF' label",
+          "Gold dashed line = Gap SNR level",
+          "Purple rectangle = RBR/DBD base zone (entry area)",
+          "Journal: MEF_CREATED | direction | main_tf | gap_tf | base_tf | time",
+        ],
+        status: "ready",
+        generate: generateMefDetector,
       },
       {
         id: "supply-zone",

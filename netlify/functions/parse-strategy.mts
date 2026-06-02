@@ -314,7 +314,11 @@ function ruleText(rule: Record<string, unknown>): string {
   return `${textOf(rule.type)} ${textOf(rule.label)} ${JSON.stringify(rule.parameters ?? {}).toLowerCase()}`;
 }
 
-function paramNumber(params: Record<string, unknown>, keys: string[], fallback?: number): number | undefined {
+function paramNumber(
+  params: Record<string, unknown>,
+  keys: string[],
+  fallback?: number,
+): number | undefined {
   for (const key of keys) {
     const value = params[key];
     if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -353,13 +357,16 @@ function moduleFromRule(rule: Record<string, unknown>): string | undefined {
     text.includes("supply and demand")
   )
     return "order_block";
-  if (text.includes("liquidity_sweep") || text.includes("liquidity sweep") || text.includes("sweep"))
+  if (
+    text.includes("liquidity_sweep") ||
+    text.includes("liquidity sweep") ||
+    text.includes("sweep")
+  )
     return "liqsweep";
   if (text.includes("choch") || text.includes("change of character")) return "choch";
   if (text.includes("bos") || text.includes("break of structure")) return "bos";
   if (text.includes("breakout")) return "breakout";
-  if (text.includes("support") || text.includes("resistance") || text.includes("snr"))
-    return "snr";
+  if (text.includes("support") || text.includes("resistance") || text.includes("snr")) return "snr";
   if (text.includes("rejection")) return "rejection";
   if (text.includes("miss")) return "miss";
   if (text.includes("bollinger")) return "bb";
@@ -375,7 +382,9 @@ function paramsFromRule(rule: Record<string, unknown>, module: string): Record<s
   if (module === "ema") {
     const fastPeriod =
       paramNumber(params, ["fastPeriod", "fast", "shortPeriod", "periodFast"]) ??
-      (ruleText(rule).match(/\b(\d+)\s*ema\b/) ? Number(ruleText(rule).match(/\b(\d+)\s*ema\b/)![1]) : undefined) ??
+      (ruleText(rule).match(/\b(\d+)\s*ema\b/)
+        ? Number(ruleText(rule).match(/\b(\d+)\s*ema\b/)![1])
+        : undefined) ??
       12;
     const slowPeriod =
       paramNumber(params, ["slowPeriod", "slow", "longPeriod", "periodSlow"]) ??

@@ -218,7 +218,8 @@ const cases: ContractCase[] = [
               id: "m5_ifvg_entry",
               type: "custom",
               side: "both",
-              label: "M5 IFVG formation is the entry trigger after price closes through the old FVG boundary.",
+              label:
+                "M5 IFVG formation is the entry trigger after price closes through the old FVG boundary.",
               parameters: { timeframe: "M5", expiryBars: 100 },
               compilable: true,
             },
@@ -249,7 +250,10 @@ const cases: ContractCase[] = [
         }),
       );
 
-      assertOk(!blueprint.fourBrain, "SMA must not be mapped to EMA until SMA has a verified module");
+      assertOk(
+        !blueprint.fourBrain,
+        "SMA must not be mapped to EMA until SMA has a verified module",
+      );
     },
   },
 ];

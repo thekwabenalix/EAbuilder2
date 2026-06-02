@@ -12,13 +12,24 @@ npm run verify
 
 This runs:
 
+- `npm run verify:modules` - module admission checks across vocabulary, UI, contracts, and detector-only status
 - `npm run verify:intake` - StrategyBlueprint/FourBrain intake contract tests
 - `npm run verify:ai` - raw-text and semantic regression tests for AI wiring
 - `npm run verify:mql5` - MQL5 emit and static lint for generated modules and EAs
 
 Use this before trusting a build.
 
-## 2. Strategy Intake Contracts
+## 2. Module Admission
+
+```bash
+npm run verify:modules
+```
+
+This protects against half-added modules. A module must be deliberately admitted
+as detector-only, not verified, template-only, or a verified state machine. See
+`verify/MODULE_ADMISSION.md` for the workflow.
+
+## 3. Strategy Intake Contracts
 
 ```bash
 npm run verify:intake
@@ -33,7 +44,7 @@ StrategyBlueprint and FourBrainConfig. Current protected cases include:
 - IFVG text maps to `fvg_inversion`, not generic `fvg`
 - unsupported SMA does not silently become EMA
 
-## 3. AI Wiring Regressions
+## 4. AI Wiring Regressions
 
 ```bash
 npm run verify:ai
@@ -48,7 +59,7 @@ include:
 - IFVG formation entries must use `JustInverted()`, not later IFVG retest confirmation
 - IFVG entries must stay timestamp-gated after the EMA test
 
-## 4. Emit And Static Lint
+## 5. Emit And Static Lint
 
 ```bash
 npm run verify:mql5
@@ -65,15 +76,15 @@ IFVG formation entries, and the module contract registry.
 
 A clean report means "no obvious red flags"; it is not a compiler.
 
-## 5. Compile In MetaEditor
+## 6. Compile In MetaEditor
 
 Copy the emitted files and press F7:
 
-| File                                   | Drop into          | Compile                         |
-| -------------------------------------- | ------------------ | ------------------------------- |
-| `*_Detector.mq5`, `*_State_Module.mq5` | `MQL5/Indicators/` | F7 -> 0 errors                  |
-| `_TEST_*.mq5`                          | `MQL5/Indicators/` | F7 -> 0 errors                  |
-| `*_Test.mq5` full EAs                  | `MQL5/Experts/`    | F7 -> 0 errors                  |
+| File                                   | Drop into          | Compile        |
+| -------------------------------------- | ------------------ | -------------- |
+| `*_Detector.mq5`, `*_State_Module.mq5` | `MQL5/Indicators/` | F7 -> 0 errors |
+| `_TEST_*.mq5`                          | `MQL5/Indicators/` | F7 -> 0 errors |
+| `*_Test.mq5` full EAs                  | `MQL5/Experts/`    | F7 -> 0 errors |
 
 ### Priority Order
 

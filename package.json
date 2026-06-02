@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "verify": "npm run verify:intake && npm run verify:ai && npm run verify:mql5",
+    "verify": "npm run verify:modules && npm run verify:intake && npm run verify:ai && npm run verify:mql5",
+    "verify:modules": "tsx scripts/verify-module-admission.ts",
     "verify:intake": "tsx scripts/verify-intake-contracts.ts",
     "verify:mql5": "tsx scripts/verify-mql5.ts",
     "verify:ai": "tsx scripts/verify-ai-regressions.ts"
