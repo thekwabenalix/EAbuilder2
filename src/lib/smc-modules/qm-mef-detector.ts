@@ -103,6 +103,8 @@ struct QmRec
    double   confBaseHi;   // base hi if CONF_RBR/DBD
    double   confBaseLo;   // base lo
    bool     strong;       // true if any confluence present
+   bool     lsTouched;    // true once price taps the left shoulder (entry)
+   datetime lsEnd;        // current right edge of the left-shoulder line
    bool     dead;
    int      ageCounter;
 };
@@ -327,14 +329,15 @@ void DrawQm(int i)
                        qms[i].dir == DIR_BULL ? ANCHOR_LOWER : ANCHOR_UPPER);
       ObjectSetInteger(0, lbl, OBJPROP_SELECTABLE, false);
    }
-   // LEFT SHOULDER (entry) level — the same level forms the RIGHT SHOULDER on return.
+   // LEFT SHOULDER (entry) level — SHORT line (no ray). It grows only until price
+   // taps the level (the entry), then it is frozen. Right edge = lsEnd.
    string ls = ObjLS(qms[i].id);
    if(ObjectCreate(0, ls, OBJ_TREND, 0, qms[i].lsTime, qms[i].lsLevel,
-                   qms[i].engEnd, qms[i].lsLevel)) {
+                   qms[i].lsEnd, qms[i].lsLevel)) {
       ObjectSetInteger(0, ls, OBJPROP_COLOR,      InpShoulderColor);
       ObjectSetInteger(0, ls, OBJPROP_STYLE,      STYLE_SOLID);
       ObjectSetInteger(0, ls, OBJPROP_WIDTH,      2);
-      ObjectSetInteger(0, ls, OBJPROP_RAY_RIGHT,  true);
+      ObjectSetInteger(0, ls, OBJPROP_RAY_RIGHT,  false);
       ObjectSetInteger(0, ls, OBJPROP_SELECTABLE, false);
       ObjectSetInteger(0, ls, OBJPROP_BACK,       true);
    }
@@ -516,6 +519,8 @@ void DetectQmMef(int s)
    qms[idx].confBaseHi   = baseHi;
    qms[idx].confBaseLo   = baseLo;
    qms[idx].strong       = (conf != CONF_NONE);
+   qms[idx].lsTouched    = false;
+   qms[idx].lsEnd        = engEnd;
    qms[idx].dead         = false;
    qms[idx].ageCounter   = 0;
 
@@ -533,9 +538,27 @@ void Maintain(int s)
 {
    datetime t  = iTime (_Symbol, InpMainTF, s);
    double   cl = iClose(_Symbol, InpMainTF, s);
+   double   bl = iLow  (_Symbol, InpMainTF, s);
+   double   bh = iHigh (_Symbol, InpMainTF, s);
    for(int i = 0; i < qmTotal; i++) {
       if(qms[i].dead) continue;
       if(qms[i].engEnd >= t) continue;
+
+      // Left shoulder line: grow to the current bar until price taps the level,
+      // then freeze it (do not extend after it is touched).
+      if(!qms[i].lsTouched) {
+         bool touched = (qms[i].dir == DIR_BULL) ? (bl <= qms[i].lsLevel)
+                                                 : (bh >= qms[i].lsLevel);
+         qms[i].lsEnd = t;
+         ObjectSetInteger(0, ObjLS(qms[i].id), OBJPROP_TIME, 1, t);
+         if(touched) {
+            qms[i].lsTouched = true;
+            ObjectSetInteger(0, ObjRS(qms[i].id), OBJPROP_TIME, 0, t); // RS label at the tap
+            if(InpShowLog)
+               PrintFormat("QM_MEF_LS_TOUCHED (entry) | LS=%.5f | %s",
+                           qms[i].lsLevel, TimeToString(t, TIME_DATE|TIME_MINUTES));
+         }
+      }
 
       // Head break → invalid: the head is the pattern extreme. A bullish QM dies
       // when price CLOSES below the head (lower low); a bearish QM dies on a
