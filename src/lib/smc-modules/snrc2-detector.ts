@@ -51,6 +51,7 @@ export function generateSnrc2Detector(): string {
 #define OBJ_PREFIX  "SMSNRC2_"
 
 input ENUM_TIMEFRAMES InpTF          = PERIOD_CURRENT;
+input ENUM_TIMEFRAMES InpHtfTF       = PERIOD_H4;   // higher TF that must show an engulfing
 input int             InpLookback    = 400;   // bars to scan
 input int             InpSwingStrength = 2;   // fractal strength (bars each side)
 input int             InpExpiryBars  = 250;   // bars until an unfilled pattern is removed
@@ -76,7 +77,9 @@ struct Rec
    double   sl;           // manipulation extreme (H2 high bear / ML low bull)
    double   secondExt;    // second low (bear) / second high (bull)
    double   contExt;      // continuation extreme (L3 / R3)
+   double   resLevel;     // resistance/support that created the 1st level (H0 / L0)
    datetime t1;           // first pivot time
+   datetime tRes;         // resistance/support pivot time
    datetime tManip;       // manipulation pivot time
    datetime tConf;        // confirmation (continuation) time
    bool     touched;      // entry tapped
@@ -196,6 +199,20 @@ void DrawRec(int i)
    Tag(recs[i].id, "sll", recs[i].tManip, recs[i].sl, "SL", InpSLColor,
        recs[i].dir == DIR_BEAR ? ANCHOR_LEFT_LOWER : ANCHOR_LEFT_UPPER);
 
+   // Resistance/support that created the 1st level — manipulation must stay inside it.
+   string rl = ObjTag(recs[i].id, "resln");
+   if(ObjectCreate(0, rl, OBJ_TREND, 0, recs[i].tRes, recs[i].resLevel,
+                   recs[i].tManip, recs[i].resLevel)) {
+      ObjectSetInteger(0, rl, OBJPROP_COLOR,      clrSlateGray);
+      ObjectSetInteger(0, rl, OBJPROP_STYLE,      STYLE_DOT);
+      ObjectSetInteger(0, rl, OBJPROP_RAY_RIGHT,  false);
+      ObjectSetInteger(0, rl, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, rl, OBJPROP_BACK,       true);
+   }
+   Tag(recs[i].id, "res", recs[i].tRes, recs[i].resLevel,
+       recs[i].dir == DIR_BEAR ? "Res (no higher high)" : "Sup (no lower low)", clrSlateGray,
+       recs[i].dir == DIR_BEAR ? ANCHOR_LEFT_LOWER : ANCHOR_LEFT_UPPER);
+
    // Structure markers.
    if(recs[i].dir == DIR_BEAR) {
       Tag(recs[i].id, "m1", recs[i].t1,     recs[i].entry,     "1st Low",  c, ANCHOR_UPPER);
@@ -217,13 +234,15 @@ void KillRec(int i)
    ObjectDelete(0, ObjTag(recs[i].id, "m1"));
    ObjectDelete(0, ObjTag(recs[i].id, "m2"));
    ObjectDelete(0, ObjTag(recs[i].id, "m3"));
+   ObjectDelete(0, ObjTag(recs[i].id, "resln"));
+   ObjectDelete(0, ObjTag(recs[i].id, "res"));
    recs[i].dead = true;
 }
 
 //+------------------------------------------------------------------+
 // Register a pattern (dedup by first-pivot time + direction).
-void AddRec(int dir, double entry, double sl, double secondExt, double contExt,
-            datetime t1, datetime tManip, datetime tConf)
+void AddRec(int dir, double entry, double sl, double secondExt, double contExt, double resLevel,
+            datetime t1, datetime tRes, datetime tManip, datetime tConf)
 {
    for(int _k = 0; _k < recTotal; _k++)
       if(!recs[_k].dead && recs[_k].t1 == t1 && recs[_k].dir == dir) return;
@@ -240,7 +259,9 @@ void AddRec(int dir, double entry, double sl, double secondExt, double contExt,
    recs[idx].sl        = sl;
    recs[idx].secondExt = secondExt;
    recs[idx].contExt   = contExt;
+   recs[idx].resLevel  = resLevel;
    recs[idx].t1        = t1;
+   recs[idx].tRes      = tRes;
    recs[idx].tManip    = tManip;
    recs[idx].tConf     = tConf;
    recs[idx].touched   = false;
@@ -256,30 +277,70 @@ void AddRec(int dir, double entry, double sl, double secondExt, double contExt,
 }
 
 //+------------------------------------------------------------------+
+// Strong (2-candle) engulfing of a given direction on a timeframe.
+bool StrongEngulf(ENUM_TIMEFRAMES tf, int e, int dir)
+{
+   int avail = iBars(_Symbol, tf);
+   if(e + 1 >= avail) return false;
+   double c2o = iOpen (_Symbol, tf, e);
+   double c2c = iClose(_Symbol, tf, e);
+   double c1o = iOpen (_Symbol, tf, e + 1);
+   double c1c = iClose(_Symbol, tf, e + 1);
+   double c1h = iHigh (_Symbol, tf, e + 1);
+   double c1l = iLow  (_Symbol, tf, e + 1);
+   if(dir == DIR_BULL) return (c1c < c1o) && (c2c > c2o) && (c2c > c1h);
+   return (c1c > c1o) && (c2c < c2o) && (c2c < c1l);
+}
+
+//+------------------------------------------------------------------+
+// SNRC2 must be validated by a higher-timeframe engulfing of the same direction
+// overlapping (or just preceding) the structure's time span. No HTF engulfing → ignore.
+bool HtfEngulfingPresent(int dir, datetime tStart, datetime tEnd)
+{
+   int shOld = iBarShift(_Symbol, InpHtfTF, tStart);
+   int shNew = iBarShift(_Symbol, InpHtfTF, tEnd);
+   if(shOld < 0) return false;
+   if(shNew < 0) shNew = 0;
+   // bars overlapping the structure, plus a couple older (the HTF candle it expands from)
+   for(int e = shNew; e <= shOld + 2; e++)
+      if(StrongEngulf(InpHtfTF, e, dir)) return true;
+   return false;
+}
+
+//+------------------------------------------------------------------+
 // Scan the pivot list for SNRC2 sequences and register them.
 void Detect()
 {
-   for(int i = 0; i + 4 < pvCount; i++)
+   // 6-pivot windows so we also have the resistance/support that created the 1st level.
+   for(int i = 0; i + 5 < pvCount; i++)
    {
-      // Bearish: L1 H1 L2 H2 L3
-      if(pvType[i]   == PV_LOW  && pvType[i+1] == PV_HIGH &&
-         pvType[i+2] == PV_LOW  && pvType[i+3] == PV_HIGH &&
-         pvType[i+4] == PV_LOW)
-      {
-         double L1 = pvPrice[i], H1 = pvPrice[i+1], L2 = pvPrice[i+2],
-                H2 = pvPrice[i+3], L3 = pvPrice[i+4];
-         if(L2 < L1 && L3 < L2 && H2 > L1)         // break, continuation, manipulation
-            AddRec(DIR_BEAR, L1, H2, L2, L3, pvTime[i], pvTime[i+3], pvTime[i+4]);
-      }
-      // Bullish: R1 L1 R2 L2 R3
+      // Bearish: H0 L1 H1 L2 H2 L3
       if(pvType[i]   == PV_HIGH && pvType[i+1] == PV_LOW  &&
          pvType[i+2] == PV_HIGH && pvType[i+3] == PV_LOW  &&
-         pvType[i+4] == PV_HIGH)
+         pvType[i+4] == PV_HIGH && pvType[i+5] == PV_LOW)
       {
-         double R1 = pvPrice[i], L1 = pvPrice[i+1], R2 = pvPrice[i+2],
-                ML = pvPrice[i+3], R3 = pvPrice[i+4];
-         if(R2 > R1 && R3 > R2 && ML < R1)
-            AddRec(DIR_BULL, R1, ML, R2, R3, pvTime[i], pvTime[i+3], pvTime[i+4]);
+         double H0 = pvPrice[i], L1 = pvPrice[i+1], L2 = pvPrice[i+3],
+                H2 = pvPrice[i+4], L3 = pvPrice[i+5];
+         // break first low, manipulation above first low, continuation lower low,
+         // and the manipulation must NOT exceed the resistance (no higher high).
+         if(L2 < L1 && L3 < L2 && H2 > L1 && H2 < H0
+            && HtfEngulfingPresent(DIR_BEAR, pvTime[i+1], pvTime[i+5]))
+            AddRec(DIR_BEAR, L1, H2, L2, L3, H0,
+                   pvTime[i+1], pvTime[i], pvTime[i+4], pvTime[i+5]);
+      }
+      // Bullish: L0 R1 L1 R2 ML R3
+      if(pvType[i]   == PV_LOW  && pvType[i+1] == PV_HIGH &&
+         pvType[i+2] == PV_LOW  && pvType[i+3] == PV_HIGH &&
+         pvType[i+4] == PV_LOW  && pvType[i+5] == PV_HIGH)
+      {
+         double L0 = pvPrice[i], R1 = pvPrice[i+1], R2 = pvPrice[i+3],
+                ML = pvPrice[i+4], R3 = pvPrice[i+5];
+         // break first high, manipulation below first high, continuation higher high,
+         // and the manipulation must NOT exceed the support (no lower low).
+         if(R2 > R1 && R3 > R2 && ML < R1 && ML > L0
+            && HtfEngulfingPresent(DIR_BULL, pvTime[i+1], pvTime[i+5]))
+            AddRec(DIR_BULL, R1, ML, R2, R3, L0,
+                   pvTime[i+1], pvTime[i], pvTime[i+4], pvTime[i+5]);
       }
    }
 }

@@ -1926,11 +1926,12 @@ const TRADING_MODULES: ModuleCategory[] = [
           "pullback back across the broken level before continuation. Detects both " +
           "bearish and bullish. The original level becomes the entry.",
         rules: [
-          "Bearish: 1st Low → pullback → 2nd Low (break below 1st) → manipulation high (above 1st Low) → continuation lower low",
-          "Bullish: 1st High → pullback → 2nd High (break above 1st) → manipulation low (below 1st High) → continuation higher high",
+          "Validated by a higher-TF engulfing (InpHtfTF) of matching direction — no HTF engulfing, no pattern",
+          "Bearish: 1st Low → 2nd Low (break below 1st) → manipulation high (above 1st Low) → continuation lower low",
+          "Bullish: 1st High → 2nd High (break above 1st) → manipulation low (below 1st High) → continuation higher high",
+          "Manipulation must NOT exceed the resistance/support that created the 1st level (no higher high in a downtrend / no lower low in an uptrend)",
           "Built from alternating close-confirmed swing pivots (InpSwingStrength)",
-          "Entry = original 1st level (Classic SNR)",
-          "SL = manipulation extreme (high for bear, low for bull)",
+          "Entry = original 1st level (Classic SNR); SL = manipulation extreme",
           "Invalidation: close beyond the manipulation extreme",
         ],
         output: [
