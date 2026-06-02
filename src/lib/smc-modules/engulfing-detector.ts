@@ -136,6 +136,17 @@ void UpdateZoneBox(int i)
       }
       ObjectSetInteger(0, boxName, OBJPROP_COLOR, c);
    }
+
+   // Update label color and text
+   string lblName = ZoneLabel(zones[i].id);
+   if(ObjectFind(0, lblName) >= 0) {
+      color c = zones[i].isEF ? InpEFColor :
+                (zones[i].dir == DIR_BULL) ? InpBullColor : InpBearColor;
+      ObjectSetInteger(0, lblName, OBJPROP_COLOR, c);
+
+      string label_text = zones[i].isEF ? "EF" : "EG";
+      ObjectSetString(0, lblName, OBJPROP_TEXT, label_text);
+   }
 }
 
 void KillZone(int i)
