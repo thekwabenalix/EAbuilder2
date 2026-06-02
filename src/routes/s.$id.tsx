@@ -69,6 +69,8 @@ import {
   openMetaEditor,
   submitBacktest,
   getRunnerJob,
+  getRunnerJobReport,
+  getRunnerJobLog,
 } from "@/lib/local-runner";
 import type { TesterConfig, BacktestResult, CompileResult, ReportSummary } from "@/types/mt5";
 
@@ -84,6 +86,14 @@ function downloadText(filename: string, content: string, mime = "text/plain") {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function safeDownloadName(name: string) {
+  return name
+    .trim()
+    .replace(/[^a-z0-9._-]+/gi, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 80);
 }
 
 function StrategyPage() {
@@ -1329,7 +1339,7 @@ function CodeTab({
           </p>
 
           {/* Divider */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="flex-1 h-px bg-border" />
             <span className="text-[10px] text-muted-foreground uppercase tracking-wide">or</span>
             <div className="flex-1 h-px bg-border" />
@@ -1567,6 +1577,8 @@ function BacktestTab({
   const [backtestPolling, setBacktestPolling] = useState(false);
   const [visualPolling, setVisualPolling] = useState(false);
   const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null);
+  const [downloadingReport, setDownloadingReport] = useState(false);
+  const [downloadingTesterLog, setDownloadingTesterLog] = useState(false);
   const processedJobIds = useRef(new Set<string>());
 
   const compileMut = useMutation({
@@ -1637,10 +1649,10 @@ function BacktestTab({
     if ((status === "succeeded" || status === "failed") && !processedJobIds.current.has(id)) {
       processedJobIds.current.add(id);
       setBacktestPolling(false);
+      const result = data as BacktestResult;
+      setBacktestResult(result);
+      onBacktestSummary?.(result.summary ?? null);
       if (status === "succeeded") {
-        const result = data as BacktestResult;
-        setBacktestResult(result);
-        onBacktestSummary?.(result.summary);
         toast.success("Backtest report ready");
       } else {
         toast.error("Backtest failed — " + (data.job.message || "see tester log"));
@@ -1757,9 +1769,49 @@ function BacktestTab({
   const visualRunning = visualMut.isPending || visualPolling;
   const anyRunning = compileRunning || backtestRunning || visualRunning;
   const summary: ReportSummary | null = backtestResult?.summary ?? null;
+  const artifactJobId = backtestResult?.job?.id ?? backtestJobId;
+  const artifactBaseName = safeDownloadName(
+    `${strategyName || blueprint.name || strategyId}-${config.symbol}-${config.period}`,
+  );
 
   const backtestJobStatus = backtestJobQuery.data?.job?.status ?? null;
   const visualJobStatus = visualJobQuery.data?.job?.status ?? null;
+
+  const downloadBacktestReport = async () => {
+    setDownloadingReport(true);
+    try {
+      let html = backtestResult?.reportHtml ?? null;
+      if (!html && artifactJobId) {
+        const report = await getRunnerJobReport(artifactJobId);
+        html = report.html;
+      }
+      if (!html) throw new Error("No backtest report is available yet");
+      downloadText(`${artifactBaseName}-backtest-report.html`, html, "text/html");
+      toast.success("Backtest report downloaded");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Could not download report");
+    } finally {
+      setDownloadingReport(false);
+    }
+  };
+
+  const downloadTesterLog = async () => {
+    setDownloadingTesterLog(true);
+    try {
+      let log = backtestResult?.log ?? "";
+      if (artifactJobId) {
+        const jobLog = await getRunnerJobLog(artifactJobId);
+        if (jobLog.lines?.length) log = jobLog.lines.join("\n");
+      }
+      if (!log.trim()) throw new Error("No tester log is available yet");
+      downloadText(`${artifactBaseName}-tester-log.txt`, log, "text/plain");
+      toast.success("Tester log downloaded");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Could not download tester log");
+    } finally {
+      setDownloadingTesterLog(false);
+    }
+  };
 
   return (
     <div className="space-y-5 max-w-3xl">
@@ -2133,6 +2185,35 @@ function BacktestTab({
             <span className="text-xs text-muted-foreground">
               {config.symbol} · {config.period} · {config.fromDate} → {config.toDate}
             </span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={downloadBacktestReport}
+              disabled={downloadingReport || (!backtestResult.reportHtml && !artifactJobId)}
+            >
+              {downloadingReport ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              Report
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={downloadTesterLog}
+              disabled={downloadingTesterLog || (!backtestResult.log && !artifactJobId)}
+            >
+              {downloadingTesterLog ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <FileText className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              Tester log
+            </Button>
           </div>
 
           {summary && (
