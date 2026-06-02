@@ -86,6 +86,7 @@ struct QmRec
    datetime engEnd;       // engulfing window end
    double   lsLevel;      // left shoulder (entry) — close-based
    double   confirmLevel; // higher-high (bull) / lower-low (bear) close
+   double   headLevel;    // head extreme: LL close (bull) / HH close (bear)
    datetime headTime;     // LTF head (LL bull / HH bear) time
    int      conf;         // CONF_NONE/GAP/RBR/DBD
    double   confGap;      // gap level if CONF_GAP
@@ -121,7 +122,8 @@ bool   SMALL (ENUM_TIMEFRAMES tf, int sh) { return BR(tf, sh) <= InpBaseMaxRatio
 // Close-based Quasimodo detection inside [wStart,wEnd] on the QM TF.
 // Returns true and fills the left shoulder + confirmation + head time.
 bool DetectQM(int dir, datetime wStart, datetime wEnd,
-              double &lsLevel, double &confirmLevel, datetime &headTime, datetime &lsTime)
+              double &lsLevel, double &confirmLevel, double &headLevel,
+              datetime &headTime, datetime &lsTime)
 {
    int shOld = iBarShift(_Symbol, InpQmTF, wStart);  // oldest (largest shift)
    int shNew = iBarShift(_Symbol, InpQmTF, wEnd);    // newest (smallest shift)
@@ -156,6 +158,7 @@ bool DetectQM(int dir, datetime wStart, datetime wEnd,
 
       lsLevel      = minLS;
       confirmLevel = iClose(_Symbol, InpQmTF, shOld - q);
+      headLevel    = minC;   // head = lower low (bull) → invalid on close below
       headTime     = iTime (_Symbol, InpQmTF, shOld - pLL);
       lsTime       = iTime (_Symbol, InpQmTF, shOld - pLS);
       return true;
@@ -187,6 +190,7 @@ bool DetectQM(int dir, datetime wStart, datetime wEnd,
 
       lsLevel      = maxLS;
       confirmLevel = iClose(_Symbol, InpQmTF, shOld - q);
+      headLevel    = maxC;   // head = higher high (bear) → invalid on close above
       headTime     = iTime (_Symbol, InpQmTF, shOld - pHH);
       lsTime       = iTime (_Symbol, InpQmTF, shOld - pLS);
       return true;
@@ -407,9 +411,9 @@ void DetectQmMef(int s)
       if(!qms[_k].dead && qms[_k].engTime == engTime) return;
 
    // LTF Quasimodo inside the engulfing window.
-   double lsLevel = 0.0, confirmLevel = 0.0;
+   double lsLevel = 0.0, confirmLevel = 0.0, headLevel = 0.0;
    datetime headTime = 0, lsTime = 0;
-   if(!DetectQM(dir, engTime, engEnd, lsLevel, confirmLevel, headTime, lsTime)) return;
+   if(!DetectQM(dir, engTime, engEnd, lsLevel, confirmLevel, headLevel, headTime, lsTime)) return;
 
    // Confluence near the left shoulder (tolerance from QM structure size).
    double tol = MathAbs(confirmLevel - lsLevel) * InpConfTolFrac;
@@ -435,6 +439,7 @@ void DetectQmMef(int s)
    qms[idx].engEnd       = engEnd;
    qms[idx].lsLevel      = lsLevel;
    qms[idx].confirmLevel = confirmLevel;
+   qms[idx].headLevel    = headLevel;
    qms[idx].headTime     = headTime;
    qms[idx].conf         = conf;
    qms[idx].confGap      = confGap;
@@ -456,10 +461,28 @@ void DetectQmMef(int s)
 //+------------------------------------------------------------------+
 void Maintain(int s)
 {
-   datetime t = iTime(_Symbol, InpMainTF, s);
+   datetime t  = iTime (_Symbol, InpMainTF, s);
+   double   cl = iClose(_Symbol, InpMainTF, s);
    for(int i = 0; i < qmTotal; i++) {
       if(qms[i].dead) continue;
       if(qms[i].engEnd >= t) continue;
+
+      // Head break → invalid: the head is the pattern extreme. A bullish QM dies
+      // when price CLOSES below the head (lower low); a bearish QM dies on a
+      // close above the head (higher high).
+      if(qms[i].dir == DIR_BULL && cl < qms[i].headLevel) {
+         if(InpShowLog) PrintFormat("QM_MEF_INVALIDATED (head broken) | head=%.5f LS=%.5f",
+                                    qms[i].headLevel, qms[i].lsLevel);
+         KillQm(i);
+         continue;
+      }
+      if(qms[i].dir == DIR_BEAR && cl > qms[i].headLevel) {
+         if(InpShowLog) PrintFormat("QM_MEF_INVALIDATED (head broken) | head=%.5f LS=%.5f",
+                                    qms[i].headLevel, qms[i].lsLevel);
+         KillQm(i);
+         continue;
+      }
+
       qms[i].ageCounter++;
       if(qms[i].ageCounter >= InpExpiryBars) {
          if(InpShowLog) PrintFormat("QM_MEF_EXPIRED | LS=%.5f", qms[i].lsLevel);

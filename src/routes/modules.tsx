@@ -1899,6 +1899,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Bearish QM: LS high → pullback low → higher high → lower low; entry = LS high",
           "QM must form inside the engulfing candle's time/range on the LTF",
           "Strength = STRONG if Gap SNR / RBR / DBD sits near the left shoulder, else normal",
+          "Head break → invalid: close below the head (bull) / above the head (bear) kills it",
         ],
         output: [
           "HTF engulfing zone (green bull / red bear) + 'Bull/Bear QM_MEF [STRONG|normal]'",
