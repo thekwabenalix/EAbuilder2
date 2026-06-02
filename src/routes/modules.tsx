@@ -99,6 +99,12 @@ import {
   BOS_OB_FVG_BULL,
   BOS_OB_FVG_BEAR,
 } from "@/lib/mtf-modules/mtf-orchestrator";
+import { ALL_BRAIN_MODULES } from "@/lib/brain-modules";
+import {
+  getModuleContract,
+  MODULE_CONTRACTS,
+  type ModuleImplementation,
+} from "@/lib/module-contracts";
 
 export const Route = createFileRoute("/modules")({
   component: ModulesPage,
@@ -1883,6 +1889,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Bullish SEG: C1 bearish, C2 bullish, C2 close > C1.High (upper wick)",
           "Bearish SEG: C1 bullish, C2 bearish, C2 close < C1.Low (lower wick)",
           "Zone = C1 full wick range (hi=C1.High, lo=C1.Low)",
+          "Traded through → invalid: bull zone dies on close below it, bear zone on close above it",
           "Zones expire after InpExpiryBars bars",
         ],
         output: [
@@ -2064,6 +2071,133 @@ function StatusBadge({ status }: { status: ModuleStatus }) {
 
 // ─── Module card ─────────────────────────────────────────────────────────────
 
+const CONTRACT_STATUS_META: Record<
+  ModuleImplementation,
+  { label: string; tone: string; description: string }
+> = {
+  state_machine: {
+    label: "Verified SM",
+    tone: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    description: "AI can wire these into 4-Brain EAs through verified inline state machines.",
+  },
+  template: {
+    label: "Template",
+    tone: "bg-sky-500/10 text-sky-300 border-sky-500/20",
+    description:
+      "Available as deterministic template logic, but not yet a full inline SM contract.",
+  },
+  not_verified: {
+    label: "Not verified",
+    tone: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    description: "Known vocabulary only. AI should not depend on it for live EA wiring yet.",
+  },
+};
+
+function ContractBadge({ implementation }: { implementation: ModuleImplementation }) {
+  const meta = CONTRACT_STATUS_META[implementation];
+  return (
+    <span
+      className={`text-[10px] px-1.5 py-0.5 rounded border font-medium whitespace-nowrap ${meta.tone}`}
+    >
+      {meta.label}
+    </span>
+  );
+}
+
+function ModuleContractReadinessReport() {
+  const contracts = Object.values(MODULE_CONTRACTS).sort((a, b) => a.label.localeCompare(b.label));
+  const verified = contracts.filter((c) => c.implementation === "state_machine");
+  const template = contracts.filter((c) => c.implementation === "template");
+  const notVerified = contracts.filter((c) => c.implementation === "not_verified");
+  const coveredBrainModules = ALL_BRAIN_MODULES.filter((m) => getModuleContract(m.id));
+  const missingBrainModules = ALL_BRAIN_MODULES.filter((m) => !getModuleContract(m.id));
+
+  const stats = [
+    {
+      label: "Verified SM",
+      value: verified.length,
+      tone: CONTRACT_STATUS_META.state_machine.tone,
+      helper: "safe for AI 4-Brain wiring",
+    },
+    {
+      label: "Template",
+      value: template.length,
+      tone: CONTRACT_STATUS_META.template.tone,
+      helper: "deterministic, limited contract",
+    },
+    {
+      label: "Not verified",
+      value: notVerified.length,
+      tone: CONTRACT_STATUS_META.not_verified.tone,
+      helper: "visible but guarded",
+    },
+    {
+      label: "Missing contracts",
+      value: missingBrainModules.length,
+      tone:
+        missingBrainModules.length === 0
+          ? CONTRACT_STATUS_META.state_machine.tone
+          : CONTRACT_STATUS_META.not_verified.tone,
+      helper: `${coveredBrainModules.length}/${ALL_BRAIN_MODULES.length} builder modules covered`,
+    },
+  ];
+
+  return (
+    <div className="rounded-lg border border-border/60 bg-card/50 px-4 py-3 space-y-3">
+      <div className="flex items-start gap-3">
+        <Network className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-semibold text-sm">Module contract readiness</p>
+            <span className="text-[10px] px-1.5 py-0.5 rounded border bg-primary/10 text-primary border-primary/20">
+              Phase 1C registry
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            This is the AI builder vocabulary boundary. A module must have a contract before AI mode
+            can safely wire it into a generated EA.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid sm:grid-cols-4 gap-2">
+        {stats.map((stat) => (
+          <div key={stat.label} className={`rounded border px-3 py-2 ${stat.tone}`}>
+            <div className="text-lg font-semibold leading-none">{stat.value}</div>
+            <div className="text-[10px] font-medium mt-1">{stat.label}</div>
+            <div className="text-[10px] opacity-80 mt-0.5">{stat.helper}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-2">
+        {contracts.map((contract) => (
+          <div
+            key={contract.id}
+            className="rounded border border-border/50 bg-background/35 px-3 py-2 text-xs"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium truncate">{contract.label}</span>
+              <ContractBadge implementation={contract.implementation} />
+            </div>
+            <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
+              {contract.smPrefix && <span className="font-mono">{contract.smPrefix}</span>}
+              <span>{contract.supportedRoles.join(" / ")}</span>
+              <span>{contract.semanticEvents.length} events</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {missingBrainModules.length > 0 && (
+        <div className="text-xs text-amber-300 border border-amber-500/20 bg-amber-500/10 rounded px-3 py-2">
+          Missing contracts: {missingBrainModules.map((m) => m.label).join(", ")}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ModuleCard({ mod }: { mod: ModuleEntry }) {
   const isReady = mod.status === "ready";
 
@@ -2228,6 +2362,8 @@ function ModulesPage() {
             </p>
           </div>
         </div>
+
+        <ModuleContractReadinessReport />
 
         {/* Category tabs */}
         <Tabs defaultValue="smc">

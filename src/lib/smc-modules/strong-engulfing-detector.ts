@@ -162,14 +162,32 @@ void DetectSEG(int sh)
 }
 
 //+------------------------------------------------------------------+
-// Extend boxes to the current bar and expire old zones.
+// Extend boxes to the current bar, invalidate traded-through zones, expire old.
 void Maintain(int sh)
 {
-   datetime t = iTime(_Symbol, InpTF, sh);
+   datetime t  = iTime (_Symbol, InpTF, sh);
+   double   cl = iClose(_Symbol, InpTF, sh);
    for(int i = 0; i < zonesTotal; i++) {
       if(zones[i].dead) continue;
       if(zones[i].c2Time >= t) continue;
       UpdateZoneBox(i);
+
+      // Traded through → invalid (deleted).
+      // Bull zone (support) fails when a bar closes below it; bear zone
+      // (resistance) fails when a bar closes above it.
+      if(zones[i].dir == DIR_BULL && cl < zones[i].lo) {
+         if(InpShowLog) PrintFormat("SEG_BULL_INVALIDATED (traded through) | zone=[%.5f,%.5f]",
+                                    zones[i].hi, zones[i].lo);
+         KillZone(i);
+         continue;
+      }
+      if(zones[i].dir == DIR_BEAR && cl > zones[i].hi) {
+         if(InpShowLog) PrintFormat("SEG_BEAR_INVALIDATED (traded through) | zone=[%.5f,%.5f]",
+                                    zones[i].hi, zones[i].lo);
+         KillZone(i);
+         continue;
+      }
+
       zones[i].ageCounter++;
       if(zones[i].ageCounter >= InpExpiryBars) {
          if(InpShowLog) PrintFormat("SEG_EXPIRED | zone=[%.5f,%.5f]", zones[i].hi, zones[i].lo);
