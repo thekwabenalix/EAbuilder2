@@ -14,16 +14,24 @@
  * Quasimodo (CLOSE-based — wicks are ignored; highs/lows use candle closes):
  *
  *   Bullish QM (after bearish move):
- *     left-shoulder low → pullback high → LOWER low (close below LS) →
- *     HIGHER high (close above pullback high).  Entry = left-shoulder low.
+ *     LEFT SHOULDER low → pullback high → HEAD (lower low, close below LS) →
+ *     higher high (close above pullback high). Price returns to the LS level =
+ *     RIGHT SHOULDER = entry.
  *
  *   Bearish QM (after bullish move):
- *     left-shoulder high → pullback low → HIGHER high (close above LS) →
- *     LOWER low (close below pullback low).  Entry = left-shoulder high.
+ *     LEFT SHOULDER high → pullback low → HEAD (higher high, close above LS) →
+ *     lower low (close below pullback low). RIGHT SHOULDER = entry.
  *
  *   Bullish QM_MEF must come from a bullish HTF engulfing; bearish from bearish.
  *
- * Detection only — no SL/TP/execution.
+ * Reference trade levels (output/drawn — this is detection only, no orders):
+ *   Entry = LEFT SHOULDER (= where the RIGHT SHOULDER forms on return)
+ *   SL    = beyond the HEAD (below the head for bull, above for bear)
+ *   TP    = the pullback extreme (above the pullback high / below the pullback low)
+ *
+ * Invalidation: close beyond the HEAD kills the pattern.
+ *
+ * Detection only — no trade execution.
  */
 
 export const QM_MEF_DETECTOR_VERSION = "1.0.0";
@@ -84,10 +92,12 @@ struct QmRec
    double   engLo;        // HTF engulfing candle low
    datetime engTime;      // engulfing window start (C1)
    datetime engEnd;       // engulfing window end
-   double   lsLevel;      // left shoulder (entry) — close-based
+   double   lsLevel;      // LEFT SHOULDER (entry) — close-based
+   double   headLevel;    // HEAD extreme: LL close (bull) / HH close (bear) → SL beyond
+   double   pbLevel;      // pullback high (bull) / pullback low (bear) → TP
    double   confirmLevel; // higher-high (bull) / lower-low (bear) close
-   double   headLevel;    // head extreme: LL close (bull) / HH close (bear)
    datetime headTime;     // LTF head (LL bull / HH bear) time
+   datetime lsTime;       // LEFT SHOULDER time
    int      conf;         // CONF_NONE/GAP/RBR/DBD
    double   confGap;      // gap level if CONF_GAP
    double   confBaseHi;   // base hi if CONF_RBR/DBD
@@ -122,7 +132,7 @@ bool   SMALL (ENUM_TIMEFRAMES tf, int sh) { return BR(tf, sh) <= InpBaseMaxRatio
 // Close-based Quasimodo detection inside [wStart,wEnd] on the QM TF.
 // Returns true and fills the left shoulder + confirmation + head time.
 bool DetectQM(int dir, datetime wStart, datetime wEnd,
-              double &lsLevel, double &confirmLevel, double &headLevel,
+              double &lsLevel, double &confirmLevel, double &headLevel, double &pbLevel,
               datetime &headTime, datetime &lsTime)
 {
    int shOld = iBarShift(_Symbol, InpQmTF, wStart);  // oldest (largest shift)
@@ -159,6 +169,7 @@ bool DetectQM(int dir, datetime wStart, datetime wEnd,
       lsLevel      = minLS;
       confirmLevel = iClose(_Symbol, InpQmTF, shOld - q);
       headLevel    = minC;   // head = lower low (bull) → invalid on close below
+      pbLevel      = maxC;   // pullback high → TP (above the pullback high)
       headTime     = iTime (_Symbol, InpQmTF, shOld - pLL);
       lsTime       = iTime (_Symbol, InpQmTF, shOld - pLS);
       return true;
@@ -191,6 +202,7 @@ bool DetectQM(int dir, datetime wStart, datetime wEnd,
       lsLevel      = maxLS;
       confirmLevel = iClose(_Symbol, InpQmTF, shOld - q);
       headLevel    = maxC;   // head = higher high (bear) → invalid on close above
+      pbLevel      = minC;   // pullback low → TP (below the pullback low)
       headTime     = iTime (_Symbol, InpQmTF, shOld - pHH);
       lsTime       = iTime (_Symbol, InpQmTF, shOld - pLS);
       return true;
@@ -278,12 +290,15 @@ bool FindRbrDbdNear(int dir, datetime wStart, datetime wEnd, double level, doubl
 }
 
 //+------------------------------------------------------------------+
-string ObjBox(int id)   { return OBJ_PREFIX + IntegerToString(id) + "_eng"; }
-string ObjLbl(int id)   { return OBJ_PREFIX + IntegerToString(id) + "_lbl"; }
-string ObjLS(int id)    { return OBJ_PREFIX + IntegerToString(id) + "_ls"; }
-string ObjLSL(int id)   { return OBJ_PREFIX + IntegerToString(id) + "_lsl"; }
-string ObjHead(int id)  { return OBJ_PREFIX + IntegerToString(id) + "_head"; }
-string ObjConf(int id)  { return OBJ_PREFIX + IntegerToString(id) + "_conf"; }
+string ObjBox(int id)    { return OBJ_PREFIX + IntegerToString(id) + "_eng"; }
+string ObjLbl(int id)    { return OBJ_PREFIX + IntegerToString(id) + "_lbl"; }
+string ObjLS(int id)     { return OBJ_PREFIX + IntegerToString(id) + "_ls"; }   // left shoulder / entry ray
+string ObjLSL(int id)    { return OBJ_PREFIX + IntegerToString(id) + "_lsl"; }  // "Left Shoulder (entry)"
+string ObjRS(int id)     { return OBJ_PREFIX + IntegerToString(id) + "_rs"; }   // "Right Shoulder (entry)"
+string ObjHead(int id)   { return OBJ_PREFIX + IntegerToString(id) + "_head"; } // head vline
+string ObjHeadL(int id)  { return OBJ_PREFIX + IntegerToString(id) + "_headl"; }// head level + SL label
+string ObjTP(int id)     { return OBJ_PREFIX + IntegerToString(id) + "_tp"; }   // take-profit (pullback) level
+string ObjConf(int id)   { return OBJ_PREFIX + IntegerToString(id) + "_conf"; }
 
 void DrawQm(int i)
 {
@@ -312,9 +327,9 @@ void DrawQm(int i)
                        qms[i].dir == DIR_BULL ? ANCHOR_LOWER : ANCHOR_UPPER);
       ObjectSetInteger(0, lbl, OBJPROP_SELECTABLE, false);
    }
-   // Left shoulder (entry) level
+   // LEFT SHOULDER (entry) level — the same level forms the RIGHT SHOULDER on return.
    string ls = ObjLS(qms[i].id);
-   if(ObjectCreate(0, ls, OBJ_TREND, 0, qms[i].engTime, qms[i].lsLevel,
+   if(ObjectCreate(0, ls, OBJ_TREND, 0, qms[i].lsTime, qms[i].lsLevel,
                    qms[i].engEnd, qms[i].lsLevel)) {
       ObjectSetInteger(0, ls, OBJPROP_COLOR,      InpShoulderColor);
       ObjectSetInteger(0, ls, OBJPROP_STYLE,      STYLE_SOLID);
@@ -324,20 +339,68 @@ void DrawQm(int i)
       ObjectSetInteger(0, ls, OBJPROP_BACK,       true);
    }
    string lsl = ObjLSL(qms[i].id);
-   if(ObjectCreate(0, lsl, OBJ_TEXT, 0, qms[i].engTime, qms[i].lsLevel)) {
-      ObjectSetString (0, lsl, OBJPROP_TEXT,       "LS (entry)");
+   if(ObjectCreate(0, lsl, OBJ_TEXT, 0, qms[i].lsTime, qms[i].lsLevel)) {
+      ObjectSetString (0, lsl, OBJPROP_TEXT,       "Left Shoulder (entry)");
       ObjectSetInteger(0, lsl, OBJPROP_COLOR,      InpShoulderColor);
       ObjectSetInteger(0, lsl, OBJPROP_FONTSIZE,   InpFontSize);
       ObjectSetInteger(0, lsl, OBJPROP_ANCHOR,     ANCHOR_LEFT_LOWER);
       ObjectSetInteger(0, lsl, OBJPROP_SELECTABLE, false);
    }
-   // Head marker (LL bull / HH bear)
+   // RIGHT SHOULDER label at the same (LS) level, on the right where price returns to enter.
+   string rs = ObjRS(qms[i].id);
+   if(ObjectCreate(0, rs, OBJ_TEXT, 0, qms[i].engEnd, qms[i].lsLevel)) {
+      ObjectSetString (0, rs, OBJPROP_TEXT,        "Right Shoulder (entry)");
+      ObjectSetInteger(0, rs, OBJPROP_COLOR,       InpShoulderColor);
+      ObjectSetInteger(0, rs, OBJPROP_FONTSIZE,    InpFontSize);
+      ObjectSetInteger(0, rs, OBJPROP_ANCHOR,      ANCHOR_RIGHT_UPPER);
+      ObjectSetInteger(0, rs, OBJPROP_SELECTABLE,  false);
+   }
+   // HEAD marker (LL bull / HH bear) — SL goes beyond the head.
    string hd = ObjHead(qms[i].id);
    if(ObjectCreate(0, hd, OBJ_VLINE, 0, qms[i].headTime, 0)) {
       ObjectSetInteger(0, hd, OBJPROP_COLOR,      c);
       ObjectSetInteger(0, hd, OBJPROP_STYLE,      STYLE_DOT);
       ObjectSetInteger(0, hd, OBJPROP_BACK,       true);
       ObjectSetInteger(0, hd, OBJPROP_SELECTABLE, false);
+   }
+   string hdl = ObjHeadL(qms[i].id);
+   if(ObjectCreate(0, hdl, OBJ_TREND, 0, qms[i].headTime, qms[i].headLevel,
+                   qms[i].engEnd, qms[i].headLevel)) {
+      ObjectSetInteger(0, hdl, OBJPROP_COLOR,      c);
+      ObjectSetInteger(0, hdl, OBJPROP_STYLE,      STYLE_DOT);
+      ObjectSetInteger(0, hdl, OBJPROP_WIDTH,      1);
+      ObjectSetInteger(0, hdl, OBJPROP_RAY_RIGHT,  false);
+      ObjectSetInteger(0, hdl, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, hdl, OBJPROP_BACK,       true);
+   }
+   string hdt = ObjHeadL(qms[i].id) + "t";
+   if(ObjectCreate(0, hdt, OBJ_TEXT, 0, qms[i].headTime, qms[i].headLevel)) {
+      ObjectSetString (0, hdt, OBJPROP_TEXT,       "Head (SL beyond)");
+      ObjectSetInteger(0, hdt, OBJPROP_COLOR,      c);
+      ObjectSetInteger(0, hdt, OBJPROP_FONTSIZE,   InpFontSize);
+      ObjectSetInteger(0, hdt, OBJPROP_ANCHOR,
+                       qms[i].dir == DIR_BULL ? ANCHOR_LEFT_UPPER : ANCHOR_LEFT_LOWER);
+      ObjectSetInteger(0, hdt, OBJPROP_SELECTABLE, false);
+   }
+   // TAKE PROFIT — the high (bull) / low (bear) that created the pullback.
+   string tp = ObjTP(qms[i].id);
+   if(ObjectCreate(0, tp, OBJ_TREND, 0, qms[i].engTime, qms[i].pbLevel,
+                   qms[i].engEnd, qms[i].pbLevel)) {
+      ObjectSetInteger(0, tp, OBJPROP_COLOR,      clrDeepSkyBlue);
+      ObjectSetInteger(0, tp, OBJPROP_STYLE,      STYLE_DASHDOT);
+      ObjectSetInteger(0, tp, OBJPROP_WIDTH,      1);
+      ObjectSetInteger(0, tp, OBJPROP_RAY_RIGHT,  true);
+      ObjectSetInteger(0, tp, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, tp, OBJPROP_BACK,       true);
+   }
+   string tpl = ObjTP(qms[i].id) + "t";
+   if(ObjectCreate(0, tpl, OBJ_TEXT, 0, qms[i].engTime, qms[i].pbLevel)) {
+      ObjectSetString (0, tpl, OBJPROP_TEXT,       "TP (pullback)");
+      ObjectSetInteger(0, tpl, OBJPROP_COLOR,      clrDeepSkyBlue);
+      ObjectSetInteger(0, tpl, OBJPROP_FONTSIZE,   InpFontSize);
+      ObjectSetInteger(0, tpl, OBJPROP_ANCHOR,
+                       qms[i].dir == DIR_BULL ? ANCHOR_LEFT_LOWER : ANCHOR_LEFT_UPPER);
+      ObjectSetInteger(0, tpl, OBJPROP_SELECTABLE, false);
    }
    // Confluence
    if(qms[i].conf == CONF_GAP) {
@@ -364,12 +427,17 @@ void DrawQm(int i)
 
 void KillQm(int i)
 {
-   ObjectDelete(0, ObjBox (qms[i].id));
-   ObjectDelete(0, ObjLbl (qms[i].id));
-   ObjectDelete(0, ObjLS  (qms[i].id));
-   ObjectDelete(0, ObjLSL (qms[i].id));
-   ObjectDelete(0, ObjHead(qms[i].id));
-   ObjectDelete(0, ObjConf(qms[i].id));
+   ObjectDelete(0, ObjBox  (qms[i].id));
+   ObjectDelete(0, ObjLbl  (qms[i].id));
+   ObjectDelete(0, ObjLS   (qms[i].id));
+   ObjectDelete(0, ObjLSL  (qms[i].id));
+   ObjectDelete(0, ObjRS   (qms[i].id));
+   ObjectDelete(0, ObjHead (qms[i].id));
+   ObjectDelete(0, ObjHeadL(qms[i].id));
+   ObjectDelete(0, ObjHeadL(qms[i].id) + "t");
+   ObjectDelete(0, ObjTP   (qms[i].id));
+   ObjectDelete(0, ObjTP   (qms[i].id) + "t");
+   ObjectDelete(0, ObjConf (qms[i].id));
    qms[i].dead = true;
 }
 
@@ -411,9 +479,9 @@ void DetectQmMef(int s)
       if(!qms[_k].dead && qms[_k].engTime == engTime) return;
 
    // LTF Quasimodo inside the engulfing window.
-   double lsLevel = 0.0, confirmLevel = 0.0, headLevel = 0.0;
+   double lsLevel = 0.0, confirmLevel = 0.0, headLevel = 0.0, pbLevel = 0.0;
    datetime headTime = 0, lsTime = 0;
-   if(!DetectQM(dir, engTime, engEnd, lsLevel, confirmLevel, headLevel, headTime, lsTime)) return;
+   if(!DetectQM(dir, engTime, engEnd, lsLevel, confirmLevel, headLevel, pbLevel, headTime, lsTime)) return;
 
    // Confluence near the left shoulder (tolerance from QM structure size).
    double tol = MathAbs(confirmLevel - lsLevel) * InpConfTolFrac;
@@ -440,7 +508,9 @@ void DetectQmMef(int s)
    qms[idx].lsLevel      = lsLevel;
    qms[idx].confirmLevel = confirmLevel;
    qms[idx].headLevel    = headLevel;
+   qms[idx].pbLevel      = pbLevel;
    qms[idx].headTime     = headTime;
+   qms[idx].lsTime       = lsTime;
    qms[idx].conf         = conf;
    qms[idx].confGap      = confGap;
    qms[idx].confBaseHi   = baseHi;
@@ -451,11 +521,11 @@ void DetectQmMef(int s)
 
    DrawQm(idx);
    if(InpShowLog)
-      PrintFormat("QM_MEF_CREATED | %s | HTF=%s LTF=%s | engulf=%s | left_shoulder=%.5f | confluence=%s | strength=%s",
+      PrintFormat("QM_MEF_CREATED | %s | HTF=%s LTF=%s | engulf=%s | left_shoulder(entry)=%.5f | head(SL)=%.5f | TP(pullback)=%.5f | confluence=%s | strength=%s",
                   dir == DIR_BULL ? "BULL" : "BEAR",
                   EnumToString(InpMainTF), EnumToString(InpQmTF),
                   TimeToString(iTime(_Symbol, InpMainTF, s), TIME_DATE|TIME_MINUTES),
-                  lsLevel, ConfName(conf), qms[idx].strong ? "strong" : "normal");
+                  lsLevel, headLevel, pbLevel, ConfName(conf), qms[idx].strong ? "strong" : "normal");
 }
 
 //+------------------------------------------------------------------+
