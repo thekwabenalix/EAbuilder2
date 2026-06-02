@@ -1933,11 +1933,11 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Manipulation must NOT exceed that Classic SNR level (no higher high in a downtrend / no lower low in an uptrend)",
           "Built from alternating close-confirmed swing pivots (InpSwingStrength)",
           "Entry = the Classic SNR level of the 1st low/high (on the SNR, not the wick); SL = manipulation extreme",
-          "Invalidation: price CLOSES beyond the setup (the SNR entry level) → deleted",
+          "Invalidation: price TRADES beyond the SL (intrabar) → setup deleted",
         ],
         output: [
           "Gold entry line on the Classic SNR level (short line, freezes when tapped)",
-          "Red SL box around the manipulation extreme",
+          "Red horizontal SL line at the manipulation extreme",
           "Markers: 1st Low/High, 2nd Low/High, Cont LL/HH",
           "Journal: SNRC2_CREATED | dir | entry | SL | 2nd | cont | SNRC2_ENTRY_TAPPED | SNRC2_INVALIDATED",
         ],

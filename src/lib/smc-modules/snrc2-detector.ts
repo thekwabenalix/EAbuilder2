@@ -187,13 +187,13 @@ void DrawRec(int i)
        recs[i].dir == DIR_BULL ? "SNRC2 Bull entry" : "SNRC2 Bear entry", InpEntryColor,
        recs[i].dir == DIR_BULL ? ANCHOR_LEFT_UPPER : ANCHOR_LEFT_LOWER);
 
-   // SL zone — red box around the manipulation extreme.
+   // SL — red horizontal line at the manipulation extreme.
    string sl = ObjSL(recs[i].id);
-   double slHi = (recs[i].dir == DIR_BEAR) ? recs[i].sl    : recs[i].entry;
-   double slLo = (recs[i].dir == DIR_BEAR) ? recs[i].entry : recs[i].sl;
-   if(ObjectCreate(0, sl, OBJ_RECTANGLE, 0, recs[i].tManip, slHi, recs[i].endT, slLo)) {
+   if(ObjectCreate(0, sl, OBJ_TREND, 0, recs[i].tManip, recs[i].sl, recs[i].endT, recs[i].sl)) {
       ObjectSetInteger(0, sl, OBJPROP_COLOR,      InpSLColor);
-      ObjectSetInteger(0, sl, OBJPROP_FILL,       true);
+      ObjectSetInteger(0, sl, OBJPROP_STYLE,      STYLE_SOLID);
+      ObjectSetInteger(0, sl, OBJPROP_WIDTH,      2);
+      ObjectSetInteger(0, sl, OBJPROP_RAY_RIGHT,  false);
       ObjectSetInteger(0, sl, OBJPROP_BACK,       true);
       ObjectSetInteger(0, sl, OBJPROP_SELECTABLE, false);
    }
@@ -382,10 +382,9 @@ void Detect()
 // Per-bar: extend entry line until tapped, invalidate on SL break, expire.
 void Maintain(int sh)
 {
-   datetime t  = iTime (_Symbol, InpTF, sh);
-   double   cl = iClose(_Symbol, InpTF, sh);
-   double   bl = iLow  (_Symbol, InpTF, sh);
-   double   bh = iHigh (_Symbol, InpTF, sh);
+   datetime t  = iTime(_Symbol, InpTF, sh);
+   double   bl = iLow (_Symbol, InpTF, sh);
+   double   bh = iHigh(_Symbol, InpTF, sh);
    for(int i = 0; i < recTotal; i++) {
       if(recs[i].dead) continue;
       if(recs[i].tConf >= t) continue;
@@ -404,15 +403,15 @@ void Maintain(int sh)
          }
       }
 
-      // Invalidation: price CLOSES beyond the setup (the SNR entry level).
-      // Bearish setup dies on a close above the entry; bullish on a close below.
-      if(recs[i].dir == DIR_BEAR && cl > recs[i].entry) {
-         if(InpShowLog) PrintFormat("SNRC2_INVALIDATED (closed above setup) | entry=%.5f", recs[i].entry);
+      // Invalidation: price TRADES beyond the stop loss (intrabar) → delete.
+      // Bearish setup dies when price trades above the SL; bullish when below.
+      if(recs[i].dir == DIR_BEAR && bh >= recs[i].sl) {
+         if(InpShowLog) PrintFormat("SNRC2_SL_HIT (traded above SL) | SL=%.5f", recs[i].sl);
          KillRec(i);
          continue;
       }
-      if(recs[i].dir == DIR_BULL && cl < recs[i].entry) {
-         if(InpShowLog) PrintFormat("SNRC2_INVALIDATED (closed below setup) | entry=%.5f", recs[i].entry);
+      if(recs[i].dir == DIR_BULL && bl <= recs[i].sl) {
+         if(InpShowLog) PrintFormat("SNRC2_SL_HIT (traded below SL) | SL=%.5f", recs[i].sl);
          KillRec(i);
          continue;
       }
