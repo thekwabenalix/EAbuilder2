@@ -26,6 +26,7 @@ import { generateObFvgDetector } from "../src/lib/smc-modules/ob-fvg-detector";
 import { generateUnicornDetector } from "../src/lib/smc-modules/unicorn-detector";
 import { generateRsiHiddenDivergenceDetector } from "../src/lib/indicator-modules/rsi-hidden-divergence-detector";
 import { generateRsiHiddenDivergenceStateModule } from "../src/lib/indicator-modules/rsi-hidden-divergence-state-module";
+import { generateEngulfingDetector } from "../src/lib/smc-modules/engulfing-detector";
 
 // Inline state-machine fragment generators
 import { genRsiHdSM } from "../src/generators/gen-rsi-hd-sm";
@@ -88,6 +89,10 @@ const items: Item[] = [
   {
     file: "RSI_Hidden_Divergence_State_Module.mq5",
     code: generateRsiHiddenDivergenceStateModule(),
+  },
+  {
+    file: "ENG_Detector.mq5",
+    code: generateEngulfingDetector(),
   },
   {
     file: "_TEST_RSIHDSM_M15.mq5",

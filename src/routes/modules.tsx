@@ -1835,57 +1835,23 @@ const TRADING_MODULES: ModuleCategory[] = [
     label: "Engulfing",
     fullName: "Engulfing Patterns",
     icon: Activity,
-    phaseTag: "Roadmap",
-    phaseActive: false,
+    phaseTag: "Phase 1",
+    phaseActive: true,
     description:
-      "Candle-based engulfing pattern detection from single-candle setups to " +
-      "multi-timeframe alignment. Each module is standalone and " +
-      "independently verifiable on a chart.",
+      "Malaysian Engulfing Strategy (MES) — detects EG (engulfing) zones and " +
+      "tracks their lifecycle. When price closes through an EG zone, it becomes " +
+      "an EF (engulfing failed) zone with opposite direction. MES definition: " +
+      "zone = C1 full wick range, not just body. Visual indicator shows lifecycle.",
     modules: [
       {
-        id: "bull-engulf",
-        filename: "ENG_Bull_Detector.mq5",
-        name: "Bullish Engulfing",
+        id: "eng-detector",
+        filename: "ENG_Detector.mq5",
+        name: "Engulfing + Engulfing Failed",
         description:
-          "Detects candles whose body fully engulfs the prior candle's body " +
-          "with bullish bias. Configurable wick-body ratio filter.",
-        status: "planned",
-      },
-      {
-        id: "bear-engulf",
-        filename: "ENG_Bear_Detector.mq5",
-        name: "Bearish Engulfing",
-        description:
-          "Detects candles whose body fully engulfs the prior candle's body " +
-          "with bearish bias. Includes ATR-size filter to eliminate small patterns.",
-        status: "planned",
-      },
-      {
-        id: "engulf-failed",
-        filename: "ENG_Failed_Detector.mq5",
-        name: "Engulfing Failed (EG-EF)",
-        description:
-          "Tracks engulfing patterns that subsequently fail — price reverses " +
-          "through the engulfing candle's origin, confirming the failure.",
-        status: "planned",
-      },
-      {
-        id: "transformation",
-        filename: "ENG_Transform_Detector.mq5",
-        name: "Transformation",
-        description:
-          "Detects when a candle transforms the prior candle's structure — " +
-          "e.g., a pin bar that gets engulfed and transforms into a continuation.",
-        status: "planned",
-      },
-      {
-        id: "mtf-engulf",
-        filename: "ENG_MTF_Detector.mq5",
-        name: "Multi-Timeframe Engulfing",
-        description:
-          "Identifies engulfing patterns that align across two or more " +
-          "timeframes simultaneously — higher-timeframe body engulfs lower-timeframe structure.",
-        status: "planned",
+          "Detects 2-candle engulfing patterns (EG zones). Tracks lifecycle: " +
+          "ACTIVE → RETESTED → CONFIRMED. When price closes through zone, " +
+          "zone flips to EF (opposite direction). EG zones blue/red, EF zones orange.",
+        status: "ready",
       },
     ],
   },
