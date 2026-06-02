@@ -173,12 +173,11 @@ void ${P}Advance(int sh)
             PrintFormat("[EGSM_${tf}] BULL EG FAILED → BEAR EF | hi=%.5f lo=%.5f", hi, lo);
             continue;
          }
-         // EF only: if the EF also fails (close > hi) → fully invalidated
+         // EF only: if the EF also fails (close > hi) → fully invalidated (deleted)
          if(${P}zones[_k].isEF && barCl > hi)
-            { ${P}zones[_k].state = ${P}INVALIDATED; continue; }
-         // Mitigated: close inside zone without bouncing
-         if(barCl >= lo && barCl <= hi)
-            { ${P}zones[_k].state = ${P}MITIGATED; continue; }
+            { ${P}zones[_k].state = ${P}INVALIDATED;
+              PrintFormat("[EGSM_${tf}] BEAR EF BROKEN → deleted | hi=%.5f lo=%.5f", hi, lo);
+              continue; }
          // ACTIVE → RETESTED: wick enters zone from above
          if(${P}zones[_k].state == ${P}ACTIVE && barLo <= hi)
          {
@@ -220,12 +219,11 @@ void ${P}Advance(int sh)
             PrintFormat("[EGSM_${tf}] BEAR EG FAILED → BULL EF | hi=%.5f lo=%.5f", hi, lo);
             continue;
          }
-         // EF only: if the EF also fails (close < lo) → fully invalidated
+         // EF only: if the EF also fails (close < lo) → fully invalidated (deleted)
          if(${P}zones[_k].isEF && barCl < lo)
-            { ${P}zones[_k].state = ${P}INVALIDATED; continue; }
-         // Mitigated: close inside zone
-         if(barCl >= lo && barCl <= hi)
-            { ${P}zones[_k].state = ${P}MITIGATED; continue; }
+            { ${P}zones[_k].state = ${P}INVALIDATED;
+              PrintFormat("[EGSM_${tf}] BULL EF BROKEN → deleted | hi=%.5f lo=%.5f", hi, lo);
+              continue; }
          // ACTIVE → RETESTED: wick enters zone from below
          if(${P}zones[_k].state == ${P}ACTIVE && barHi >= lo)
          {
