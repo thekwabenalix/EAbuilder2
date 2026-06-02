@@ -332,25 +332,26 @@ void Setup_Brain_Execute()
       }
 
       case "engulfing": {
+        // Reads from the verified inline EG/EF state machine (EGSM_${tf}_*).
+        // MES wick-based + multi-candle aware. Setup is ACTIVE when a live EG/EF
+        // zone exists in the bias direction. SL hint = the zone's far boundary.
         parts.push(`
-   // Engulfing: strong candle in bias direction creates setup
+   // Engulfing (MES) Setup: use verified EGSM — active when live EG/EF zone in bias direction
    if(!gSetupActive)
    {
-      double o1 = iOpen (InpSymbol, ${TF}, 1);
-      double c1 = iClose(InpSymbol, ${TF}, 1);
-      double l1 = iLow  (InpSymbol, ${TF}, 1);
-      double h1 = iHigh (InpSymbol, ${TF}, 1);
-      double o2 = iOpen (InpSymbol, ${TF}, 2);
-      double c2 = iClose(InpSymbol, ${TF}, 2);
-      if(c1 > o1 && c2 < o2 && c1 >= o2 && o1 <= c2 && (gBias == 0 || gBias == 1))
+      if((gBias == 0 || gBias == 1) && EGSM_${tf}_HasActiveBull())
       {
-         gSetupActive = true; gSetupDir = 1; gSetupSLHint = l1;
-         PrintFormat("[SETUP/${tf}] ENGULF BULL setup SL hint=%.5f", l1);
+         gSetupActive = true; gSetupDir = 1;
+         gSetupSLHint = EGSM_${tf}_LatestBullLL();
+         PrintFormat("[SETUP/${tf}] ENGULF BULL zone active | ul=%.5f ll=%.5f",
+                     EGSM_${tf}_LatestBullUL(), EGSM_${tf}_LatestBullLL());
       }
-      else if(c1 < o1 && c2 > o2 && c1 <= o2 && o1 >= c2 && (gBias == 0 || gBias == -1))
+      else if((gBias == 0 || gBias == -1) && EGSM_${tf}_HasActiveBear())
       {
-         gSetupActive = true; gSetupDir = -1; gSetupSLHint = h1;
-         PrintFormat("[SETUP/${tf}] ENGULF BEAR setup SL hint=%.5f", h1);
+         gSetupActive = true; gSetupDir = -1;
+         gSetupSLHint = EGSM_${tf}_LatestBearUL();
+         PrintFormat("[SETUP/${tf}] ENGULF BEAR zone active | ul=%.5f ll=%.5f",
+                     EGSM_${tf}_LatestBearUL(), EGSM_${tf}_LatestBearLL());
       }
    }`);
         break;

@@ -54,6 +54,22 @@ function collectIfvgTFs(config: FourBrainConfig): Map<string, string> {
   return result;
 }
 
+function collectEngulfingTFs(config: FourBrainConfig): Map<string, string> {
+  // Map: tf-label (e.g. "H4") → PERIOD constant — TFs where any brain uses engulfing.
+  const result = new Map<string, string>();
+  const needs = (mods: BrainModuleType[] | undefined) => mods?.includes("engulfing") ?? false;
+  const add = (tf: string) => {
+    if (!tf) return;
+    const u = tf.toUpperCase();
+    const c = u === "MN" ? "PERIOD_MN1" : `PERIOD_${u}`;
+    result.set(u, c);
+  };
+  if (needs(config.direction?.modules)) add(config.direction!.timeframe);
+  if (needs(config.setup?.modules)) add(config.setup!.timeframe);
+  if (needs(config.execution?.modules)) add(config.execution.timeframe);
+  return result;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function tfConst(tf: string): string {
@@ -513,9 +529,11 @@ export function generateEA(params: MQL5CodeGenParams): string {
     aiTickWrappers = buildAiTickWrappers(reconciledConfigs);
   } else {
     const ifvgTFs = collectIfvgTFs(config);
-    smCode = [...ifvgTFs.entries()]
-      .map(([tf, TFconst]) => genFvgInversionSM(tf, TFconst, tf, 100))
-      .join("\n");
+    const egTFs = collectEngulfingTFs(config);
+    smCode = [
+      ...[...ifvgTFs.entries()].map(([tf, TFconst]) => genFvgInversionSM(tf, TFconst, tf, 100)),
+      ...[...egTFs.entries()].map(([tf, TFconst]) => genEgSM(tf, TFconst, tf, 50, 100)),
+    ].join("\n");
   }
 
   // ── Brain function bodies ───────────────────────────────────────────────────
@@ -549,10 +567,25 @@ export function generateEA(params: MQL5CodeGenParams): string {
     execSmTick = buildAiBrainTickPreamble(execCode, reconciledConfigs);
   } else {
     const ifvgTFsForTick = collectIfvgTFs(config);
-    const smTickCall = (tf: string) => (ifvgTFsForTick.has(tf) ? `IFVGSM_${tf}_Tick(1);` : "");
+    const egTFsForTick = collectEngulfingTFs(config);
+    // Dedup ticks across all three brains: each (SM,TF) machine is ticked exactly
+    // once per bar, at the first brain (in DIR→SETUP→EXEC order) that uses it.
+    const emittedTicks = new Set<string>();
+    const smTickCall = (tf: string) => {
+      const calls: string[] = [];
+      if (ifvgTFsForTick.has(tf) && !emittedTicks.has(`IFVG_${tf}`)) {
+        emittedTicks.add(`IFVG_${tf}`);
+        calls.push(`IFVGSM_${tf}_Tick(1);`);
+      }
+      if (egTFsForTick.has(tf) && !emittedTicks.has(`EG_${tf}`)) {
+        emittedTicks.add(`EG_${tf}`);
+        calls.push(`EGSM_${tf}_Tick(50);`);
+      }
+      return calls.join(" ");
+    };
     dirSmTick = smTickCall(dirTFUpper);
     setupSmTick = smTickCall(setupTFUpper);
-    execSmTick = execTFUpper !== setupTFUpper ? smTickCall(execTFUpper) : "";
+    execSmTick = smTickCall(execTFUpper);
   }
 
   // Direction gate: require a bias AND that the execution direction AGREES with it.
@@ -616,7 +649,10 @@ export function generateEA(params: MQL5CodeGenParams): string {
         }
         return resets.join(" ");
       })()
-    : [...collectIfvgTFs(config).keys()].map((tf) => `IFVGSM_${tf}_Reset();`).join(" ");
+    : [
+        ...[...collectIfvgTFs(config).keys()].map((tf) => `IFVGSM_${tf}_Reset();`),
+        ...[...collectEngulfingTFs(config).keys()].map((tf) => `EGSM_${tf}_Reset();`),
+      ].join(" ");
 
   return `//+------------------------------------------------------------------+
 //| ${eaName}.mq5

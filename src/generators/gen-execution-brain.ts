@@ -233,25 +233,22 @@ void Execution_Brain_Execute() { gExecSignal = false; gExecDir = 0; gExecSL = 0;
       }
 
       case "engulfing": {
+        // Reads from the verified inline EG/EF state machine (EGSM_${tf}_*).
+        // MES wick-based + multi-candle aware. Entry fires ONLY when an EG (or
+        // flipped EF) reaches CONFIRMED. SL = confirmSL (retest extreme).
         parts.push(`
-   // Engulfing: strong reversal candle — fire entry on next bar open
+   // Engulfing (MES) Execution: entry on verified EGSM CONFIRMED signal
    if(!gExecSignal)
    {
-      double o1 = iOpen (InpSymbol, ${TF}, 1);
-      double c1 = iClose(InpSymbol, ${TF}, 1);
-      double l1 = iLow  (InpSymbol, ${TF}, 1);
-      double h1 = iHigh (InpSymbol, ${TF}, 1);
-      double o2 = iOpen (InpSymbol, ${TF}, 2);
-      double c2 = iClose(InpSymbol, ${TF}, 2);
-      if(c1 > o1 && c2 < o2 && c1 >= o2 && o1 <= c2 && (gBias==0||gBias==1) && (gSetupDir==0||gSetupDir==1))
+      if(EGSM_${tf}_BullJustConfirmed() && (gBias==0||gBias==1) && (gSetupDir==0||gSetupDir==1))
       {
-         gExecSignal = true; gExecDir = 1; gExecSL = l1;
-         PrintFormat("[EXEC/${tf}] ENGULF BULL SL=%.5f", l1);
+         gExecSignal = true; gExecDir = 1; gExecSL = EGSM_${tf}_BullConfirmSL();
+         PrintFormat("[EXEC/${tf}] ENGULF BULL CONFIRMED | SL=%.5f", gExecSL);
       }
-      else if(c1 < o1 && c2 > o2 && c1 <= o2 && o1 >= c2 && (gBias==0||gBias==-1) && (gSetupDir==0||gSetupDir==-1))
+      else if(EGSM_${tf}_BearJustConfirmed() && (gBias==0||gBias==-1) && (gSetupDir==0||gSetupDir==-1))
       {
-         gExecSignal = true; gExecDir = -1; gExecSL = h1;
-         PrintFormat("[EXEC/${tf}] ENGULF BEAR SL=%.5f", h1);
+         gExecSignal = true; gExecDir = -1; gExecSL = EGSM_${tf}_BearConfirmSL();
+         PrintFormat("[EXEC/${tf}] ENGULF BEAR CONFIRMED | SL=%.5f", gExecSL);
       }
    }`);
         break;

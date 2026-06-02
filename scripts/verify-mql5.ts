@@ -404,6 +404,48 @@ runAiTest("EMA cross (template, drawn MAs)", "EMA_Cross_Template_Test.mq5", () =
   return { code, checks };
 });
 
+// ── Template-mode MES EA: engulfing on ALL 3 brains uses the verified EGSM ─────
+// Proves Phase 2B wiring: Direction/Setup/Execution brains call EGSM_*_ functions
+// (NOT a simplified inline body-engulf), and the assembler embeds + ticks + resets
+// one EGSM per brain timeframe.
+runAiTest("MES engulfing (template, verified EGSM)", "MES_Engulfing_Template_Test.mq5", () => {
+  const config: FourBrainConfig = {
+    direction: { modules: ["engulfing"], timeframe: "D1" },
+    setup: { modules: ["engulfing"], timeframe: "H4" },
+    execution: { modules: ["engulfing"], timeframe: "M30" },
+    management: {
+      riskPercent: 1.0,
+      rewardRisk: 2.0,
+      stopBuffer: 30,
+      maxOpenTrades: 1,
+    },
+  } as FourBrainConfig;
+  const code = generateEA({
+    eaName: "MES_Engulfing_Template_Test",
+    config,
+    globalSymbol: "XAUUSD",
+    globalMagic: 770077,
+  });
+  const checks: Array<[string, boolean]> = [
+    ["EGSM D1 embedded", code.includes("void EGSM_D1_Tick(")],
+    ["EGSM H4 embedded", code.includes("void EGSM_H4_Tick(")],
+    ["EGSM M30 embedded", code.includes("void EGSM_M30_Tick(")],
+    ["direction uses EGSM confirm", code.includes("EGSM_D1_BullJustConfirmed()")],
+    ["setup uses EGSM active zone", code.includes("EGSM_H4_HasActiveBull()")],
+    ["setup SL hint from zone", code.includes("EGSM_H4_LatestBullLL()")],
+    ["exec uses EGSM confirm+SL", code.includes("EGSM_M30_BullConfirmSL()")],
+    ["EGSM ticked (D1)", code.includes("EGSM_D1_Tick(")],
+    ["EGSM ticked (H4)", code.includes("EGSM_H4_Tick(")],
+    ["EGSM ticked (M30)", code.includes("EGSM_M30_Tick(")],
+    ["EGSM reset (D1)", code.includes("EGSM_D1_Reset();")],
+    ["EGSM reset (H4)", code.includes("EGSM_H4_Reset();")],
+    ["EGSM reset (M30)", code.includes("EGSM_M30_Reset();")],
+    ["multi-candle detect present", code.includes("took %d candle(s)")],
+    ["NO fake inline body-engulf", !code.includes("c1 >= o2 && o1 <= c2")],
+  ];
+  return { code, checks };
+});
+
 runAiTest("EMA test gates later iFVG", "EMA_Test_Then_IFVG_Test.mq5", () => {
   const config: FourBrainConfig = {
     direction: { modules: ["ema"], timeframe: "M5" },

@@ -143,14 +143,13 @@ function genModuleSignal(
     }
 
     case "engulfing": {
+      // Reads from the verified inline EG/EF state machine (EGSM_${tf}_*).
+      // MES wick-based + multi-candle aware. Direction flips when an EG (or a
+      // flipped EF) CONFIRMS in its direction (ACTIVE→RETESTED→CONFIRMED).
       return `
-   // Engulfing: strong reversal candle
-   {
-      double _o1=iOpen(InpSymbol,${TF},1), _c1=iClose(InpSymbol,${TF},1);
-      double _o2=iOpen(InpSymbol,${TF},2), _c2=iClose(InpSymbol,${TF},2);
-      if(_c1>_o1 && _c2<_o2 && _c1>=_o2 && _o1<=_c2)      ${varName} = 1;
-      else if(_c1<_o1 && _c2>_o2 && _c1<=_o2 && _o1>=_c2) ${varName} = -1;
-   }`;
+   // Engulfing (MES): read from verified inline state machine EGSM_${tf}_
+   if(EGSM_${tf}_BullJustConfirmed()) ${varName} = 1;
+   if(EGSM_${tf}_BearJustConfirmed()) ${varName} = -1;`;
     }
 
     case "pin_bar": {
