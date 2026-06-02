@@ -223,7 +223,14 @@ void Lifecycle(int sh)
       double zoneLo = zones[i].lo;
 
       if(zones[i].dir == DIR_BULL) {
-         // Bull zone: check for EG failure (close below lo)
+         // If this is an EF (bear EF that needs to stay bear), delete if close above hi
+         if(zones[i].isEF && cl > zoneHi) {
+            if(InpShowLog) PrintFormat("BEAR_EF_BROKEN | zone=[%.5f,%.5f]", zoneHi, zoneLo);
+            KillZone(i);
+            continue;
+         }
+
+         // Bull zone: check for EG failure (close below lo) — only if NOT already EF
          if(!zones[i].isEF && cl < zoneLo) {
             // EG failed -> flip to Bear EF
             zones[i].dir  = DIR_BEAR;
@@ -249,7 +256,14 @@ void Lifecycle(int sh)
                            zones[i].isEF ? "EF" : "EG", zoneHi, zoneLo);
          }
       } else {
-         // Bear zone: check for EG failure (close above hi)
+         // If this is an EF (bull EF that needs to stay bull), delete if close below lo
+         if(zones[i].isEF && cl < zoneLo) {
+            if(InpShowLog) PrintFormat("BULL_EF_BROKEN | zone=[%.5f,%.5f]", zoneHi, zoneLo);
+            KillZone(i);
+            continue;
+         }
+
+         // Bear zone: check for EG failure (close above hi) — only if NOT already EF
          if(!zones[i].isEF && cl > zoneHi) {
             // EG failed -> flip to Bull EF
             zones[i].dir  = DIR_BULL;
