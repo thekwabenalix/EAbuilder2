@@ -184,6 +184,17 @@ void DetectEG(int sh)
    for(int _k = 0; _k < zonesTotal; _k++)
       if(zones[_k].c1Time == t1 && !zones[_k].dead) return;
 
+   // Consolidate: remove older live zones overlapping this new zone (keep recent)
+   for(int _k = 0; _k < zonesTotal; _k++) {
+      if(zones[_k].dead) continue;
+      if(zones[_k].lo <= c1h && c1l <= zones[_k].hi) {  // price ranges overlap
+         if(InpShowLog)
+            PrintFormat("OVERLAP_SUPERSEDED | old=[%.5f,%.5f] by new=[%.5f,%.5f]",
+                        zones[_k].hi, zones[_k].lo, c1h, c1l);
+         KillZone(_k);
+      }
+   }
+
    // Add zone
    int idx = -1;
    for(int _k = 0; _k < zonesTotal; _k++)

@@ -114,6 +114,18 @@ void ${P}Detect(int sh)
    for(int _k = 0; _k < ${P}zoneCount; _k++)
       if(${P}zones[_k].c1Time == c1T) return;
 
+   // Consolidate: supersede older live zones overlapping this new one (keep recent)
+   for(int _k = 0; _k < ${P}zoneCount; _k++)
+   {
+      if(${P}zones[_k].state >= ${P}MITIGATED) continue;
+      if(${P}zones[_k].lo <= c1H && c1L <= ${P}zones[_k].hi)  // price ranges overlap
+      {
+         ${P}zones[_k].state = ${P}INVALIDATED;
+         PrintFormat("[EGSM_${tf}] OVERLAP superseded | old=[%.5f,%.5f] by new=[%.5f,%.5f]",
+                     ${P}zones[_k].hi, ${P}zones[_k].lo, c1H, c1L);
+      }
+   }
+
    // Slot: recycle a terminal zone first, else append
    int idx = -1;
    for(int _k = 0; _k < ${P}zoneCount; _k++)
