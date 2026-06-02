@@ -61,15 +61,16 @@ input bool            InpShowLog     = true;
 struct ZoneRec
 {
    int      id;
-   int      dir;           // 1=bull, -1=bear (may flip if EF)
+   int      dir;           // 1=bull, -1=bear
    bool     isEF;          // true if this zone is an EF (failed EG)
    int      state;
    double   hi;            // C1 upper wick
    double   lo;            // C1 lower wick
-   datetime c1Time;        // C1 bar time
-   datetime confirmTime;   // C3/C2 time (when zone became valid)
+   datetime c1Time;        // C1 bar time (for EG, or flip time for EF)
+   datetime confirmTime;   // when zone became valid
    bool     dead;
    int      ageCounter;
+   int      parentId;      // for EF: links to parent EG id (-1 if EG)
 };
 
 ZoneRec zones[MAX_ZONES];
@@ -209,6 +210,34 @@ void DetectEG(int sh)
 }
 
 //+------------------------------------------------------------------+
+// Create an EF zone when an EG fails
+void CreateEFZone(double zoneHi, double zoneLo, int efDir, datetime t)
+{
+   int idx = -1;
+   for(int _k = 0; _k < zonesTotal; _k++)
+      if(zones[_k].dead) { idx = _k; break; }
+   if(idx < 0 && zonesTotal < MAX_ZONES) idx = zonesTotal++;
+   if(idx < 0) return;
+
+   zones[idx].id         = nextId++;
+   zones[idx].dir        = efDir;
+   zones[idx].isEF       = true;
+   zones[idx].state      = ST_ACTIVE;
+   zones[idx].hi         = zoneHi;
+   zones[idx].lo         = zoneLo;
+   zones[idx].c1Time     = t;
+   zones[idx].confirmTime = t;
+   zones[idx].dead       = false;
+   zones[idx].ageCounter = 0;
+   zones[idx].parentId   = -1;
+
+   DrawZone(idx);
+   if(InpShowLog)
+      PrintFormat("EF_%s_CREATED | zone=[%.5f,%.5f]",
+                  efDir == DIR_BULL ? "BULL" : "BEAR", zoneHi, zoneLo);
+}
+
+//+------------------------------------------------------------------+
 // Lifecycle: retested, confirmed, failed->EF, expired
 void Lifecycle(int sh)
 {
@@ -234,23 +263,18 @@ void Lifecycle(int sh)
       double zoneLo = zones[i].lo;
 
       if(zones[i].dir == DIR_BULL) {
-         // If this is an EF (bear EF that needs to stay bear), delete if close above hi
-         if(zones[i].isEF && cl > zoneHi) {
-            if(InpShowLog) PrintFormat("BEAR_EF_BROKEN | zone=[%.5f,%.5f]", zoneHi, zoneLo);
+         // EF that failed: if close goes below lo, delete EF
+         if(zones[i].isEF && cl < zoneLo) {
+            if(InpShowLog) PrintFormat("BULL_EF_BROKEN | zone=[%.5f,%.5f]", zoneHi, zoneLo);
             KillZone(i);
             continue;
          }
 
-         // Bull zone: check for EG failure (close below lo) — only if NOT already EF
+         // EG that failed: create new EF zone (don't flip original)
          if(!zones[i].isEF && cl < zoneLo) {
-            // EG failed -> flip to Bear EF
-            zones[i].dir  = DIR_BEAR;
-            zones[i].isEF = true;
-            zones[i].state = ST_ACTIVE;
-            zones[i].ageCounter = 0;
-            UpdateZoneBox(i);
             if(InpShowLog)
-               PrintFormat("EG_BULL_FAILED -> BEAR_EF | zone=[%.5f,%.5f]", zoneHi, zoneLo);
+               PrintFormat("EG_BULL_FAILED -> CREATE_BEAR_EF | zone=[%.5f,%.5f]", zoneHi, zoneLo);
+            CreateEFZone(zoneHi, zoneLo, DIR_BEAR, t);
             continue;
          }
 
@@ -267,23 +291,18 @@ void Lifecycle(int sh)
                            zones[i].isEF ? "EF" : "EG", zoneHi, zoneLo);
          }
       } else {
-         // If this is an EF (bull EF that needs to stay bull), delete if close below lo
-         if(zones[i].isEF && cl < zoneLo) {
-            if(InpShowLog) PrintFormat("BULL_EF_BROKEN | zone=[%.5f,%.5f]", zoneHi, zoneLo);
+         // EF that failed: if close goes above hi, delete EF
+         if(zones[i].isEF && cl > zoneHi) {
+            if(InpShowLog) PrintFormat("BEAR_EF_BROKEN | zone=[%.5f,%.5f]", zoneHi, zoneLo);
             KillZone(i);
             continue;
          }
 
-         // Bear zone: check for EG failure (close above hi) — only if NOT already EF
+         // EG that failed: create new EF zone (don't flip original)
          if(!zones[i].isEF && cl > zoneHi) {
-            // EG failed -> flip to Bull EF
-            zones[i].dir  = DIR_BULL;
-            zones[i].isEF = true;
-            zones[i].state = ST_ACTIVE;
-            zones[i].ageCounter = 0;
-            UpdateZoneBox(i);
             if(InpShowLog)
-               PrintFormat("EG_BEAR_FAILED -> BULL_EF | zone=[%.5f,%.5f]", zoneHi, zoneLo);
+               PrintFormat("EG_BEAR_FAILED -> CREATE_BULL_EF | zone=[%.5f,%.5f]", zoneHi, zoneLo);
+            CreateEFZone(zoneHi, zoneLo, DIR_BULL, t);
             continue;
          }
 
