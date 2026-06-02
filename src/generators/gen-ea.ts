@@ -810,36 +810,56 @@ void DeleteAllChartObjects()
 //| safe to call every bar (handles are cached + drawn once).        |
 //+------------------------------------------------------------------+
 int            B4_indHandles[];
+string         B4_indKey[];
 ENUM_TIMEFRAMES B4_indTf[];
 int            B4_indPeriod[];
 int            B4_indMethod[];
 int            B4_indCount = 0;
 
+int B4_RegisterHandle(string key, int handle, int subWindow)
+{
+   if(handle == INVALID_HANDLE) return INVALID_HANDLE;
+   for(int _i = 0; _i < B4_indCount; _i++)
+      if(B4_indKey[_i] == key || B4_indHandles[_i] == handle) return B4_indHandles[_i];
+   ChartIndicatorAdd(0, subWindow, handle);
+   int n = B4_indCount + 1;
+   ArrayResize(B4_indHandles, n); ArrayResize(B4_indKey, n); ArrayResize(B4_indTf, n);
+   ArrayResize(B4_indPeriod, n);  ArrayResize(B4_indMethod, n);
+   B4_indHandles[B4_indCount] = handle; B4_indKey[B4_indCount] = key;
+   B4_indTf[B4_indCount] = PERIOD_CURRENT; B4_indPeriod[B4_indCount] = 0; B4_indMethod[B4_indCount] = 0;
+   B4_indCount++;
+   return handle;
+}
+
 // Real moving-average handle (uses iMA), drawn on the chart once.
 //   method: MODE_EMA / MODE_SMA / MODE_SMMA / MODE_LWMA
 int B4_MA(ENUM_TIMEFRAMES tf, int period, ENUM_MA_METHOD method)
 {
+   string key = StringFormat("MA|%d|%d|%d", (int)tf, period, (int)method);
    for(int _i = 0; _i < B4_indCount; _i++)
-      if(B4_indTf[_i] == tf && B4_indPeriod[_i] == period && B4_indMethod[_i] == (int)method)
+      if(B4_indKey[_i] == key || (B4_indTf[_i] == tf && B4_indPeriod[_i] == period && B4_indMethod[_i] == (int)method))
          return B4_indHandles[_i];
    int h = iMA(InpSymbol, tf, period, 0, method, PRICE_CLOSE);
    if(h == INVALID_HANDLE) return INVALID_HANDLE;
-   ChartIndicatorAdd(0, 0, h);   // main chart (MTF handles render automatically)
-   int n = B4_indCount + 1;
-   ArrayResize(B4_indHandles, n); ArrayResize(B4_indTf, n);
-   ArrayResize(B4_indPeriod, n);  ArrayResize(B4_indMethod, n);
-   B4_indHandles[B4_indCount] = h; B4_indTf[B4_indCount] = tf;
-   B4_indPeriod[B4_indCount] = period; B4_indMethod[B4_indCount] = (int)method;
-   B4_indCount++;
+   B4_RegisterHandle(key, h, 0);   // main chart (MTF handles render automatically)
+   B4_indTf[B4_indCount - 1] = tf;
+   B4_indPeriod[B4_indCount - 1] = period;
+   B4_indMethod[B4_indCount - 1] = (int)method;
    return h;
 }
 
-// Value of an MA/indicator buffer at a shift (1 = last closed bar).
-double B4_MAval(int handle, int shift)
+// Value of any indicator buffer at a shift (1 = last closed bar).
+double B4_Buf(int handle, int buffer, int shift)
 {
    double _b[];
-   if(handle == INVALID_HANDLE || CopyBuffer(handle, 0, shift, 1, _b) != 1) return 0.0;
+   if(handle == INVALID_HANDLE || CopyBuffer(handle, buffer, shift, 1, _b) != 1) return 0.0;
    return _b[0];
+}
+
+// Backward-compatible MA/default-buffer alias.
+double B4_MAval(int handle, int shift)
+{
+   return B4_Buf(handle, 0, shift);
 }
 
 // Draw ANY already-created indicator handle on the chart, once.
@@ -848,13 +868,51 @@ void B4_Draw(int handle, int subWindow)
 {
    if(handle == INVALID_HANDLE) return;
    for(int _i = 0; _i < B4_indCount; _i++) if(B4_indHandles[_i] == handle) return;
-   ChartIndicatorAdd(0, subWindow, handle);
-   int n = B4_indCount + 1;
-   ArrayResize(B4_indHandles, n); ArrayResize(B4_indTf, n);
-   ArrayResize(B4_indPeriod, n);  ArrayResize(B4_indMethod, n);
-   B4_indHandles[B4_indCount] = handle; B4_indTf[B4_indCount] = PERIOD_CURRENT;
-   B4_indPeriod[B4_indCount] = 0; B4_indMethod[B4_indCount] = 0;
-   B4_indCount++;
+   B4_RegisterHandle(StringFormat("HANDLE|%d", handle), handle, subWindow);
+}
+
+int B4_RSI(ENUM_TIMEFRAMES tf, int period, ENUM_APPLIED_PRICE price = PRICE_CLOSE)
+{
+   string key = StringFormat("RSI|%d|%d|%d", (int)tf, period, (int)price);
+   for(int _i = 0; _i < B4_indCount; _i++)
+      if(B4_indKey[_i] == key) return B4_indHandles[_i];
+   int h = iRSI(InpSymbol, tf, period, price);
+   if(h == INVALID_HANDLE) return INVALID_HANDLE;
+   B4_RegisterHandle(key, h, 1);
+   return h;
+}
+
+int B4_ATR(ENUM_TIMEFRAMES tf, int period)
+{
+   string key = StringFormat("ATR|%d|%d", (int)tf, period);
+   for(int _i = 0; _i < B4_indCount; _i++)
+      if(B4_indKey[_i] == key) return B4_indHandles[_i];
+   int h = iATR(InpSymbol, tf, period);
+   if(h == INVALID_HANDLE) return INVALID_HANDLE;
+   B4_RegisterHandle(key, h, 1);
+   return h;
+}
+
+int B4_MACD(ENUM_TIMEFRAMES tf, int fast, int slow, int signal, ENUM_APPLIED_PRICE price = PRICE_CLOSE)
+{
+   string key = StringFormat("MACD|%d|%d|%d|%d|%d", (int)tf, fast, slow, signal, (int)price);
+   for(int _i = 0; _i < B4_indCount; _i++)
+      if(B4_indKey[_i] == key) return B4_indHandles[_i];
+   int h = iMACD(InpSymbol, tf, fast, slow, signal, price);
+   if(h == INVALID_HANDLE) return INVALID_HANDLE;
+   B4_RegisterHandle(key, h, 1);
+   return h;
+}
+
+int B4_Bands(ENUM_TIMEFRAMES tf, int period, int shift, double deviation, ENUM_APPLIED_PRICE price = PRICE_CLOSE)
+{
+   string key = StringFormat("BANDS|%d|%d|%d|%.4f|%d", (int)tf, period, shift, deviation, (int)price);
+   for(int _i = 0; _i < B4_indCount; _i++)
+      if(B4_indKey[_i] == key) return B4_indHandles[_i];
+   int h = iBands(InpSymbol, tf, period, shift, deviation, price);
+   if(h == INVALID_HANDLE) return INVALID_HANDLE;
+   B4_RegisterHandle(key, h, 0);
+   return h;
 }
 
 //+------------------------------------------------------------------+
