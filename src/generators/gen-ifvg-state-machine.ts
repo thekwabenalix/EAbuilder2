@@ -331,6 +331,20 @@ double ${P}BearInversionSL()
          return ${P}ifvgList[_i].inversionSL;
    return 0.0;
 }
+datetime ${P}BullInversionTime()
+{
+   for(int _i = ${P}ifvgCount - 1; _i >= 0; _i--)
+      if(${P}ifvgList[_i].dir == 1 && ${P}ifvgList[_i].justInverted)
+         return ${P}ifvgList[_i].inversionTime;
+   return 0;
+}
+datetime ${P}BearInversionTime()
+{
+   for(int _i = ${P}ifvgCount - 1; _i >= 0; _i--)
+      if(${P}ifvgList[_i].dir == -1 && ${P}ifvgList[_i].justInverted)
+         return ${P}ifvgList[_i].inversionTime;
+   return 0;
+}
 // True if a bull iFVG was CONFIRMED this bar (justConfirmed flag)
 bool ${P}BullJustConfirmed()
 {

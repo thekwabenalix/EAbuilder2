@@ -392,44 +392,51 @@ runAiTest("EMA test gates later iFVG", "EMA_Test_Then_IFVG_Test.mq5", () => {
     },
   };
   const aiWiring: AiBrainWiring = {
-    direction_brain: `void Direction_Brain_Execute() {
+    direction_brain: `int gEmaIfvgSeqBias_M5 = 0;
+datetime gEmaIfvgCrossTime_M5 = 0;
+datetime gEmaIfvgTestTime_M5 = 0;
+
+void Direction_Brain_Execute() {
    static int _lastBias = 0;
    int hFast = B4_MA(PERIOD_M5, 12, MODE_EMA);
    int hSlow = B4_MA(PERIOD_M5, 48, MODE_EMA);
+   datetime barTime = iTime(InpSymbol, PERIOD_M5, 1);
    double f1 = B4_MAval(hFast, 1), s1 = B4_MAval(hSlow, 1);
    double f2 = B4_MAval(hFast, 2), s2 = B4_MAval(hSlow, 2);
    bool bullCross = (f2 <= s2 && f1 > s1);
    bool bearCross = (f2 >= s2 && f1 < s1);
-   if(bullCross) gBias = 1;
-   else if(bearCross) gBias = -1;
+   if(bullCross) {
+      gBias = 1; gEmaIfvgSeqBias_M5 = 1; gEmaIfvgCrossTime_M5 = barTime; gEmaIfvgTestTime_M5 = 0;
+   } else if(bearCross) {
+      gBias = -1; gEmaIfvgSeqBias_M5 = -1; gEmaIfvgCrossTime_M5 = barTime; gEmaIfvgTestTime_M5 = 0;
+   }
    if(gBias != _lastBias) { _lastBias = gBias; gSetupActive = false; }
 }`,
     setup_brain: `void Setup_Brain_Execute() {
-   static int _seqBias = 0;
-   static datetime _emaCrossTime = 0;
-   static datetime _emaTestTime = 0;
    gSetupActive = false; gSetupDir = 0; gSetupSLHint = 0.0;
    datetime barTime = iTime(InpSymbol, PERIOD_M5, 1);
-   if(gBias == 0) { _seqBias = 0; _emaCrossTime = 0; _emaTestTime = 0; return; }
-   if(gBias != _seqBias) { _seqBias = gBias; _emaCrossTime = barTime; _emaTestTime = 0; }
+   if(gBias == 0) { gEmaIfvgSeqBias_M5 = 0; gEmaIfvgCrossTime_M5 = 0; gEmaIfvgTestTime_M5 = 0; return; }
+   if(gBias != gEmaIfvgSeqBias_M5) return;
    int hFast = B4_MA(PERIOD_M5, 12, MODE_EMA);
    int hSlow = B4_MA(PERIOD_M5, 48, MODE_EMA);
    double fast = B4_MAval(hFast, 1), slow = B4_MAval(hSlow, 1);
    double hi = iHigh(InpSymbol, PERIOD_M5, 1), lo = iLow(InpSymbol, PERIOD_M5, 1);
    bool touchedFast = (lo <= fast && hi >= fast);
    bool touchedSlow = (lo <= slow && hi >= slow);
-   if(_emaTestTime == 0 && _emaCrossTime > 0 && barTime > _emaCrossTime && (touchedFast || touchedSlow))
-      _emaTestTime = barTime;
+   if(gEmaIfvgTestTime_M5 == 0 && gEmaIfvgCrossTime_M5 > 0 && barTime > gEmaIfvgCrossTime_M5 && (touchedFast || touchedSlow))
+      gEmaIfvgTestTime_M5 = barTime;
    IFVGSM_M5_Tick(1);
-   datetime invTime = (gBias == 1) ? IFVGSM_M5_LatestBullInversionTime() : IFVGSM_M5_LatestBearInversionTime();
-   if(_emaTestTime > 0 && invTime > _emaTestTime) { gSetupActive = true; gSetupDir = gBias; }
+   datetime invTime = (gBias == 1) ? IFVGSM_M5_BullInversionTime() : IFVGSM_M5_BearInversionTime();
+   if(gEmaIfvgTestTime_M5 > 0 && invTime > gEmaIfvgTestTime_M5) { gSetupActive = true; gSetupDir = gBias; }
 }`,
     execution_brain: `void Execution_Brain_Execute() {
    gExecSignal = false; gExecDir = 0; gExecSL = 0.0;
    IFVGSM_M5_Tick(1);
-   if(gSetupDir == 1 && IFVGSM_M5_BullJustInverted() && IFVGSM_M5_LatestBullInversionTime() > 0) {
+   datetime bullInv = IFVGSM_M5_BullInversionTime();
+   datetime bearInv = IFVGSM_M5_BearInversionTime();
+   if(gSetupActive && gSetupDir == 1 && gBias == 1 && IFVGSM_M5_BullJustInverted() && bullInv > gEmaIfvgTestTime_M5) {
       gExecSignal = true; gExecDir = 1; gExecSL = IFVGSM_M5_BullInversionSL();
-   } else if(gSetupDir == -1 && IFVGSM_M5_BearJustInverted() && IFVGSM_M5_LatestBearInversionTime() > 0) {
+   } else if(gSetupActive && gSetupDir == -1 && gBias == -1 && IFVGSM_M5_BearJustInverted() && bearInv > gEmaIfvgTestTime_M5) {
       gExecSignal = true; gExecDir = -1; gExecSL = IFVGSM_M5_BearInversionSL();
    }
 }`,
@@ -452,8 +459,15 @@ runAiTest("EMA test gates later iFVG", "EMA_Test_Then_IFVG_Test.mq5", () => {
   });
   const checks: Array<[string, boolean]> = [
     ["IFVG time accessors emitted", code.includes("LatestBullInversionTime")],
-    ["setup compares IFVG inversion after EMA test", code.includes("invTime > _emaTestTime")],
+    [
+      "setup compares just-formed IFVG after EMA test",
+      code.includes("invTime > gEmaIfvgTestTime_M5"),
+    ],
     ["execution uses iFVG formation signal", code.includes("BullJustInverted()")],
+    [
+      "execution rechecks bias/setup/time gate",
+      code.includes("gBias == 1") && code.includes("bullInv > gEmaIfvgTestTime_M5"),
+    ],
     ["execution uses formation SL", code.includes("BullInversionSL()")],
     ["uses just-closed bar tick", code.includes("IFVGSM_M5_Tick(1)")],
   ];

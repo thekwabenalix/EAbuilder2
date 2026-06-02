@@ -273,6 +273,7 @@ CODE GENERATION RULES
 
     Available iFVG time accessors:
       IFVGSM_{id}_LatestBullInversionTime(), IFVGSM_{id}_LatestBearInversionTime()
+      IFVGSM_{id}_BullInversionTime(), IFVGSM_{id}_BearInversionTime()
       IFVGSM_{id}_BullConfirmTime(), IFVGSM_{id}_BearConfirmTime()
     Always call IFVGSM_{id}_Tick(1). The argument is the just-closed bar shift,
     not lookback. The IFVG state machine is guarded, so Setup and Execution can
@@ -284,6 +285,7 @@ CODE GENERATION RULES
       entry trigger is the INVERSION/FORMATION bar:
         IFVGSM_{id}_BullJustInverted() / BearJustInverted()
         SL: IFVGSM_{id}_BullInversionSL() / BearInversionSL()
+        Time gate: IFVGSM_{id}_BullInversionTime() / BearInversionTime()
     - Use IFVGSM_{id}_BullJustConfirmed() / BearJustConfirmed() ONLY when the
       trader explicitly asks for an iFVG RETEST entry after the inversion zone
       is born. Do not substitute retest-confirmation for formation-confirmation.
@@ -426,40 +428,51 @@ function buildEmaTestThenIfvgFormationWiring(
   const expiryBars = numFrom(params.expiryBars, 100);
 
   return {
-    direction_brain: `void Direction_Brain_Execute() {
+    direction_brain: `int gEmaIfvgSeqBias_${tf} = 0;
+datetime gEmaIfvgCrossTime_${tf} = 0;
+datetime gEmaIfvgTestTime_${tf} = 0;
+
+void Direction_Brain_Execute() {
    static int _lastBias = 0;
    int hFast = B4_MA(${TF}, ${fast}, MODE_EMA);
    int hSlow = B4_MA(${TF}, ${slow}, MODE_EMA);
+   datetime barTime = iTime(InpSymbol, ${TF}, 1);
    double f1 = B4_MAval(hFast, 1), s1 = B4_MAval(hSlow, 1);
    double f2 = B4_MAval(hFast, 2), s2 = B4_MAval(hSlow, 2);
    bool bullCross = (f2 <= s2 && f1 > s1);
    bool bearCross = (f2 >= s2 && f1 < s1);
-   if(bullCross) gBias = 1;
-   else if(bearCross) gBias = -1;
+   if(bullCross) {
+      gBias = 1;
+      gEmaIfvgSeqBias_${tf} = 1;
+      gEmaIfvgCrossTime_${tf} = barTime;
+      gEmaIfvgTestTime_${tf} = 0;
+   } else if(bearCross) {
+      gBias = -1;
+      gEmaIfvgSeqBias_${tf} = -1;
+      gEmaIfvgCrossTime_${tf} = barTime;
+      gEmaIfvgTestTime_${tf} = 0;
+   }
    if(gBias != _lastBias) {
       _lastBias = gBias;
       gSetupActive = false;
-      PrintFormat("[DIR] EMA cross bias=%d", gBias);
+      PrintFormat("[DIR] EMA cross bias=%d cross=%s fast=%.5f slow=%.5f",
+                  gBias, TimeToString(gEmaIfvgCrossTime_${tf}, TIME_DATE|TIME_MINUTES), f1, s1);
    }
 }`,
     setup_brain: `void Setup_Brain_Execute() {
-   static int _seqBias = 0;
-   static datetime _emaCrossTime = 0;
-   static datetime _emaTestTime = 0;
    gSetupActive = false; gSetupDir = 0; gSetupSLHint = 0.0;
 
    datetime barTime = iTime(InpSymbol, ${TF}, 1);
    if(gBias == 0) {
-      _seqBias = 0; _emaCrossTime = 0; _emaTestTime = 0;
+      gEmaIfvgSeqBias_${tf} = 0; gEmaIfvgCrossTime_${tf} = 0; gEmaIfvgTestTime_${tf} = 0;
       PrintFormat("[SETUP] waiting for EMA cross");
       return;
    }
 
-   if(gBias != _seqBias) {
-      _seqBias = gBias;
-      _emaCrossTime = barTime;
-      _emaTestTime = 0;
-      PrintFormat("[SETUP] EMA sequence reset bias=%d cross=%s", gBias, TimeToString(_emaCrossTime, TIME_DATE|TIME_MINUTES));
+   if(gBias != gEmaIfvgSeqBias_${tf}) {
+      gSetupActive = false;
+      PrintFormat("[SETUP] blocked: bias changed without a recorded EMA cross");
+      return;
    }
 
    int hFast = B4_MA(${TF}, ${fast}, MODE_EMA);
@@ -468,36 +481,42 @@ function buildEmaTestThenIfvgFormationWiring(
    double hi = iHigh(InpSymbol, ${TF}, 1), lo = iLow(InpSymbol, ${TF}, 1);
    bool touchedFast = (lo <= fastMa && hi >= fastMa);
    bool touchedSlow = (lo <= slowMa && hi >= slowMa);
-   if(_emaTestTime == 0 && _emaCrossTime > 0 && barTime > _emaCrossTime && (touchedFast || touchedSlow)) {
-      _emaTestTime = barTime;
-      PrintFormat("[SETUP] EMA test accepted at %s", TimeToString(_emaTestTime, TIME_DATE|TIME_MINUTES));
+   if(gEmaIfvgTestTime_${tf} == 0 && gEmaIfvgCrossTime_${tf} > 0 && barTime > gEmaIfvgCrossTime_${tf} && (touchedFast || touchedSlow)) {
+      gEmaIfvgTestTime_${tf} = barTime;
+      PrintFormat("[SETUP] EMA test accepted at %s", TimeToString(gEmaIfvgTestTime_${tf}, TIME_DATE|TIME_MINUTES));
    }
 
    IFVGSM_${tf}_Tick(1);
-   datetime invTime = (gBias == 1) ? IFVGSM_${tf}_LatestBullInversionTime() : IFVGSM_${tf}_LatestBearInversionTime();
-   if(_emaTestTime > 0 && invTime > _emaTestTime) {
+   datetime invTime = (gBias == 1) ? IFVGSM_${tf}_BullInversionTime() : IFVGSM_${tf}_BearInversionTime();
+   if(gEmaIfvgTestTime_${tf} > 0 && invTime > gEmaIfvgTestTime_${tf}) {
       gSetupActive = true;
       gSetupDir = gBias;
       gSetupSLHint = (gBias == 1) ? IFVGSM_${tf}_BullInversionSL() : IFVGSM_${tf}_BearInversionSL();
    }
    PrintFormat("[SETUP] active=%d dir=%d emaTest=%s inv=%s", gSetupActive, gSetupDir,
-               TimeToString(_emaTestTime, TIME_DATE|TIME_MINUTES),
+               TimeToString(gEmaIfvgTestTime_${tf}, TIME_DATE|TIME_MINUTES),
                TimeToString(invTime, TIME_DATE|TIME_MINUTES));
 }`,
     execution_brain: `void Execution_Brain_Execute() {
    gExecSignal = false; gExecDir = 0; gExecSL = 0.0;
    IFVGSM_${tf}_Tick(1);
 
-   if(gSetupActive && gSetupDir == 1 && gBias == 1 && IFVGSM_${tf}_BullJustInverted()) {
+   datetime bullInv = IFVGSM_${tf}_BullInversionTime();
+   datetime bearInv = IFVGSM_${tf}_BearInversionTime();
+   if(gSetupActive && gSetupDir == 1 && gBias == 1 && IFVGSM_${tf}_BullJustInverted() && bullInv > gEmaIfvgTestTime_${tf}) {
       gExecSignal = true;
       gExecDir = 1;
       gExecSL = IFVGSM_${tf}_BullInversionSL();
-   } else if(gSetupActive && gSetupDir == -1 && gBias == -1 && IFVGSM_${tf}_BearJustInverted()) {
+   } else if(gSetupActive && gSetupDir == -1 && gBias == -1 && IFVGSM_${tf}_BearJustInverted() && bearInv > gEmaIfvgTestTime_${tf}) {
       gExecSignal = true;
       gExecDir = -1;
       gExecSL = IFVGSM_${tf}_BearInversionSL();
    }
-   PrintFormat("[EXEC] signal=%d dir=%d SL=%.5f", gExecSignal, gExecDir, gExecSL);
+   PrintFormat("[EXEC] signal=%d dir=%d SL=%.5f test=%s bullInv=%s bearInv=%s",
+               gExecSignal, gExecDir, gExecSL,
+               TimeToString(gEmaIfvgTestTime_${tf}, TIME_DATE|TIME_MINUTES),
+               TimeToString(bullInv, TIME_DATE|TIME_MINUTES),
+               TimeToString(bearInv, TIME_DATE|TIME_MINUTES));
 }`,
     required_sms: [`IFVGSM_${tf}`],
     sm_configs: {

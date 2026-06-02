@@ -491,6 +491,16 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
           returns: "double",
           meaning: "SL anchor from bear iFVG formation bar",
         },
+        {
+          fn: "IFVGSM_{id}_BullInversionTime()",
+          returns: "datetime",
+          meaning: "Formation time for the bull iFVG that was born this bar",
+        },
+        {
+          fn: "IFVGSM_{id}_BearInversionTime()",
+          returns: "datetime",
+          meaning: "Formation time for the bear iFVG that was born this bar",
+        },
         { fn: "IFVGSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live bull iFVG zone" },
         { fn: "IFVGSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live bear iFVG zone" },
         {
