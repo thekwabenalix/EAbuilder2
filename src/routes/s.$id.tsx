@@ -989,6 +989,7 @@ function FourBrainTab({
         },
         bp.name,
         fullDescription || undefined,
+        bp.filterRefs,
       );
       assertAiWiringValid(wiring);
       setAiWiring(wiring);
@@ -1360,7 +1361,11 @@ function CodeTab({
     setGenerating(true);
     setAiWiring(null);
     try {
-      const wiring = await generateAiEaFromDescription(userPrompt, strategyName);
+      const wiring = await generateAiEaFromDescription(
+        userPrompt,
+        strategyName,
+        blueprint.filterRefs,
+      );
       assertAiWiringValid(wiring);
       setAiWiring(wiring);
       const { generateEA } = await import("@/generators/gen-ea");

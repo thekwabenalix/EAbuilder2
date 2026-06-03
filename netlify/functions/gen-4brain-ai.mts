@@ -20,6 +20,12 @@ import {
   moduleSupportsEvent,
 } from "../../src/lib/module-contracts.js";
 import { buildModuleRepairPlan, getModuleAdmission } from "../../src/lib/module-admission.js";
+import {
+  type BuiltinFilterRef,
+  buildCompactBuiltinFilterContractContext,
+  collectBuiltinFilterRefs,
+  getBuiltinFilterContract,
+} from "../../src/lib/builtin-filter-contracts.js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -46,6 +52,8 @@ Do not force traders into predefined patterns. Understand their intent first.
 ${buildCompactModuleLibraryContext()}
 
 ${buildCompactModuleContractContext()}
+
+${buildCompactBuiltinFilterContractContext()}
 
 ═══════════════════════════════════════════════════════════════════════
 ARCHITECTURE: 4-BRAIN CONFLUENCE SYSTEM
@@ -119,6 +127,15 @@ Return a JSON object with EXACTLY this structure:
       "entryEvent": "formation",
       "mustOccurAfter": "setup_gate"
     },
+    "filters": [
+      {
+        "id": "rsi_level_filter",
+        "role": "execution",
+        "indicator": "rsi",
+        "timeframe": "M5",
+        "params": { "period": 14, "level": 50, "operator": "directional" }
+      }
+    ],
     "assumptions": []
   },
   "sm_configs": {
@@ -254,6 +271,32 @@ CODE GENERATION RULES
         are referenceable primitives, not 4-Brain modules by themselves.
       - Do NOT put built-in indicator IDs such as rsi/macd/atr/stochastic into
         semantics.modules or sm_configs unless there is a verified module contract.
+      - If a verified contract explicitly admits a built-in primitive, use the
+        assembler helpers instead of raw indicator code: B4_Buf, B4_RSI, B4_ATR,
+        B4_MACD, B4_Bands, B4_Stochastic, B4_ADX, B4_Ichimoku, B4_SAR,
+        and B4_Fractals.
+      - Built-in filters are not entry modules. For rsi_level_filter, list it in
+        semantics.filters and gate the exact brain the trader described:
+        role="setup" when it qualifies/validates a setup, role="execution" when
+        it filters the entry trigger or trade signal. Examples below show
+        execution; setup filters must use gSetupActive/gSetupDir instead.
+        int hRsi = B4_RSI(PERIOD_M5, 14);
+        double rsi = B4_Buf(hRsi, 0, 1);
+        if(gExecSignal && gExecDir == 1 && rsi <= 50.0) gExecSignal = false;
+        if(gExecSignal && gExecDir == -1 && rsi >= 50.0) gExecSignal = false;
+      - For atr_volatility_filter, list it in semantics.filters and convert ATR
+        to points before gating:
+        int hAtr = B4_ATR(PERIOD_M5, 14);
+        double atrPts = B4_Buf(hAtr, 0, 1) / SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+        if(gExecSignal && atrPts < 100.0) gExecSignal = false;
+      - For macd_histogram_filter, list it in semantics.filters and gate an
+        existing signal with MACD momentum:
+        int hMacd = B4_MACD(PERIOD_M5, 12, 26, 9);
+        double macdMain = B4_Buf(hMacd, 0, 1);
+        double macdSignal = B4_Buf(hMacd, 1, 1);
+        double macdHist = macdMain - macdSignal;
+        if(gExecSignal && gExecDir == 1 && macdHist <= 0.0) gExecSignal = false;
+        if(gExecSignal && gExecDir == -1 && macdHist >= 0.0) gExecSignal = false;
       - For RSI Hidden Divergence, use the verified rsi_hd state machine module.
       - For any other built-in-only idea, state the limitation in notes instead
         of inventing raw indicator MQL5.
@@ -384,6 +427,8 @@ interface GenRequest {
   description?: string;
   /** Raw user prompt from the /new page — Claude interprets it as a complete strategy */
   prompt?: string;
+  /** Verified built-in filter refs extracted during strategy intake. */
+  filterRefs?: BuiltinFilterRef[];
   /** Internal escape hatch only. Normal SaaS generation must leave this false. */
   allowUnsafeModules?: boolean;
 }
@@ -432,6 +477,13 @@ export interface StrategySemantics {
     entryEvent: "formation" | "retest" | "confirmation" | "unknown" | string;
     mustOccurAfter?: string;
   };
+  filters?: Array<{
+    id: string;
+    role: "setup" | "execution";
+    indicator: string;
+    timeframe: string;
+    params: Record<string, unknown>;
+  }>;
   assumptions: string[];
 }
 
@@ -577,6 +629,21 @@ function emaRetestLabel(target: EmaRetestTarget, fast: number, slow: number): st
   return `either EMA (${fast} or ${slow})`;
 }
 
+function extractRetestTolerancePoints(text: string, config?: FourBrainConfig): number {
+  const params = {
+    ...(config?.setup?.params ?? {}),
+    ...(config?.execution?.params ?? {}),
+  };
+  const configured = numFrom(params.retestPoints ?? params.tolerancePoints, NaN);
+  if (Number.isFinite(configured)) return configured;
+  const pointMatch = text.match(
+    /\b(?:within|tolerance|buffer)\D{0,25}(\d+(?:\.\d+)?)\s*points?\b/i,
+  );
+  if (pointMatch) return Number(pointMatch[1]);
+  const pipMatch = text.match(/\b(?:within|tolerance|buffer)\D{0,25}(\d+(?:\.\d+)?)\s*pips?\b/i);
+  return pipMatch ? Number(pipMatch[1]) * 10 : 0;
+}
+
 function extractIfvgEntryEvent(text: string): ExecutionEntryEvent {
   const hay = text.toLowerCase();
   const mentionsRetestEntry =
@@ -636,6 +703,13 @@ function buildEmaIfvgSemantics(
       entryEvent: entryEvent === "unknown" ? "formation" : entryEvent,
       mustOccurAfter: "setup_gate",
     },
+    filters: collectBuiltinFilterRefs(text, tf).map((filter) => ({
+      id: filter.id,
+      role: filter.appliesTo ?? "execution",
+      indicator: filter.indicatorId,
+      timeframe: filter.timeframe,
+      params: filter.params,
+    })),
     assumptions,
   };
 }
@@ -728,8 +802,161 @@ export function inferLocalSemantics(text: string, config?: FourBrainConfig): Str
           ? "direction_event"
           : undefined,
     },
+    filters: collectBuiltinFilterRefs(text, tf).map((filter) => ({
+      id: filter.id,
+      role: filter.appliesTo ?? "execution",
+      indicator: filter.indicatorId,
+      timeframe: filter.timeframe,
+      params: filter.params,
+    })),
     assumptions: ["Claude did not return semantics; server attached a minimal local extraction."],
   };
+}
+
+type SemanticFilter = NonNullable<StrategySemantics["filters"]>[number];
+
+function filtersFromRefs(refs: BuiltinFilterRef[] | undefined): SemanticFilter[] {
+  return (refs ?? []).map((filter) => ({
+    id: filter.id,
+    role: filter.appliesTo ?? "execution",
+    indicator: filter.indicatorId,
+    timeframe: filter.timeframe,
+    params: filter.params,
+  }));
+}
+
+function mergeSemanticFilters(...groups: Array<SemanticFilter[] | undefined>): SemanticFilter[] {
+  const seen = new Set<string>();
+  const merged: SemanticFilter[] = [];
+  for (const group of groups) {
+    for (const filter of group ?? []) {
+      const key = `${filter.id}|${filter.role}|${filter.indicator}|${filter.timeframe}|${JSON.stringify(filter.params ?? {})}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(filter);
+    }
+  }
+  return merged;
+}
+
+function numParam(params: Record<string, unknown>, key: string, fallback: number): number {
+  const value = params[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function strParam(params: Record<string, unknown>, key: string, fallback: string): string {
+  const value = params[key];
+  return typeof value === "string" && value ? value : fallback;
+}
+
+function filterVarSuffix(filter: SemanticFilter): string {
+  return `${filter.id}_${filter.timeframe}`.replace(/[^A-Za-z0-9_]/g, "_");
+}
+
+function mqlFilterSnippet(filter: SemanticFilter): string {
+  const tf = periodConst(filter.timeframe || "M5");
+  const params = filter.params ?? {};
+  const suffix = filterVarSuffix(filter);
+  const target = filter.role === "setup" ? "gSetupActive" : "gExecSignal";
+  const direction = filter.role === "setup" ? "gSetupDir" : "gExecDir";
+  const block = (condition: string, reason: string) => `
+   if(${target} && !(${condition})) {
+      PrintFormat("[FILTER] ${filter.id} blocked: ${reason}");
+      ${target} = false;
+   }`;
+
+  if (filter.id === "rsi_level_filter") {
+    const period = numParam(params, "period", 14);
+    const level = numParam(params, "level", 50);
+    const operator = strParam(params, "operator", "directional");
+    const value = `rsi_${suffix}`;
+    const condition =
+      operator === "above"
+        ? `${value} > ${level}`
+        : operator === "below"
+          ? `${value} < ${level}`
+          : `(${direction} == 1 && ${value} > ${level}) || (${direction} == -1 && ${value} < ${level})`;
+    return `
+   // Verified built-in filter: RSI level
+   int hRsi_${suffix} = B4_RSI(${tf}, ${period});
+   double ${value} = B4_Buf(hRsi_${suffix}, 0, 1);
+${block(condition, `RSI %.2f not ${operator} ${level}`, value)}`;
+  }
+
+  if (filter.id === "atr_volatility_filter") {
+    const period = numParam(params, "period", 14);
+    const minAtr = numParam(params, "minAtrPoints", 0);
+    const maxAtr = numParam(params, "maxAtrPoints", 0);
+    const operator = strParam(params, "operator", minAtr > 0 ? "above" : "below");
+    const value = `atrPts_${suffix}`;
+    const condition =
+      operator === "below"
+        ? `${maxAtr > 0 ? `${value} <= ${maxAtr}` : "true"}`
+        : operator === "between"
+          ? `(${minAtr <= 0 ? "true" : `${value} >= ${minAtr}`}) && (${maxAtr <= 0 ? "true" : `${value} <= ${maxAtr}`})`
+          : `${minAtr > 0 ? `${value} >= ${minAtr}` : "true"}`;
+    return `
+   // Verified built-in filter: ATR volatility
+   int hAtr_${suffix} = B4_ATR(${tf}, ${period});
+   double ${value} = B4_Buf(hAtr_${suffix}, 0, 1) / SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+${block(condition, `ATR %.1f points outside ${operator} threshold`, value)}`;
+  }
+
+  if (filter.id === "macd_histogram_filter") {
+    const fast = numParam(params, "fastPeriod", 12);
+    const slow = numParam(params, "slowPeriod", 26);
+    const signal = numParam(params, "signalPeriod", 9);
+    const operator = strParam(params, "operator", "directional");
+    const value = `macdHist_${suffix}`;
+    const condition =
+      operator === "above_zero"
+        ? `${value} > 0.0`
+        : operator === "below_zero"
+          ? `${value} < 0.0`
+          : `(${direction} == 1 && ${value} > 0.0) || (${direction} == -1 && ${value} < 0.0)`;
+    return `
+   // Verified built-in filter: MACD histogram
+   int hMacd_${suffix} = B4_MACD(${tf}, ${fast}, ${slow}, ${signal});
+   double macdMain_${suffix} = B4_Buf(hMacd_${suffix}, 0, 1);
+   double macdSignal_${suffix} = B4_Buf(hMacd_${suffix}, 1, 1);
+   double ${value} = macdMain_${suffix} - macdSignal_${suffix};
+${block(condition, `MACD histogram %.5f failed ${operator}`, value)}`;
+  }
+
+  return "";
+}
+
+function injectBeforeFinalBrace(code: string, snippet: string): string {
+  if (!snippet.trim()) return code;
+  if (code.includes(snippet.trim().split("\n")[0].trim())) return code;
+  const idx = code.lastIndexOf("}");
+  if (idx < 0) return `${code}\n${snippet}`;
+  return `${code.slice(0, idx)}${snippet}\n${code.slice(idx)}`;
+}
+
+function applyBuiltinFilters(
+  response: AiBrainWiringResponse,
+  fullText: string,
+  requestFilterRefs?: BuiltinFilterRef[],
+): AiBrainWiringResponse {
+  const semantics = response.semantics ?? inferLocalSemantics(fullText);
+  const textFilters = filtersFromRefs(collectBuiltinFilterRefs(fullText, semantics.timeframe));
+  const requestFilters = filtersFromRefs(requestFilterRefs);
+  const filters = mergeSemanticFilters(semantics.filters, requestFilters, textFilters);
+  response.semantics = { ...semantics, filters };
+
+  const setupSnippets = filters
+    .filter((filter) => filter.role === "setup")
+    .map(mqlFilterSnippet)
+    .join("\n");
+  const execSnippets = filters
+    .filter((filter) => filter.role === "execution")
+    .map(mqlFilterSnippet)
+    .join("\n");
+
+  response.setup_brain = injectBeforeFinalBrace(response.setup_brain, setupSnippets);
+  response.execution_brain = injectBeforeFinalBrace(response.execution_brain, execSnippets);
+  return response;
 }
 
 export function validateWiringAgainstSemantics(response: AiBrainWiringResponse): WiringValidation {
@@ -756,6 +983,69 @@ export function validateWiringAgainstSemantics(response: AiBrainWiringResponse):
   for (const moduleId of semantics.modules ?? []) {
     if (!getModuleContract(moduleId)) {
       warnings.push(`No module contract is registered for "${moduleId}".`);
+    }
+  }
+
+  for (const filter of semantics.filters ?? []) {
+    const contract = getBuiltinFilterContract(filter.id);
+    if (!contract) {
+      errors.push(`Built-in filter "${filter.id}" has no verified filter contract.`);
+      continue;
+    }
+    if (!contract.roles.includes(filter.role)) {
+      errors.push(`Built-in filter "${filter.id}" is not supported for ${filter.role} role.`);
+    }
+    if (filter.indicator !== contract.indicatorId) {
+      errors.push(
+        `Built-in filter "${filter.id}" must use indicator "${contract.indicatorId}", not "${filter.indicator}".`,
+      );
+    }
+    if (filter.id === "rsi_level_filter") {
+      const roleCode = filter.role === "setup" ? setupCode : execCode;
+      if (!/\bB4_RSI\s*\(/.test(roleCode)) {
+        errors.push("rsi_level_filter is declared but the filtered brain does not call B4_RSI().");
+      }
+      if (!/\bB4_Buf\s*\([^,]+,\s*0\s*,\s*1\s*\)/.test(roleCode)) {
+        errors.push(
+          "rsi_level_filter is declared but the filtered brain does not read RSI buffer 0 at shift 1 with B4_Buf().",
+        );
+      }
+    }
+    if (filter.id === "atr_volatility_filter") {
+      const roleCode = filter.role === "setup" ? setupCode : execCode;
+      if (!/\bB4_ATR\s*\(/.test(roleCode)) {
+        errors.push(
+          "atr_volatility_filter is declared but the filtered brain does not call B4_ATR().",
+        );
+      }
+      if (!/\bB4_Buf\s*\([^,]+,\s*0\s*,\s*1\s*\)/.test(roleCode)) {
+        errors.push(
+          "atr_volatility_filter is declared but the filtered brain does not read ATR buffer 0 at shift 1 with B4_Buf().",
+        );
+      }
+      if (!/\bSYMBOL_POINT\b|\bPoint\s*\(\s*\)/.test(roleCode)) {
+        errors.push(
+          "atr_volatility_filter is declared but the filtered brain does not convert ATR price distance to points.",
+        );
+      }
+    }
+    if (filter.id === "macd_histogram_filter") {
+      const roleCode = filter.role === "setup" ? setupCode : execCode;
+      if (!/\bB4_MACD\s*\(/.test(roleCode)) {
+        errors.push(
+          "macd_histogram_filter is declared but the filtered brain does not call B4_MACD().",
+        );
+      }
+      if (!/\bB4_Buf\s*\(/.test(roleCode)) {
+        errors.push(
+          "macd_histogram_filter is declared but the filtered brain does not read MACD buffers with B4_Buf().",
+        );
+      }
+      if (!/(macd\w*\s*[-+]\s*macd\w*|>\s*0\.0|<\s*0\.0|>=\s*0\.0|<=\s*0\.0)/i.test(roleCode)) {
+        errors.push(
+          "macd_histogram_filter is declared but the filtered brain does not apply a MACD zero-line or main/signal comparison.",
+        );
+      }
     }
   }
 
@@ -867,11 +1157,13 @@ export function normalizeAiResponse(
   parsed: Record<string, unknown>,
   fullText: string,
   config?: FourBrainConfig,
+  filterRefs?: BuiltinFilterRef[],
 ): AiBrainWiringResponse {
   const response = parsed as unknown as AiBrainWiringResponse;
   if (!response.semantics || typeof response.semantics !== "object") {
     response.semantics = inferLocalSemantics(fullText, config);
   }
+  applyBuiltinFilters(response, fullText, filterRefs);
   response.validation = validateWiringAgainstSemantics(response);
   const repair = buildModuleRepairPlan(response.semantics.modules ?? []);
   if (repair.hasBlockedModules) response.repair = repair;
@@ -888,6 +1180,7 @@ export function buildEmaTestThenIfvgFormationWiring(
   const retestTarget = extractEmaRetestTarget(text, fast, slow, config);
   const retestCondition = emaRetestCondition(retestTarget);
   const retestLabel = emaRetestLabel(retestTarget, fast, slow);
+  const retestPoints = extractRetestTolerancePoints(text, config);
   const params = {
     ...(config?.setup?.params ?? {}),
     ...(config?.execution?.params ?? {}),
@@ -946,8 +1239,9 @@ void Direction_Brain_Execute() {
    int hSlow = B4_MA(${TF}, ${slow}, MODE_EMA);
    double fastMa = B4_MAval(hFast, 1), slowMa = B4_MAval(hSlow, 1);
    double hi = iHigh(InpSymbol, ${TF}, 1), lo = iLow(InpSymbol, ${TF}, 1);
-   bool touchedFast = (lo <= fastMa && hi >= fastMa);
-   bool touchedSlow = (lo <= slowMa && hi >= slowMa);
+   double retestTol = ${retestPoints} * SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   bool touchedFast = (lo <= fastMa + retestTol && hi >= fastMa - retestTol);
+   bool touchedSlow = (lo <= slowMa + retestTol && hi >= slowMa - retestTol);
    if(gEmaIfvgTestTime_${tf} == 0 && gEmaIfvgCrossTime_${tf} > 0 && barTime > gEmaIfvgCrossTime_${tf} && ${retestCondition}) {
       gEmaIfvgTestTime_${tf} = barTime;
       PrintFormat("[SETUP] EMA test accepted target=${retestLabel} at %s fastTouch=%d slowTouch=%d",
@@ -999,6 +1293,7 @@ void Direction_Brain_Execute() {
     },
     notes: `Deterministic adapter: ${fast}/${slow} EMA cross on ${tf} sets direction, the EMA test target is ${retestLabel}, and only iFVG formations after that EMA-test timestamp can trigger entries. The EA uses the verified IFVGSM_${tf} state machine and fires on BullJustInverted/BearJustInverted, not on iFVG retest confirmation.`,
   };
+  applyBuiltinFilters(response, text);
   response.validation = validateWiringAgainstSemantics(response);
   return response;
 }
@@ -1015,7 +1310,7 @@ export default async (req: Request): Promise<Response> => {
     return Response.json({ error: "Invalid JSON body" }, { status: 400, headers: CORS });
   }
 
-  const { config, eaName, description, prompt, allowUnsafeModules } = body;
+  const { config, eaName, description, prompt, filterRefs, allowUnsafeModules } = body;
   const fullText = [
     prompt,
     description,
@@ -1042,7 +1337,10 @@ export default async (req: Request): Promise<Response> => {
   }
 
   if (isEmaTestThenIfvgFormation(fullText, config)) {
-    return Response.json(buildEmaTestThenIfvgFormationWiring(fullText, config), {
+    const response = buildEmaTestThenIfvgFormationWiring(fullText, config);
+    applyBuiltinFilters(response, fullText, filterRefs);
+    response.validation = validateWiringAgainstSemantics(response);
+    return Response.json(response, {
       headers: { ...CORS, "Content-Type": "application/json" },
     });
   }
@@ -1155,7 +1453,7 @@ In "notes", explain how you mapped their module selections to state machines.`;
       parsed = JSON.parse(match[0]);
     }
 
-    return Response.json(normalizeAiResponse(parsed, fullText, config), {
+    return Response.json(normalizeAiResponse(parsed, fullText, config, filterRefs), {
       headers: { ...CORS, "Content-Type": "application/json" },
     });
   } catch (err) {

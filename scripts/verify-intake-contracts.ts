@@ -59,6 +59,15 @@ function indicatorIdsOf(blueprint: Blueprint): string[] {
   });
 }
 
+function filterRefsOf(blueprint: Blueprint): Array<Record<string, unknown>> {
+  const refs = blueprint.filterRefs;
+  assertOk(Array.isArray(refs), "expected filterRefs array");
+  return refs.map((ref) => {
+    assertOk(ref && typeof ref === "object", "expected filter ref object");
+    return ref as Record<string, unknown>;
+  });
+}
+
 const baseBlueprint = {
   version: "2.0",
   name: "Fixture",
@@ -297,7 +306,61 @@ const cases: ContractCase[] = [
       assertOk(ids.includes("rsi"), "RSI should be recognized");
       assertOk(ids.includes("macd"), "MACD should be recognized");
       assertOk(ids.includes("atr"), "ATR should be recognized");
+      const filters = filterRefsOf(blueprint);
+      const filterIds = filters.map((ref) => String(ref.id));
+      assertOk(filterIds.includes("rsi_level_filter"), "RSI filter should be recognized");
+      assertOk(filterIds.includes("macd_histogram_filter"), "MACD filter should be recognized");
+      assertOk(filterIds.includes("atr_volatility_filter"), "ATR filter should be recognized");
       assertOk(!blueprint.fourBrain, "built-in filters alone must not create a fake 4-Brain EA");
+    },
+  },
+  {
+    name: "raw text filter refs extract configured RSI ATR and MACD filters",
+    run: () => {
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          rules: [],
+          summary:
+            "Use RSI 14 above 50, ATR 14 above 100 points, and MACD histogram above zero as filters on M15.",
+        }),
+      );
+
+      const filters = filterRefsOf(blueprint);
+      const rsi = filters.find((ref) => ref.id === "rsi_level_filter");
+      const atr = filters.find((ref) => ref.id === "atr_volatility_filter");
+      const macd = filters.find((ref) => ref.id === "macd_histogram_filter");
+      assertOk(rsi, "RSI filter missing");
+      assertOk(atr, "ATR filter missing");
+      assertOk(macd, "MACD filter missing");
+      assertEq((rsi.params as Record<string, unknown>).level, 50, "RSI level");
+      assertEq((atr.params as Record<string, unknown>).minAtrPoints, 100, "ATR min points");
+      assertEq((macd.params as Record<string, unknown>).operator, "above_zero", "MACD operator");
+      assertEq(rsi.appliesTo, "execution", "default RSI placement");
+      assertEq(atr.appliesTo, "execution", "default ATR placement");
+      assertEq(macd.appliesTo, "execution", "default MACD placement");
+      assertOk(!blueprint.fourBrain, "filter-only text must not create fake 4-Brain EA");
+    },
+  },
+  {
+    name: "raw text filter refs preserve setup versus execution placement",
+    run: () => {
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          rules: [],
+          summary:
+            "RSI 14 above 50 must confirm the setup. MACD histogram above zero must pass before entry.",
+        }),
+      );
+
+      const filters = filterRefsOf(blueprint);
+      const rsi = filters.find((ref) => ref.id === "rsi_level_filter");
+      const macd = filters.find((ref) => ref.id === "macd_histogram_filter");
+      assertOk(rsi, "RSI filter missing");
+      assertOk(macd, "MACD filter missing");
+      assertEq(rsi.appliesTo, "setup", "RSI setup placement");
+      assertEq(macd.appliesTo, "execution", "MACD execution placement");
     },
   },
   {
@@ -335,6 +398,73 @@ const cases: ContractCase[] = [
       assertEq(management.breakEvenEnabled, true, "breakeven enabled");
       assertEq(management.breakEvenAtR, 1.5, "breakeven R");
       assertEq(management.maxStopPoints, 70, "max stop points");
+    },
+  },
+  {
+    name: "raw text extraction preserves advanced module parameters and audit",
+    run: () => {
+      const prompt = `
+        M5 only. 12 EMA crosses 48 EMA for direction.
+        Price must test only the 48 EMA within 3 points before setup is valid.
+        Only IFVGs that form after the EMA test are valid. IFVG zones expire after 35 bars.
+        Enter when the IFVG forms, not on a later retest.
+      `;
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          rules: [],
+          summary: "EMA IFVG strategy.",
+        }),
+        prompt,
+      );
+
+      const fb = fourBrainOf(blueprint);
+      const setupParams = paramsOf(brainOf(fb, "setup"));
+      const executionParams = paramsOf(brainOf(fb, "execution"));
+      assertEq(setupParams.retestTarget, "slow", "setup retest target");
+      assertEq(setupParams.retestPoints, 3, "setup retest tolerance");
+      assertEq(executionParams.expiryBars, 35, "IFVG expiry bars");
+      assertEq(executionParams.entryEvent, "formation", "IFVG entry event");
+      assertOk(Array.isArray(blueprint.blueprintAudit), "blueprint audit missing");
+      const auditCodes = (blueprint.blueprintAudit as Array<Record<string, unknown>>).map((item) =>
+        String(item.code),
+      );
+      assertOk(auditCodes.includes("ema_retest_target_preserved"), "EMA audit missing");
+      assertOk(auditCodes.includes("ifvg_entry_event_preserved"), "IFVG audit missing");
+      assertOk(auditCodes.includes("expiry_bars_preserved"), "expiry audit missing");
+    },
+  },
+  {
+    name: "raw text extraction preserves BOS lookback and swing strength",
+    run: () => {
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          rules: [
+            {
+              id: "d1_bos_bias",
+              type: "bos",
+              side: "both",
+              label: "D1 BOS sets direction using lookback 80 bars and swing length 7.",
+              parameters: { timeframe: "D1" },
+              compilable: true,
+            },
+            {
+              id: "m5_breakout_entry",
+              type: "breakout_high",
+              side: "both",
+              label: "M5 breakout is the entry trigger.",
+              parameters: { timeframe: "M5" },
+              compilable: true,
+            },
+          ],
+        }),
+      );
+
+      const fb = fourBrainOf(blueprint);
+      const directionParams = paramsOf(brainOf(fb, "direction"));
+      assertEq(directionParams.lookback, 80, "BOS lookback");
+      assertEq(directionParams.swingLen, 7, "BOS swing length");
     },
   },
   {

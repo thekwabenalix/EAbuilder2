@@ -529,7 +529,12 @@ function InterviewPanel({
 
 function BlueprintExplanationPanel({ blueprint }: { blueprint: StrategyBlueprint }) {
   const explanation = explainBlueprintExtraction(blueprint);
-  if (explanation.brains.length === 0) return null;
+  if (
+    explanation.brains.length === 0 &&
+    explanation.indicators.length === 0 &&
+    explanation.filters.length === 0
+  )
+    return null;
 
   const statusTone = {
     ok: "border-emerald-500/30 text-emerald-300 bg-emerald-500/10",
@@ -613,6 +618,47 @@ function BlueprintExplanationPanel({ blueprint }: { blueprint: StrategyBlueprint
                 className="text-[10px] px-1.5 py-0.5 rounded border border-sky-500/30 bg-sky-500/10 text-sky-300"
               >
                 {item.label}: {item.value}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {explanation.filters.length > 0 && (
+        <div className="rounded border border-emerald-500/25 bg-emerald-500/5 p-2.5">
+          <p className="text-[10px] uppercase tracking-wide text-emerald-300">
+            Verified Built-in Filters
+          </p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Recognized as safe filter contracts. They gate existing setup or execution logic and are
+            not treated as standalone 4-Brain modules.
+          </p>
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {explanation.filters.map((item) => (
+              <span
+                key={`${item.label}-${item.value}`}
+                className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+              >
+                {item.label}: {item.value}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {explanation.audit.length > 0 && (
+        <div className="rounded border border-cyan-500/25 bg-cyan-500/5 p-2.5">
+          <p className="text-[10px] uppercase tracking-wide text-cyan-300">Blueprint Audit</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Deterministic checks that preserve exact trader intent before EA generation.
+          </p>
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {explanation.audit.map((item) => (
+              <span
+                key={`${item.label}-${item.value}`}
+                className={`text-[10px] px-1.5 py-0.5 rounded border ${statusTone[item.status]}`}
+              >
+                {item.value}
               </span>
             ))}
           </div>

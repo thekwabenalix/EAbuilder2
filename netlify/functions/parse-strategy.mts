@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { jsonrepair } from "jsonrepair";
 import { collectBuiltinIndicatorRefs } from "../../src/lib/indicator-boundary.js";
+import { collectBuiltinFilterRefs } from "../../src/lib/builtin-filter-contracts.js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -413,30 +414,116 @@ function extractEmaRetestTargetFromText(
   fastPeriod: number,
   slowPeriod: number,
 ): "fast" | "slow" | "either" | undefined {
-  if (/\b(either|any|both)\b.{0,40}\bema\b/.test(text)) return "either";
+  const hay = text.toLowerCase().replace(/[–—]/g, "-");
+  if (/\b(either|any|both)\b.{0,40}\bema\b/.test(hay)) return "either";
   const fastOnly = [
     new RegExp(`\\bonly\\s+(?:the\\s+)?${fastPeriod}\\s*(?:period\\s*)?ema\\b`),
     new RegExp(`\\b${fastPeriod}\\s*(?:period\\s*)?ema\\s+only\\b`),
     new RegExp(`\\btest\\s+(?:the\\s+)?${fastPeriod}\\s*(?:period\\s*)?ema\\b`),
+    /\bonly\s+(?:the\s+)?fast\s+ema\b/,
+    /\bfast\s+ema\s+only\b/,
   ];
   const slowOnly = [
     new RegExp(`\\bonly\\s+(?:the\\s+)?${slowPeriod}\\s*(?:period\\s*)?ema\\b`),
     new RegExp(`\\b${slowPeriod}\\s*(?:period\\s*)?ema\\s+only\\b`),
     new RegExp(`\\btest\\s+(?:the\\s+)?${slowPeriod}\\s*(?:period\\s*)?ema\\b`),
+    /\bonly\s+(?:the\s+)?slow\s+ema\b/,
+    /\bslow\s+ema\s+only\b/,
   ];
-  if (fastOnly.some((pattern) => pattern.test(text))) return "fast";
-  if (slowOnly.some((pattern) => pattern.test(text))) return "slow";
+  if (fastOnly.some((pattern) => pattern.test(hay))) return "fast";
+  if (slowOnly.some((pattern) => pattern.test(hay))) return "slow";
+  return undefined;
+}
+
+function extractNumberNear(text: string, keyword: RegExp): number | undefined {
+  const sentences = text
+    .split(/(?<=[.!?])\s+|[\r\n]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  for (const sentence of sentences) {
+    if (!keyword.test(sentence)) continue;
+    const match = sentence.match(/\b(\d+(?:\.\d+)?)\b/);
+    if (match) return Number(match[1]);
+  }
+  return undefined;
+}
+
+function extractBarsParam(text: string, words: RegExp): number | undefined {
+  const sentences = text
+    .split(/(?<=[.!?])\s+|[\r\n]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  for (const sentence of sentences) {
+    if (!words.test(sentence)) continue;
+    const match =
+      sentence.match(/\b(\d{1,4})\s*(?:bars?|candles?)\b/i) ??
+      sentence.match(/\b(?:bars?|candles?)\D{0,20}(\d{1,4})\b/i);
+    if (match) return Number(match[1]);
+  }
+  return undefined;
+}
+
+function extractExpiryBarsFromText(text: string): number | undefined {
+  return extractBarsParam(text, /\b(expir|valid|stale|cancel|timeout)\w*\b/i);
+}
+
+function extractLookbackFromText(text: string): number | undefined {
+  return extractBarsParam(text, /\b(lookback|look\s*back|scan|last)\b/i);
+}
+
+function extractSwingLenFromText(text: string): number | undefined {
+  const explicit = text.match(
+    /\b(?:swing\s*(?:length|len)|pivot\s*(?:strength|length)|fractal\s*(?:strength|length))\D{0,20}(\d{1,3})\b/i,
+  );
+  if (explicit) return Number(explicit[1]);
+  const before = text.match(
+    /\b(\d{1,3})\s*(?:bar|candle)?\s*(?:swing|pivot|fractal)\s*(?:length|strength)?\b/i,
+  );
+  return before ? Number(before[1]) : undefined;
+}
+
+function extractRetestTolerancePoints(text: string): number | undefined {
+  const pointMatch = text.match(
+    /\b(?:within|tolerance|buffer)\D{0,25}(\d+(?:\.\d+)?)\s*points?\b/i,
+  );
+  if (pointMatch) return Number(pointMatch[1]);
+  const pipMatch = text.match(/\b(?:within|tolerance|buffer)\D{0,25}(\d+(?:\.\d+)?)\s*pips?\b/i);
+  return pipMatch ? Number(pipMatch[1]) * 10 : undefined;
+}
+
+function extractIfvgEntryEventFromText(text: string): "formation" | "retest" | undefined {
+  const hay = text.toLowerCase();
+  const retestEntry =
+    /\b(?:enter|entry|trigger|execute).{0,80}\b(?:retest|return\s+to|tap|touch)\b.{0,60}\b(?:ifvg|inversion\s+fvg|inversion\s+fair\s+value\s+gap)\b/.test(
+      hay,
+    ) ||
+    /\b(?:ifvg|inversion\s+fvg|inversion\s+fair\s+value\s+gap).{0,80}\b(?:retest|return\s+to|tap|touch)\b.{0,60}\b(?:entry|enter|trigger|execute)\b/.test(
+      hay,
+    );
+  if (retestEntry) return "retest";
+  if (
+    /\b(?:ifvg|inversion\s+fvg|inversion\s+fair\s+value\s+gap)\b/.test(hay) &&
+    /\b(forms?|formation|becomes?|inverts?|inversion|closes?\s+(?:above|below).{0,80}(?:boundary|fvg|gap))\b/.test(
+      hay,
+    )
+  ) {
+    return "formation";
+  }
   return undefined;
 }
 
 function syntheticRulesFromText(text: string, fallbackTf: string): Record<string, unknown>[] {
   const rules: Record<string, unknown>[] = [];
   const hasEma = /\bema\b|exponential moving average/.test(text);
-  const hasIfvg =
-    /\bifvg\b|inversion fvg|inversion fair value gap|inverted fair value gap/.test(text);
+  const hasIfvg = /\bifvg\b|inversion fvg|inversion fair value gap|inverted fair value gap/.test(
+    text,
+  );
   const hasRetest = /\bretest\b|\btest\b|\btouch\b/.test(text);
   const { fastPeriod, slowPeriod } = extractEmaPeriodsFromText(text);
   const retestTarget = extractEmaRetestTargetFromText(text, fastPeriod, slowPeriod);
+  const retestPoints = extractRetestTolerancePoints(text);
+  const expiryBars = extractExpiryBarsFromText(text);
+  const entryEvent = extractIfvgEntryEventFromText(text);
 
   if (hasEma && /\bcross/.test(text)) {
     rules.push({
@@ -459,6 +546,7 @@ function syntheticRulesFromText(text: string, fallbackTf: string): Record<string
         fastPeriod,
         slowPeriod,
         ...(retestTarget ? { retestTarget } : {}),
+        ...(retestPoints !== undefined ? { retestPoints } : {}),
       },
     });
   }
@@ -469,7 +557,11 @@ function syntheticRulesFromText(text: string, fallbackTf: string): Record<string
       type: "ifvg_entry",
       side: "both",
       label: "IFVG formation is the execution trigger.",
-      parameters: { timeframe: fallbackTf, expiryBars: 100 },
+      parameters: {
+        timeframe: fallbackTf,
+        expiryBars: expiryBars ?? 100,
+        ...(entryEvent ? { entryEvent } : {}),
+      },
     });
   }
 
@@ -480,9 +572,11 @@ function enrichBrainFromText(
   brain: ReturnType<typeof cleanBrain>,
   sourceText: string,
 ): ReturnType<typeof cleanBrain> {
-  if (!brain?.modules.includes("ema")) return brain;
+  if (!brain) return brain;
+  if (!brain.modules.includes("ema")) return enrichNonEmaBrainFromText(brain, sourceText);
   const { fastPeriod, slowPeriod } = extractEmaPeriodsFromText(sourceText);
   const retestTarget = extractEmaRetestTargetFromText(sourceText, fastPeriod, slowPeriod);
+  const retestPoints = extractRetestTolerancePoints(sourceText);
   return {
     ...brain,
     params: {
@@ -490,12 +584,60 @@ function enrichBrainFromText(
       slowPeriod,
       ...(brain.params ?? {}),
       ...(retestTarget ? { retestTarget } : {}),
+      ...(retestPoints !== undefined ? { retestPoints } : {}),
     },
   };
 }
 
+function enrichNonEmaBrainFromText(
+  brain: ReturnType<typeof cleanBrain>,
+  sourceText: string,
+): ReturnType<typeof cleanBrain> {
+  if (!brain) return brain;
+  const module = brain.modules[0];
+  const params = { ...(brain.params ?? {}) };
+  const expiryBars = extractExpiryBarsFromText(sourceText);
+  const lookback = extractLookbackFromText(sourceText);
+  const swingLen = extractSwingLenFromText(sourceText);
+  const ifvgEntryEvent = extractIfvgEntryEventFromText(sourceText);
+
+  if (
+    (module === "fvg" || module === "fvg_inversion" || module === "order_block") &&
+    expiryBars !== undefined
+  ) {
+    params.expiryBars = expiryBars;
+  }
+  if (
+    [
+      "bos",
+      "choch",
+      "bos_choch",
+      "liqsweep",
+      "snr",
+      "gap_snr",
+      "breakout",
+      "rejection",
+      "miss",
+      "rsi_hd",
+    ].includes(module) &&
+    lookback !== undefined
+  ) {
+    params.lookback = lookback;
+  }
+  if (["bos", "choch", "bos_choch"].includes(module) && swingLen !== undefined) {
+    params.swingLen = swingLen;
+  }
+  if (module === "fvg_inversion" && ifvgEntryEvent) {
+    params.entryEvent = ifvgEntryEvent;
+  }
+
+  return { ...brain, params };
+}
+
 function extractRewardRisk(text: string): number | undefined {
-  const colon = text.match(/\b(?:rr|r:r|risk[-\s]*to[-\s]*reward|risk reward)\D{0,10}1\s*[:/]\s*(\d+(?:\.\d+)?)\b/);
+  const colon = text.match(
+    /\b(?:rr|r:r|risk[-\s]*to[-\s]*reward|risk reward)\D{0,10}1\s*[:/]\s*(\d+(?:\.\d+)?)\b/,
+  );
   if (colon) return Number(colon[1]);
   const takeProfitColon = text.match(/\b(?:tp|take profit)\D{0,20}1\s*[:/]\s*(\d+(?:\.\d+)?)\b/);
   if (takeProfitColon) return Number(takeProfitColon[1]);
@@ -514,9 +656,13 @@ function mentionsBreakEven(text: string): boolean {
 }
 
 function extractMaxStopPoints(text: string): number | undefined {
-  const pointMatch = text.match(/\b(?:max(?:imum)?\s+)?stop(?:\s+loss)?\D{0,30}(\d+(?:\.\d+)?)\s*points?\b/);
+  const pointMatch = text.match(
+    /\b(?:max(?:imum)?\s+)?stop(?:\s+loss)?\D{0,30}(\d+(?:\.\d+)?)\s*points?\b/,
+  );
   if (pointMatch) return Number(pointMatch[1]);
-  const pipMatch = text.match(/\b(?:max(?:imum)?\s+)?stop(?:\s+loss)?\D{0,30}(\d+(?:\.\d+)?)\s*pips?\b/);
+  const pipMatch = text.match(
+    /\b(?:max(?:imum)?\s+)?stop(?:\s+loss)?\D{0,30}(\d+(?:\.\d+)?)\s*pips?\b/,
+  );
   if (pipMatch) return Number(pipMatch[1]) * 10;
   return undefined;
 }
@@ -527,9 +673,7 @@ function paramsFromRule(rule: Record<string, unknown>, module: string): Record<s
     const text = ruleText(rule);
     const fastPeriod =
       paramNumber(params, ["fastPeriod", "fast", "shortPeriod", "periodFast"]) ??
-      (text.match(/\b(\d+)\s*ema\b/)
-        ? Number(text.match(/\b(\d+)\s*ema\b/)![1])
-        : undefined) ??
+      (text.match(/\b(\d+)\s*ema\b/) ? Number(text.match(/\b(\d+)\s*ema\b/)![1]) : undefined) ??
       12;
     const slowPeriod =
       paramNumber(params, ["slowPeriod", "slow", "longPeriod", "periodSlow"]) ??
@@ -541,22 +685,51 @@ function paramsFromRule(rule: Record<string, unknown>, module: string): Record<s
       typeof params.retestTarget === "string" ? params.retestTarget : undefined;
     const retestTarget =
       configuredTarget ?? extractEmaRetestTargetFromText(text, fastPeriod, slowPeriod);
-    return { fastPeriod, slowPeriod, ...(retestTarget ? { retestTarget } : {}) };
+    const retestPoints =
+      paramNumber(params, ["retestPoints", "tolerancePoints", "touchTolerancePoints"]) ??
+      extractRetestTolerancePoints(text);
+    return {
+      fastPeriod,
+      slowPeriod,
+      ...(retestTarget ? { retestTarget } : {}),
+      ...(retestPoints !== undefined ? { retestPoints } : {}),
+    };
   }
   if (module === "fvg" || module === "fvg_inversion") {
-    return { expiryBars: paramNumber(params, ["expiryBars", "expiry", "setupExpiryBars"], 100) };
+    const text = ruleText(rule);
+    return {
+      expiryBars:
+        paramNumber(params, ["expiryBars", "expiry", "setupExpiryBars"]) ??
+        extractExpiryBarsFromText(text) ??
+        100,
+      ...(module === "fvg_inversion"
+        ? {
+            entryEvent:
+              (typeof params.entryEvent === "string" ? params.entryEvent : undefined) ??
+              extractIfvgEntryEventFromText(text) ??
+              "formation",
+          }
+        : {}),
+    };
   }
   if (module === "bos" || module === "choch" || module === "bos_choch") {
+    const text = ruleText(rule);
     return {
-      lookback: paramNumber(params, ["lookback", "lookbackBars"], 20),
-      swingLen: paramNumber(params, ["swingLen", "pivotStrength", "pivot"], 5),
+      lookback:
+        paramNumber(params, ["lookback", "lookbackBars"]) ?? extractLookbackFromText(text) ?? 20,
+      swingLen:
+        paramNumber(params, ["swingLen", "pivotStrength", "pivot"]) ??
+        extractSwingLenFromText(text) ??
+        5,
     };
   }
   if (module === "order_block") {
+    const text = ruleText(rule);
     return {
       dispMult: paramNumber(params, ["dispMult", "displacement"], 0.6),
       scanBack: paramNumber(params, ["scanBack"], 5),
-      expiryBars: paramNumber(params, ["expiryBars", "expiry"], 100),
+      expiryBars:
+        paramNumber(params, ["expiryBars", "expiry"]) ?? extractExpiryBarsFromText(text) ?? 100,
     };
   }
   return {};
@@ -668,6 +841,82 @@ function inferFourBrain(blueprint: Record<string, unknown>, sourceText = "") {
   };
 }
 
+function auditBlueprintIntent(
+  blueprint: Record<string, unknown>,
+  corpus: string,
+): Array<{
+  code: string;
+  severity: "info" | "warn" | "error";
+  message: string;
+}> {
+  const audit: Array<{
+    code: string;
+    severity: "info" | "warn" | "error";
+    message: string;
+  }> = [];
+  const fb = blueprint.fourBrain;
+  if (!fb || typeof fb !== "object") return audit;
+  const raw = fb as Record<string, unknown>;
+  const setup =
+    raw.setup && typeof raw.setup === "object" ? (raw.setup as Record<string, unknown>) : undefined;
+  const execution =
+    raw.execution && typeof raw.execution === "object"
+      ? (raw.execution as Record<string, unknown>)
+      : undefined;
+  const setupParams =
+    setup?.params && typeof setup.params === "object"
+      ? (setup.params as Record<string, unknown>)
+      : {};
+  const executionParams =
+    execution?.params && typeof execution.params === "object"
+      ? (execution.params as Record<string, unknown>)
+      : {};
+  const { fastPeriod, slowPeriod } = extractEmaPeriodsFromText(corpus);
+  const textRetestTarget = extractEmaRetestTargetFromText(corpus, fastPeriod, slowPeriod);
+  const finalRetestTarget = String(setupParams.retestTarget ?? "");
+
+  if (textRetestTarget && finalRetestTarget === textRetestTarget) {
+    audit.push({
+      code: "ema_retest_target_preserved",
+      severity: "info",
+      message: `EMA retest target preserved as ${textRetestTarget}.`,
+    });
+  } else if (textRetestTarget && finalRetestTarget && finalRetestTarget !== textRetestTarget) {
+    audit.push({
+      code: "ema_retest_target_mismatch",
+      severity: "error",
+      message: `Prompt implies ${textRetestTarget} EMA retest, but blueprint has ${finalRetestTarget}.`,
+    });
+  }
+
+  const textEntryEvent = extractIfvgEntryEventFromText(corpus);
+  const finalEntryEvent = String(executionParams.entryEvent ?? "");
+  if (textEntryEvent && finalEntryEvent === textEntryEvent) {
+    audit.push({
+      code: "ifvg_entry_event_preserved",
+      severity: "info",
+      message: `IFVG entry event preserved as ${textEntryEvent}.`,
+    });
+  } else if (textEntryEvent && finalEntryEvent && finalEntryEvent !== textEntryEvent) {
+    audit.push({
+      code: "ifvg_entry_event_mismatch",
+      severity: "error",
+      message: `Prompt implies IFVG ${textEntryEvent} entry, but blueprint has ${finalEntryEvent}.`,
+    });
+  }
+
+  const expiryBars = extractExpiryBarsFromText(corpus);
+  if (expiryBars !== undefined && executionParams.expiryBars === expiryBars) {
+    audit.push({
+      code: "expiry_bars_preserved",
+      severity: "info",
+      message: `Expiry preserved as ${expiryBars} bars.`,
+    });
+  }
+
+  return audit;
+}
+
 export function normalizeBlueprint(
   blueprint: Record<string, unknown>,
   sourceText = "",
@@ -677,6 +926,13 @@ export function normalizeBlueprint(
     blueprint.indicatorRefs = indicatorRefs;
   } else {
     delete blueprint.indicatorRefs;
+  }
+
+  const filterRefs = collectBuiltinFilterRefs(blueprintIndicatorText(blueprint, sourceText));
+  if (filterRefs.length > 0) {
+    blueprint.filterRefs = filterRefs;
+  } else {
+    delete blueprint.filterRefs;
   }
 
   if (!blueprint.fourBrain) {
@@ -732,6 +988,10 @@ export function normalizeBlueprint(
       maxStopPoints: maxStopPointsFromText ?? num(rawMgmt.maxStopPoints, 0),
     },
   };
+
+  const audit = auditBlueprintIntent(blueprint, corpus);
+  if (audit.length > 0) blueprint.blueprintAudit = audit;
+  else delete blueprint.blueprintAudit;
 
   if (typeof blueprint.strategyNotes !== "string") blueprint.strategyNotes = "";
   return blueprint;

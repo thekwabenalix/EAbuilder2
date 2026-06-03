@@ -36,6 +36,7 @@ import { genEmaSM } from "./gen-ema-sm";
 import { genEgSM } from "./gen-eg-sm";
 import type { AiBrainWiring } from "@/lib/api-client";
 import { getModuleContract } from "@/lib/module-contracts";
+import type { BuiltinFilterRef } from "@/lib/builtin-filter-contracts";
 
 /** Collect all unique TFs that need an iFVG state machine instance. */
 function collectIfvgTFs(config: FourBrainConfig): Map<string, string> {
@@ -478,6 +479,15 @@ function buildAiAuditHeader(aiWiring?: AiBrainWiring): string {
       `//| AI entry     : ${truncateAudit(`${semantics.execution.module} ${semantics.execution.entryEvent}`)}`,
     );
   }
+  if (semantics?.filters?.length) {
+    lines.push(
+      `//| AI filters   : ${truncateAudit(
+        semantics.filters
+          .map((filter) => `${filter.id} ${filter.role} ${filter.timeframe}`)
+          .join(" | "),
+      )}`,
+    );
+  }
   if (semantics?.assumptions?.length) {
     lines.push(`//| AI assumes   : ${truncateAudit(semantics.assumptions.join(" | "))}`);
   }
@@ -486,8 +496,126 @@ function buildAiAuditHeader(aiWiring?: AiBrainWiring): string {
   return lines.join("\n");
 }
 
+function injectBeforeFinalBrace(code: string, snippet: string): string {
+  if (!snippet.trim()) return code;
+  const idx = code.lastIndexOf("}");
+  if (idx < 0) return `${code}\n${snippet}`;
+  return `${code.slice(0, idx)}${snippet}\n${code.slice(idx)}`;
+}
+
+function filterNum(params: Record<string, unknown>, key: string, fallback: number): number {
+  const value = params[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function filterStr(params: Record<string, unknown>, key: string, fallback: string): string {
+  const value = params[key];
+  return typeof value === "string" && value ? value : fallback;
+}
+
+function filterPlacement(filter: BuiltinFilterRef): "setup" | "execution" {
+  return filter.appliesTo === "setup" ? "setup" : "execution";
+}
+
+function templateFilterSnippet(filter: BuiltinFilterRef, index: number): string {
+  const params = filter.params ?? {};
+  const tf = tfConst(filter.timeframe || "M5");
+  const suffix = `${filter.id}_${filter.timeframe}_${index}`.replace(/[^A-Za-z0-9_]/g, "_");
+  const placement = filterPlacement(filter);
+  const target = placement === "setup" ? "gSetupActive" : "gExecSignal";
+  const direction = placement === "setup" ? "gSetupDir" : "gExecDir";
+
+  if (filter.id === "rsi_level_filter") {
+    const period = filterNum(params, "period", 14);
+    const level = filterNum(params, "level", 50);
+    const operator = filterStr(params, "operator", "directional");
+    const condition =
+      operator === "above"
+        ? `rsi_${suffix} > ${level}`
+        : operator === "below"
+          ? `rsi_${suffix} < ${level}`
+          : `(${direction} == 1 && rsi_${suffix} > ${level}) || (${direction} == -1 && rsi_${suffix} < ${level})`;
+    return `
+   // Verified built-in ${placement} filter: RSI level
+   int hRsi_${suffix} = B4_RSI(${tf}, ${period});
+   double rsi_${suffix} = B4_Buf(hRsi_${suffix}, 0, 1);
+   if(${target} && !(${condition})) {
+      PrintFormat("[FILTER] rsi_level_filter blocked: RSI %.2f", rsi_${suffix});
+      ${target} = false;
+   }`;
+  }
+
+  if (filter.id === "atr_volatility_filter") {
+    const period = filterNum(params, "period", 14);
+    const minAtr = filterNum(params, "minAtrPoints", 0);
+    const maxAtr = filterNum(params, "maxAtrPoints", 0);
+    const operator = filterStr(params, "operator", minAtr > 0 ? "above" : "below");
+    const condition =
+      operator === "below"
+        ? maxAtr > 0
+          ? `atrPts_${suffix} <= ${maxAtr}`
+          : "true"
+        : operator === "between"
+          ? `(${minAtr <= 0 ? "true" : `atrPts_${suffix} >= ${minAtr}`}) && (${maxAtr <= 0 ? "true" : `atrPts_${suffix} <= ${maxAtr}`})`
+          : minAtr > 0
+            ? `atrPts_${suffix} >= ${minAtr}`
+            : "true";
+    return `
+   // Verified built-in ${placement} filter: ATR volatility
+   int hAtr_${suffix} = B4_ATR(${tf}, ${period});
+   double atrPts_${suffix} = B4_Buf(hAtr_${suffix}, 0, 1) / SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   if(${target} && !(${condition})) {
+      PrintFormat("[FILTER] atr_volatility_filter blocked: ATR %.1f points", atrPts_${suffix});
+      ${target} = false;
+   }`;
+  }
+
+  if (filter.id === "macd_histogram_filter") {
+    const fast = filterNum(params, "fastPeriod", 12);
+    const slow = filterNum(params, "slowPeriod", 26);
+    const signal = filterNum(params, "signalPeriod", 9);
+    const operator = filterStr(params, "operator", "directional");
+    const condition =
+      operator === "above_zero"
+        ? `macdHist_${suffix} > 0.0`
+        : operator === "below_zero"
+          ? `macdHist_${suffix} < 0.0`
+          : `(${direction} == 1 && macdHist_${suffix} > 0.0) || (${direction} == -1 && macdHist_${suffix} < 0.0)`;
+    return `
+   // Verified built-in ${placement} filter: MACD histogram
+   int hMacd_${suffix} = B4_MACD(${tf}, ${fast}, ${slow}, ${signal});
+   double macdMain_${suffix} = B4_Buf(hMacd_${suffix}, 0, 1);
+   double macdSignal_${suffix} = B4_Buf(hMacd_${suffix}, 1, 1);
+   double macdHist_${suffix} = macdMain_${suffix} - macdSignal_${suffix};
+   if(${target} && !(${condition})) {
+      PrintFormat("[FILTER] macd_histogram_filter blocked: histogram %.5f", macdHist_${suffix});
+      ${target} = false;
+   }`;
+  }
+
+  return "";
+}
+
+function buildTemplateBuiltinFilterCode(
+  filterRefs: BuiltinFilterRef[] | undefined,
+  placement: "setup" | "execution",
+): string {
+  return (filterRefs ?? [])
+    .filter((filter) => filterPlacement(filter) === placement)
+    .map(templateFilterSnippet)
+    .filter(Boolean)
+    .join("\n");
+}
+
 export function generateEA(params: MQL5CodeGenParams): string {
-  const { eaName, config, globalSymbol = "EURUSD", globalMagic = 990001, aiWiring } = params;
+  const {
+    eaName,
+    config,
+    globalSymbol = "EURUSD",
+    globalMagic = 990001,
+    filterRefs,
+    aiWiring,
+  } = params;
 
   const dirMods = config.direction?.modules?.join(" + ").toUpperCase() ?? "NONE";
   const dirTF = config.direction?.timeframe ?? "D1";
@@ -544,6 +672,14 @@ export function generateEA(params: MQL5CodeGenParams): string {
     dirCode = genDirectionBrain(config.direction);
     setupCode = genSetupBrain(config.setup);
     execCode = genExecutionBrain(config.execution);
+    setupCode = injectBeforeFinalBrace(
+      setupCode,
+      buildTemplateBuiltinFilterCode(filterRefs, "setup"),
+    );
+    execCode = injectBeforeFinalBrace(
+      execCode,
+      buildTemplateBuiltinFilterCode(filterRefs, "execution"),
+    );
   }
 
   const dirTFUpper = (config.direction?.timeframe ?? "").toUpperCase();
@@ -910,6 +1046,61 @@ int B4_Bands(ENUM_TIMEFRAMES tf, int period, int shift, double deviation, ENUM_A
    for(int _i = 0; _i < B4_indCount; _i++)
       if(B4_indKey[_i] == key) return B4_indHandles[_i];
    int h = iBands(InpSymbol, tf, period, shift, deviation, price);
+   if(h == INVALID_HANDLE) return INVALID_HANDLE;
+   B4_RegisterHandle(key, h, 0);
+   return h;
+}
+
+int B4_Stochastic(ENUM_TIMEFRAMES tf, int kPeriod, int dPeriod, int slowing, ENUM_MA_METHOD method = MODE_SMA, ENUM_STO_PRICE priceField = STO_LOWHIGH)
+{
+   string key = StringFormat("STO|%d|%d|%d|%d|%d|%d", (int)tf, kPeriod, dPeriod, slowing, (int)method, (int)priceField);
+   for(int _i = 0; _i < B4_indCount; _i++)
+      if(B4_indKey[_i] == key) return B4_indHandles[_i];
+   int h = iStochastic(InpSymbol, tf, kPeriod, dPeriod, slowing, method, priceField);
+   if(h == INVALID_HANDLE) return INVALID_HANDLE;
+   B4_RegisterHandle(key, h, 1);
+   return h;
+}
+
+int B4_ADX(ENUM_TIMEFRAMES tf, int period)
+{
+   string key = StringFormat("ADX|%d|%d", (int)tf, period);
+   for(int _i = 0; _i < B4_indCount; _i++)
+      if(B4_indKey[_i] == key) return B4_indHandles[_i];
+   int h = iADX(InpSymbol, tf, period);
+   if(h == INVALID_HANDLE) return INVALID_HANDLE;
+   B4_RegisterHandle(key, h, 1);
+   return h;
+}
+
+int B4_Ichimoku(ENUM_TIMEFRAMES tf, int tenkan, int kijun, int senkouB)
+{
+   string key = StringFormat("ICH|%d|%d|%d|%d", (int)tf, tenkan, kijun, senkouB);
+   for(int _i = 0; _i < B4_indCount; _i++)
+      if(B4_indKey[_i] == key) return B4_indHandles[_i];
+   int h = iIchimoku(InpSymbol, tf, tenkan, kijun, senkouB);
+   if(h == INVALID_HANDLE) return INVALID_HANDLE;
+   B4_RegisterHandle(key, h, 0);
+   return h;
+}
+
+int B4_SAR(ENUM_TIMEFRAMES tf, double step = 0.02, double maximum = 0.2)
+{
+   string key = StringFormat("SAR|%d|%.4f|%.4f", (int)tf, step, maximum);
+   for(int _i = 0; _i < B4_indCount; _i++)
+      if(B4_indKey[_i] == key) return B4_indHandles[_i];
+   int h = iSAR(InpSymbol, tf, step, maximum);
+   if(h == INVALID_HANDLE) return INVALID_HANDLE;
+   B4_RegisterHandle(key, h, 0);
+   return h;
+}
+
+int B4_Fractals(ENUM_TIMEFRAMES tf)
+{
+   string key = StringFormat("FRACTALS|%d", (int)tf);
+   for(int _i = 0; _i < B4_indCount; _i++)
+      if(B4_indKey[_i] == key) return B4_indHandles[_i];
+   int h = iFractals(InpSymbol, tf);
    if(h == INVALID_HANDLE) return INVALID_HANDLE;
    B4_RegisterHandle(key, h, 0);
    return h;

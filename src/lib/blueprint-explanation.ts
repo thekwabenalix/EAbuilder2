@@ -21,6 +21,8 @@ export interface BlueprintExplanation {
   brains: BrainExplanation[];
   management: BlueprintExplanationItem[];
   indicators: BlueprintExplanationItem[];
+  filters: BlueprintExplanationItem[];
+  audit: BlueprintExplanationItem[];
   blockedModules: BlueprintExplanationItem[];
   summary: string;
 }
@@ -111,6 +113,33 @@ function indicatorItems(blueprint: StrategyBlueprint): BlueprintExplanationItem[
   }));
 }
 
+function filterItems(blueprint: StrategyBlueprint): BlueprintExplanationItem[] {
+  return (blueprint.filterRefs ?? []).map((filter) => ({
+    label: filter.label,
+    value: `${filter.appliesTo ?? "execution"} / ${filter.timeframe} / ${Object.entries(
+      filter.params,
+    )
+      .map(([key, value]) => `${key}=${displayValue(value)}`)
+      .join(", ")}`,
+    status: "ok" as const,
+    source: "system" as const,
+  }));
+}
+
+function auditItems(blueprint: StrategyBlueprint): BlueprintExplanationItem[] {
+  return (blueprint.blueprintAudit ?? []).map((item) => ({
+    label: item.code,
+    value: item.message,
+    status:
+      item.severity === "error"
+        ? ("blocked" as const)
+        : item.severity === "warn"
+          ? ("warn" as const)
+          : ("ok" as const),
+    source: "system" as const,
+  }));
+}
+
 export function explainBlueprintExtraction(blueprint: StrategyBlueprint): BlueprintExplanation {
   const config = blueprint.fourBrain;
   const brains = [
@@ -131,6 +160,8 @@ export function explainBlueprintExtraction(blueprint: StrategyBlueprint): Bluepr
     brains,
     management: managementItems(config),
     indicators: indicatorItems(blueprint),
+    filters: filterItems(blueprint),
+    audit: auditItems(blueprint),
     blockedModules,
     summary,
   };

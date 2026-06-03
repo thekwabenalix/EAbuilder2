@@ -132,6 +132,24 @@ export interface StrategyBlueprint {
     status: "builtin_indicator";
     note: string;
   }>;
+  /** Verified built-in indicator filters extracted from the trader's words. */
+  filterRefs?: Array<{
+    id: string;
+    label: string;
+    indicatorId: string;
+    role: "filter";
+    appliesTo?: "setup" | "execution";
+    timeframe: string;
+    params: Record<string, unknown>;
+    status: "builtin_filter";
+    note: string;
+  }>;
+  /** Deterministic audit notes from strategy intake. These explain preserved or corrected intent. */
+  blueprintAudit?: Array<{
+    code: string;
+    severity: "info" | "warn" | "error";
+    message: string;
+  }>;
 
   /**
    * Optional 4-brain configuration.
@@ -242,6 +260,8 @@ export interface MQL5CodeGenParams {
   config: FourBrainConfig;
   globalSymbol?: string;
   globalMagic?: number;
+  /** Verified built-in filter refs to apply in deterministic/template mode. */
+  filterRefs?: StrategyBlueprint["filterRefs"];
   /** When set, use AI-generated brain wiring instead of template generators. */
   aiWiring?: import("@/lib/api-client").AiBrainWiring;
 }

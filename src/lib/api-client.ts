@@ -264,6 +264,13 @@ export interface AiBrainWiring {
       entryEvent: string;
       mustOccurAfter?: string;
     };
+    filters?: Array<{
+      id: string;
+      role: "setup" | "execution";
+      indicator: string;
+      timeframe: string;
+      params: Record<string, unknown>;
+    }>;
     assumptions: string[];
   };
   validation?: {
@@ -299,6 +306,15 @@ export interface AiBrainWiring {
   notes: string;
 }
 
+export interface BuiltinFilterPayload {
+  id: string;
+  label?: string;
+  indicatorId: string;
+  appliesTo?: "setup" | "execution";
+  timeframe: string;
+  params: Record<string, unknown>;
+}
+
 /**
  * Ask Claude to generate the 4-Brain wiring code using the module library.
  * Config-guided mode: visual builder provided explicit brain config.
@@ -327,8 +343,9 @@ export async function generateAiBrainWiring(
   },
   eaName: string,
   description?: string,
+  filterRefs?: BuiltinFilterPayload[],
 ): Promise<AiBrainWiring> {
-  return post<AiBrainWiring>("/api/gen-4brain-ai", { config, eaName, description });
+  return post<AiBrainWiring>("/api/gen-4brain-ai", { config, eaName, description, filterRefs });
 }
 
 /**
@@ -339,8 +356,9 @@ export async function generateAiBrainWiring(
 export async function generateAiEaFromDescription(
   prompt: string,
   eaName: string,
+  filterRefs?: BuiltinFilterPayload[],
 ): Promise<AiBrainWiring> {
-  return post<AiBrainWiring>("/api/gen-4brain-ai", { prompt, eaName });
+  return post<AiBrainWiring>("/api/gen-4brain-ai", { prompt, eaName, filterRefs });
 }
 
 // ─── Brain param extraction ───────────────────────────────────────────────────

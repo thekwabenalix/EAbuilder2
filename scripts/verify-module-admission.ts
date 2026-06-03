@@ -7,6 +7,7 @@
  */
 import { ALL_BRAIN_MODULES } from "../src/lib/brain-modules";
 import { INDICATOR_REGISTRY } from "../src/lib/indicator-registry";
+import { BUILTIN_FILTER_CONTRACTS } from "../src/lib/builtin-filter-contracts";
 import {
   buildModuleRepairPlan,
   MODULE_ADMISSION,
@@ -30,6 +31,7 @@ const brainIds = ALL_BRAIN_MODULES.map((module) => module.id);
 const contractIds = Object.keys(MODULE_CONTRACTS);
 const admissionIds = Object.keys(MODULE_ADMISSION);
 const indicatorIds = INDICATOR_REGISTRY.map((indicator) => indicator.id);
+const builtinFilterIds = Object.keys(BUILTIN_FILTER_CONTRACTS);
 const emittedDetectorIds = ["rbr_dbd", "mef", "qm_mef", "snrc2", "seg"];
 
 function unique(values: string[]): string[] {
@@ -196,6 +198,31 @@ add(
   "built-in indicators are not admitted as AI modules",
   indicatorsAdmittedAsAiModules.length === 0,
   indicatorsAdmittedAsAiModules.join(", "),
+);
+
+const builtinFiltersAdmittedAsModules = builtinFilterIds.filter((id) => MODULE_ADMISSION[id]);
+add(
+  "built-in filters are not admitted as modules",
+  builtinFiltersAdmittedAsModules.length === 0,
+  builtinFiltersAdmittedAsModules.join(", "),
+);
+
+const builtinFiltersWithUnknownIndicators = Object.values(BUILTIN_FILTER_CONTRACTS).filter(
+  (filter) => !indicatorIds.includes(filter.indicatorId),
+);
+add(
+  "built-in filters reference known indicators",
+  builtinFiltersWithUnknownIndicators.length === 0,
+  builtinFiltersWithUnknownIndicators.map((filter) => filter.id).join(", "),
+);
+
+const builtinFiltersMissingHelpers = Object.values(BUILTIN_FILTER_CONTRACTS).filter(
+  (filter) => filter.allowedHelpers.length === 0 || filter.roles.length === 0,
+);
+add(
+  "built-in filters declare helpers and roles",
+  builtinFiltersMissingHelpers.length === 0,
+  builtinFiltersMissingHelpers.map((filter) => filter.id).join(", "),
 );
 
 const indicatorsMissingLookup = INDICATOR_REGISTRY.filter(

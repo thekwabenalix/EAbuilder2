@@ -40,8 +40,10 @@ import { genEgSM } from "../src/generators/gen-eg-sm";
 
 // Full 4-brain assembler (AI path)
 import { generateEA } from "../src/generators/gen-ea";
-import type { FourBrainConfig, MQL5CodeGenParams } from "../src/types/blueprint";
+import type { FourBrainConfig, MQL5CodeGenParams, StrategyBlueprint } from "../src/types/blueprint";
 import type { AiBrainWiring } from "../src/lib/api-client";
+import { generateMql5FromBlueprint } from "../src/lib/mql5-template-generator";
+import { buildEmaTestThenIfvgFormationWiring } from "../netlify/functions/gen-4brain-ai.mts";
 import { MODULE_LIBRARY, MODULE_UI_PARAMS } from "../src/lib/module-library";
 import {
   MODULE_CONTRACTS,
@@ -425,6 +427,17 @@ runAiTest("EMA cross (template, drawn MAs)", "EMA_Cross_Template_Test.mq5", () =
   });
   const checks: Array<[string, boolean]> = [
     ["B4_MA helper emitted", code.includes("int B4_MA(")],
+    ["B4_Buf generic buffer helper emitted", code.includes("double B4_Buf(")],
+    ["B4_RSI helper emitted", code.includes("int B4_RSI(")],
+    ["B4_ATR helper emitted", code.includes("int B4_ATR(")],
+    ["B4_MACD helper emitted", code.includes("int B4_MACD(")],
+    ["B4_Bands helper emitted", code.includes("int B4_Bands(")],
+    ["B4_Stochastic helper emitted", code.includes("int B4_Stochastic(")],
+    ["B4_ADX helper emitted", code.includes("int B4_ADX(")],
+    ["B4_Ichimoku helper emitted", code.includes("int B4_Ichimoku(")],
+    ["B4_SAR helper emitted", code.includes("int B4_SAR(")],
+    ["B4_Fractals helper emitted", code.includes("int B4_Fractals(")],
+    ["indicator key cache emitted", code.includes("string         B4_indKey[]")],
     ["ChartIndicatorAdd present", code.includes("ChartIndicatorAdd(")],
     ["direction uses B4_MA", /B4_MA\(PERIOD_H1, \d+, MODE_EMA\)/.test(code)],
     ["setup uses B4_MA", /B4_MA\(PERIOD_M5, \d+, MODE_EMA\)/.test(code)],
@@ -437,6 +450,126 @@ runAiTest("EMA cross (template, drawn MAs)", "EMA_Cross_Template_Test.mq5", () =
 // Proves Phase 2B wiring: Direction/Setup/Execution brains call EGSM_*_ functions
 // (NOT a simplified inline body-engulf), and the assembler embeds + ticks + resets
 // one EGSM per brain timeframe.
+runAiTest("Template built-in filters route by role", "Template_Filter_Gates_Test.mq5", () => {
+  const config: FourBrainConfig = {
+    direction: { modules: ["ema"], timeframe: "M5" },
+    setup: { modules: ["ema"], timeframe: "M5" },
+    execution: { modules: ["fvg_inversion"], timeframe: "M5" },
+    management: { riskPercent: 1, rewardRisk: 2, stopBuffer: 20, maxOpenTrades: 1 },
+  };
+  const code = generateEA({
+    eaName: "Template_Filter_Gates_Test",
+    config,
+    globalSymbol: "EURUSD",
+    globalMagic: 990783,
+    filterRefs: [
+      {
+        id: "rsi_level_filter",
+        label: "RSI Level Filter",
+        indicatorId: "rsi",
+        role: "filter",
+        appliesTo: "setup",
+        timeframe: "M5",
+        params: { period: 14, level: 50, operator: "directional" },
+        status: "builtin_filter",
+        note: "test",
+      },
+      {
+        id: "atr_volatility_filter",
+        label: "ATR Volatility Filter",
+        indicatorId: "atr",
+        role: "filter",
+        appliesTo: "execution",
+        timeframe: "M5",
+        params: { period: 14, minAtrPoints: 100, operator: "above" },
+        status: "builtin_filter",
+        note: "test",
+      },
+      {
+        id: "macd_histogram_filter",
+        label: "MACD Histogram Filter",
+        indicatorId: "macd",
+        role: "filter",
+        appliesTo: "execution",
+        timeframe: "M5",
+        params: { fastPeriod: 12, slowPeriod: 26, signalPeriod: 9, operator: "directional" },
+        status: "builtin_filter",
+        note: "test",
+      },
+    ],
+  });
+  const checks: Array<[string, boolean]> = [
+    ["template RSI filter emitted", code.includes("B4_RSI(PERIOD_M5, 14)")],
+    ["template ATR filter emitted", code.includes("B4_ATR(PERIOD_M5, 14)")],
+    ["template MACD filter emitted", code.includes("B4_MACD(PERIOD_M5, 12, 26, 9)")],
+    ["template ATR converts points", code.includes("SYMBOL_POINT")],
+    ["template setup filters block setup", code.includes("gSetupActive = false")],
+    ["template filters block execution", code.includes("gExecSignal = false")],
+  ];
+  return { code, checks };
+});
+
+runAiTest("Blueprint template carries filter refs", "Blueprint_Template_Filter_Test.mq5", () => {
+  const blueprint: StrategyBlueprint = {
+    version: "2.0",
+    name: "Blueprint Template Filter Test",
+    strategyType: [],
+    marketPhilosophy: "Template filter regression",
+    rules: [],
+    risk: {
+      riskPercent: 1,
+      rewardRisk: 2,
+      lotSizingMethod: "equity_percent",
+      stopType: "candle_extreme",
+      stopBufferPoints: 20,
+      trailingStop: false,
+      breakevenEnabled: false,
+      partialClose: false,
+      maxOpenTrades: 1,
+    },
+    execution: {
+      symbol: "EURUSD",
+      setupTimeframe: "M5",
+      entryTimeframe: "M5",
+      orderType: "market",
+      setupExpiryBars: 24,
+      sessionFilter: [],
+      spreadFilterPoints: 25,
+      magicNumber: 990784,
+    },
+    compilable: true,
+    compilableRuleIds: [],
+    subjectiveRuleIds: [],
+    pendingClarifications: [],
+    confidence: 100,
+    filterRefs: [
+      {
+        id: "rsi_level_filter",
+        label: "RSI Level Filter",
+        indicatorId: "rsi",
+        role: "filter",
+        appliesTo: "setup",
+        timeframe: "M5",
+        params: { period: 14, level: 50, operator: "above" },
+        status: "builtin_filter",
+        note: "test",
+      },
+    ],
+    fourBrain: {
+      direction: { modules: ["ema"], timeframe: "M5" },
+      setup: { modules: ["ema"], timeframe: "M5" },
+      execution: { modules: ["fvg_inversion"], timeframe: "M5" },
+      management: { riskPercent: 1, rewardRisk: 2, stopBuffer: 20, maxOpenTrades: 1 },
+    },
+  };
+  const code = generateMql5FromBlueprint(blueprint);
+  const checks: Array<[string, boolean]> = [
+    ["blueprint filterRef reaches template generator", code.includes("B4_RSI(PERIOD_M5, 14)")],
+    ["blueprint template setup filter blocks setup", code.includes("gSetupActive = false")],
+  ];
+  return { code, checks };
+});
+
 runAiTest("MES engulfing (template, verified EGSM)", "MES_Engulfing_Template_Test.mq5", () => {
   const config: FourBrainConfig = {
     direction: { modules: ["engulfing"], timeframe: "D1" },
@@ -607,6 +740,111 @@ void Direction_Brain_Execute() {
     ["uses just-closed bar tick", code.includes("IFVGSM_M5_Tick(1)")],
     ["AI audit header emitted", code.includes("AI validation: pass")],
     ["AI audit shows slow EMA target", code.includes("AI setup") && code.includes("slow EMA (48)")],
+  ];
+  return { code, checks };
+});
+
+runAiTest("EMA test tolerance reaches generated EA", "EMA_Tolerance_IFVG_Test.mq5", () => {
+  const config: FourBrainConfig = {
+    direction: { modules: ["ema"], timeframe: "M5" },
+    setup: { modules: ["ema"], timeframe: "M5", params: { retestPoints: 3, retestTarget: "slow" } },
+    execution: { modules: ["fvg_inversion"], timeframe: "M5" },
+    management: { riskPercent: 1, rewardRisk: 3, stopBuffer: 20, maxOpenTrades: 1 },
+  };
+  const aiWiring = buildEmaTestThenIfvgFormationWiring(
+    "M5 only. 12 EMA crosses 48 EMA. Price must test only the 48 EMA within 3 points. IFVG forms after the EMA test and triggers entry.",
+    config,
+  ) as AiBrainWiring;
+  const code = generateEA({
+    eaName: "EMA_Tolerance_IFVG_Test",
+    config,
+    globalSymbol: "EURUSD",
+    globalMagic: 990786,
+    aiWiring,
+  });
+  const checks: Array<[string, boolean]> = [
+    ["retest tolerance emitted", code.includes("double retestTol = 3")],
+    ["tolerance converted to points", code.includes("SYMBOL_POINT")],
+    ["slow target still preserved", code.includes("&& touchedSlow")],
+    ["either target not introduced", !code.includes("touchedFast || touchedSlow")],
+  ];
+  return { code, checks };
+});
+
+runAiTest("Built-in filters gate execution", "BuiltIn_Filter_Gates_Test.mq5", () => {
+  const config: FourBrainConfig = {
+    direction: { modules: ["ema"], timeframe: "M5" },
+    setup: { modules: ["ema"], timeframe: "M5" },
+    execution: { modules: ["fvg_inversion"], timeframe: "M5" },
+    management: { riskPercent: 1, rewardRisk: 2, stopBuffer: 20, maxOpenTrades: 1 },
+  };
+  const aiWiring: AiBrainWiring = {
+    direction_brain: "void Direction_Brain_Execute() { gBias = 1; }",
+    setup_brain: "void Setup_Brain_Execute() { gSetupActive = true; gSetupDir = gBias; }",
+    execution_brain: `void Execution_Brain_Execute() {
+   gExecSignal = true; gExecDir = gBias; gExecSL = iLow(InpSymbol, PERIOD_M5, 1);
+   int hRsi = B4_RSI(PERIOD_M5, 14);
+   double rsi = B4_Buf(hRsi, 0, 1);
+   if(gExecSignal && gExecDir == 1 && rsi <= 50.0) gExecSignal = false;
+   int hAtr = B4_ATR(PERIOD_M5, 14);
+   double atrPts = B4_Buf(hAtr, 0, 1) / SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   if(gExecSignal && atrPts < 100.0) gExecSignal = false;
+   int hMacd = B4_MACD(PERIOD_M5, 12, 26, 9);
+   double macdMain = B4_Buf(hMacd, 0, 1);
+   double macdSignal = B4_Buf(hMacd, 1, 1);
+   double macdHist = macdMain - macdSignal;
+   if(gExecSignal && gExecDir == 1 && macdHist <= 0.0) gExecSignal = false;
+}`,
+    semantics: {
+      version: 1,
+      source: "ai",
+      timeframe: "M5",
+      modules: ["ema", "fvg_inversion"],
+      filters: [
+        {
+          id: "rsi_level_filter",
+          role: "execution",
+          indicator: "rsi",
+          timeframe: "M5",
+          params: { period: 14, level: 50, operator: "directional" },
+        },
+        {
+          id: "atr_volatility_filter",
+          role: "execution",
+          indicator: "atr",
+          timeframe: "M5",
+          params: { period: 14, minAtrPoints: 100, operator: "above" },
+        },
+        {
+          id: "macd_histogram_filter",
+          role: "execution",
+          indicator: "macd",
+          timeframe: "M5",
+          params: { fastPeriod: 12, slowPeriod: 26, signalPeriod: 9, operator: "directional" },
+        },
+      ],
+      assumptions: [],
+    },
+    validation: { status: "pass", errors: [], warnings: [] },
+    required_sms: [],
+    sm_configs: {},
+    notes: "Built-in filters gate execution.",
+  };
+  const code = generateEA({
+    eaName: "BuiltIn_Filter_Gates_Test",
+    config,
+    globalSymbol: "EURUSD",
+    globalMagic: 990782,
+    aiWiring,
+  });
+  const checks: Array<[string, boolean]> = [
+    ["RSI helper used by filter", code.includes("B4_RSI(PERIOD_M5, 14)")],
+    ["ATR helper used by filter", code.includes("B4_ATR(PERIOD_M5, 14)")],
+    ["MACD helper used by filter", code.includes("B4_MACD(PERIOD_M5, 12, 26, 9)")],
+    ["ATR converts to points", code.includes("SYMBOL_POINT")],
+    ["MACD histogram derived", code.includes("macdMain - macdSignal")],
+    ["filters block execution signal", code.includes("gExecSignal = false")],
+    ["AI audit lists filters", code.includes("AI filters")],
   ];
   return { code, checks };
 });

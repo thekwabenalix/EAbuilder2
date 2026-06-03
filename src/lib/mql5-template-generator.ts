@@ -2348,6 +2348,7 @@ function generateFourBrainEA(bp: StrategyBlueprint): string {
     config: config as FourBrainConfig,
     globalSymbol: bp.execution?.symbol || "EURUSD",
     globalMagic: bp.execution?.magicNumber || 990001,
+    filterRefs: bp.filterRefs,
   };
 
   // Use the new modular generator
