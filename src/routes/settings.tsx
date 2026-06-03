@@ -53,8 +53,8 @@ function StatusTile({
   );
 }
 
-const COMPANION_DOWNLOAD_URL =
-  "https://github.com/thekwabenalix/EAbuilder2/releases/download/v0.6.1/mt5-local-runner.exe";
+const COMPANION_FILENAME = "mt5-local-runner.exe";
+const COMPANION_DOWNLOAD_URL = `/downloads/${COMPANION_FILENAME}`;
 
 function RunnerStartCard({ onRefresh }: { onRefresh: () => void }) {
   return (
@@ -70,15 +70,15 @@ function RunnerStartCard({ onRefresh }: { onRefresh: () => void }) {
         </div>
       </div>
 
-      <a href={COMPANION_DOWNLOAD_URL} download>
+      <a href={COMPANION_DOWNLOAD_URL} download={COMPANION_FILENAME}>
         <Button size="sm" className="w-full sm:w-auto">
-          <Download className="h-3.5 w-3.5 mr-1.5" /> Download mt5-local-runner.exe
+          <Download className="h-3.5 w-3.5 mr-1.5" /> Download {COMPANION_FILENAME}
         </Button>
       </a>
 
       <ol className="text-xs text-muted-foreground space-y-1.5 pl-4 list-decimal">
         <li>
-          Download and double-click <span className="font-mono">mt5-local-runner.exe</span>
+          Download and double-click <span className="font-mono">{COMPANION_FILENAME}</span>
         </li>
         <li>
           A terminal window opens — open{" "}
