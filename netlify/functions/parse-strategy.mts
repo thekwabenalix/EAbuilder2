@@ -744,6 +744,38 @@ function repairIfvgExecutionFromText(
   };
 }
 
+function repairEmaRetestSetupFromText(
+  brain: ReturnType<typeof cleanBrain>,
+  sourceText: string,
+): ReturnType<typeof cleanBrain> {
+  if (!brain) return brain;
+  const { fastPeriod, slowPeriod } = extractEmaPeriodsFromText(sourceText);
+  const retestTarget = extractEmaRetestTargetFromText(sourceText, fastPeriod, slowPeriod);
+  if (!retestTarget) return brain;
+  if (
+    !/\b(?:retest|test|touch|tap)\b.{0,80}\b(?:ema|exponential\s+moving\s+average)\b/.test(
+      sourceText,
+    )
+  ) {
+    return brain;
+  }
+
+  const modules = brain.modules.includes("ema")
+    ? ["ema", ...brain.modules.filter((module) => module !== "ema")]
+    : ["ema", ...brain.modules];
+
+  return {
+    ...brain,
+    modules,
+    params: {
+      fastPeriod,
+      slowPeriod,
+      ...(brain.params ?? {}),
+      retestTarget,
+    },
+  };
+}
+
 function extractRewardRisk(text: string): number | undefined {
   const colon = text.match(
     /\b(?:rr|r:r|risk[-\s]*to[-\s]*reward|risk reward)\D{0,10}1\s*[:/]\s*(\d+(?:\.\d+)?)\b/,
@@ -1331,7 +1363,10 @@ export function normalizeBlueprint(
   const breakEvenMentioned = mentionsBreakEven(corpus);
   const maxStopPointsFromText = extractMaxStopPoints(corpus);
   const direction = enrichBrainFromText(cleanBrain(raw.direction, "D1"), corpus);
-  const setup = enrichBrainFromText(cleanBrain(raw.setup, "H4"), corpus);
+  const setup = repairEmaRetestSetupFromText(
+    enrichBrainFromText(cleanBrain(raw.setup, "H4"), corpus),
+    corpus,
+  );
   const enrichedExecution = repairIfvgExecutionFromText(
     enrichBrainFromText(execution, corpus),
     corpus,

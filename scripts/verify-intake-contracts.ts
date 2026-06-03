@@ -301,6 +301,58 @@ const cases: ContractCase[] = [
     },
   },
   {
+    name: "EMA retest before FVG repairs setup into EMA plus FVG gate",
+    run: () => {
+      const prompt = `
+        H1 12 EMA crossing 48 EMA determines bullish or bearish direction.
+        After direction EMA cross, price must test 48 EMA. During the test price must create a Fair Value Gap.
+        The Fair Value Gap created during the retest must be inverted, creating an iFVG.
+        Execute a trade at the open of the new candle after the iFVG.
+      `;
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          fourBrain: {
+            direction: {
+              modules: ["ema"],
+              timeframe: "H1",
+              params: { fastPeriod: 12, slowPeriod: 48, retestTarget: "slow" },
+              description: "EMA cross sets direction.",
+            },
+            setup: {
+              modules: ["fvg"],
+              timeframe: "H1",
+              params: { expiryBars: 50, slBuffer: 20 },
+              description: "Fair Value Gap created during the retest.",
+            },
+            execution: {
+              modules: ["fvg_inversion"],
+              timeframe: "H1",
+              params: { entryEvent: "formation" },
+              description: "Inversion FVG entry.",
+            },
+          },
+        }),
+        prompt,
+      );
+
+      const fb = fourBrainOf(blueprint);
+      const setup = brainOf(fb, "setup");
+      assertEq(modulesOf(setup)[0], "ema", "setup first module");
+      assertEq(modulesOf(setup)[1], "fvg", "setup confluence module");
+      assertEq(paramsOf(setup).retestTarget, "slow", "setup retest target");
+      assertEq(paramsOf(setup).expiryBars, 50, "setup FVG expiry");
+      const auditCodes = ((blueprint.blueprintAudit ?? []) as Array<Record<string, unknown>>).map(
+        (item) => String(item.code),
+      );
+      assertOk(auditCodes.includes("ema_retest_target_preserved"), "EMA audit missing");
+      const severities = ((blueprint.blueprintAudit ?? []) as Array<Record<string, unknown>>).map(
+        (item) => String(item.severity),
+      );
+      assertOk(!severities.includes("error"), "EMA setup repair should not leave audit errors");
+    },
+  },
+  {
     name: "unsupported SMA does not silently become EMA",
     run: () => {
       const blueprint = normalizeBlueprint(
