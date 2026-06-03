@@ -114,6 +114,16 @@ add(
   stateMachineWithoutPrefix.join(", "),
 );
 
+const verifiedLibraryModulesMissingFromBrainBuilder = libraryIds.filter((id) => {
+  const admission = MODULE_ADMISSION[id];
+  return admission?.status === "verified_state_machine" && !brainIds.includes(id);
+});
+add(
+  "verified library modules appear in 4-Brain builder",
+  verifiedLibraryModulesMissingFromBrainBuilder.length === 0,
+  verifiedLibraryModulesMissingFromBrainBuilder.join(", "),
+);
+
 const templateWithSmPrefix = admissionIds.filter((id) => {
   const admission = MODULE_ADMISSION[id];
   const contract = MODULE_CONTRACTS[id];

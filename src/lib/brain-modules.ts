@@ -73,6 +73,14 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     color: "text-amber-400",
     category: "OrderBlock",
   },
+  {
+    id: "ob_fvg",
+    label: "OB + FVG",
+    desc: "Order block and FVG confluence zone",
+    symbol: "OB+",
+    color: "text-lime-400",
+    category: "OrderBlock",
+  },
   // S/R
   {
     id: "snr",
@@ -130,6 +138,14 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     desc: "Price break beyond defined level",
     symbol: "▶",
     color: "text-green-400",
+    category: "Momentum",
+  },
+  {
+    id: "rsi_hd",
+    label: "RSI Hidden Divergence",
+    desc: "Continuation divergence between price and RSI",
+    symbol: "RSI",
+    color: "text-fuchsia-400",
     category: "Momentum",
   },
   // Candle patterns
