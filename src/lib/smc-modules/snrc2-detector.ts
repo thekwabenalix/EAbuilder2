@@ -453,9 +453,11 @@ int OnCalculate(const int rates_total, const int prev_calculated,
    datetime curBar = iTime(_Symbol, InpTF, 0);
    if(curBar != lastBarTime) {
       lastBarTime = curBar;
-      BuildPivots();
-      Detect();
-      Maintain(1);
+      // Full rebuild each new bar: re-detect + replay every bar of the lookback.
+      // This guarantees a setup whose SL was traded through (possibly several bars
+      // before its final pivot confirmed, due to swing-confirmation lag) is always
+      // re-validated against the whole history and removed — never left extending.
+      Rebuild();
    }
    return rates_total;
 }
