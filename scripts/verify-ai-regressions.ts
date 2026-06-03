@@ -6,6 +6,7 @@
  * adapter, and semantic validator that guard the AI route.
  */
 import {
+  buildAiWiringRepairPrompt,
   buildEmaTestThenIfvgFormationWiring,
   findUnsafeAiModules,
   inferLocalSemantics,
@@ -249,6 +250,149 @@ function badMacdHistogramFilterWithoutBuffers(): AiBrainWiringResponse {
   };
 }
 
+function goodBosObEngulfingWiring(): AiBrainWiringResponse {
+  return {
+    direction_brain: `void Direction_Brain_Execute() {
+   BOSSM_D1_Tick(20);
+   if(BOSSM_D1_IsBull()) gBias = 1;
+   else if(BOSSM_D1_IsBear()) gBias = -1;
+}`,
+    setup_brain: `void Setup_Brain_Execute() {
+   OBSM_H4_Tick(50);
+   if(gBias == 1 && OBSM_H4_HasActiveBull()) { gSetupActive = true; gSetupDir = 1; gSetupSLHint = OBSM_H4_LatestBullLL(); }
+   else if(gBias == -1 && OBSM_H4_HasActiveBear()) { gSetupActive = true; gSetupDir = -1; gSetupSLHint = OBSM_H4_LatestBearUL(); }
+}`,
+    execution_brain: `void Execution_Brain_Execute() {
+   EGSM_M5_Tick(3);
+   if(gSetupActive && gSetupDir == 1 && EGSM_M5_BullJustConfirmed()) { gExecSignal = true; gExecDir = 1; gExecSL = EGSM_M5_BullConfirmSL(); }
+   else if(gSetupActive && gSetupDir == -1 && EGSM_M5_BearJustConfirmed()) { gExecSignal = true; gExecDir = -1; gExecSL = EGSM_M5_BearConfirmSL(); }
+}`,
+    semantics: {
+      version: 1,
+      source: "ai",
+      timeframe: "M5",
+      modules: ["bos", "order_block", "engulfing"],
+      direction: { module: "bos", event: "bias" },
+      setup: { gate: "active_zone", mustOccurAfter: "direction_event" },
+      execution: { module: "engulfing", entryEvent: "eg_confirmed", mustOccurAfter: "setup_gate" },
+      assumptions: [],
+    },
+    required_sms: ["BOSSM_D1", "OBSM_H4", "EGSM_M5"],
+    sm_configs: {
+      bos_D1: { type: "bos", id: "D1", TF: "PERIOD_D1", tf: "D1", params: {} },
+      ob_H4: { type: "ob", id: "H4", TF: "PERIOD_H4", tf: "H4", params: {} },
+      eg_M5: { type: "engulfing", id: "M5", TF: "PERIOD_M5", tf: "M5", params: {} },
+    },
+    notes: "BOS direction, OB setup, engulfing execution.",
+  };
+}
+
+function badObSetupWithoutObQuery(): AiBrainWiringResponse {
+  return {
+    ...goodBosObEngulfingWiring(),
+    setup_brain: `void Setup_Brain_Execute() {
+   if(gBias != 0) { gSetupActive = true; gSetupDir = gBias; }
+}`,
+    notes: "Intentional bad fixture: OB setup semantics without OB query usage.",
+  };
+}
+
+function goodGapRejectionWiring(): AiBrainWiringResponse {
+  return {
+    direction_brain: `void Direction_Brain_Execute() {
+   BOSSM_H4_Tick(20);
+   if(BOSSM_H4_IsBull()) gBias = 1;
+   else if(BOSSM_H4_IsBear()) gBias = -1;
+}`,
+    setup_brain: `void Setup_Brain_Execute() {
+   GSNRSM_H1_Tick(50);
+   if(gBias == 1 && GSNRSM_H1_HasActiveBull()) { gSetupActive = true; gSetupDir = 1; gSetupSLHint = GSNRSM_H1_BullConfirmSL(); }
+   else if(gBias == -1 && GSNRSM_H1_HasActiveBear()) { gSetupActive = true; gSetupDir = -1; gSetupSLHint = GSNRSM_H1_BearConfirmSL(); }
+}`,
+    execution_brain: `void Execution_Brain_Execute() {
+   REJSM_M5_Tick(20);
+   if(gSetupActive && gSetupDir == 1 && REJSM_M5_BullJustConfirmed()) { gExecSignal = true; gExecDir = 1; gExecSL = REJSM_M5_BullConfirmSL(); }
+   else if(gSetupActive && gSetupDir == -1 && REJSM_M5_BearJustConfirmed()) { gExecSignal = true; gExecDir = -1; gExecSL = REJSM_M5_BearConfirmSL(); }
+}`,
+    semantics: {
+      version: 1,
+      source: "ai",
+      timeframe: "M5",
+      modules: ["bos", "gap_snr", "rejection"],
+      direction: { module: "bos", event: "bias" },
+      setup: { gate: "gap_level_touch", mustOccurAfter: "direction_event" },
+      execution: { module: "rejection", entryEvent: "rejection", mustOccurAfter: "setup_gate" },
+      assumptions: [],
+    },
+    required_sms: ["BOSSM_H4", "GSNRSM_H1", "REJSM_M5"],
+    sm_configs: {
+      bos_H4: { type: "bos", id: "H4", TF: "PERIOD_H4", tf: "H4", params: {} },
+      gsnr_H1: { type: "gap_snr", id: "H1", TF: "PERIOD_H1", tf: "H1", params: {} },
+      rej_M5: { type: "rejection", id: "M5", TF: "PERIOD_M5", tf: "M5", params: {} },
+    },
+    notes: "Gap S/R setup with rejection execution.",
+  };
+}
+
+function badExecutionIgnoresSetupGate(): AiBrainWiringResponse {
+  return {
+    ...goodGapRejectionWiring(),
+    execution_brain: `void Execution_Brain_Execute() {
+   REJSM_M5_Tick(20);
+   if(REJSM_M5_BullJustConfirmed()) { gExecSignal = true; gExecDir = 1; gExecSL = REJSM_M5_BullConfirmSL(); }
+   else if(REJSM_M5_BearJustConfirmed()) { gExecSignal = true; gExecDir = -1; gExecSL = REJSM_M5_BearConfirmSL(); }
+}`,
+    notes: "Intentional bad fixture: execution ignores setup gate.",
+  };
+}
+
+function goodRsiObFvgWiring(): AiBrainWiringResponse {
+  return {
+    direction_brain: `void Direction_Brain_Execute() {
+   BOSSM_H4_Tick(20);
+   if(BOSSM_H4_IsBull()) gBias = 1;
+   else if(BOSSM_H4_IsBear()) gBias = -1;
+}`,
+    setup_brain: `void Setup_Brain_Execute() {
+   RSIHDSM_H1_Tick(50);
+   if(gBias == 1 && RSIHDSM_H1_HasActiveBull()) { gSetupActive = true; gSetupDir = 1; gSetupSLHint = RSIHDSM_H1_ActiveBullSL(); }
+   else if(gBias == -1 && RSIHDSM_H1_HasActiveBear()) { gSetupActive = true; gSetupDir = -1; gSetupSLHint = RSIHDSM_H1_ActiveBearSL(); }
+}`,
+    execution_brain: `void Execution_Brain_Execute() {
+   OBFVGSM_M15_Tick(50);
+   if(gSetupActive && gSetupDir == 1 && OBFVGSM_M15_BullJustConfirmed()) { gExecSignal = true; gExecDir = 1; gExecSL = OBFVGSM_M15_BullConfirmSL(); }
+   else if(gSetupActive && gSetupDir == -1 && OBFVGSM_M15_BearJustConfirmed()) { gExecSignal = true; gExecDir = -1; gExecSL = OBFVGSM_M15_BearConfirmSL(); }
+}`,
+    semantics: {
+      version: 1,
+      source: "ai",
+      timeframe: "M15",
+      modules: ["bos", "rsi_hd", "ob_fvg"],
+      direction: { module: "bos", event: "bias" },
+      setup: { gate: "hidden_divergence", mustOccurAfter: "direction_event" },
+      execution: { module: "ob_fvg", entryEvent: "entry", mustOccurAfter: "setup_gate" },
+      assumptions: [],
+    },
+    required_sms: ["BOSSM_H4", "RSIHDSM_H1", "OBFVGSM_M15"],
+    sm_configs: {
+      bos_H4: { type: "bos", id: "H4", TF: "PERIOD_H4", tf: "H4", params: {} },
+      rsihd_H1: { type: "rsi_hd", id: "H1", TF: "PERIOD_H1", tf: "H1", params: {} },
+      obfvg_M15: { type: "ob_fvg", id: "M15", TF: "PERIOD_M15", tf: "M15", params: {} },
+    },
+    notes: "RSI hidden divergence setup with OB/FVG execution.",
+  };
+}
+
+function badRsiSetupWithoutRsiQuery(): AiBrainWiringResponse {
+  return {
+    ...goodRsiObFvgWiring(),
+    setup_brain: `void Setup_Brain_Execute() {
+   if(gBias != 0) { gSetupActive = true; gSetupDir = gBias; }
+}`,
+    notes: "Intentional bad fixture: RSI HD setup semantics without RSI HD query usage.",
+  };
+}
+
 const cases: RegressionCase[] = [
   {
     name: "extracts slow-only EMA retest from raw text",
@@ -476,6 +620,83 @@ const cases: RegressionCase[] = [
         validation.errors.some((error) => error.includes("macd_histogram_filter")),
         `expected MACD filter error, got: ${validation.errors.join(" | ")}`,
       );
+    },
+  },
+  {
+    name: "validator accepts BOS direction, OB setup, and engulfing execution wiring",
+    run: () => {
+      const validation = validateWiringAgainstSemantics(goodBosObEngulfingWiring());
+      assertEq(validation.status, "pass", `validation errors: ${validation.errors.join(" | ")}`);
+    },
+  },
+  {
+    name: "validator rejects OB setup semantics without OB query wiring",
+    run: () => {
+      const validation = validateWiringAgainstSemantics(badObSetupWithoutObQuery());
+      assertEq(validation.status, "fail", "validation status");
+      assertOk(
+        validation.errors.some((error) => error.includes("order_block setup event")),
+        `expected OB setup error, got: ${validation.errors.join(" | ")}`,
+      );
+    },
+  },
+  {
+    name: "validator accepts gap S/R setup and rejection execution wiring",
+    run: () => {
+      const validation = validateWiringAgainstSemantics(goodGapRejectionWiring());
+      assertEq(validation.status, "pass", `validation errors: ${validation.errors.join(" | ")}`);
+    },
+  },
+  {
+    name: "validator rejects non-IFVG execution that ignores setup gate",
+    run: () => {
+      const validation = validateWiringAgainstSemantics(badExecutionIgnoresSetupGate());
+      assertEq(validation.status, "fail", "validation status");
+      assertOk(
+        validation.errors.some((error) => error.includes("does not reference gSetupActive")),
+        `expected setup-gate error, got: ${validation.errors.join(" | ")}`,
+      );
+    },
+  },
+  {
+    name: "validator accepts RSI hidden divergence setup and OB/FVG execution wiring",
+    run: () => {
+      const validation = validateWiringAgainstSemantics(goodRsiObFvgWiring());
+      assertEq(validation.status, "pass", `validation errors: ${validation.errors.join(" | ")}`);
+    },
+  },
+  {
+    name: "validator rejects RSI HD setup semantics without RSI HD query wiring",
+    run: () => {
+      const validation = validateWiringAgainstSemantics(badRsiSetupWithoutRsiQuery());
+      assertEq(validation.status, "fail", "validation status");
+      assertOk(
+        validation.errors.some((error) => error.includes("rsi_hd setup event")),
+        `expected RSI HD setup error, got: ${validation.errors.join(" | ")}`,
+      );
+    },
+  },
+  {
+    name: "repair prompt includes validator errors and preserves JSON-only boundary",
+    run: () => {
+      const invalid = badObSetupWithoutObQuery();
+      const validation = validateWiringAgainstSemantics(invalid);
+      assertEq(validation.status, "fail", "validation status");
+      const prompt = buildAiWiringRepairPrompt({
+        originalRequest: "Use BOS for direction, OB for setup, engulfing for entry.",
+        invalidResponse: invalid,
+        validation,
+      });
+      assertIncludes(prompt, "Return ONLY the corrected JSON object", "JSON-only repair boundary");
+      assertIncludes(prompt, "VALIDATION ERRORS", "validator error section");
+      assertIncludes(prompt, "order_block setup event", "specific validator error");
+      assertIncludes(
+        prompt,
+        "Use only the verified module contracts",
+        "verified contract boundary",
+      );
+      assertIncludes(prompt, "INVALID JSON TO REPAIR", "invalid JSON section");
+      assertIncludes(prompt, "OBSM_H4", "invalid wiring context");
     },
   },
 ];

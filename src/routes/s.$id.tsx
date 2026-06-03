@@ -21,6 +21,7 @@ import {
 import { StrategySpecForm } from "@/components/StrategySpecForm";
 import { CodeViewer } from "@/components/CodeViewer";
 import { BuilderProgress, BUILDER_STEPS, type BuilderStep } from "@/components/BuilderProgress";
+import { BlueprintExplanationPanel } from "@/components/BlueprintExplanationPanel";
 import {
   Save,
   Copy,
@@ -60,6 +61,7 @@ import type { FourBrainConfig, BrainConfig, BrainModuleType } from "@/types/blue
 import { ALL_BRAIN_MODULES, TIMEFRAMES as TF_LIST, formatBrainChain } from "@/lib/brain-modules";
 import { MODULE_UI_PARAMS } from "@/lib/module-library";
 import type { UIParam } from "@/lib/module-library";
+import { firstBlueprintContractError } from "@/lib/blueprint-explanation";
 import { getModuleAdmission, MODULE_ADMISSION_STATUS_META } from "@/lib/module-admission";
 import {
   ApiError,
@@ -125,12 +127,48 @@ function aiGenerationErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "AI generation failed";
 }
 
-function AiWiringInsight({ wiring }: { wiring: AiBrainWiring | null }) {
+function aiWiringSuccessMessage(wiring: AiBrainWiring, fallback: string): string {
+  if ((wiring.repairAttempts ?? 0) > 0) {
+    return "AI wiring validated after one automatic repair";
+  }
+  if (wiring.validation?.status === "warn") {
+    return "AI wiring generated with warnings";
+  }
+  return fallback;
+}
+
+type AiWiringDiagnostic = NonNullable<StrategyBlueprint["aiWiringDiagnostics"]>;
+type AiWiringInsightData = AiBrainWiring | AiWiringDiagnostic;
+
+function buildAiWiringDiagnostics(wiring: AiBrainWiring): AiWiringDiagnostic {
+  return {
+    generatedAt: new Date().toISOString(),
+    validation: wiring.validation,
+    repairAttempts: wiring.repairAttempts ?? 0,
+    semantics: wiring.semantics,
+    required_sms: wiring.required_sms ?? [],
+    sm_configs: wiring.sm_configs ?? {},
+    notes: wiring.notes ?? "",
+  };
+}
+
+function withAiWiringDiagnostics(
+  blueprint: StrategyBlueprint,
+  wiring: AiBrainWiring,
+): StrategyBlueprint {
+  return {
+    ...blueprint,
+    aiWiringDiagnostics: buildAiWiringDiagnostics(wiring),
+  };
+}
+
+function AiWiringInsight({ wiring }: { wiring: AiWiringInsightData | null }) {
   if (!wiring) return null;
 
   const validation = wiring.validation;
   const semantics = wiring.semantics;
   const status = validation?.status ?? "warn";
+  const repairAttempts = wiring.repairAttempts ?? 0;
   const statusStyle =
     status === "pass"
       ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-300"
@@ -172,10 +210,26 @@ function AiWiringInsight({ wiring }: { wiring: AiBrainWiring | null }) {
           {statusIcon}
           <span>AI wiring validation: {status}</span>
         </div>
-        {semantics?.source && (
-          <span className="text-[10px] uppercase tracking-wide opacity-70">{semantics.source}</span>
-        )}
+        <div className="flex items-center gap-1.5">
+          {repairAttempts > 0 && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 uppercase tracking-wide">
+              repaired once
+            </span>
+          )}
+          {semantics?.source && (
+            <span className="text-[10px] uppercase tracking-wide opacity-70">
+              {semantics.source}
+            </span>
+          )}
+        </div>
       </div>
+
+      {repairAttempts > 0 && (
+        <p className="text-cyan-200/90">
+          The first AI wiring failed deterministic validation. The system sent the validator errors
+          back once, accepted the repaired wiring, and generated from that corrected contract.
+        </p>
+      )}
 
       {items.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1 text-muted-foreground">
@@ -217,6 +271,31 @@ function safeDownloadName(name: string) {
     .replace(/[^a-z0-9._-]+/gi, "_")
     .replace(/^_+|_+$/g, "")
     .slice(0, 80);
+}
+
+function buildAiDiagnosticsExport(blueprint: StrategyBlueprint, prompt: string, code: string) {
+  const diagnostics = blueprint.aiWiringDiagnostics;
+  return JSON.stringify(
+    {
+      strategy: {
+        name: blueprint.name,
+        prompt,
+        summary: blueprint.summary,
+        strategyNotes: blueprint.strategyNotes,
+      },
+      aiWiringDiagnostics: diagnostics ?? null,
+      generatedEa: {
+        hasCode: Boolean(code?.trim()),
+        auditHeader: code
+          .split("\n")
+          .filter((line) => line.startsWith("//| AI "))
+          .slice(0, 20),
+      },
+      exportedAt: new Date().toISOString(),
+    },
+    null,
+    2,
+  );
 }
 
 function StrategyPage() {
@@ -414,12 +493,13 @@ function StrategyPage() {
                 setGeneratedCode(code);
                 setDirty(true);
               }}
-              onAutoSave={async (code) => {
+              onAutoSave={async (code, nextBlueprint = blueprint) => {
                 await updateStrategy(id, {
                   name: name || "Untitled Strategy",
-                  blueprint,
+                  blueprint: nextBlueprint,
                   generatedCode: code,
                 });
+                setBlueprint(nextBlueprint);
                 setGeneratedCode(code);
                 setDirty(false);
                 qc.invalidateQueries({ queryKey: ["strategies"] });
@@ -482,12 +562,13 @@ function StrategyPage() {
                 setGeneratedCode(code);
                 setDirty(true);
               }}
-              onAutoSave={async (code) => {
+              onAutoSave={async (code, nextBlueprint = blueprint) => {
                 await updateStrategy(id, {
                   name: name || "Untitled Strategy",
-                  blueprint,
+                  blueprint: nextBlueprint,
                   generatedCode: code,
                 });
+                setBlueprint(nextBlueprint);
                 setGeneratedCode(code);
                 setDirty(false);
                 qc.invalidateQueries({ queryKey: ["strategies"] });
@@ -952,7 +1033,12 @@ function FourBrainTab({
   const canRegenerate = execution.modules.length > 0 && execution.timeframe;
   const canAiRegenerate = canRegenerate && unsafeAiModules.length === 0;
   const [aiGenerating, setAiGenerating] = useState(false);
-  const [aiWiring, setAiWiring] = useState<AiBrainWiring | null>(null);
+  const [aiWiring, setAiWiring] = useState<AiWiringInsightData | null>(
+    blueprint.aiWiringDiagnostics ?? null,
+  );
+  useEffect(() => {
+    setAiWiring(blueprint.aiWiringDiagnostics ?? null);
+  }, [blueprint.aiWiringDiagnostics]);
 
   async function onAiGenerate() {
     if (!canRegenerate) {
@@ -963,9 +1049,14 @@ function FourBrainTab({
       toast.error(`AI 4-Brain wiring is blocked for: ${unsafeAiModules.join(", ")}`);
       return;
     }
+    const bp = buildUpdatedBp();
+    const contractError = firstBlueprintContractError(bp);
+    if (contractError) {
+      toast.error(contractError);
+      return;
+    }
     setAiGenerating(true);
     setAiWiring(null);
-    const bp = buildUpdatedBp();
     onChange(bp);
     try {
       const cfg = bp.fourBrain!;
@@ -992,16 +1083,22 @@ function FourBrainTab({
         bp.filterRefs,
       );
       assertAiWiringValid(wiring);
-      setAiWiring(wiring);
+      const bpWithDiagnostics = withAiWiringDiagnostics(bp, wiring);
+      setAiWiring(bpWithDiagnostics.aiWiringDiagnostics ?? wiring);
       // Generate EA with AI wiring embedded
       const { generateEA } = await import("@/generators/gen-ea");
       const code = generateEA({
-        eaName: bp.name.replace(/[^\w\s-]/g, "").trim(),
+        eaName: bpWithDiagnostics.name.replace(/[^\w\s-]/g, "").trim(),
         config: cfg,
         aiWiring: wiring,
       });
-      toast.success("AI-powered EA generated — Claude wired the modules intelligently");
-      onRegenerate(bp, code);
+      toast.success(
+        aiWiringSuccessMessage(
+          wiring,
+          "AI-powered EA generated — Claude wired the modules intelligently",
+        ),
+      );
+      onRegenerate(bpWithDiagnostics, code);
     } catch (e: unknown) {
       toast.error(aiGenerationErrorMessage(e));
     } finally {
@@ -1033,6 +1130,8 @@ function FourBrainTab({
           className="w-full rounded border border-amber-500/20 bg-background px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-amber-500/60 resize-none"
         />
       </div>
+
+      <BlueprintExplanationPanel blueprint={buildUpdatedBp()} />
 
       {/* Direction brain */}
       <BrainCard
@@ -1186,6 +1285,11 @@ function FourBrainTab({
               return;
             }
             const bp = buildUpdatedBp();
+            const contractError = firstBlueprintContractError(bp);
+            if (contractError) {
+              toast.error(contractError);
+              return;
+            }
             onChange(bp);
             onRegenerate(bp);
           }}
@@ -1280,19 +1384,26 @@ function CodeTab({
   blueprint: StrategyBlueprint;
   code: string;
   onCodeChange: (code: string) => void;
-  onAutoSave?: (code: string) => Promise<void>;
+  onAutoSave?: (code: string, nextBlueprint?: StrategyBlueprint) => Promise<void>;
   /** Original user prompt from /new — enables AI generation from description */
   prompt?: string;
 }) {
   const [generating, setGenerating] = useState(false);
   const [compiling, setCompiling] = useState(false);
   const [compileLog, setCompileLog] = useState<string | null>(null);
-  const [aiWiring, setAiWiring] = useState<AiBrainWiring | null>(null);
+  const [aiWiring, setAiWiring] = useState<AiWiringInsightData | null>(
+    blueprint.aiWiringDiagnostics ?? null,
+  );
+  useEffect(() => {
+    setAiWiring(blueprint.aiWiringDiagnostics ?? null);
+  }, [blueprint.aiWiringDiagnostics]);
   const unsafeAiModules = unsafeFourBrainAiModules(blueprint.fourBrain);
+  const contractError = firstBlueprintContractError(blueprint);
   const canUseFourBrainAi = Boolean(
     blueprint.fourBrain?.execution?.modules?.length &&
     blueprint.fourBrain.execution.timeframe &&
-    unsafeAiModules.length === 0,
+    unsafeAiModules.length === 0 &&
+    !contractError,
   );
 
   const companion = useQuery({
@@ -1324,6 +1435,10 @@ function CodeTab({
   };
 
   const generateTemplate = async () => {
+    if (contractError) {
+      toast.error(contractError);
+      return;
+    }
     setGenerating(true);
     try {
       const generated = generateMql5FromBlueprint(blueprint);
@@ -1342,6 +1457,10 @@ function CodeTab({
   };
 
   const generateWithAi = async () => {
+    if (contractError) {
+      toast.error(contractError);
+      return;
+    }
     if (!canUseFourBrainAi || !blueprint.fourBrain) {
       if (unsafeAiModules.length > 0) {
         toast.error(`AI 4-Brain wiring is blocked for: ${unsafeAiModules.join(", ")}`);
@@ -1367,19 +1486,25 @@ function CodeTab({
         blueprint.filterRefs,
       );
       assertAiWiringValid(wiring);
-      setAiWiring(wiring);
+      const bpWithDiagnostics = withAiWiringDiagnostics(blueprint, wiring);
+      setAiWiring(bpWithDiagnostics.aiWiringDiagnostics ?? wiring);
       const { generateEA } = await import("@/generators/gen-ea");
       const generatedCode = generateEA({
-        eaName: strategyName.replace(/[^\w\s-]/g, "").trim(),
-        config: blueprint.fourBrain,
+        eaName: bpWithDiagnostics.name.replace(/[^\w\s-]/g, "").trim(),
+        config: bpWithDiagnostics.fourBrain!,
         aiWiring: wiring,
       });
       if (onAutoSave) {
-        await onAutoSave(generatedCode);
-        toast.success("AI-built EA saved — Claude interpreted your strategy and wired the modules");
+        await onAutoSave(generatedCode, bpWithDiagnostics);
+        toast.success(
+          aiWiringSuccessMessage(
+            wiring,
+            "AI-built EA saved — Claude interpreted your strategy and wired the modules",
+          ),
+        );
       } else {
         onCodeChange(generatedCode);
-        toast.success("AI-built EA ready");
+        toast.success(aiWiringSuccessMessage(wiring, "AI-built EA ready"));
       }
     } catch (e: unknown) {
       toast.error(aiGenerationErrorMessage(e));
@@ -1437,6 +1562,8 @@ function CodeTab({
             </p>
           </div>
         </div>
+
+        <BlueprintExplanationPanel blueprint={blueprint} />
 
         {/* Primitive mapping summary */}
         <div
@@ -1510,11 +1637,13 @@ function CodeTab({
             )}
           </Button>
           <p className="text-[11px] text-center text-muted-foreground">
-            {unsafeAiModules.length > 0
-              ? `AI wiring is blocked for: ${unsafeAiModules.join(", ")}`
-              : canUseFourBrainAi
-                ? "Claude reads your strategy description, selects the right detection modules, and generates a self-contained EA."
-                : "AI 4-Brain generation is available after creating a strategy with the 4-Brain Builder."}
+            {contractError
+              ? `Generation blocked: ${contractError}`
+              : unsafeAiModules.length > 0
+                ? `AI wiring is blocked for: ${unsafeAiModules.join(", ")}`
+                : canUseFourBrainAi
+                  ? "Claude reads your strategy description, selects the right detection modules, and generates a self-contained EA."
+                  : "AI 4-Brain generation is available after creating a strategy with the 4-Brain Builder."}
           </p>
 
           {/* Divider */}
@@ -1527,7 +1656,7 @@ function CodeTab({
           {/* Secondary: Template — instant, offline */}
           <Button
             onClick={generateTemplate}
-            disabled={generating || !build.buildable}
+            disabled={generating || !build.buildable || Boolean(contractError)}
             variant="outline"
             size="sm"
             className="w-full"
@@ -1549,6 +1678,11 @@ function CodeTab({
             <p className="text-[11px] text-center text-muted-foreground">
               Template requires a supported entry trigger. Use <strong>Build with AI</strong> for
               any strategy.
+            </p>
+          )}
+          {contractError && (
+            <p className="text-[11px] text-center text-destructive/80">
+              Fix the Blueprint Audit error before generating.
             </p>
           )}
         </div>
@@ -1612,7 +1746,7 @@ function CodeTab({
             size="sm"
             variant="outline"
             onClick={generateTemplate}
-            disabled={generating}
+            disabled={generating || Boolean(contractError)}
             title="Instant template regeneration — always compiles"
             className="border-border text-muted-foreground"
           >
@@ -2528,34 +2662,49 @@ function ExportTab({
 }) {
   const items = [
     {
+      key: "ea",
       icon: FileCode2,
       title: "Expert Advisor",
       desc: "MQL5 source for MetaEditor",
-      ext: "mq5",
+      filename: buildExportFilename(blueprint, "mq5"),
       content: code,
       mime: "text/plain",
     },
     {
+      key: "blueprint",
       icon: FileJson,
       title: "Strategy blueprint",
       desc: "Full blueprint JSON (re-importable)",
-      ext: "json",
+      filename: buildExportFilename(blueprint, "json"),
       content: JSON.stringify({ prompt, blueprint }, null, 2),
       mime: "application/json",
     },
     {
+      key: "ai-diagnostics",
+      icon: FileJson,
+      title: "AI wiring diagnostics",
+      desc: blueprint.aiWiringDiagnostics
+        ? "AI semantics, validation, repair status and SM wiring"
+        : "No AI wiring diagnostics saved yet",
+      filename: `${safeDownloadName(blueprint.name || "strategy")}-ai-diagnostics.json`,
+      content: buildAiDiagnosticsExport(blueprint, prompt, code),
+      mime: "application/json",
+    },
+    {
+      key: "compile-log",
       icon: FileText,
       title: "Compile log",
       desc: "Placeholder MetaEditor log",
-      ext: "txt",
+      filename: buildExportFilename(blueprint, "txt"),
       content: buildMockCompileLog(blueprint),
       mime: "text/plain",
     },
     {
+      key: "validation",
       icon: FileText,
       title: "Validation report",
       desc: "Risk control & rule checks",
-      ext: "txt",
+      filename: `${safeDownloadName(blueprint.name || "strategy")}-validation-report.txt`,
       content: buildValidationReport(blueprint),
       mime: "text/plain",
     },
@@ -2565,7 +2714,7 @@ function ExportTab({
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
       {items.map((it) => (
         <div
-          key={it.ext}
+          key={it.key}
           className="rounded-md border border-border bg-card p-4 flex items-start justify-between gap-4"
         >
           <div className="flex items-start gap-3 min-w-0">
@@ -2574,16 +2723,14 @@ function ExportTab({
               <div className="text-sm font-medium">{it.title}</div>
               <div className="text-xs text-muted-foreground">{it.desc}</div>
               <div className="text-[11px] font-mono text-muted-foreground mt-1 truncate">
-                {buildExportFilename(blueprint, it.ext)}
+                {it.filename}
               </div>
             </div>
           </div>
           <Button
             size="sm"
             variant="outline"
-            onClick={() =>
-              downloadText(buildExportFilename(blueprint, it.ext), it.content, it.mime)
-            }
+            onClick={() => downloadText(it.filename, it.content, it.mime)}
           >
             <Download className="h-4 w-4 mr-1.5" /> Download
           </Button>

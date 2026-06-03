@@ -197,13 +197,23 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       {
         id: "active_zone",
         roles: ["setup"],
-        queryFunctions: ["OBSM_{id}_HasActiveBull()", "OBSM_{id}_HasActiveBear()"],
+        queryFunctions: [
+          "OBSM_{id}_HasActiveBull()",
+          "OBSM_{id}_HasActiveBear()",
+          "OBSM_{id}_LatestBullLL()",
+          "OBSM_{id}_LatestBearUL()",
+        ],
         meaning: "A bullish or bearish order block is active.",
       },
       {
         id: "mitigation",
         roles: ["execution"],
-        queryFunctions: ["OBSM_{id}_BullJustMitigated()", "OBSM_{id}_BearJustMitigated()"],
+        queryFunctions: [
+          "OBSM_{id}_BullJustConfirmed()",
+          "OBSM_{id}_BearJustConfirmed()",
+          "OBSM_{id}_BullConfirmSL()",
+          "OBSM_{id}_BearConfirmSL()",
+        ],
         meaning: "Price mitigated/touched the order block.",
       },
     ],
@@ -277,7 +287,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       {
         id: "bias",
         roles: ["direction"],
-        queryFunctions: ["BOSSM_{id}_Trend()", "BOSSM_{id}_BullBias()", "BOSSM_{id}_BearBias()"],
+        queryFunctions: ["BOSSM_{id}_Trend()", "BOSSM_{id}_IsBull()", "BOSSM_{id}_IsBear()"],
         meaning: "Latest structural break sets persistent trend direction.",
       },
       {
@@ -307,7 +317,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       {
         id: "bias_flip",
         roles: ["direction"],
-        queryFunctions: ["BOSSM_{id}_Trend()", "BOSSM_{id}_BullBias()", "BOSSM_{id}_BearBias()"],
+        queryFunctions: ["BOSSM_{id}_Trend()", "BOSSM_{id}_IsBull()", "BOSSM_{id}_IsBear()"],
         meaning: "Structure changes character and flips directional bias.",
       },
       {
@@ -338,8 +348,8 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         roles: ["direction", "setup", "execution"],
         queryFunctions: [
           "BOSSM_{id}_Trend()",
-          "BOSSM_{id}_BullBias()",
-          "BOSSM_{id}_BearBias()",
+          "BOSSM_{id}_IsBull()",
+          "BOSSM_{id}_IsBear()",
           "BOSSM_{id}_BullJustBroke()",
           "BOSSM_{id}_BearJustBroke()",
         ],
@@ -396,7 +406,12 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       {
         id: "sweep",
         roles: ["setup", "execution"],
-        queryFunctions: ["LSSM_{id}_BullJustSwept()", "LSSM_{id}_BearJustSwept()"],
+        queryFunctions: [
+          "LSSM_{id}_BullJustConfirmed()",
+          "LSSM_{id}_BearJustConfirmed()",
+          "LSSM_{id}_BullConfirmSL()",
+          "LSSM_{id}_BearConfirmSL()",
+        ],
         meaning: "Price swept liquidity beyond a swing/high-low and rejected.",
       },
     ],
@@ -423,7 +438,14 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       {
         id: "level_touch",
         roles: ["setup", "execution"],
-        queryFunctions: ["SNRSM_{id}_BullJustTouched()", "SNRSM_{id}_BearJustTouched()"],
+        queryFunctions: [
+          "SNRSM_{id}_HasActiveBull()",
+          "SNRSM_{id}_HasActiveBear()",
+          "SNRSM_{id}_BullJustConfirmed()",
+          "SNRSM_{id}_BearJustConfirmed()",
+          "SNRSM_{id}_BullConfirmSL()",
+          "SNRSM_{id}_BearConfirmSL()",
+        ],
         meaning: "Price interacted with a support/resistance level.",
       },
     ],
@@ -445,7 +467,14 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       {
         id: "gap_level_touch",
         roles: ["setup", "execution"],
-        queryFunctions: ["GSNRSM_{id}_BullJustTouched()", "GSNRSM_{id}_BearJustTouched()"],
+        queryFunctions: [
+          "GSNRSM_{id}_HasActiveBull()",
+          "GSNRSM_{id}_HasActiveBear()",
+          "GSNRSM_{id}_BullJustConfirmed()",
+          "GSNRSM_{id}_BearJustConfirmed()",
+          "GSNRSM_{id}_BullConfirmSL()",
+          "GSNRSM_{id}_BearConfirmSL()",
+        ],
         meaning: "Price interacted with a support/resistance level derived from a gap edge.",
       },
     ],
@@ -467,7 +496,12 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       {
         id: "rejection",
         roles: ["execution"],
-        queryFunctions: ["REJSM_{id}_BullJustRejected()", "REJSM_{id}_BearJustRejected()"],
+        queryFunctions: [
+          "REJSM_{id}_BullJustConfirmed()",
+          "REJSM_{id}_BearJustConfirmed()",
+          "REJSM_{id}_BullConfirmSL()",
+          "REJSM_{id}_BearConfirmSL()",
+        ],
         meaning: "A candle rejected a level with a wick/body pattern.",
       },
     ],
@@ -494,7 +528,14 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       {
         id: "miss",
         roles: ["setup", "execution"],
-        queryFunctions: ["MISSSM_{id}_BullJustMissed()", "MISSSM_{id}_BearJustMissed()"],
+        queryFunctions: [
+          "MISSSM_{id}_HasActiveBull()",
+          "MISSSM_{id}_HasActiveBear()",
+          "MISSSM_{id}_BullJustConfirmed()",
+          "MISSSM_{id}_BearJustConfirmed()",
+          "MISSSM_{id}_BullConfirmSL()",
+          "MISSSM_{id}_BearConfirmSL()",
+        ],
         meaning: "Price narrowly missed a level, suggesting liquidity behavior.",
       },
     ],
@@ -521,7 +562,14 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       {
         id: "breakout",
         roles: ["setup", "execution"],
-        queryFunctions: ["BRKSM_{id}_BullJustBroke()", "BRKSM_{id}_BearJustBroke()"],
+        queryFunctions: [
+          "BRKSM_{id}_HasActiveBull()",
+          "BRKSM_{id}_HasActiveBear()",
+          "BRKSM_{id}_BullJustConfirmed()",
+          "BRKSM_{id}_BearJustConfirmed()",
+          "BRKSM_{id}_BullConfirmSL()",
+          "BRKSM_{id}_BearConfirmSL()",
+        ],
         meaning: "Price broke beyond a range or level.",
       },
     ],
@@ -549,6 +597,10 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         id: "hidden_divergence",
         roles: ["setup", "execution"],
         queryFunctions: [
+          "RSIHDSM_{id}_HasActiveBull()",
+          "RSIHDSM_{id}_HasActiveBear()",
+          "RSIHDSM_{id}_ActiveBullSL()",
+          "RSIHDSM_{id}_ActiveBearSL()",
           "RSIHDSM_{id}_BullJustDiverged()",
           "RSIHDSM_{id}_BearJustDiverged()",
           "RSIHDSM_{id}_BullJustConfirmed()",

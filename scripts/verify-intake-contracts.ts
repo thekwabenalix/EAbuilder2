@@ -435,6 +435,52 @@ const cases: ContractCase[] = [
     },
   },
   {
+    name: "intent contract captures EMA retest then IFVG formation sequence",
+    run: () => {
+      const prompt = `
+        M5 only. 12 EMA crosses 48 EMA for direction.
+        Price must test only the 48 EMA before setup is valid.
+        Only IFVGs that form after the EMA test are valid.
+        Enter when the IFVG forms. Take profit is 1:3.
+      `;
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          rules: [],
+          summary: "EMA IFVG strategy.",
+        }),
+        prompt,
+      );
+
+      const contract = blueprint.intentContract as Record<string, unknown>;
+      assertOk(contract, "intent contract missing");
+      assertEq(
+        (contract.setup as Record<string, unknown>).target,
+        "slow",
+        "contract retest target",
+      );
+      assertEq(
+        (contract.execution as Record<string, unknown>).entryEvent,
+        "formation",
+        "contract IFVG entry event",
+      );
+      assertEq(
+        (contract.execution as Record<string, unknown>).mustOccurAfter,
+        "setup_gate",
+        "contract sequence gate",
+      );
+      assertOk(
+        (contract.sequence as string[]).join(" -> ").includes("fvg_inversion:execution"),
+        "contract sequence missing IFVG execution",
+      );
+      const constraintCodes = (contract.constraints as Array<Record<string, unknown>>).map((item) =>
+        String(item.code),
+      );
+      assertOk(constraintCodes.includes("ema_retest_target"), "contract EMA target missing");
+      assertOk(constraintCodes.includes("ifvg_entry_event"), "contract IFVG event missing");
+    },
+  },
+  {
     name: "raw text extraction preserves BOS lookback and swing strength",
     run: () => {
       const blueprint = normalizeBlueprint(
@@ -465,6 +511,158 @@ const cases: ContractCase[] = [
       const directionParams = paramsOf(brainOf(fb, "direction"));
       assertEq(directionParams.lookback, 80, "BOS lookback");
       assertEq(directionParams.swingLen, 7, "BOS swing length");
+    },
+  },
+  {
+    name: "module expansion maps OB+FVG setup and liquidity sweep execution",
+    run: () => {
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          rules: [
+            {
+              id: "h1_ob_fvg_setup",
+              type: "custom",
+              side: "buy",
+              label:
+                "H1 order block with FVG confluence creates the setup zone and expires after 60 bars.",
+              parameters: { timeframe: "H1" },
+              compilable: true,
+            },
+            {
+              id: "m5_liq_sweep_entry",
+              type: "custom",
+              side: "buy",
+              label:
+                "M5 liquidity sweep entry using swing length 4 and lookback 30 bars triggers the trade.",
+              parameters: { timeframe: "M5" },
+              compilable: true,
+            },
+          ],
+        }),
+      );
+
+      const fb = fourBrainOf(blueprint);
+      const setup = brainOf(fb, "setup");
+      const execution = brainOf(fb, "execution");
+      assertEq(modulesOf(setup)[0], "ob_fvg", "setup module");
+      assertEq(paramsOf(setup).expiryBars, 60, "OB+FVG expiry");
+      assertEq(modulesOf(execution)[0], "liqsweep", "execution module");
+      assertEq(paramsOf(execution).swingLen, 4, "liquidity sweep swing length");
+      assertEq(paramsOf(execution).lookback, 30, "liquidity sweep lookback");
+    },
+  },
+  {
+    name: "module expansion preserves RSI hidden divergence parameters",
+    run: () => {
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          rules: [
+            {
+              id: "m15_rsi_hd_setup",
+              type: "custom",
+              side: "both",
+              label:
+                "M15 RSI 21 hidden divergence setup using pivot strength 4 and lookback 80 bars.",
+              parameters: { timeframe: "M15" },
+              compilable: true,
+            },
+            {
+              id: "m5_engulf_entry",
+              type: "custom",
+              side: "both",
+              label: "M5 engulfing entry expires after 40 bars.",
+              parameters: { timeframe: "M5" },
+              compilable: true,
+            },
+          ],
+        }),
+      );
+
+      const fb = fourBrainOf(blueprint);
+      const setup = brainOf(fb, "setup");
+      const execution = brainOf(fb, "execution");
+      assertEq(modulesOf(setup)[0], "rsi_hd", "setup module");
+      assertEq(paramsOf(setup).rsiPeriod, 21, "RSI period");
+      assertEq(paramsOf(setup).pivotLeft, 4, "RSI HD pivot left");
+      assertEq(paramsOf(setup).pivotRight, 4, "RSI HD pivot right");
+      assertEq(paramsOf(setup).lookback, 80, "RSI HD lookback");
+      assertEq(modulesOf(execution)[0], "engulfing", "execution module");
+      assertEq(paramsOf(execution).expiryBars, 40, "engulfing expiry");
+    },
+  },
+  {
+    name: "module expansion maps gap S/R setup and rejection entry",
+    run: () => {
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          rules: [
+            {
+              id: "h4_gap_snr_setup",
+              type: "custom",
+              side: "both",
+              label: "H4 gap support setup with lookback 70 bars.",
+              parameters: { timeframe: "H4" },
+              compilable: true,
+            },
+            {
+              id: "m5_rejection_entry",
+              type: "custom",
+              side: "both",
+              label: "M5 wick rejection entry from support with lookback 25 bars.",
+              parameters: { timeframe: "M5" },
+              compilable: true,
+            },
+          ],
+        }),
+      );
+
+      const fb = fourBrainOf(blueprint);
+      const setup = brainOf(fb, "setup");
+      const execution = brainOf(fb, "execution");
+      assertEq(modulesOf(setup)[0], "gap_snr", "setup module");
+      assertEq(paramsOf(setup).lookback, 70, "gap S/R lookback");
+      assertEq(modulesOf(execution)[0], "rejection", "execution module");
+      assertEq(paramsOf(execution).lookback, 25, "rejection lookback");
+    },
+  },
+  {
+    name: "module expansion preserves missed-level distance parameters",
+    run: () => {
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          rules: [
+            {
+              id: "m15_miss_setup",
+              type: "custom",
+              side: "both",
+              label:
+                "M15 missed level setup within 6 pips using swing length 5 and lookback 90 bars.",
+              parameters: { timeframe: "M15" },
+              compilable: true,
+            },
+            {
+              id: "m5_breakout_entry",
+              type: "custom",
+              side: "both",
+              label: "M5 breakout entry.",
+              parameters: { timeframe: "M5" },
+              compilable: true,
+            },
+          ],
+        }),
+      );
+
+      const fb = fourBrainOf(blueprint);
+      const setup = brainOf(fb, "setup");
+      assertEq(modulesOf(setup)[0], "miss", "setup module");
+      assertEq(paramsOf(setup).nearPoints, 60, "miss distance points");
+      assertEq(paramsOf(setup).swingLen, 5, "miss swing length");
+      assertEq(paramsOf(setup).lookback, 90, "miss lookback");
+      assertEq(modulesOf(brainOf(fb, "execution"))[0], "breakout", "execution module");
     },
   },
   {
@@ -500,6 +698,53 @@ const cases: ContractCase[] = [
       const fb = fourBrainOf(blueprint);
       assertEq(paramsOf(brainOf(fb, "direction")).retestTarget, "slow", "direction target");
       assertEq(paramsOf(brainOf(fb, "setup")).retestTarget, "slow", "setup target");
+    },
+  },
+  {
+    name: "intent audit repairs prompt-specific EMA and IFVG constraints",
+    run: () => {
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          fourBrain: {
+            direction: {
+              modules: ["ema"],
+              timeframe: "M5",
+              params: { fastPeriod: 12, slowPeriod: 48 },
+              description: "EMA cross sets direction.",
+            },
+            setup: {
+              modules: ["ema"],
+              timeframe: "M5",
+              params: {},
+              description: "EMA retest arms setup.",
+            },
+            execution: {
+              modules: ["fvg_inversion"],
+              timeframe: "M5",
+              params: {},
+              description: "IFVG entry.",
+            },
+          },
+        }),
+        "The retest must be on only the 48 EMA. Enter when the IFVG forms.",
+      );
+
+      const auditCodes = ((blueprint.blueprintAudit ?? []) as Array<Record<string, unknown>>).map(
+        (item) => String(item.code),
+      );
+      assertOk(
+        auditCodes.includes("ema_retest_target_preserved"),
+        "normalization should repair and preserve EMA target",
+      );
+      assertOk(
+        auditCodes.includes("ifvg_entry_event_preserved"),
+        "normalization should repair and preserve IFVG event",
+      );
+      const severities = ((blueprint.blueprintAudit ?? []) as Array<Record<string, unknown>>).map(
+        (item) => String(item.severity),
+      );
+      assertOk(!severities.includes("error"), "repaired intent should not leave audit errors");
     },
   },
 ];

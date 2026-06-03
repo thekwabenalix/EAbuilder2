@@ -150,6 +150,92 @@ export interface StrategyBlueprint {
     severity: "info" | "warn" | "error";
     message: string;
   }>;
+  /** Explicit strategy intent contract extracted before EA generation. */
+  intentContract?: {
+    version: 1;
+    source: "local_extractor";
+    timeframe?: string;
+    modules: string[];
+    sequence: string[];
+    direction?: {
+      module: string;
+      event: string;
+      fastPeriod?: number;
+      slowPeriod?: number;
+      resetPolicy?: string;
+    };
+    setup?: {
+      gate: string;
+      target?: string;
+      targetLabel?: string;
+      mustOccurAfter?: string;
+    };
+    execution?: {
+      module: string;
+      entryEvent: string;
+      mustOccurAfter?: string;
+    };
+    constraints: Array<{
+      code: string;
+      label: string;
+      value: string;
+    }>;
+    assumptions: string[];
+  };
+  /** Last AI wiring result embedded into generated MQL5. Used for diagnostics/support. */
+  aiWiringDiagnostics?: {
+    generatedAt: string;
+    validation?: {
+      status: "pass" | "warn" | "fail";
+      errors: string[];
+      warnings: string[];
+    };
+    repairAttempts?: number;
+    semantics?: {
+      version: 1;
+      source: "ai" | "deterministic_adapter" | "local_extractor";
+      timeframe: string;
+      modules: string[];
+      direction?: {
+        module: string;
+        event: string;
+        fastPeriod?: number;
+        slowPeriod?: number;
+        resetPolicy?: string;
+      };
+      setup?: {
+        gate: string;
+        target?: string;
+        targetLabel?: string;
+        mustOccurAfter?: string;
+      };
+      execution?: {
+        module: string;
+        entryEvent: string;
+        mustOccurAfter?: string;
+      };
+      filters?: Array<{
+        id: string;
+        role: "setup" | "execution";
+        indicator: string;
+        timeframe: string;
+        params: Record<string, unknown>;
+      }>;
+      assumptions: string[];
+    };
+    required_sms: string[];
+    sm_configs: Record<
+      string,
+      {
+        type: string;
+        id: string;
+        TF: string;
+        tf: string;
+        params: Record<string, unknown>;
+      }
+    >;
+    notes: string;
+  };
 
   /**
    * Optional 4-brain configuration.
@@ -210,6 +296,7 @@ export type BrainModuleType =
   | "fvg" // fair value gap — zone setup or execution trigger
   | "fvg_inversion" // inverted FVG pattern
   | "order_block" // order block  — zone setup or execution trigger
+  | "ob_fvg" // order block + FVG confluence
   | "liqsweep" // liquidity sweep — execution trigger
   | "breakout" // price break beyond a defined level
   | "snr" // classic S/R — zone setup
@@ -217,6 +304,7 @@ export type BrainModuleType =
   | "rejection" // Reactive SNR — wick rejection off a level
   | "miss" // Reactive SNR — price misses a level (liquidity)
   | "bb" // Bollinger Bands
+  | "rsi_hd" // RSI hidden divergence
   | "ema" // EMA trend — direction bias
   | "engulfing" // candle pattern — execution trigger
   | "pin_bar"; // candle pattern — execution trigger

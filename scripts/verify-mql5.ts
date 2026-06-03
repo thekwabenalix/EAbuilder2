@@ -332,6 +332,188 @@ function runAiTest(
 runAiTest("RSI HD as Setup Brain", "RSI_HD_Continuation_Test.mq5", buildAiEa);
 runAiTest("OB+FVG as Setup→Execution", "OB_FVG_Setup_Test.mq5", buildObFvgAiEa);
 
+type SmConfig = AiBrainWiring["sm_configs"][string];
+
+function sm(type: string, id: string, params: Record<string, unknown> = {}): SmConfig {
+  return { type, id, TF: id === "MN" ? "PERIOD_MN1" : `PERIOD_${id}`, tf: id, params };
+}
+
+function buildContractCoverageEa(
+  eaName: string,
+  config: FourBrainConfig,
+  aiWiring: AiBrainWiring,
+  requiredSnippets: string[],
+): { code: string; checks: Array<[string, boolean]> } {
+  const code = generateEA({
+    eaName,
+    config,
+    globalSymbol: "EURUSD",
+    globalMagic: 990800,
+    aiWiring,
+  });
+  const checks: Array<[string, boolean]> = requiredSnippets.map((snippet) => [
+    `contains ${snippet}`,
+    code.includes(snippet),
+  ]);
+  checks.push(["no unknown SM placeholders", !code.includes("// Unknown SM type:")]);
+  return { code, checks };
+}
+
+const phase3CoverageCases: Array<{
+  title: string;
+  file: string;
+  config: FourBrainConfig;
+  aiWiring: AiBrainWiring;
+  requiredSnippets: string[];
+}> = [
+  {
+    title: "CHoCH direction → liquidity sweep setup → IFVG execution",
+    file: "Phase3_CHOCH_LiqSweep_IFVG_Test.mq5",
+    config: {
+      direction: { modules: ["choch"], timeframe: "D1" },
+      setup: { modules: ["liqsweep"], timeframe: "H4" },
+      execution: { modules: ["fvg_inversion"], timeframe: "M5" },
+      management: { riskPercent: 1, rewardRisk: 3, stopBuffer: 20, maxOpenTrades: 1 },
+    },
+    aiWiring: {
+      direction_brain: `void Direction_Brain_Execute() {
+  if(BOSSM_D1_BullBias()) gBias = 1;
+  else if(BOSSM_D1_BearBias()) gBias = -1;
+  else gBias = 0;
+}`,
+      setup_brain: `void Setup_Brain_Execute() {
+  if(gBias == 1 && LSSM_H4_BullJustConfirmed()) { gSetupActive = true; gSetupDir = 1; gSetupSLHint = LSSM_H4_BullConfirmSL(); }
+  else if(gBias == -1 && LSSM_H4_BearJustConfirmed()) { gSetupActive = true; gSetupDir = -1; gSetupSLHint = LSSM_H4_BearConfirmSL(); }
+}`,
+      execution_brain: `void Execution_Brain_Execute() {
+  if(!gSetupActive) return;
+  if(gSetupDir == 1 && IFVGSM_M5_BullJustInverted()) { gExecSignal = true; gExecDir = 1; gExecSL = IFVGSM_M5_BullConfirmSL(); }
+  else if(gSetupDir == -1 && IFVGSM_M5_BearJustInverted()) { gExecSignal = true; gExecDir = -1; gExecSL = IFVGSM_M5_BearConfirmSL(); }
+}`,
+      required_sms: ["BOSSM_D1", "LSSM_H4", "IFVGSM_M5"],
+      sm_configs: {
+        choch_D1: sm("choch", "D1", { swingLen: 5, lookback: 60 }),
+        liqsweep_H4: sm("liqsweep", "H4", { swingLen: 4, lookback: 30 }),
+        ifvg_M5: sm("fvg_inversion", "M5", { expiryBars: 80 }),
+      },
+    },
+    requiredSnippets: [
+      "void BOSSM_D1_Tick",
+      "void LSSM_H4_Tick",
+      "void IFVGSM_M5_Tick",
+      "LSSM_H4_BullJustConfirmed()",
+      "IFVGSM_M5_BullJustInverted()",
+    ],
+  },
+  {
+    title: "Gap S/R setup → breakout execution",
+    file: "Phase3_GapSNR_Breakout_Test.mq5",
+    config: {
+      setup: { modules: ["gap_snr"], timeframe: "H1" },
+      execution: { modules: ["breakout"], timeframe: "M5" },
+      management: { riskPercent: 1, rewardRisk: 2, stopBuffer: 20, maxOpenTrades: 1 },
+    },
+    aiWiring: {
+      direction_brain: `void Direction_Brain_Execute() { gBias = 0; }`,
+      setup_brain: `void Setup_Brain_Execute() {
+  if(GSNRSM_H1_HasActiveBull()) { gSetupActive = true; gSetupDir = 1; gSetupSLHint = GSNRSM_H1_BullConfirmSL(); }
+  else if(GSNRSM_H1_HasActiveBear()) { gSetupActive = true; gSetupDir = -1; gSetupSLHint = GSNRSM_H1_BearConfirmSL(); }
+}`,
+      execution_brain: `void Execution_Brain_Execute() {
+  if(!gSetupActive) return;
+  if(gSetupDir == 1 && BRKSM_M5_BullJustConfirmed()) { gExecSignal = true; gExecDir = 1; gExecSL = BRKSM_M5_BullConfirmSL(); }
+  else if(gSetupDir == -1 && BRKSM_M5_BearJustConfirmed()) { gExecSignal = true; gExecDir = -1; gExecSL = BRKSM_M5_BearConfirmSL(); }
+}`,
+      required_sms: ["GSNRSM_H1", "BRKSM_M5"],
+      sm_configs: {
+        gap_H1: sm("gap_snr", "H1", { lookback: 70, expiryBars: 120 }),
+        breakout_M5: sm("breakout", "M5", { lookback: 25 }),
+      },
+    },
+    requiredSnippets: [
+      "void GSNRSM_H1_Tick",
+      "void BRKSM_M5_Tick",
+      "GSNRSM_H1_HasActiveBull()",
+      "BRKSM_M5_BullJustConfirmed()",
+    ],
+  },
+  {
+    title: "Missed level setup → rejection execution",
+    file: "Phase3_Miss_Rejection_Test.mq5",
+    config: {
+      setup: { modules: ["miss"], timeframe: "H1" },
+      execution: { modules: ["rejection"], timeframe: "M5" },
+      management: { riskPercent: 1, rewardRisk: 3, stopBuffer: 20, maxOpenTrades: 1 },
+    },
+    aiWiring: {
+      direction_brain: `void Direction_Brain_Execute() { gBias = 0; }`,
+      setup_brain: `void Setup_Brain_Execute() {
+  if(MISSSM_H1_HasActiveBull()) { gSetupActive = true; gSetupDir = 1; gSetupSLHint = MISSSM_H1_BullConfirmSL(); }
+  else if(MISSSM_H1_HasActiveBear()) { gSetupActive = true; gSetupDir = -1; gSetupSLHint = MISSSM_H1_BearConfirmSL(); }
+}`,
+      execution_brain: `void Execution_Brain_Execute() {
+  if(!gSetupActive) return;
+  if(gSetupDir == 1 && REJSM_M5_BullJustConfirmed()) { gExecSignal = true; gExecDir = 1; gExecSL = REJSM_M5_BullConfirmSL(); }
+  else if(gSetupDir == -1 && REJSM_M5_BearJustConfirmed()) { gExecSignal = true; gExecDir = -1; gExecSL = REJSM_M5_BearConfirmSL(); }
+}`,
+      required_sms: ["MISSSM_H1", "REJSM_M5"],
+      sm_configs: {
+        miss_H1: sm("miss", "H1", { lookback: 90, swingLen: 5, nearPoints: 60 }),
+        rejection_M5: sm("rejection", "M5", { lookback: 25 }),
+      },
+    },
+    requiredSnippets: [
+      "void MISSSM_H1_Tick",
+      "void REJSM_M5_Tick",
+      "MISSSM_H1_HasActiveBull()",
+      "REJSM_M5_BullJustConfirmed()",
+    ],
+  },
+  {
+    title: "RSI hidden divergence setup → OB+FVG execution",
+    file: "Phase3_RSIHD_OBFVG_Test.mq5",
+    config: {
+      setup: { modules: ["rsi_hd"], timeframe: "H4" },
+      execution: { modules: ["ob_fvg"], timeframe: "M15" },
+      management: { riskPercent: 1, rewardRisk: 3, stopBuffer: 20, maxOpenTrades: 1 },
+    },
+    aiWiring: {
+      direction_brain: `void Direction_Brain_Execute() { gBias = 0; }`,
+      setup_brain: `void Setup_Brain_Execute() {
+  if(RSIHDSM_H4_HasActiveBull()) { gSetupActive = true; gSetupDir = 1; gSetupSLHint = RSIHDSM_H4_ActiveBullSL(); }
+  else if(RSIHDSM_H4_HasActiveBear()) { gSetupActive = true; gSetupDir = -1; gSetupSLHint = RSIHDSM_H4_ActiveBearSL(); }
+}`,
+      execution_brain: `void Execution_Brain_Execute() {
+  if(!gSetupActive) return;
+  if(gSetupDir == 1 && OBFVGSM_M15_BullJustConfirmed()) { gExecSignal = true; gExecDir = 1; gExecSL = OBFVGSM_M15_BullConfirmSL(); }
+  else if(gSetupDir == -1 && OBFVGSM_M15_BearJustConfirmed()) { gExecSignal = true; gExecDir = -1; gExecSL = OBFVGSM_M15_BearConfirmSL(); }
+}`,
+      required_sms: ["RSIHDSM_H4", "OBFVGSM_M15"],
+      sm_configs: {
+        rsi_H4: sm("rsi_hd", "H4", { rsiPeriod: 21, pivotLeft: 4, pivotRight: 4, lookback: 80 }),
+        obfvg_M15: sm("ob_fvg", "M15", { lookback: 50, expiryBars: 60 }),
+      },
+    },
+    requiredSnippets: [
+      "void RSIHDSM_H4_Tick",
+      "void OBFVGSM_M15_Tick",
+      "RSIHDSM_H4_HasActiveBull()",
+      "OBFVGSM_M15_BullJustConfirmed()",
+    ],
+  },
+];
+
+for (const test of phase3CoverageCases) {
+  runAiTest(test.title, test.file, () =>
+    buildContractCoverageEa(
+      test.title.replace(/[^\w]+/g, "_"),
+      test.config,
+      test.aiWiring,
+      test.requiredSnippets,
+    ),
+  );
+}
+
 // ── EMA cross→retest sequence (M15 cross → M5 cross setup → M5 retest/confirm) ─
 runAiTest(
   "EMA cross→retest SM (M15 bias → M5 cross → retest → confirm)",
@@ -739,6 +921,7 @@ void Direction_Brain_Execute() {
     ["execution uses formation SL", code.includes("BullInversionSL()")],
     ["uses just-closed bar tick", code.includes("IFVGSM_M5_Tick(1)")],
     ["AI audit header emitted", code.includes("AI validation: pass")],
+    ["AI audit repair status emitted", code.includes("AI repair    : not_needed")],
     ["AI audit shows slow EMA target", code.includes("AI setup") && code.includes("slow EMA (48)")],
   ];
   return { code, checks };

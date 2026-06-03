@@ -278,6 +278,7 @@ export interface AiBrainWiring {
     errors: string[];
     warnings: string[];
   };
+  repairAttempts?: number;
   repair?: {
     blocked: Array<{
       id: string;

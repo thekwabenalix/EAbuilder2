@@ -18,6 +18,7 @@ import {
   getModuleContract,
   moduleContractAllowsSmFunction,
   moduleSupportsEvent,
+  type BrainRole,
 } from "../../src/lib/module-contracts.js";
 import { buildModuleRepairPlan, getModuleAdmission } from "../../src/lib/module-admission.js";
 import {
@@ -439,6 +440,7 @@ export interface AiBrainWiringResponse {
   execution_brain: string;
   semantics?: StrategySemantics;
   validation?: WiringValidation;
+  repairAttempts?: number;
   repair?: ReturnType<typeof buildModuleRepairPlan>;
   required_sms: string[];
   sm_configs: Record<
@@ -959,12 +961,238 @@ function applyBuiltinFilters(
   return response;
 }
 
+function parseAiJsonObject(rawText: string): Record<string, unknown> {
+  let text = rawText.trim().replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+  if (text.startsWith("```")) text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("Claude did not return valid JSON");
+    return JSON.parse(match[0]) as Record<string, unknown>;
+  }
+}
+
+function compactJson(value: unknown): string {
+  return JSON.stringify(value, null, 2);
+}
+
+export function buildAiWiringRepairPrompt(params: {
+  originalRequest: string;
+  invalidResponse: AiBrainWiringResponse;
+  validation: WiringValidation;
+}): string {
+  const errors = params.validation.errors
+    .map((error, index) => `${index + 1}. ${error}`)
+    .join("\n");
+  const warnings = params.validation.warnings.length
+    ? params.validation.warnings.map((warning, index) => `${index + 1}. ${warning}`).join("\n")
+    : "None";
+
+  return `Repair the 4-Brain wiring JSON. Return ONLY the corrected JSON object.
+
+The previous wiring failed deterministic validation. Do not explain outside the notes field.
+Do not invent modules, state-machine functions, or raw MQL5 helpers. Use only the verified module contracts.
+Keep the trader's strategy intent unchanged. Fix the wiring, semantics, and sm_configs so validation can pass.
+
+VALIDATION ERRORS:
+${errors || "None"}
+
+VALIDATION WARNINGS:
+${warnings}
+
+ORIGINAL REQUEST:
+${params.originalRequest}
+
+INVALID JSON TO REPAIR:
+${compactJson({
+  direction_brain: params.invalidResponse.direction_brain,
+  setup_brain: params.invalidResponse.setup_brain,
+  execution_brain: params.invalidResponse.execution_brain,
+  semantics: params.invalidResponse.semantics,
+  required_sms: params.invalidResponse.required_sms,
+  sm_configs: params.invalidResponse.sm_configs,
+  notes: params.invalidResponse.notes,
+})}
+
+Repair checklist:
+- If semantics declare a module/event for a brain, that brain must call a verified query function for that exact module/event.
+- If execution.mustOccurAfter is "setup_gate", execution must reference gSetupActive or gSetupDir, except strict EMA→IFVG timestamp gates which must compare IFVG time against gEmaIfvgTestTime.
+- Every XXXSM_ID_ function call must have a matching sm_configs entry.
+- Use exact function names from the module contract registry.
+- Preserve exact trader parameters and timeframe intent.`;
+}
+
+type SemanticBrainRole = Extract<BrainRole, "direction" | "setup" | "execution">;
+
+function codeForSemanticRole(role: SemanticBrainRole, codes: Record<SemanticBrainRole, string>) {
+  return codes[role] ?? "";
+}
+
+function defaultSemanticEvent(moduleId: string, role: SemanticBrainRole): string | undefined {
+  const defaults: Record<string, Partial<Record<SemanticBrainRole, string>>> = {
+    bos: { direction: "bias", setup: "break", execution: "break" },
+    choch: { direction: "bias_flip", setup: "break", execution: "break" },
+    bos_choch: {
+      direction: "structure_event",
+      setup: "structure_event",
+      execution: "structure_event",
+    },
+    order_block: { setup: "active_zone", execution: "mitigation" },
+    ob_fvg: { setup: "confluence_zone", execution: "entry" },
+    fvg: { setup: "active_zone", execution: "confirmation" },
+    fvg_inversion: { direction: "active_zone", setup: "active_zone", execution: "confirmation" },
+    liqsweep: { setup: "sweep", execution: "sweep" },
+    snr: { setup: "level_touch", execution: "level_touch" },
+    gap_snr: { setup: "gap_level_touch", execution: "gap_level_touch" },
+    rejection: { execution: "rejection" },
+    miss: { setup: "miss", execution: "miss" },
+    breakout: { setup: "breakout", execution: "breakout" },
+    rsi_hd: { setup: "hidden_divergence", execution: "hidden_divergence" },
+    engulfing: { direction: "eg_zone_active", setup: "eg_zone_active", execution: "eg_confirmed" },
+  };
+  return defaults[moduleId]?.[role];
+}
+
+function normalizeSemanticEvent(
+  moduleId: string,
+  role: SemanticBrainRole,
+  eventId: string | undefined,
+): string | undefined {
+  const event = String(eventId ?? "").toLowerCase();
+  if (!event || event === "unknown" || event === "module_signal" || event === `${moduleId}_setup`) {
+    return defaultSemanticEvent(moduleId, role);
+  }
+  return event;
+}
+
+function setupModuleFromSemantics(semantics: StrategySemantics): string | undefined {
+  const setupGate = String(semantics.setup?.gate ?? "").toLowerCase();
+  const modules = uniqueModules(semantics.modules ?? []);
+  const setupCandidates = modules.filter((moduleId) =>
+    getModuleContract(moduleId)?.supportedRoles.includes("setup"),
+  );
+
+  const explicit = setupCandidates.find((moduleId) =>
+    getModuleContract(moduleId)?.semanticEvents.some(
+      (event) => event.id === setupGate && event.roles.includes("setup"),
+    ),
+  );
+  if (explicit) return explicit;
+
+  const nonDirection = setupCandidates.filter(
+    (moduleId) => moduleId !== semantics.direction?.module,
+  );
+  const nonExecution = nonDirection.filter((moduleId) => moduleId !== semantics.execution?.module);
+  return nonExecution[0] ?? nonDirection[0] ?? setupCandidates[0];
+}
+
+function semanticModuleForRole(
+  semantics: StrategySemantics,
+  role: SemanticBrainRole,
+): string | undefined {
+  if (role === "direction") return semantics.direction?.module;
+  if (role === "execution") return semantics.execution?.module;
+  return setupModuleFromSemantics(semantics);
+}
+
+function semanticEventForRole(
+  semantics: StrategySemantics,
+  role: SemanticBrainRole,
+  moduleId: string,
+): string | undefined {
+  if (role === "direction")
+    return normalizeSemanticEvent(moduleId, role, semantics.direction?.event);
+  if (role === "execution") {
+    return normalizeSemanticEvent(moduleId, role, semantics.execution?.entryEvent);
+  }
+  return normalizeSemanticEvent(moduleId, role, semantics.setup?.gate);
+}
+
+function queryFunctionPattern(queryFunction: string): RegExp | null {
+  if (queryFunction.startsWith("template:") || queryFunction.startsWith("not_verified:"))
+    return null;
+  const escaped = queryFunction
+    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    .replace("\\{id\\}", "[A-Za-z0-9]+")
+    .replace("\\(\\)", "\\s*\\(");
+  return new RegExp(`\\b${escaped}`);
+}
+
+function brainUsesContractQuery(code: string, queryFunctions: string[]): boolean {
+  return queryFunctions.some((query) => {
+    const pattern = queryFunctionPattern(query);
+    return pattern ? pattern.test(code) : false;
+  });
+}
+
+function semanticEventQueryFunctions(
+  moduleId: string,
+  eventId: string,
+  role: SemanticBrainRole,
+): string[] {
+  const contract = getModuleContract(moduleId);
+  if (!contract) return [];
+  return contract.semanticEvents
+    .filter((event) => event.id === eventId && event.roles.includes(role))
+    .flatMap((event) => event.queryFunctions);
+}
+
+function validateGenericSemanticRole(
+  semantics: StrategySemantics,
+  role: SemanticBrainRole,
+  codes: Record<SemanticBrainRole, string>,
+  errors: string[],
+  warnings: string[],
+) {
+  const moduleId = semanticModuleForRole(semantics, role);
+  if (!moduleId || moduleId === "unknown") return;
+
+  const contract = getModuleContract(moduleId);
+  if (!contract) return;
+
+  if (!contract.supportedRoles.includes(role)) {
+    errors.push(`Module "${moduleId}" is not supported for the ${role} brain role.`);
+    return;
+  }
+
+  const eventId = semanticEventForRole(semantics, role, moduleId);
+  if (!eventId || eventId === "ema_retest") return;
+  if (moduleId === "ema") return;
+
+  if (!moduleSupportsEvent(moduleId, eventId, role)) {
+    errors.push(
+      `Module contract registry does not support ${moduleId} ${role} event "${eventId}".`,
+    );
+    return;
+  }
+
+  const queryFunctions = semanticEventQueryFunctions(moduleId, eventId, role);
+  if (!queryFunctions.length) {
+    warnings.push(`No query functions are registered for ${moduleId} ${role} event "${eventId}".`);
+    return;
+  }
+
+  const roleCode = codeForSemanticRole(role, codes);
+  if (!brainUsesContractQuery(roleCode, queryFunctions)) {
+    errors.push(
+      `Semantics require ${moduleId} ${role} event "${eventId}", but ${role} wiring does not use a verified ${moduleId} query for that event.`,
+    );
+  }
+}
+
 export function validateWiringAgainstSemantics(response: AiBrainWiringResponse): WiringValidation {
   const errors: string[] = [];
   const warnings: string[] = [];
   const dirCode = response.direction_brain ?? "";
   const setupCode = response.setup_brain ?? "";
   const execCode = response.execution_brain ?? "";
+  const roleCodes: Record<SemanticBrainRole, string> = {
+    direction: dirCode,
+    setup: setupCode,
+    execution: execCode,
+  };
   const allCode = [dirCode, setupCode, execCode].join("\n");
   const semantics = response.semantics;
 
@@ -985,6 +1213,10 @@ export function validateWiringAgainstSemantics(response: AiBrainWiringResponse):
       warnings.push(`No module contract is registered for "${moduleId}".`);
     }
   }
+
+  validateGenericSemanticRole(semantics, "direction", roleCodes, errors, warnings);
+  validateGenericSemanticRole(semantics, "setup", roleCodes, errors, warnings);
+  validateGenericSemanticRole(semantics, "execution", roleCodes, errors, warnings);
 
   for (const filter of semantics.filters ?? []) {
     const contract = getBuiltinFilterContract(filter.id);
@@ -1149,6 +1381,16 @@ export function validateWiringAgainstSemantics(response: AiBrainWiringResponse):
     }
   }
 
+  if (
+    semantics.execution?.module !== "fvg_inversion" &&
+    semantics.execution?.mustOccurAfter === "setup_gate" &&
+    !/\bgSetupActive\b|\bgSetupDir\b/.test(execCode)
+  ) {
+    errors.push(
+      "Execution must occur after setup gate, but execution wiring does not reference gSetupActive or gSetupDir.",
+    );
+  }
+
   const status = errors.length ? "fail" : warnings.length ? "warn" : "pass";
   return { status, errors, warnings };
 }
@@ -1298,6 +1540,28 @@ void Direction_Brain_Execute() {
   return response;
 }
 
+async function requestAiWiringJson(userMessage: string): Promise<Record<string, unknown>> {
+  const response = await client.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 3000,
+    system: [
+      {
+        type: "text",
+        text: buildSystem(),
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    messages: [
+      { role: "user", content: userMessage },
+      { role: "assistant", content: "{" },
+    ],
+  });
+
+  const block = response.content[0];
+  if (block.type !== "text") throw new Error("Unexpected Claude response type");
+  return parseAiJsonObject(`{${block.text}`);
+}
+
 export default async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   if (req.method !== "POST")
@@ -1418,42 +1682,34 @@ In "notes", explain how you mapped their module selections to state machines.`;
   }
 
   try {
-    const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 3000,
-      system: [
-        {
-          type: "text",
-          text: buildSystem(),
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      messages: [
-        { role: "user", content: userMessage },
-        { role: "assistant", content: "{" }, // prefill to force JSON
-      ],
-    });
+    const parsed = await requestAiWiringJson(userMessage);
+    let normalized = normalizeAiResponse(parsed, fullText, config, filterRefs);
+    normalized.repairAttempts = 0;
 
-    const block = response.content[0];
-    if (block.type !== "text") throw new Error("Unexpected Claude response type");
+    if (normalized.validation?.status === "fail") {
+      const repairPrompt = buildAiWiringRepairPrompt({
+        originalRequest: userMessage,
+        invalidResponse: normalized,
+        validation: normalized.validation,
+      });
+      const repaired = normalizeAiResponse(
+        await requestAiWiringJson(repairPrompt),
+        fullText,
+        config,
+        filterRefs,
+      );
+      repaired.repairAttempts = 1;
 
-    const raw = "{" + block.text;
-
-    // Clean and parse
-    let text = raw.trim().replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
-    if (text.startsWith("```")) text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      // Try to extract JSON if Claude leaked prose
-      const match = text.match(/\{[\s\S]*\}/);
-      if (!match) throw new Error("Claude did not return valid JSON");
-      parsed = JSON.parse(match[0]);
+      if (repaired.validation?.status === "pass" || repaired.validation?.status === "warn") {
+        repaired.notes = `${repaired.notes}\n\nAI repair pass: corrected wiring after deterministic validation rejected the first attempt.`;
+        normalized = repaired;
+      } else {
+        normalized.repairAttempts = 1;
+        normalized.notes = `${normalized.notes}\n\nAI repair attempted but validation still failed; returning the first invalid wiring with validator errors for diagnosis.`;
+      }
     }
 
-    return Response.json(normalizeAiResponse(parsed, fullText, config, filterRefs), {
+    return Response.json(normalized, {
       headers: { ...CORS, "Content-Type": "application/json" },
     });
   } catch (err) {

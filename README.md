@@ -1,8 +1,9 @@
 # MT5 AI Builder
 
-Turn plain-English forex strategy descriptions into editable MT5 Expert Advisor
-specs, then generate downloadable MQL5 code, JSON specs, and validation
-reports.
+Turn plain-English forex strategy descriptions or visual 4-Brain configs into
+self-contained MT5 Expert Advisors. The system does not ask AI to freely write a
+full EA. AI interprets the trader's intent into structured module wiring, then
+verified generators assemble compilable MQL5 from proven building blocks.
 
 > Disclaimer: This tool generates code from natural-language descriptions. It
 > does not evaluate or guarantee the profitability of any strategy. Always
@@ -13,67 +14,106 @@ reports.
 - React 19 + TypeScript
 - TanStack Start (Vite, file-based routing)
 - Tailwind CSS v4 + shadcn/ui
-- Lovable Cloud (Supabase) — auth, Postgres, Edge Functions
-- Lovable AI Gateway (optional) for prompt parsing
+- Supabase auth and Postgres
+- Netlify functions for AI parsing, 4-Brain wiring, and assistant routes
+
+## Architecture
+
+```text
+Trader prompt / visual config
+  -> AI strategy interview or 4-Brain visual setup
+  -> StrategyBlueprint + intent contract
+  -> module contract registry validates wiring
+  -> verified state-machine generators emit one self-contained .mq5
+  -> MT5 compile, backtest, export, and diagnostics
+```
+
+The 4-Brain model:
+
+- Direction Brain: persistent market bias (`gBias`)
+- Setup Brain: active setup zone/state (`gSetupActive`, `gSetupDir`, `gSetupSLHint`)
+- Execution Brain: precise entry trigger (`gExecSignal`, `gExecDir`, `gExecSL`)
+- Management Brain: deterministic risk, R:R, max SL, break-even, spread, max trades
 
 ## Features
 
-- Email/password auth (Supabase Auth)
+- Email/password auth
 - Dashboard listing of saved strategies
-- Plain-English prompt → structured `StrategySpec`
-- Editable strategy spec form
-- Modular MQL5 EA generator (inputs, EMA handles, signal logic, risk model)
+- AI Description Builder: plain English -> strategy blueprint -> 4-Brain EA
+- 4-Brain Visual Builder: module/timeframe/parameter config per brain
+- Verified inline state machines for EMA, FVG, IFVG, BOS/CHoCH, OB, OB+FVG,
+  liquidity sweep, S/R, gap S/R, breakout, rejection, miss, RSI hidden
+  divergence, and engulfing
+- AI wiring validation and one bounded repair retry
+- Persistent AI wiring diagnostics and downloadable `*-ai-diagnostics.json`
 - Code preview with copy / download
-- Builder progress, validation report cards, export bundle (.mq5/.json/.txt)
+- Local compile/backtest integration when the desktop companion is available
+- Export bundle: `.mq5`, blueprint JSON, diagnostics JSON, compile log, validation report
 - RLS so users only see their own strategies
 
 ## Environment
 
-Lovable Cloud auto-provisions and writes `.env`. The variables are:
+The expected variables are:
 
-| Variable                        | Where used                                                  |
-| ------------------------------- | ----------------------------------------------------------- |
-| `VITE_SUPABASE_URL`             | Browser Supabase client                                     |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | Browser Supabase client                                     |
-| `SUPABASE_URL`                  | Edge function runtime                                       |
-| `SUPABASE_PUBLISHABLE_KEY`      | Edge function runtime                                       |
-| `LOVABLE_API_KEY`               | Optional — enables real AI parsing in `mt5-strategy-parser` |
-
-If `LOVABLE_API_KEY` is missing, the edge function falls back to a deterministic
-mock parser so the UI still works end-to-end.
+| Variable                        | Where used                |
+| ------------------------------- | ------------------------- |
+| `VITE_SUPABASE_URL`             | Browser Supabase client   |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Browser Supabase client   |
+| `SUPABASE_URL`                  | Function/server runtime   |
+| `SUPABASE_PUBLISHABLE_KEY`      | Function/server runtime   |
+| `ANTHROPIC_API_KEY`             | AI strategy/wiring routes |
 
 ## Database
 
 A single table:
 
-```
+```text
 strategies(id, user_id, name, prompt, spec_json jsonb, generated_code, created_at, updated_at)
 ```
 
 RLS policies restrict every row to its `user_id == auth.uid()`.
 
-## Edge Function
+## API Functions
 
-`supabase/functions/mt5-strategy-parser/index.ts`
+- `netlify/functions/parse-strategy.mts`: strategy interview and blueprint extraction.
+- `netlify/functions/gen-4brain-ai.mts`: structured AI wiring for 4-Brain EAs.
+- `netlify/functions/ea-chat.mts`: chat assistant for compile/backtest feedback.
+- `netlify/functions/extract-brain-params.mts`: focused parameter extraction for visual brains.
 
-- Accepts `POST { prompt: string }`
-- Returns `{ spec: StrategySpec, source: "ai" | "mock" }`
-- Deployed automatically by Lovable Cloud
-
-## Local development
+## Local Development
 
 ```bash
-bun install
-bun dev
+npm install
+npm run dev
 ```
 
-## Where to extend next
+## Verification
 
-- `src/lib/mql5-generator.ts` — modular code emitter. Add risk variants,
-  trailing stops, multi-symbol support, etc.
-- `supabase/functions/mt5-strategy-parser` — swap or fine-tune the AI prompt,
-  add tool calls / structured output for richer specs.
-- `Validation` tab — wire to a real MetaEditor / MetaTrader 5 build pipeline
-  to replace the placeholder compile/backtest reports (look for `TODO`).
-- Add Google sign-in via `lovable.auth.signInWithOAuth("google", ...)` if
-  desired.
+Run the full release gate before pushing or deploying:
+
+```bash
+npm run verify:release
+```
+
+That command runs:
+
+- `npm run verify`: module admission, intake contracts, strategy families, AI wiring regressions, and MQL5 static generation checks
+- `npx tsc --noEmit`: TypeScript type checking
+- `npm run lint`: ESLint
+- `npm run build`: production Vite build
+
+Useful focused checks:
+
+```bash
+npm run verify:ai
+npm run verify:mql5
+npm run verify:families
+```
+
+## Where To Extend Next
+
+- `src/lib/module-library.ts`: user-facing module vocabulary and UI params.
+- `src/lib/module-contracts.ts`: verified semantic events and query functions.
+- `src/generators/gen-*-sm.ts`: inline state-machine emitters.
+- `src/generators/gen-ea.ts`: final self-contained EA assembler.
+- `scripts/verify-*.ts`: regression gates for new strategy families/modules.

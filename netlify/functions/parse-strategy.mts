@@ -264,12 +264,14 @@ const SUPPORTED_MODULES = new Set([
   "fvg",
   "fvg_inversion",
   "order_block",
+  "ob_fvg",
   "liqsweep",
   "breakout",
   "snr",
   "gap_snr",
   "rejection",
   "miss",
+  "rsi_hd",
   "bb",
   "ema",
   "engulfing",
@@ -363,6 +365,20 @@ function moduleFromRule(rule: Record<string, unknown>): string | undefined {
   const text = ruleText(rule);
   if (text.includes("sma") || text.includes("simple moving average")) return undefined;
   if (
+    text.includes("rsi hidden divergence") ||
+    text.includes("hidden divergence") ||
+    text.includes("rsi divergence")
+  )
+    return "rsi_hd";
+  if (
+    text.includes("ob_fvg") ||
+    text.includes("ob fvg") ||
+    text.includes("order block with fvg") ||
+    text.includes("order block and fvg") ||
+    text.includes("unicorn")
+  )
+    return "ob_fvg";
+  if (
     text.includes("ifvg") ||
     text.includes("inversion fvg") ||
     text.includes("inversion fair value gap") ||
@@ -390,9 +406,16 @@ function moduleFromRule(rule: Record<string, unknown>): string | undefined {
   if (text.includes("choch") || text.includes("change of character")) return "choch";
   if (text.includes("bos") || text.includes("break of structure")) return "bos";
   if (text.includes("breakout")) return "breakout";
+  if (text.includes("gap_snr") || text.includes("gap support") || text.includes("gap resistance"))
+    return "gap_snr";
+  if (
+    text.includes("missed level") ||
+    text.includes("missed support") ||
+    text.includes("missed resistance")
+  )
+    return "miss";
+  if (text.includes("rejection") || text.includes("wick rejection")) return "rejection";
   if (text.includes("support") || text.includes("resistance") || text.includes("snr")) return "snr";
-  if (text.includes("rejection")) return "rejection";
-  if (text.includes("miss")) return "miss";
   if (text.includes("bollinger")) return "bb";
   if (text.includes("engulf")) return "engulfing";
   if (text.includes("pin bar") || text.includes("hammer") || text.includes("shooting star"))
@@ -491,6 +514,24 @@ function extractRetestTolerancePoints(text: string): number | undefined {
   return pipMatch ? Number(pipMatch[1]) * 10 : undefined;
 }
 
+function extractNearPointsFromText(text: string): number | undefined {
+  const pointMatch = text.match(
+    /\b(?:near|within|miss(?:es|ed)? by)\D{0,25}(\d+(?:\.\d+)?)\s*points?\b/i,
+  );
+  if (pointMatch) return Number(pointMatch[1]);
+  const pipMatch = text.match(
+    /\b(?:near|within|miss(?:es|ed)? by)\D{0,25}(\d+(?:\.\d+)?)\s*pips?\b/i,
+  );
+  return pipMatch ? Number(pipMatch[1]) * 10 : undefined;
+}
+
+function extractRsiPeriodFromText(text: string): number | undefined {
+  const direct = text.match(/\brsi\s*(\d{1,3})\b/i);
+  if (direct) return Number(direct[1]);
+  const before = text.match(/\b(\d{1,3})\s*rsi\b/i);
+  return before ? Number(before[1]) : undefined;
+}
+
 function extractIfvgEntryEventFromText(text: string): "formation" | "retest" | undefined {
   const hay = text.toLowerCase();
   const retestEntry =
@@ -565,6 +606,28 @@ function syntheticRulesFromText(text: string, fallbackTf: string): Record<string
     });
   }
 
+  const seenGeneric = new Set<string>();
+  const genericFragments = text
+    .split(/(?<=[.!?])\s+|[\r\n]+|(?:^|\s)[-*]\s+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 8);
+
+  for (const fragment of genericFragments) {
+    const module = moduleFromRule({ type: "custom", label: fragment, parameters: {} });
+    if (!module || module === "ema" || module === "fvg_inversion") continue;
+    const tf = extractTfFromRule({ type: "custom", label: fragment, parameters: {} }, fallbackTf);
+    const key = `${module}|${tf}|${fragment.includes("entry") || fragment.includes("trigger") ? "execution" : "setup"}`;
+    if (seenGeneric.has(key)) continue;
+    seenGeneric.add(key);
+    rules.push({
+      id: `synthetic_${module}_${tf}_${rules.length}`,
+      type: module,
+      side: "both",
+      label: fragment,
+      parameters: { timeframe: tf },
+    });
+  }
+
   return rules;
 }
 
@@ -602,7 +665,11 @@ function enrichNonEmaBrainFromText(
   const ifvgEntryEvent = extractIfvgEntryEventFromText(sourceText);
 
   if (
-    (module === "fvg" || module === "fvg_inversion" || module === "order_block") &&
+    (module === "fvg" ||
+      module === "fvg_inversion" ||
+      module === "order_block" ||
+      module === "ob_fvg" ||
+      module === "engulfing") &&
     expiryBars !== undefined
   ) {
     params.expiryBars = expiryBars;
@@ -626,6 +693,22 @@ function enrichNonEmaBrainFromText(
   }
   if (["bos", "choch", "bos_choch"].includes(module) && swingLen !== undefined) {
     params.swingLen = swingLen;
+  }
+  if (module === "liqsweep" && swingLen !== undefined) {
+    params.swingLen = swingLen;
+  }
+  if (module === "miss") {
+    const nearPoints = extractNearPointsFromText(sourceText);
+    if (swingLen !== undefined) params.swingLen = swingLen;
+    if (nearPoints !== undefined) params.nearPoints = nearPoints;
+  }
+  if (module === "rsi_hd") {
+    const rsiPeriod = extractRsiPeriodFromText(sourceText);
+    if (rsiPeriod !== undefined) params.rsiPeriod = rsiPeriod;
+    if (swingLen !== undefined) {
+      params.pivotLeft = swingLen;
+      params.pivotRight = swingLen;
+    }
   }
   if (module === "fvg_inversion" && ifvgEntryEvent) {
     params.entryEvent = ifvgEntryEvent;
@@ -665,6 +748,144 @@ function extractMaxStopPoints(text: string): number | undefined {
   );
   if (pipMatch) return Number(pipMatch[1]) * 10;
   return undefined;
+}
+
+function moduleOfBrain(brain: unknown): string | undefined {
+  if (!brain || typeof brain !== "object") return undefined;
+  const modules = (brain as Record<string, unknown>).modules;
+  return Array.isArray(modules) && typeof modules[0] === "string" ? modules[0] : undefined;
+}
+
+function paramsOfBrain(brain: unknown): Record<string, unknown> {
+  if (!brain || typeof brain !== "object") return {};
+  const params = (brain as Record<string, unknown>).params;
+  return params && typeof params === "object" && !Array.isArray(params)
+    ? (params as Record<string, unknown>)
+    : {};
+}
+
+function timeframeOfBrain(brain: unknown): string | undefined {
+  if (!brain || typeof brain !== "object") return undefined;
+  const tf = (brain as Record<string, unknown>).timeframe;
+  return typeof tf === "string" ? tf : undefined;
+}
+
+function emaRetestLabel(target: string, fastPeriod: number, slowPeriod: number): string {
+  if (target === "fast") return `fast EMA (${fastPeriod})`;
+  if (target === "slow") return `slow EMA (${slowPeriod})`;
+  return `either EMA (${fastPeriod} or ${slowPeriod})`;
+}
+
+function buildIntentContract(blueprint: Record<string, unknown>, corpus: string) {
+  const fb =
+    blueprint.fourBrain && typeof blueprint.fourBrain === "object"
+      ? (blueprint.fourBrain as Record<string, unknown>)
+      : {};
+  const direction = fb.direction;
+  const setup = fb.setup;
+  const execution = fb.execution;
+  const directionModule = moduleOfBrain(direction);
+  const setupModule = moduleOfBrain(setup);
+  const executionModule = moduleOfBrain(execution);
+  const modules = [directionModule, setupModule, executionModule].filter(
+    (module): module is string => Boolean(module),
+  );
+  const { fastPeriod, slowPeriod } = extractEmaPeriodsFromText(corpus);
+  const textRetestTarget = extractEmaRetestTargetFromText(corpus, fastPeriod, slowPeriod);
+  const setupParams = paramsOfBrain(setup);
+  const executionParams = paramsOfBrain(execution);
+  const setupTarget =
+    typeof setupParams.retestTarget === "string" ? setupParams.retestTarget : textRetestTarget;
+  const entryEvent =
+    (typeof executionParams.entryEvent === "string" ? executionParams.entryEvent : undefined) ??
+    extractIfvgEntryEventFromText(corpus);
+  const expiryBars = extractExpiryBarsFromText(corpus);
+  const rewardRisk = extractRewardRisk(corpus);
+  const breakEvenAtR = extractBreakEvenAtR(corpus);
+  const maxStopPoints = extractMaxStopPoints(corpus);
+  const hasDirectionEvent = Boolean(directionModule);
+  const hasSetupGate = Boolean(setupModule);
+
+  const sequence: string[] = [];
+  if (directionModule) sequence.push(`${directionModule}:direction`);
+  if (setupModule) sequence.push(`${setupModule}:setup`);
+  if (executionModule) sequence.push(`${executionModule}:execution`);
+
+  const constraints: Array<{ code: string; label: string; value: string }> = [];
+  if (setupTarget && setupModule === "ema") {
+    constraints.push({
+      code: "ema_retest_target",
+      label: "EMA retest target",
+      value: emaRetestLabel(setupTarget, fastPeriod, slowPeriod),
+    });
+  }
+  if (entryEvent && executionModule === "fvg_inversion") {
+    constraints.push({
+      code: "ifvg_entry_event",
+      label: "IFVG entry event",
+      value: entryEvent,
+    });
+  }
+  if (expiryBars !== undefined) {
+    constraints.push({ code: "expiry_bars", label: "Expiry", value: `${expiryBars} bars` });
+  }
+  if (rewardRisk !== undefined) {
+    constraints.push({ code: "reward_risk", label: "Reward:risk", value: `1:${rewardRisk}` });
+  }
+  if (breakEvenAtR !== undefined) {
+    constraints.push({ code: "breakeven_at_r", label: "Breakeven", value: `${breakEvenAtR}R` });
+  }
+  if (maxStopPoints !== undefined) {
+    constraints.push({
+      code: "max_stop_points",
+      label: "Max stop",
+      value: `${maxStopPoints} points`,
+    });
+  }
+
+  return {
+    version: 1 as const,
+    source: "local_extractor" as const,
+    timeframe:
+      timeframeOfBrain(execution) ?? timeframeOfBrain(setup) ?? timeframeOfBrain(direction),
+    modules,
+    sequence,
+    ...(directionModule
+      ? {
+          direction: {
+            module: directionModule,
+            event: directionModule === "ema" ? "cross" : "signal",
+            ...(directionModule === "ema" ? { fastPeriod, slowPeriod } : {}),
+            resetPolicy: corpus.includes("opposite") ? "opposite_signal" : "module_default",
+          },
+        }
+      : {}),
+    ...(setupModule
+      ? {
+          setup: {
+            gate: setupModule === "ema" ? "ema_retest" : `${setupModule}_setup`,
+            ...(setupTarget && setupModule === "ema"
+              ? {
+                  target: setupTarget,
+                  targetLabel: emaRetestLabel(setupTarget, fastPeriod, slowPeriod),
+                }
+              : {}),
+            mustOccurAfter: hasDirectionEvent ? "direction_event" : undefined,
+          },
+        }
+      : {}),
+    ...(executionModule
+      ? {
+          execution: {
+            module: executionModule,
+            entryEvent: entryEvent ?? "module_confirmation",
+            mustOccurAfter: hasSetupGate ? "setup_gate" : undefined,
+          },
+        }
+      : {}),
+    constraints,
+    assumptions: [],
+  };
 }
 
 function paramsFromRule(rule: Record<string, unknown>, module: string): Record<string, unknown> {
@@ -732,6 +953,80 @@ function paramsFromRule(rule: Record<string, unknown>, module: string): Record<s
         paramNumber(params, ["expiryBars", "expiry"]) ?? extractExpiryBarsFromText(text) ?? 100,
     };
   }
+  if (module === "ob_fvg") {
+    const text = ruleText(rule);
+    return {
+      lookback:
+        paramNumber(params, ["lookback", "lookbackBars"]) ?? extractLookbackFromText(text) ?? 50,
+      expiryBars:
+        paramNumber(params, ["expiryBars", "expiry"]) ?? extractExpiryBarsFromText(text) ?? 250,
+    };
+  }
+  if (module === "liqsweep") {
+    const text = ruleText(rule);
+    return {
+      lookback:
+        paramNumber(params, ["lookback", "lookbackBars"]) ?? extractLookbackFromText(text) ?? 20,
+      swingLen:
+        paramNumber(params, ["swingLen", "pivotStrength", "pivot"]) ??
+        extractSwingLenFromText(text) ??
+        3,
+    };
+  }
+  if (module === "snr" || module === "gap_snr" || module === "breakout" || module === "rejection") {
+    const text = ruleText(rule);
+    return {
+      lookback:
+        paramNumber(params, ["lookback", "lookbackBars"]) ??
+        extractLookbackFromText(text) ??
+        (module === "rejection" ? 30 : 20),
+      expiryBars:
+        paramNumber(params, ["expiryBars", "expiry"]) ?? extractExpiryBarsFromText(text) ?? 100,
+    };
+  }
+  if (module === "miss") {
+    const text = ruleText(rule);
+    return {
+      lookback:
+        paramNumber(params, ["lookback", "lookbackBars"]) ?? extractLookbackFromText(text) ?? 40,
+      swingLen:
+        paramNumber(params, ["swingLen", "pivotStrength", "pivot"]) ??
+        extractSwingLenFromText(text) ??
+        3,
+      nearPoints:
+        paramNumber(params, ["nearPoints", "missPoints"]) ?? extractNearPointsFromText(text) ?? 50,
+    };
+  }
+  if (module === "rsi_hd") {
+    const text = ruleText(rule);
+    const swingLen =
+      paramNumber(params, ["pivotLeft", "pivotRight", "swingLen", "pivotStrength"]) ??
+      extractSwingLenFromText(text) ??
+      3;
+    return {
+      rsiPeriod:
+        paramNumber(params, ["rsiPeriod", "period"]) ?? extractRsiPeriodFromText(text) ?? 14,
+      pivotLeft: paramNumber(params, ["pivotLeft"], swingLen),
+      pivotRight: paramNumber(params, ["pivotRight"], swingLen),
+      minBars: paramNumber(params, ["minBars"], 5),
+      maxBars:
+        paramNumber(params, ["maxBars", "lookback", "lookbackBars"]) ??
+        extractLookbackFromText(text) ??
+        50,
+      lookback:
+        paramNumber(params, ["lookback", "lookbackBars", "maxBars"]) ??
+        extractLookbackFromText(text) ??
+        50,
+    };
+  }
+  if (module === "engulfing") {
+    const text = ruleText(rule);
+    return {
+      scanBack: paramNumber(params, ["scanBack", "lookback"]) ?? extractLookbackFromText(text) ?? 3,
+      expiryBars:
+        paramNumber(params, ["expiryBars", "expiry"]) ?? extractExpiryBarsFromText(text) ?? 100,
+    };
+  }
   return {};
 }
 
@@ -794,7 +1089,8 @@ function inferFourBrain(blueprint: Record<string, unknown>, sourceText = "") {
       text.includes("next candle") ||
       text.includes("engulf") ||
       text.includes("pin bar") ||
-      text.includes("liquidity sweep") ||
+      (text.includes("liquidity sweep") &&
+        (text.includes("entry") || text.includes("trigger") || text.includes("execute"))) ||
       text.includes("ifvg_entry")
     );
   };
@@ -811,7 +1107,9 @@ function inferFourBrain(blueprint: Record<string, unknown>, sourceText = "") {
   };
 
   const directionRule = findRule(isDirection);
-  const setupRule = findRule((rule) => isSetup(rule) && rule !== directionRule);
+  const setupRule =
+    findRule((rule) => isSetup(rule) && !isExecution(rule) && rule !== directionRule) ??
+    findRule((rule) => isSetup(rule) && rule !== directionRule);
   const executionRule =
     findRule((rule) => isExecution(rule) && rule !== directionRule && rule !== setupRule) ??
     findRule((rule) => isExecution(rule)) ??
@@ -844,6 +1142,7 @@ function inferFourBrain(blueprint: Record<string, unknown>, sourceText = "") {
 function auditBlueprintIntent(
   blueprint: Record<string, unknown>,
   corpus: string,
+  intentContract?: ReturnType<typeof buildIntentContract>,
 ): Array<{
   code: string;
   severity: "info" | "warn" | "error";
@@ -872,7 +1171,12 @@ function auditBlueprintIntent(
       ? (execution.params as Record<string, unknown>)
       : {};
   const { fastPeriod, slowPeriod } = extractEmaPeriodsFromText(corpus);
-  const textRetestTarget = extractEmaRetestTargetFromText(corpus, fastPeriod, slowPeriod);
+  const contractSetup = intentContract?.setup;
+  const contractExecution = intentContract?.execution;
+  const textRetestTarget =
+    contractSetup?.gate === "ema_retest" && typeof contractSetup.target === "string"
+      ? contractSetup.target
+      : extractEmaRetestTargetFromText(corpus, fastPeriod, slowPeriod);
   const finalRetestTarget = String(setupParams.retestTarget ?? "");
 
   if (textRetestTarget && finalRetestTarget === textRetestTarget) {
@@ -880,6 +1184,12 @@ function auditBlueprintIntent(
       code: "ema_retest_target_preserved",
       severity: "info",
       message: `EMA retest target preserved as ${textRetestTarget}.`,
+    });
+  } else if (textRetestTarget && !finalRetestTarget) {
+    audit.push({
+      code: "ema_retest_target_missing",
+      severity: "error",
+      message: `Prompt implies ${textRetestTarget} EMA retest, but blueprint has no EMA retest target.`,
     });
   } else if (textRetestTarget && finalRetestTarget && finalRetestTarget !== textRetestTarget) {
     audit.push({
@@ -889,13 +1199,24 @@ function auditBlueprintIntent(
     });
   }
 
-  const textEntryEvent = extractIfvgEntryEventFromText(corpus);
+  const textEntryEvent =
+    contractExecution?.module === "fvg_inversion" &&
+    typeof contractExecution.entryEvent === "string" &&
+    contractExecution.entryEvent !== "module_confirmation"
+      ? (contractExecution.entryEvent as "formation" | "retest")
+      : extractIfvgEntryEventFromText(corpus);
   const finalEntryEvent = String(executionParams.entryEvent ?? "");
   if (textEntryEvent && finalEntryEvent === textEntryEvent) {
     audit.push({
       code: "ifvg_entry_event_preserved",
       severity: "info",
       message: `IFVG entry event preserved as ${textEntryEvent}.`,
+    });
+  } else if (textEntryEvent && !finalEntryEvent) {
+    audit.push({
+      code: "ifvg_entry_event_missing",
+      severity: "error",
+      message: `Prompt implies IFVG ${textEntryEvent} entry, but blueprint has no IFVG entry event.`,
     });
   } else if (textEntryEvent && finalEntryEvent && finalEntryEvent !== textEntryEvent) {
     audit.push({
@@ -911,6 +1232,20 @@ function auditBlueprintIntent(
       code: "expiry_bars_preserved",
       severity: "info",
       message: `Expiry preserved as ${expiryBars} bars.`,
+    });
+  }
+
+  if (intentContract?.execution?.mustOccurAfter === "setup_gate" && setup && execution) {
+    audit.push({
+      code: "sequence_gate_preserved",
+      severity: "info",
+      message: "Execution is contractually gated after the setup brain.",
+    });
+  } else if (intentContract?.execution?.mustOccurAfter === "setup_gate" && !setup) {
+    audit.push({
+      code: "sequence_gate_missing",
+      severity: "error",
+      message: "Prompt implies execution must occur after setup, but no setup brain is present.",
     });
   }
 
@@ -989,7 +1324,10 @@ export function normalizeBlueprint(
     },
   };
 
-  const audit = auditBlueprintIntent(blueprint, corpus);
+  const intentContract = buildIntentContract(blueprint, corpus);
+  blueprint.intentContract = intentContract;
+
+  const audit = auditBlueprintIntent(blueprint, corpus, intentContract);
   if (audit.length > 0) blueprint.blueprintAudit = audit;
   else delete blueprint.blueprintAudit;
 

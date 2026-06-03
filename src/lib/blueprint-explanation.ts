@@ -22,6 +22,7 @@ export interface BlueprintExplanation {
   management: BlueprintExplanationItem[];
   indicators: BlueprintExplanationItem[];
   filters: BlueprintExplanationItem[];
+  contract: BlueprintExplanationItem[];
   audit: BlueprintExplanationItem[];
   blockedModules: BlueprintExplanationItem[];
   summary: string;
@@ -126,6 +127,45 @@ function filterItems(blueprint: StrategyBlueprint): BlueprintExplanationItem[] {
   }));
 }
 
+function contractItems(blueprint: StrategyBlueprint): BlueprintExplanationItem[] {
+  const contract = blueprint.intentContract;
+  if (!contract) return [];
+  const items: BlueprintExplanationItem[] = [];
+  if (contract.sequence.length > 0) {
+    items.push({
+      label: "Sequence",
+      value: contract.sequence.join(" -> "),
+      status: "ok",
+      source: "system",
+    });
+  }
+  if (contract.setup?.targetLabel) {
+    items.push({
+      label: "Setup target",
+      value: contract.setup.targetLabel,
+      status: "ok",
+      source: "system",
+    });
+  }
+  if (contract.execution) {
+    items.push({
+      label: "Execution",
+      value: `${contract.execution.module} / ${contract.execution.entryEvent}`,
+      status: "ok",
+      source: "system",
+    });
+  }
+  for (const constraint of contract.constraints) {
+    items.push({
+      label: constraint.label,
+      value: constraint.value,
+      status: "ok",
+      source: "system",
+    });
+  }
+  return items;
+}
+
 function auditItems(blueprint: StrategyBlueprint): BlueprintExplanationItem[] {
   return (blueprint.blueprintAudit ?? []).map((item) => ({
     label: item.code,
@@ -161,8 +201,19 @@ export function explainBlueprintExtraction(blueprint: StrategyBlueprint): Bluepr
     management: managementItems(config),
     indicators: indicatorItems(blueprint),
     filters: filterItems(blueprint),
+    contract: contractItems(blueprint),
     audit: auditItems(blueprint),
     blockedModules,
     summary,
   };
+}
+
+export function blueprintContractErrors(blueprint: StrategyBlueprint): string[] {
+  return (blueprint.blueprintAudit ?? [])
+    .filter((item) => item.severity === "error")
+    .map((item) => item.message);
+}
+
+export function firstBlueprintContractError(blueprint: StrategyBlueprint): string | undefined {
+  return blueprintContractErrors(blueprint)[0];
 }

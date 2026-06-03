@@ -451,6 +451,9 @@ function buildAiAuditHeader(aiWiring?: AiBrainWiring): string {
   const lines: string[] = [];
 
   lines.push(`//| AI validation: ${auditText(validation?.status ?? "not_reported")}`);
+  lines.push(
+    `//| AI repair    : ${auditText((aiWiring.repairAttempts ?? 0) > 0 ? "one_retry_used" : "not_needed")}`,
+  );
   if (validation?.errors?.length) {
     lines.push(`//| AI errors    : ${truncateAudit(validation.errors.join(" | "))}`);
   }
