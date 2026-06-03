@@ -250,6 +250,57 @@ const cases: ContractCase[] = [
     },
   },
   {
+    name: "implicit FVG inversion wording repairs execution to IFVG formation",
+    run: () => {
+      const prompt = `
+        H1 12 EMA crossing 48 EMA determines bullish or bearish direction.
+        After direction EMA cross, price must test 48 EMA. During the test price must create a Fair Value Gap.
+        The Fair Value Gap created during the retest must be inverted, creating an iFVG.
+        Execute a trade at the open of the new candle after the iFVG.
+        Risk 1% and TP is 3R.
+      `;
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          fourBrain: {
+            direction: {
+              modules: ["ema"],
+              timeframe: "H1",
+              params: { fastPeriod: 12, slowPeriod: 48 },
+              description: "EMA cross sets direction.",
+            },
+            setup: {
+              modules: ["ema", "fvg"],
+              timeframe: "H1",
+              params: { fastPeriod: 12, slowPeriod: 48, eemaPeriod: 48 },
+              description: "EMA retest plus Fair Value Gap.",
+            },
+            execution: {
+              modules: ["fvg"],
+              timeframe: "H1",
+              params: {},
+              description: "Fair Value Gap executes at the next bar open.",
+            },
+          },
+        }),
+        prompt,
+      );
+
+      const fb = fourBrainOf(blueprint);
+      const execution = brainOf(fb, "execution");
+      assertEq(modulesOf(execution)[0], "fvg_inversion", "execution module");
+      assertEq(paramsOf(execution).entryEvent, "formation", "IFVG entry event");
+      const auditCodes = ((blueprint.blueprintAudit ?? []) as Array<Record<string, unknown>>).map(
+        (item) => String(item.code),
+      );
+      assertOk(auditCodes.includes("ifvg_entry_event_preserved"), "IFVG audit missing");
+      const severities = ((blueprint.blueprintAudit ?? []) as Array<Record<string, unknown>>).map(
+        (item) => String(item.severity),
+      );
+      assertOk(!severities.includes("error"), "IFVG repair should not leave audit errors");
+    },
+  },
+  {
     name: "unsupported SMA does not silently become EMA",
     run: () => {
       const blueprint = normalizeBlueprint(

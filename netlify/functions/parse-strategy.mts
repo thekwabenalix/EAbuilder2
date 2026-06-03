@@ -378,13 +378,7 @@ function moduleFromRule(rule: Record<string, unknown>): string | undefined {
     text.includes("unicorn")
   )
     return "ob_fvg";
-  if (
-    text.includes("ifvg") ||
-    text.includes("inversion fvg") ||
-    text.includes("inversion fair value gap") ||
-    text.includes("inverted fvg")
-  )
-    return "fvg_inversion";
+  if (mentionsIfvgConcept(text)) return "fvg_inversion";
   if (text.includes("fvg") || text.includes("fair value gap") || text.includes("imbalance"))
     return "fvg";
   if (
@@ -532,19 +526,34 @@ function extractRsiPeriodFromText(text: string): number | undefined {
   return before ? Number(before[1]) : undefined;
 }
 
+function mentionsIfvgConcept(text: string): boolean {
+  const hay = text.toLowerCase();
+  return (
+    /\bifvg\b|inversion\s+(?:fvg|fair\s+value\s+gap)|inverted\s+(?:fvg|fair\s+value\s+gap)/.test(
+      hay,
+    ) ||
+    /\b(?:fvg|fair\s+value\s+gap|gap)\b.{0,100}\b(?:invert|inverts|inverted|inversion|becomes|turns?\s+into|converted?\s+to|creating\s+an?\s+ifvg)\b/.test(
+      hay,
+    ) ||
+    /\b(?:invert|inverts|inverted|inversion|becomes|turns?\s+into|converted?\s+to|creating\s+an?\s+ifvg)\b.{0,100}\b(?:fvg|fair\s+value\s+gap|gap|ifvg)\b/.test(
+      hay,
+    )
+  );
+}
+
 function extractIfvgEntryEventFromText(text: string): "formation" | "retest" | undefined {
   const hay = text.toLowerCase();
   const retestEntry =
-    /\b(?:enter|entry|trigger|execute).{0,80}\b(?:retest|return\s+to|tap|touch)\b.{0,60}\b(?:ifvg|inversion\s+fvg|inversion\s+fair\s+value\s+gap)\b/.test(
+    /\b(?:enter|entry|trigger|execute).{0,80}\b(?:retest|return\s+to|tap|touch)\b.{0,60}\b(?:ifvg|inversion\s+fvg|inversion\s+fair\s+value\s+gap|inverted\s+fvg|inverted\s+fair\s+value\s+gap)\b/.test(
       hay,
     ) ||
-    /\b(?:ifvg|inversion\s+fvg|inversion\s+fair\s+value\s+gap).{0,80}\b(?:retest|return\s+to|tap|touch)\b.{0,60}\b(?:entry|enter|trigger|execute)\b/.test(
+    /\b(?:ifvg|inversion\s+fvg|inversion\s+fair\s+value\s+gap|inverted\s+fvg|inverted\s+fair\s+value\s+gap).{0,80}\b(?:retest|return\s+to|tap|touch)\b.{0,60}\b(?:entry|enter|trigger|execute)\b/.test(
       hay,
     );
   if (retestEntry) return "retest";
   if (
-    /\b(?:ifvg|inversion\s+fvg|inversion\s+fair\s+value\s+gap)\b/.test(hay) &&
-    /\b(forms?|formation|becomes?|inverts?|inversion|closes?\s+(?:above|below).{0,80}(?:boundary|fvg|gap))\b/.test(
+    mentionsIfvgConcept(hay) &&
+    /\b(forms?|formation|becomes?|inverts?|inverted|inversion|creating\s+an?\s+ifvg|closes?\s+(?:above|below).{0,80}(?:boundary|fvg|gap))\b/.test(
       hay,
     )
   ) {
@@ -556,9 +565,7 @@ function extractIfvgEntryEventFromText(text: string): "formation" | "retest" | u
 function syntheticRulesFromText(text: string, fallbackTf: string): Record<string, unknown>[] {
   const rules: Record<string, unknown>[] = [];
   const hasEma = /\bema\b|exponential moving average/.test(text);
-  const hasIfvg = /\bifvg\b|inversion fvg|inversion fair value gap|inverted fair value gap/.test(
-    text,
-  );
+  const hasIfvg = mentionsIfvgConcept(text);
   const hasRetest = /\bretest\b|\btest\b|\btouch\b/.test(text);
   const { fastPeriod, slowPeriod } = extractEmaPeriodsFromText(text);
   const retestTarget = extractEmaRetestTargetFromText(text, fastPeriod, slowPeriod);
@@ -715,6 +722,26 @@ function enrichNonEmaBrainFromText(
   }
 
   return { ...brain, params };
+}
+
+function repairIfvgExecutionFromText(
+  brain: ReturnType<typeof cleanBrain>,
+  sourceText: string,
+): ReturnType<typeof cleanBrain> {
+  if (!brain) return brain;
+  const entryEvent = extractIfvgEntryEventFromText(sourceText);
+  if (!entryEvent || !mentionsIfvgConcept(sourceText)) return brain;
+  const modules = [...brain.modules];
+  if (modules[0] === "fvg") modules[0] = "fvg_inversion";
+  if (modules[0] !== "fvg_inversion") return brain;
+  return {
+    ...brain,
+    modules,
+    params: {
+      ...(brain.params ?? {}),
+      entryEvent,
+    },
+  };
 }
 
 function extractRewardRisk(text: string): number | undefined {
@@ -1305,7 +1332,10 @@ export function normalizeBlueprint(
   const maxStopPointsFromText = extractMaxStopPoints(corpus);
   const direction = enrichBrainFromText(cleanBrain(raw.direction, "D1"), corpus);
   const setup = enrichBrainFromText(cleanBrain(raw.setup, "H4"), corpus);
-  const enrichedExecution = enrichBrainFromText(execution, corpus);
+  const enrichedExecution = repairIfvgExecutionFromText(
+    enrichBrainFromText(execution, corpus),
+    corpus,
+  );
 
   blueprint.fourBrain = {
     direction,
