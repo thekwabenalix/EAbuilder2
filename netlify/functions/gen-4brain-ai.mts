@@ -785,6 +785,29 @@ function isEmaCrossTestClose(text: string, config?: FourBrainConfig): boolean {
   return hasEma && hasCross && hasTest && hasClose && !hasIfvg;
 }
 
+function shouldRepeatEmaCtcAfterConfirmation(text: string, config?: FourBrainConfig): boolean {
+  const params = {
+    ...(config?.setup?.params ?? {}),
+    ...(config?.execution?.params ?? {}),
+  };
+  if (typeof params.repeatAfterConfirmation === "boolean") return params.repeatAfterConfirmation;
+
+  const hay = text.toLowerCase();
+  return (
+    /\b(?:multiple|many|more than one|another|new)\b.{0,80}\b(?:trade|entry|opportunit|setup|test|retest)\b/.test(
+      hay,
+    ) ||
+    /\b(?:every time|each time|each new|every new)\b.{0,80}\b(?:test|retest|touch|tap)\b/.test(
+      hay,
+    ) ||
+    /\bdo not limit\b.{0,80}\b(?:first|one|single)\b/.test(hay) ||
+    /\bdo not stop\b.{0,80}\b(?:looking|watching|monitoring)\b/.test(hay) ||
+    /\bcontinue\b.{0,80}\b(?:watching|monitoring|looking)\b.{0,80}\b(?:same direction|opposite cross|another|new)\b/.test(
+      hay,
+    )
+  );
+}
+
 export function inferLocalSemantics(text: string, config?: FourBrainConfig): StrategySemantics {
   const tf = extractSingleTimeframe(text, config);
   const { fast, slow } = extractEmaPeriods(text, config);
@@ -1609,6 +1632,10 @@ export function buildEmaCrossTestCloseWiring(
   const TF = periodConst(tf);
   const { fast, slow } = extractEmaPeriods(text, config);
   const retestPoints = extractRetestTolerancePoints(text);
+  const repeatAfterConfirmation = shouldRepeatEmaCtcAfterConfirmation(text, config);
+  const repeatNote = repeatAfterConfirmation
+    ? `It enforces EMA cross, then repeats slow-EMA (${slow}) test -> close beyond fast EMA (${fast}) opportunities in the same direction until an opposite cross.`
+    : `It enforces EMA cross, first slow-EMA (${slow}) test, then close back beyond fast EMA (${fast}).`;
   const response: AiBrainWiringResponse = {
     direction_brain: `void Direction_Brain_Execute() {
    int hFast = B4_MA(${TF}, ${fast}, MODE_EMA);
@@ -1685,10 +1712,11 @@ export function buildEmaCrossTestCloseWiring(
           slowPeriod: slow,
           retestPoints,
           requireCross: true,
+          repeatAfterConfirmation,
         },
       },
     },
-    notes: `Deterministic CTC adapter: ${fast}/${slow} EMA on ${tf} uses the verified EMASM_${tf} state machine. It enforces EMA cross, first slow-EMA (${slow}) test, then close back beyond fast EMA (${fast}); the assembler enters on the current new bar, which is the next candle open after confirmation.`,
+    notes: `Deterministic CTC adapter: ${fast}/${slow} EMA on ${tf} uses the verified EMASM_${tf} state machine. ${repeatNote} The assembler enters on the current new bar, which is the next candle open after confirmation.`,
   };
   applyBuiltinFilters(response, text);
   response.validation = validateWiringAgainstSemantics(response);

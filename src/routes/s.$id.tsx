@@ -1935,6 +1935,11 @@ function BacktestTab({
   }, [compileJobQuery.data, onCompileLog]);
 
   const compileSucceeded = compileResult?.success === true;
+  const backtestBlockedByRunningTerminal =
+    backtestResult?.success === false &&
+    /terminal is already running|close metatrader 5/i.test(
+      `${backtestResult.job?.message ?? ""}\n${backtestResult.log ?? ""}`,
+    );
 
   const backtestJobQuery = useQuery({
     queryKey: ["runner-job", backtestJobId],
@@ -2351,6 +2356,22 @@ function BacktestTab({
             )}
           </Button>
         </div>
+
+        {backtestBlockedByRunningTerminal && (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 flex items-start gap-3">
+            <AlertTriangle className="h-4 w-4 text-amber-300 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-amber-100">
+                EA compiled, but MT5 is already open
+              </p>
+              <p className="text-xs text-amber-100/80">
+                Close MetaTrader 5 completely, then run the report backtest again. The local runner
+                launches MT5 with a tester config file, and an already-open terminal can ignore that
+                config or collide with the tester profile.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Compile error banner */}
         {compileResult &&

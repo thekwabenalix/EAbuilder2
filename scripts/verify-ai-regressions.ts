@@ -455,6 +455,31 @@ const cases: RegressionCase[] = [
         "execution uses EMASM confirmation",
       );
       assertOk(Boolean(wiring.sm_configs.ema_M30), "EMASM config missing");
+      assertEq(
+        (wiring.sm_configs.ema_M30.params as Record<string, unknown>).repeatAfterConfirmation,
+        false,
+        "default CTC repeat mode",
+      );
+    },
+  },
+  {
+    name: "CTC adapter preserves repeated retest opportunities after one cross",
+    run: () => {
+      const wiring = buildEmaCrossTestCloseWiring(`
+        Create the Cross-Test-Close strategy. Default timeframe M30.
+        The 12 EMA crosses the 48 EMA for direction.
+        After a valid EMA cross, the EA must continuously monitor for 48 EMA tests.
+        Do not limit the strategy to only the first test after the cross.
+        Multiple valid trades are allowed after one EMA cross, as long as each trade has its own separate 48 EMA test and confirmation close.
+        After trade closes, continue watching for another valid 48 EMA test in the same direction until an opposite EMA cross occurs.
+      `);
+      const params = wiring.sm_configs.ema_M30?.params as Record<string, unknown>;
+      assertEq(params.repeatAfterConfirmation, true, "repeat CTC mode");
+      assertIncludes(wiring.notes ?? "", "repeats slow-EMA", "repeat mode note");
+      assertOk(
+        !(wiring.notes ?? "").includes("first slow-EMA"),
+        "repeat CTC notes must not claim first-test-only behavior",
+      );
     },
   },
   {

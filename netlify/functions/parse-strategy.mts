@@ -508,6 +508,23 @@ function mentionsEmaCrossTestClose(text: string, fastPeriod: number, slowPeriod:
   );
 }
 
+function mentionsRepeatedEmaCtcEntries(text: string): boolean {
+  const hay = text.toLowerCase();
+  return (
+    /\b(?:multiple|many|more than one|another|new)\b.{0,80}\b(?:trade|entry|opportunit|setup|test|retest)\b/.test(
+      hay,
+    ) ||
+    /\b(?:every time|each time|each new|every new)\b.{0,80}\b(?:test|retest|touch|tap)\b/.test(
+      hay,
+    ) ||
+    /\bdo not limit\b.{0,80}\b(?:first|one|single)\b/.test(hay) ||
+    /\bdo not stop\b.{0,80}\b(?:looking|watching|monitoring)\b/.test(hay) ||
+    /\bcontinue\b.{0,80}\b(?:watching|monitoring|looking)\b.{0,80}\b(?:same direction|opposite cross|another|new)\b/.test(
+      hay,
+    )
+  );
+}
+
 function extractNumberNear(text: string, keyword: RegExp): number | undefined {
   const sentences = text
     .split(/(?<=[.!?])\s+|[\r\n]+/)
@@ -638,6 +655,7 @@ function syntheticRulesFromText(text: string, fallbackTf: string): Record<string
   const { fastPeriod, slowPeriod } = extractEmaPeriodsFromText(text);
   const retestTarget = extractEmaRetestTargetFromText(text, fastPeriod, slowPeriod);
   const isEmaCtc = mentionsEmaCrossTestClose(text, fastPeriod, slowPeriod);
+  const repeatAfterConfirmation = isEmaCtc && mentionsRepeatedEmaCtcEntries(text);
   const retestPoints = extractRetestTolerancePoints(text);
   const expiryBars = extractExpiryBarsFromText(text);
   const entryEvent = extractIfvgEntryEventFromText(text);
@@ -669,7 +687,9 @@ function syntheticRulesFromText(text: string, fallbackTf: string): Record<string
         slowPeriod,
         ...(retestTarget ? { retestTarget } : {}),
         ...(retestPoints !== undefined ? { retestPoints } : {}),
-        ...(isEmaCtc ? { sequenceMode: "cross_test_close", requireCross: true } : {}),
+        ...(isEmaCtc
+          ? { sequenceMode: "cross_test_close", requireCross: true, repeatAfterConfirmation }
+          : {}),
       },
     });
   }
@@ -688,6 +708,7 @@ function syntheticRulesFromText(text: string, fallbackTf: string): Record<string
         ...(retestPoints !== undefined ? { retestPoints } : {}),
         sequenceMode: "cross_test_close",
         requireCross: true,
+        repeatAfterConfirmation,
       },
     });
   }
@@ -866,7 +887,11 @@ function repairEmaRetestSetupFromText(
       ...(brain.params ?? {}),
       retestTarget,
       ...(mentionsEmaCrossTestClose(sourceText, fastPeriod, slowPeriod)
-        ? { sequenceMode: "cross_test_close", requireCross: true }
+        ? {
+            sequenceMode: "cross_test_close",
+            requireCross: true,
+            repeatAfterConfirmation: mentionsRepeatedEmaCtcEntries(sourceText),
+          }
         : {}),
     },
   };
@@ -896,6 +921,7 @@ function repairEmaCtcExecutionFromText(
       ...(retestPoints !== undefined ? { retestPoints } : {}),
       sequenceMode: "cross_test_close",
       requireCross: true,
+      repeatAfterConfirmation: mentionsRepeatedEmaCtcEntries(sourceText),
     },
   };
 }
@@ -1096,6 +1122,10 @@ function paramsFromRule(rule: Record<string, unknown>, module: string): Record<s
       params.sequenceMode === "cross_test_close" ||
       text.includes("ema_retest_confirm") ||
       mentionsEmaCrossTestClose(text, fastPeriod, slowPeriod);
+    const repeatAfterConfirmation =
+      typeof params.repeatAfterConfirmation === "boolean"
+        ? params.repeatAfterConfirmation
+        : mentionsRepeatedEmaCtcEntries(text);
     return {
       fastPeriod,
       slowPeriod,
@@ -1106,6 +1136,7 @@ function paramsFromRule(rule: Record<string, unknown>, module: string): Record<s
             retestTarget: retestTarget ?? "slow",
             sequenceMode: "cross_test_close",
             requireCross: true,
+            repeatAfterConfirmation,
           }
         : {}),
     };

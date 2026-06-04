@@ -693,6 +693,61 @@ runAiTest("EMA CTC sequence (template, verified EMASM)", "EMA_CTC_Template_Test.
   return { code, checks };
 });
 
+runAiTest("EMA CTC repeated retests after one cross", "EMA_CTC_Repeat_Test.mq5", () => {
+  const config: FourBrainConfig = {
+    direction: { modules: ["ema"], timeframe: "M30", params: { fastPeriod: 12, slowPeriod: 48 } },
+    setup: {
+      modules: ["ema"],
+      timeframe: "M30",
+      params: {
+        fastPeriod: 12,
+        slowPeriod: 48,
+        retestTarget: "slow",
+        sequenceMode: "cross_test_close",
+        requireCross: true,
+        repeatAfterConfirmation: true,
+      },
+    },
+    execution: {
+      modules: ["ema"],
+      timeframe: "M30",
+      params: {
+        fastPeriod: 12,
+        slowPeriod: 48,
+        retestTarget: "slow",
+        sequenceMode: "cross_test_close",
+        requireCross: true,
+        repeatAfterConfirmation: true,
+      },
+    },
+    management: {
+      riskPercent: 1,
+      rewardRisk: 3,
+      stopBuffer: 20,
+      breakEvenEnabled: true,
+      breakEvenAtR: 1.5,
+      maxOpenTrades: 1,
+    },
+  };
+  const code = generateEA({
+    eaName: "EMA_CTC_Repeat_Test",
+    config,
+    globalSymbol: "EURUSD",
+    globalMagic: 990788,
+  });
+  const checks: Array<[string, boolean]> = [
+    ["repeat mode emitted in EMASM header", code.includes("repeat=true")],
+    [
+      "confirmation returns to waiting-for-retest phase",
+      code.includes("if(true && EMASM_M30_confirmDir == bias && bias != 0)") &&
+        code.includes("EMASM_M30_phase = EMASM_M30_CROSSED;"),
+    ],
+    ["still requires a fresh slow EMA retest", code.includes("else if(bearRetestSlow)")],
+    ["does not use simple EMA cross entry", !code.includes("EMA GOLDEN CROSS")],
+  ];
+  return { code, checks };
+});
+
 runAiTest("Template built-in filters route by role", "Template_Filter_Gates_Test.mq5", () => {
   const config: FourBrainConfig = {
     direction: { modules: ["ema"], timeframe: "M5" },

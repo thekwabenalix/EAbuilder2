@@ -87,6 +87,13 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         description: "Require a fresh cross before retest.",
       },
       {
+        name: "repeatAfterConfirmation",
+        type: "bool",
+        default: false,
+        description:
+          "After a confirmed CTC entry, keep the current direction active and wait for a new retest instead of requiring a new cross.",
+      },
+      {
         name: "retestTarget",
         type: "string",
         default: "slow",

@@ -1706,7 +1706,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       },
     ],
     lifecycle:
-      "Simple cross: persistent alignment. Cross→retest SM: IDLE → CROSSED (aligned cross) → ARMED (retest slow EMA) → CONFIRMED (close outside fast EMA) → consumed (new cross required); invalidated on bias flip, opposite cross, or close back through the slow EMA.",
+      "Simple cross: persistent alignment. Cross→retest SM: IDLE → CROSSED (aligned cross) → ARMED (retest slow EMA) → CONFIRMED (close outside fast EMA). Default mode consumes the setup and requires a new cross. Repeat mode returns to CROSSED after confirmation so every fresh retest can create another opportunity until an opposite cross.",
     params: [
       {
         name: "fastPeriod",
@@ -1743,6 +1743,18 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
           "wait for the EMA cross first",
           "cross then retest",
           "any pullback to the EMA",
+        ],
+      },
+      {
+        name: "repeatAfterConfirmation",
+        type: "bool",
+        default: false,
+        description:
+          "After a confirmed CTC entry, continue watching for another EMA retest in the same active direction instead of requiring a new cross.",
+        traderPhrases: [
+          "do not limit to the first test",
+          "multiple trades after one cross",
+          "continue watching for another retest until opposite cross",
         ],
       },
     ],

@@ -110,7 +110,13 @@ function collectEmaCtcTFs(config: FourBrainConfig): Map<string, string> {
 function emaCtcParamsForTf(
   config: FourBrainConfig,
   tf: string,
-): { fastPeriod: number; slowPeriod: number; retestPoints: number; requireCross: boolean } {
+): {
+  fastPeriod: number;
+  slowPeriod: number;
+  retestPoints: number;
+  requireCross: boolean;
+  repeatAfterConfirmation: boolean;
+} {
   const brains = [config.setup, config.execution, config.direction];
   for (const brain of brains) {
     if (!brain?.modules?.includes("ema")) continue;
@@ -122,9 +128,19 @@ function emaCtcParamsForTf(
       slowPeriod: typeof params.slowPeriod === "number" ? params.slowPeriod : 48,
       retestPoints: typeof params.retestPoints === "number" ? params.retestPoints : 0,
       requireCross: typeof params.requireCross === "boolean" ? params.requireCross : true,
+      repeatAfterConfirmation:
+        typeof params.repeatAfterConfirmation === "boolean"
+          ? params.repeatAfterConfirmation
+          : false,
     };
   }
-  return { fastPeriod: 12, slowPeriod: 48, retestPoints: 0, requireCross: true };
+  return {
+    fastPeriod: 12,
+    slowPeriod: 48,
+    retestPoints: 0,
+    requireCross: true,
+    repeatAfterConfirmation: false,
+  };
 }
 
 function tfConst(tf: string): string {
@@ -378,6 +394,7 @@ function buildAiStateMachines(configs: AiBrainWiring["sm_configs"]): string {
             (p.slowPeriod as number) ?? 48,
             (p.retestPoints as number) ?? 0,
             (p.requireCross as boolean) ?? true,
+            (p.repeatAfterConfirmation as boolean) ?? false,
           ),
         );
         break;
@@ -723,6 +740,7 @@ export function generateEA(params: MQL5CodeGenParams): string {
           cfg.slowPeriod,
           cfg.retestPoints,
           cfg.requireCross,
+          cfg.repeatAfterConfirmation,
         );
       }),
     ].join("\n");

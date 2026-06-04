@@ -49,14 +49,16 @@ export function genEmaSM(
   slow = 48,
   retestPoints = 0, // retest tolerance in POINTS; 0 means the candle must touch the slow EMA
   requireCross = true, // require an aligned fast/slow cross before the retest
+  repeatAfterConfirmation = false, // after a confirmation, keep the current direction and wait for a fresh retest
 ): string {
   const P = `EMASM_${id}_`;
   const RC = requireCross ? "true" : "false";
+  const REPEAT = repeatAfterConfirmation ? "true" : "false";
 
   return `
 //+------------------------------------------------------------------+
 //| EMA Cross→Retest State Machine — ${tf} (${id})                  |
-//| fast=${fast} slow=${slow} retest=${retestPoints}pts requireCross=${RC}        |
+//| fast=${fast} slow=${slow} retest=${retestPoints}pts requireCross=${RC} repeat=${REPEAT} |
 //| IDLE → CROSSED → ARMED (retest) → CONFIRMED (close outside fast) |
 //+------------------------------------------------------------------+
 #define ${P}IDLE    0
@@ -142,7 +144,18 @@ void ${P}Tick(int bias)
    if(_bt == ${P}lastBar) return;          // once per bar (safe if Setup+Exec both call)
    ${P}lastBar = _bt;
    ${P}justConfirmed = false;
-   if(${P}consume) { ${P}phase = ${P}IDLE; ${P}activeDir = 0; ${P}consume = false; }
+   if(${P}consume)
+   {
+      if(${REPEAT} && ${P}confirmDir == bias && bias != 0)
+      {
+         ${P}phase = ${P}CROSSED; ${P}activeDir = ${P}confirmDir;
+      }
+      else
+      {
+         ${P}phase = ${P}IDLE; ${P}activeDir = 0;
+      }
+      ${P}consume = false;
+   }
 
    double f1, s1, f2, s2;
    int hF = B4_MA(${TF}, ${fast}, MODE_EMA);

@@ -560,14 +560,45 @@ const cases: ContractCase[] = [
       assertEq(setup.timeframe, "M30", "setup timeframe");
       assertEq(paramsOf(setup).retestTarget, "slow", "setup 48 EMA retest target");
       assertEq(paramsOf(setup).sequenceMode, "cross_test_close", "setup sequence mode");
+      assertEq(paramsOf(setup).repeatAfterConfirmation, false, "setup repeat mode");
       assertEq(modulesOf(execution)[0], "ema", "execution module");
       assertEq(execution.timeframe, "M30", "execution timeframe");
       assertEq(paramsOf(execution).sequenceMode, "cross_test_close", "execution sequence mode");
       assertEq(paramsOf(execution).retestTarget, "slow", "execution 48 EMA retest target");
+      assertEq(paramsOf(execution).repeatAfterConfirmation, false, "execution repeat mode");
       assertEq(management.rewardRisk, 3, "reward risk");
       assertEq(management.breakEvenEnabled, true, "breakeven enabled");
       assertEq(management.breakEvenAtR, 1.5, "breakeven R");
       assertEq(management.maxStopPoints, 0, "stop buffer must not become max stop");
+    },
+  },
+  {
+    name: "raw text fallback maps repeated CTC entries after one EMA cross",
+    run: () => {
+      const prompt = `
+        Cross-Test-Close on M30. 12 EMA crossing 48 EMA sets direction.
+        After a valid EMA cross, the EA must continuously monitor for 48 EMA tests.
+        Do not limit the strategy to only the first test after the cross.
+        Multiple valid trades are allowed after one EMA cross, as long as each trade has its own separate 48 EMA test and confirmation close.
+        After trade closes, continue watching for another valid 48 EMA test in the same direction until an opposite EMA cross occurs.
+      `;
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          rules: [],
+          summary: "Repeated Cross-Test-Close EMA strategy.",
+        }),
+        prompt,
+      );
+
+      const fb = fourBrainOf(blueprint);
+      const setupParams = paramsOf(brainOf(fb, "setup"));
+      const executionParams = paramsOf(brainOf(fb, "execution"));
+      assertEq(setupParams.sequenceMode, "cross_test_close", "setup sequence mode");
+      assertEq(setupParams.retestTarget, "slow", "setup retest target");
+      assertEq(setupParams.repeatAfterConfirmation, true, "setup repeat mode");
+      assertEq(executionParams.sequenceMode, "cross_test_close", "execution sequence mode");
+      assertEq(executionParams.repeatAfterConfirmation, true, "execution repeat mode");
     },
   },
   {
