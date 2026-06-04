@@ -71,6 +71,7 @@ bool   ${P}justConfirmed = false;
 int    ${P}confirmDir   = 0;
 double ${P}confirmSL    = 0.0;
 bool   ${P}consume      = false;
+bool   ${P}bootstrapUsed = false;
 datetime ${P}lastBar    = 0;
 
 void ${P}Reset()
@@ -78,7 +79,7 @@ void ${P}Reset()
    ${P}phase = ${P}IDLE; ${P}activeDir = 0;
    ${P}swingLow = 0.0; ${P}swingHigh = 0.0;
    ${P}justConfirmed = false; ${P}confirmDir = 0; ${P}confirmSL = 0.0;
-   ${P}consume = false; ${P}lastBar = 0;
+   ${P}consume = false; ${P}bootstrapUsed = false; ${P}lastBar = 0;
 }
 
 // Guarded EMA read — returns false (not 0.0) when the buffer is not ready.
@@ -120,13 +121,13 @@ bool ${P}BootstrapCross(int bias, int hF, int hS)
 
       if(bias == 1 && bullCross)
       {
-         ${P}phase = ${P}CROSSED; ${P}activeDir = 1;
+         ${P}phase = ${P}CROSSED; ${P}activeDir = 1; ${P}bootstrapUsed = true;
          PrintFormat("[EMASM_${tf}] BULL cross bootstrapped from recent history");
          return true;
       }
       if(bias == -1 && bearCross)
       {
-         ${P}phase = ${P}CROSSED; ${P}activeDir = -1;
+         ${P}phase = ${P}CROSSED; ${P}activeDir = -1; ${P}bootstrapUsed = true;
          PrintFormat("[EMASM_${tf}] BEAR cross bootstrapped from recent history");
          return true;
       }
@@ -172,7 +173,7 @@ void ${P}Tick(int bias)
          else if(requireCross && bullCross)         // cross arms the setup
          { ${P}phase = ${P}CROSSED; ${P}activeDir = 1;
            PrintFormat("[EMASM_${tf}] BULL cross — setup armed (12 over 48)"); }
-         else if(requireCross) ${P}BootstrapCross(1, hF, hS);
+         else if(requireCross && !${P}bootstrapUsed) ${P}BootstrapCross(1, hF, hS);
       }
       else if(${P}phase == ${P}CROSSED)
       {
@@ -200,7 +201,7 @@ void ${P}Tick(int bias)
          else if(requireCross && bearCross)
          { ${P}phase = ${P}CROSSED; ${P}activeDir = -1;
            PrintFormat("[EMASM_${tf}] BEAR cross — setup armed (12 under 48)"); }
-         else if(requireCross) ${P}BootstrapCross(-1, hF, hS);
+         else if(requireCross && !${P}bootstrapUsed) ${P}BootstrapCross(-1, hF, hS);
       }
       else if(${P}phase == ${P}CROSSED)
       {

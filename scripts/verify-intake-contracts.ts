@@ -567,6 +567,40 @@ const cases: ContractCase[] = [
       assertEq(management.rewardRisk, 3, "reward risk");
       assertEq(management.breakEvenEnabled, true, "breakeven enabled");
       assertEq(management.breakEvenAtR, 1.5, "breakeven R");
+      assertEq(management.maxStopPoints, 0, "stop buffer must not become max stop");
+    },
+  },
+  {
+    name: "CTC stop buffer and max stop do not become EMA retest tolerance",
+    run: () => {
+      const prompt = `
+        Cross-Test-Close on M30.
+        The 12 EMA crosses above or below the 48 EMA to set direction.
+        After the cross, price must test the 48 EMA.
+        After the test, a candle must close above the 12 EMA for buys or below it for sells.
+        Enter at the open of the next candle.
+        Default Stop Loss Buffer: 20 points.
+        Ignore trades if stop loss exceeds 15 pips.
+      `;
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          rules: [],
+          summary: "Cross-Test-Close EMA strategy.",
+        }),
+        prompt,
+      );
+
+      const fb = fourBrainOf(blueprint);
+      const setupParams = paramsOf(brainOf(fb, "setup"));
+      const executionParams = paramsOf(brainOf(fb, "execution"));
+      const management = brainOf(fb, "management");
+      assertOk(!("retestPoints" in setupParams), "setup must not inherit stop buffer as tolerance");
+      assertOk(
+        !("retestPoints" in executionParams),
+        "execution must not inherit max stop as tolerance",
+      );
+      assertEq(management.maxStopPoints, 150, "max stop remains a management filter");
     },
   },
   {

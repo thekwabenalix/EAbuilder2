@@ -639,12 +639,24 @@ function extractRetestTolerancePoints(text: string, config?: FourBrainConfig): n
   };
   const configured = numFrom(params.retestPoints ?? params.tolerancePoints, NaN);
   if (Number.isFinite(configured)) return configured;
-  const pointMatch = text.match(
-    /\b(?:within|tolerance|buffer)\D{0,25}(\d+(?:\.\d+)?)\s*points?\b/i,
-  );
-  if (pointMatch) return Number(pointMatch[1]);
-  const pipMatch = text.match(/\b(?:within|tolerance|buffer)\D{0,25}(\d+(?:\.\d+)?)\s*pips?\b/i);
-  return pipMatch ? Number(pipMatch[1]) * 10 : 0;
+
+  const fragments = text
+    .split(/[\n.;]+/)
+    .map((part) => part.trim())
+    .filter((part) => /\b(?:ema|retest|test|touch|tap|penetrat)\w*\b/i.test(part));
+
+  for (const fragment of fragments) {
+    const hasToleranceLanguage = /\b(?:within|tolerance)\b/i.test(fragment);
+    if (!hasToleranceLanguage) continue;
+
+    const pointMatch = fragment.match(/\b(?:within|tolerance)\D{0,25}(\d+(?:\.\d+)?)\s*points?\b/i);
+    if (pointMatch) return Number(pointMatch[1]);
+
+    const pipMatch = fragment.match(/\b(?:within|tolerance)\D{0,25}(\d+(?:\.\d+)?)\s*pips?\b/i);
+    if (pipMatch) return Number(pipMatch[1]) * 10;
+  }
+
+  return 0;
 }
 
 function extractIfvgEntryEvent(text: string): ExecutionEntryEvent {
@@ -1596,7 +1608,7 @@ export function buildEmaCrossTestCloseWiring(
   const tf = extractSingleTimeframe(text, config);
   const TF = periodConst(tf);
   const { fast, slow } = extractEmaPeriods(text, config);
-  const retestPoints = extractRetestTolerancePoints(text, config);
+  const retestPoints = extractRetestTolerancePoints(text);
   const response: AiBrainWiringResponse = {
     direction_brain: `void Direction_Brain_Execute() {
    int hFast = B4_MA(${TF}, ${fast}, MODE_EMA);

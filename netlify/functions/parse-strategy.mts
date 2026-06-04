@@ -556,12 +556,24 @@ function extractSwingLenFromText(text: string): number | undefined {
 }
 
 function extractRetestTolerancePoints(text: string): number | undefined {
-  const pointMatch = text.match(
-    /\b(?:within|tolerance|buffer)\D{0,25}(\d+(?:\.\d+)?)\s*points?\b/i,
-  );
-  if (pointMatch) return Number(pointMatch[1]);
-  const pipMatch = text.match(/\b(?:within|tolerance|buffer)\D{0,25}(\d+(?:\.\d+)?)\s*pips?\b/i);
-  return pipMatch ? Number(pipMatch[1]) * 10 : undefined;
+  const fragments = text
+    .split(/[\n.;]+/)
+    .map((part) => part.trim())
+    .filter((part) => /\b(?:ema|retest|test|touch|tap|penetrat)\w*\b/i.test(part));
+
+  for (const fragment of fragments) {
+    const isRetestContext = /\b(?:ema|retest|test|touch|tap|penetrat)\w*\b/i.test(fragment);
+    const hasToleranceLanguage = /\b(?:within|tolerance)\b/i.test(fragment);
+    if (!isRetestContext || !hasToleranceLanguage) continue;
+
+    const pointMatch = fragment.match(/\b(?:within|tolerance)\D{0,25}(\d+(?:\.\d+)?)\s*points?\b/i);
+    if (pointMatch) return Number(pointMatch[1]);
+
+    const pipMatch = fragment.match(/\b(?:within|tolerance)\D{0,25}(\d+(?:\.\d+)?)\s*pips?\b/i);
+    if (pipMatch) return Number(pipMatch[1]) * 10;
+  }
+
+  return undefined;
 }
 
 function extractNearPointsFromText(text: string): number | undefined {
@@ -911,11 +923,11 @@ function mentionsBreakEven(text: string): boolean {
 
 function extractMaxStopPoints(text: string): number | undefined {
   const pointMatch = text.match(
-    /\b(?:max(?:imum)?\s+)?stop(?:\s+loss)?\D{0,30}(\d+(?:\.\d+)?)\s*points?\b/,
+    /\b(?:(?:max(?:imum)?)\s+(?:stop|sl)(?:\s+loss)?|(?:ignore|skip|reject)\b.{0,40}\b(?:stop|sl)(?:\s+loss)?\b.{0,20}\b(?:exceeds?|above|greater\s+than|more\s+than|over))\D{0,30}(\d+(?:\.\d+)?)\s*points?\b/,
   );
   if (pointMatch) return Number(pointMatch[1]);
   const pipMatch = text.match(
-    /\b(?:max(?:imum)?\s+)?stop(?:\s+loss)?\D{0,30}(\d+(?:\.\d+)?)\s*pips?\b/,
+    /\b(?:(?:max(?:imum)?)\s+(?:stop|sl)(?:\s+loss)?|(?:ignore|skip|reject)\b.{0,40}\b(?:stop|sl)(?:\s+loss)?\b.{0,20}\b(?:exceeds?|above|greater\s+than|more\s+than|over))\D{0,30}(\d+(?:\.\d+)?)\s*pips?\b/,
   );
   if (pipMatch) return Number(pipMatch[1]) * 10;
   return undefined;

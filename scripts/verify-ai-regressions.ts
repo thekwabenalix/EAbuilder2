@@ -458,6 +458,21 @@ const cases: RegressionCase[] = [
     },
   },
   {
+    name: "CTC adapter does not turn stop rules into EMA retest tolerance",
+    run: () => {
+      const wiring = buildEmaCrossTestCloseWiring(`
+        Create the Cross-Test-Close strategy. Default timeframe M30.
+        The 12 EMA crosses the 48 EMA for direction.
+        After the cross, price must test the 48 EMA.
+        Then a candle closes above the 12 EMA for buys or below it for sells.
+        Default Stop Loss Buffer: 20 points.
+        Ignore trades if stop loss exceeds 15 pips.
+      `);
+      const params = wiring.sm_configs.ema_M30?.params as Record<string, unknown>;
+      assertEq(params.retestPoints, 0, "CTC retest tolerance");
+    },
+  },
+  {
     name: "deterministic adapter applies EMA retest tolerance in points",
     run: () => {
       const wiring = buildEmaTestThenIfvgFormationWiring(

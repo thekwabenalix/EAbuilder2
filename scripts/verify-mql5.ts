@@ -680,6 +680,12 @@ runAiTest("EMA CTC sequence (template, verified EMASM)", "EMA_CTC_Template_Test.
     ["setup SL hint from EMASM", code.includes("EMASM_M30_ActiveSL()")],
     ["execution waits for confirmation", code.includes("EMASM_M30_JustConfirmed()")],
     ["execution SL from pullback extreme", code.includes("EMASM_M30_ConfirmSL()")],
+    ["CTC retest defaults to exact touch", code.includes("retest=0pts requireCross=true")],
+    ["historical cross bootstrap only runs once", code.includes("bool   EMASM_M30_bootstrapUsed")],
+    [
+      "repeated historical bootstrap blocked after consume",
+      code.includes("requireCross && !EMASM_M30_bootstrapUsed"),
+    ],
     ["slow retest log present", code.includes("BULL retest of slow")],
     ["close confirmation log present", code.includes("BULL CONFIRMED")],
     ["old simple EMA entry not used", !code.includes("EMA GOLDEN CROSS")],
