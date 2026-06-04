@@ -27,6 +27,14 @@ function p(params: Record<string, unknown> | undefined, key: string, def: number
   return typeof v === "number" && isFinite(v) ? v : def;
 }
 
+function isEmaCtc(params: Record<string, unknown> | undefined): boolean {
+  return (
+    params?.sequenceMode === "cross_test_close" ||
+    params?.entryEvent === "close_confirmation" ||
+    (params?.requireCross === true && typeof params?.retestTarget === "string")
+  );
+}
+
 function tfConst(tf: string): string {
   const map: Record<string, string> = {
     M1: "PERIOD_M1",
@@ -353,6 +361,22 @@ void Execution_Brain_Execute() { gExecSignal = false; gExecDir = 0; gExecSL = 0;
       }
 
       case "ema": {
+        if (isEmaCtc(brainParams)) {
+          parts.push(`
+   // EMA CTC Execution: entry only after verified cross -> slow EMA retest -> close confirmation.
+   if(!gExecSignal && EMASM_${tf}_JustConfirmed())
+   {
+      int _dir = EMASM_${tf}_ConfirmDir();
+      if(_dir != 0 && (gBias==0||gBias==_dir) && (gSetupDir==0||gSetupDir==_dir))
+      {
+         gExecSignal = true;
+         gExecDir    = _dir;
+         gExecSL     = EMASM_${tf}_ConfirmSL();
+         PrintFormat("[EXEC/${tf}] EMA CTC CONFIRMED dir=%d SL=%.5f", gExecDir, gExecSL);
+      }
+   }`);
+          break;
+        }
         parts.push(`
    // EMA: fast/slow cross fires entry signal
    if(!gExecSignal)

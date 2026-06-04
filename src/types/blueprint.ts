@@ -307,7 +307,12 @@ export type BrainModuleType =
   | "rsi_hd" // RSI hidden divergence
   | "ema" // EMA trend — direction bias
   | "engulfing" // candle pattern — execution trigger
-  | "pin_bar"; // candle pattern — execution trigger
+  | "pin_bar" // candle pattern — execution trigger
+  | "seg" // strong engulfing detector
+  | "rbr_dbd" // rally-base-rally / drop-base-drop detector
+  | "mef" // multi-timeframe engulfing confluence detector
+  | "qm_mef" // Quasimodo born from MEF detector
+  | "snrc2"; // support/resistance continuation detector
 
 export interface BrainConfig {
   /**

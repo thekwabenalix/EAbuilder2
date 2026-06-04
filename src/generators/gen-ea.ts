@@ -73,6 +73,60 @@ function collectEngulfingTFs(config: FourBrainConfig): Map<string, string> {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function isEmaCtcParams(params: Record<string, unknown> | undefined): boolean {
+  return (
+    params?.sequenceMode === "cross_test_close" ||
+    params?.entryEvent === "close_confirmation" ||
+    (params?.requireCross === true && typeof params?.retestTarget === "string")
+  );
+}
+
+function paramsOfBrain(
+  brain: FourBrainConfig["direction"] | FourBrainConfig["setup"] | FourBrainConfig["execution"],
+): Record<string, unknown> {
+  return brain?.params && typeof brain.params === "object" ? brain.params : {};
+}
+
+function collectEmaCtcTFs(config: FourBrainConfig): Map<string, string> {
+  const result = new Map<string, string>();
+  const add = (tf: string) => {
+    if (!tf) return;
+    const u = tf.toUpperCase();
+    const c = u === "MN" ? "PERIOD_MN1" : `PERIOD_${u}`;
+    result.set(u, c);
+  };
+  const maybeAdd = (
+    brain: FourBrainConfig["direction"] | FourBrainConfig["setup"] | FourBrainConfig["execution"],
+  ) => {
+    if (!brain?.modules?.includes("ema")) return;
+    if (isEmaCtcParams(paramsOfBrain(brain))) add(brain.timeframe);
+  };
+  maybeAdd(config.direction);
+  maybeAdd(config.setup);
+  maybeAdd(config.execution);
+  return result;
+}
+
+function emaCtcParamsForTf(
+  config: FourBrainConfig,
+  tf: string,
+): { fastPeriod: number; slowPeriod: number; retestPoints: number; requireCross: boolean } {
+  const brains = [config.setup, config.execution, config.direction];
+  for (const brain of brains) {
+    if (!brain?.modules?.includes("ema")) continue;
+    if (brain.timeframe.toUpperCase() !== tf.toUpperCase()) continue;
+    const params = paramsOfBrain(brain);
+    if (!isEmaCtcParams(params)) continue;
+    return {
+      fastPeriod: typeof params.fastPeriod === "number" ? params.fastPeriod : 12,
+      slowPeriod: typeof params.slowPeriod === "number" ? params.slowPeriod : 48,
+      retestPoints: typeof params.retestPoints === "number" ? params.retestPoints : 0,
+      requireCross: typeof params.requireCross === "boolean" ? params.requireCross : true,
+    };
+  }
+  return { fastPeriod: 12, slowPeriod: 48, retestPoints: 0, requireCross: true };
+}
+
 function tfConst(tf: string): string {
   const map: Record<string, string> = {
     M1: "PERIOD_M1",
@@ -655,9 +709,22 @@ export function generateEA(params: MQL5CodeGenParams): string {
   } else {
     const ifvgTFs = collectIfvgTFs(config);
     const egTFs = collectEngulfingTFs(config);
+    const emaCtcTFs = collectEmaCtcTFs(config);
     smCode = [
       ...[...ifvgTFs.entries()].map(([tf, TFconst]) => genFvgInversionSM(tf, TFconst, tf, 100)),
       ...[...egTFs.entries()].map(([tf, TFconst]) => genEgSM(tf, TFconst, tf, 50, 100)),
+      ...[...emaCtcTFs.entries()].map(([tf, TFconst]) => {
+        const cfg = emaCtcParamsForTf(config, tf);
+        return genEmaSM(
+          tf,
+          TFconst,
+          tf,
+          cfg.fastPeriod,
+          cfg.slowPeriod,
+          cfg.retestPoints,
+          cfg.requireCross,
+        );
+      }),
     ].join("\n");
   }
 
@@ -701,6 +768,7 @@ export function generateEA(params: MQL5CodeGenParams): string {
   } else {
     const ifvgTFsForTick = collectIfvgTFs(config);
     const egTFsForTick = collectEngulfingTFs(config);
+    const emaCtcTFsForTick = collectEmaCtcTFs(config);
     // Dedup ticks across all three brains: each (SM,TF) machine is ticked exactly
     // once per bar, at the first brain (in DIR→SETUP→EXEC order) that uses it.
     const emittedTicks = new Set<string>();
@@ -713,6 +781,10 @@ export function generateEA(params: MQL5CodeGenParams): string {
       if (egTFsForTick.has(tf) && !emittedTicks.has(`EG_${tf}`)) {
         emittedTicks.add(`EG_${tf}`);
         calls.push(`EGSM_${tf}_Tick(50);`);
+      }
+      if (emaCtcTFsForTick.has(tf) && !emittedTicks.has(`EMA_${tf}`)) {
+        emittedTicks.add(`EMA_${tf}`);
+        calls.push(`EMASM_${tf}_Tick(gBias);`);
       }
       return calls.join(" ");
     };
@@ -785,6 +857,7 @@ export function generateEA(params: MQL5CodeGenParams): string {
     : [
         ...[...collectIfvgTFs(config).keys()].map((tf) => `IFVGSM_${tf}_Reset();`),
         ...[...collectEngulfingTFs(config).keys()].map((tf) => `EGSM_${tf}_Reset();`),
+        ...[...collectEmaCtcTFs(config).keys()].map((tf) => `EMASM_${tf}_Reset();`),
       ].join(" ");
 
   return `//+------------------------------------------------------------------+

@@ -28,6 +28,14 @@ function p(params: Record<string, unknown> | undefined, key: string, def: number
   return typeof v === "number" && isFinite(v) ? v : def;
 }
 
+function isEmaCtc(params: Record<string, unknown> | undefined): boolean {
+  return (
+    params?.sequenceMode === "cross_test_close" ||
+    params?.entryEvent === "close_confirmation" ||
+    (params?.requireCross === true && typeof params?.retestTarget === "string")
+  );
+}
+
 function tfConst(tf: string): string {
   const map: Record<string, string> = {
     M1: "PERIOD_M1",
@@ -390,6 +398,22 @@ void Setup_Brain_Execute()
       case "ema": {
         const emaFast = p(brainParams, "fastPeriod", 21);
         const emaSlow = p(brainParams, "slowPeriod", 50);
+        if (isEmaCtc(brainParams)) {
+          parts.push(`
+   // EMA CTC setup: verified EMASM enforces cross -> slow EMA retest.
+   if(!gSetupActive && EMASM_${tf}_SetupActive())
+   {
+      int _dir = EMASM_${tf}_ActiveDir();
+      if(_dir != 0 && (gBias == 0 || gBias == _dir))
+      {
+         gSetupActive = true;
+         gSetupDir    = _dir;
+         gSetupSLHint = EMASM_${tf}_ActiveSL();
+         PrintFormat("[SETUP/${tf}] EMA CTC active dir=%d SLhint=%.5f", gSetupDir, gSetupSLHint);
+      }
+   }`);
+          break;
+        }
         parts.push(`
    // EMA alignment: fast(${emaFast}) > slow(${emaSlow}) in bias direction creates setup
    // Real iMA handles, drawn on the chart via B4_MA.

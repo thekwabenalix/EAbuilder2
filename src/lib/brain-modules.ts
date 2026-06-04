@@ -151,10 +151,18 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
   // Candle patterns
   {
     id: "engulfing",
-    label: "Engulfing",
-    desc: "Strong reversal candle pattern",
+    label: "Engulfing / EF",
+    desc: "Verified EG and failed-engulfing state machine",
     symbol: "◑",
     color: "text-pink-400",
+    category: "Candle",
+  },
+  {
+    id: "seg",
+    label: "Strong Engulfing",
+    desc: "Two-candle strong engulfing detector",
+    symbol: "SEG",
+    color: "text-pink-300",
     category: "Candle",
   },
   {
@@ -173,6 +181,41 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     symbol: "~",
     color: "text-cyan-400",
     category: "Trend",
+  },
+  // Detector-only modules. Visible in 4-Brain selection so users can see that
+  // the module exists, but generation remains guarded until each has a verified
+  // state-machine contract.
+  {
+    id: "rbr_dbd",
+    label: "RBR / DBD",
+    desc: "Supply-demand base pattern detector",
+    symbol: "R/D",
+    color: "text-amber-300",
+    category: "Detector",
+  },
+  {
+    id: "mef",
+    label: "MEF",
+    desc: "Multi-timeframe engulfing confluence detector",
+    symbol: "MEF",
+    color: "text-fuchsia-300",
+    category: "Detector",
+  },
+  {
+    id: "qm_mef",
+    label: "QM MEF",
+    desc: "Quasimodo born from MEF detector",
+    symbol: "QM",
+    color: "text-violet-300",
+    category: "Detector",
+  },
+  {
+    id: "snrc2",
+    label: "SNRC2",
+    desc: "Support/resistance continuation detector",
+    symbol: "S2",
+    color: "text-sky-300",
+    category: "Detector",
   },
 ];
 

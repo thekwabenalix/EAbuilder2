@@ -12,6 +12,7 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import { jsonrepair } from "jsonrepair";
 import { buildCompactModuleLibraryContext } from "../../src/lib/module-library.js";
 import {
   buildCompactModuleContractContext,
@@ -717,12 +718,14 @@ function buildEmaIfvgSemantics(
 }
 
 function extractSingleTimeframe(text: string, config?: FourBrainConfig): string {
+  const tf = text.match(/\b(M1|M5|M15|M30|H1|H4|D1|W1|MN)\b/i)?.[1];
+  if (tf) return tf.toUpperCase();
+
   const configured =
     config?.execution?.timeframe || config?.setup?.timeframe || config?.direction?.timeframe || "";
   if (configured) return configured.toUpperCase();
 
-  const tf = text.match(/\b(M1|M5|M15|M30|H1|H4|D1|W1|MN)\b/i)?.[1];
-  return (tf ?? "M5").toUpperCase();
+  return "M5";
 }
 
 function isEmaTestThenIfvgFormation(text: string, config?: FourBrainConfig): boolean {
@@ -746,6 +749,28 @@ function isEmaTestThenIfvgFormation(text: string, config?: FourBrainConfig): boo
     );
 
   return hasEma && hasIfvg && hasEmaTest && hasAfterGate && hasFormationEntry;
+}
+
+function isEmaCrossTestClose(text: string, config?: FourBrainConfig): boolean {
+  const hay = text.toLowerCase();
+  const modules = [
+    ...(config?.direction?.modules ?? []),
+    ...(config?.setup?.modules ?? []),
+    ...(config?.execution?.modules ?? []),
+  ].map((m) => m.toLowerCase());
+  const hasEma = /\bema\b/.test(hay) || modules.includes("ema");
+  const hasCross = /\bcross/.test(hay);
+  const hasTest = /\b(?:test|retest|touch|tap|penetrat|retrac)/.test(hay);
+  const hasClose =
+    /\bctc\b|\bcross[-\s]*test[-\s]*close\b/.test(hay) ||
+    /\b(?:close|closes|closed|closing)\b.{0,120}\b(?:ema|trend direction|confirmation|confirms?)\b/.test(
+      hay,
+    ) ||
+    /\b(?:after|following)\b.{0,80}\b(?:test|retest|touch|tap)\b.{0,120}\b(?:close|closes|closed|closing)\b/.test(
+      hay,
+    );
+  const hasIfvg = /\bifvg\b|inversion\s+fair\s+value\s+gap/.test(hay);
+  return hasEma && hasCross && hasTest && hasClose && !hasIfvg;
 }
 
 export function inferLocalSemantics(text: string, config?: FourBrainConfig): StrategySemantics {
@@ -967,10 +992,24 @@ function parseAiJsonObject(rawText: string): Record<string, unknown> {
 
   try {
     return JSON.parse(text) as Record<string, unknown>;
-  } catch {
+  } catch (firstErr) {
+    try {
+      return JSON.parse(jsonrepair(text)) as Record<string, unknown>;
+    } catch {
+      // Fall through to extracting the largest object from chatty model output.
+    }
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) throw new Error("Claude did not return valid JSON");
-    return JSON.parse(match[0]) as Record<string, unknown>;
+    try {
+      return JSON.parse(match[0]) as Record<string, unknown>;
+    } catch {
+      try {
+        return JSON.parse(jsonrepair(match[0])) as Record<string, unknown>;
+      } catch {
+        const message = firstErr instanceof Error ? firstErr.message : "Unknown JSON parse error";
+        throw new Error(`Claude returned malformed JSON that could not be repaired: ${message}`);
+      }
+    }
   }
 }
 
@@ -1299,6 +1338,16 @@ export function validateWiringAgainstSemantics(response: AiBrainWiringResponse):
     if (!moduleSupportsEvent("ema", "ema_retest", "setup")) {
       errors.push("Module contract registry does not support EMA retest setup semantics.");
     }
+    const usesVerifiedEmaSm =
+      /\bEMASM_[A-Z0-9]+_SetupActive\s*\(/.test(setupCode) &&
+      /\bEMASM_[A-Z0-9]+_JustConfirmed\s*\(/.test(execCode);
+    if (usesVerifiedEmaSm) {
+      return {
+        status: errors.length ? "fail" : warnings.length ? "warn" : "pass",
+        errors,
+        warnings,
+      };
+    }
     const target = String(semantics.setup.target ?? "either").toLowerCase();
     const usesFast = /\btouchedFast\b/.test(setupCode);
     const usesSlow = /\btouchedSlow\b/.test(setupCode);
@@ -1540,6 +1589,100 @@ void Direction_Brain_Execute() {
   return response;
 }
 
+export function buildEmaCrossTestCloseWiring(
+  text: string,
+  config?: FourBrainConfig,
+): AiBrainWiringResponse {
+  const tf = extractSingleTimeframe(text, config);
+  const TF = periodConst(tf);
+  const { fast, slow } = extractEmaPeriods(text, config);
+  const retestPoints = extractRetestTolerancePoints(text, config);
+  const response: AiBrainWiringResponse = {
+    direction_brain: `void Direction_Brain_Execute() {
+   int hFast = B4_MA(${TF}, ${fast}, MODE_EMA);
+   int hSlow = B4_MA(${TF}, ${slow}, MODE_EMA);
+   double f1 = B4_MAval(hFast, 1), s1 = B4_MAval(hSlow, 1);
+   gBias = (f1 > s1) ? 1 : (f1 < s1 ? -1 : 0);
+   PrintFormat("[DIR] EMA alignment bias=%d fast=%.5f slow=%.5f", gBias, f1, s1);
+}`,
+    setup_brain: `void Setup_Brain_Execute() {
+   gSetupActive = false; gSetupDir = 0; gSetupSLHint = 0.0;
+   if(EMASM_${tf}_SetupActive()) {
+      int dir = EMASM_${tf}_ActiveDir();
+      if(dir != 0 && (gBias == 0 || gBias == dir)) {
+         gSetupActive = true;
+         gSetupDir = dir;
+         gSetupSLHint = EMASM_${tf}_ActiveSL();
+         PrintFormat("[SETUP] EMA CTC active dir=%d SLhint=%.5f", gSetupDir, gSetupSLHint);
+      }
+   }
+}`,
+    execution_brain: `void Execution_Brain_Execute() {
+   gExecSignal = false; gExecDir = 0; gExecSL = 0.0;
+   if(EMASM_${tf}_JustConfirmed()) {
+      int dir = EMASM_${tf}_ConfirmDir();
+      if(dir != 0 && (gBias == 0 || gBias == dir) && (gSetupDir == 0 || gSetupDir == dir)) {
+         gExecSignal = true;
+         gExecDir = dir;
+         gExecSL = EMASM_${tf}_ConfirmSL();
+         PrintFormat("[EXEC] EMA CTC confirmed dir=%d SL=%.5f", gExecDir, gExecSL);
+      }
+   }
+}`,
+    semantics: {
+      version: 1,
+      source: "deterministic_adapter",
+      timeframe: tf,
+      modules: ["ema"],
+      direction: {
+        module: "ema",
+        event: "cross",
+        fastPeriod: fast,
+        slowPeriod: slow,
+        resetPolicy: "opposite_cross",
+      },
+      setup: {
+        gate: "ema_retest",
+        target: "slow",
+        targetLabel: emaRetestLabel("slow", fast, slow),
+        mustOccurAfter: "direction_event",
+      },
+      execution: {
+        module: "ema",
+        entryEvent: "confirmation",
+        mustOccurAfter: "setup_gate",
+      },
+      filters: collectBuiltinFilterRefs(text, tf).map((filter) => ({
+        id: filter.id,
+        role: filter.appliesTo ?? "execution",
+        indicator: filter.indicatorId,
+        timeframe: filter.timeframe,
+        params: filter.params,
+      })),
+      assumptions: [],
+    },
+    required_sms: [`EMASM_${tf}`],
+    sm_configs: {
+      [`ema_${tf}`]: {
+        type: "ema",
+        id: tf,
+        TF,
+        tf,
+        params: {
+          fastPeriod: fast,
+          slowPeriod: slow,
+          retestPoints,
+          requireCross: true,
+        },
+      },
+    },
+    notes: `Deterministic CTC adapter: ${fast}/${slow} EMA on ${tf} uses the verified EMASM_${tf} state machine. It enforces EMA cross, first slow-EMA (${slow}) test, then close back beyond fast EMA (${fast}); the assembler enters on the current new bar, which is the next candle open after confirmation.`,
+  };
+  applyBuiltinFilters(response, text);
+  response.validation = validateWiringAgainstSemantics(response);
+  return response;
+}
+
 async function requestAiWiringJson(userMessage: string): Promise<Record<string, unknown>> {
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
@@ -1602,6 +1745,15 @@ export default async (req: Request): Promise<Response> => {
 
   if (isEmaTestThenIfvgFormation(fullText, config)) {
     const response = buildEmaTestThenIfvgFormationWiring(fullText, config);
+    applyBuiltinFilters(response, fullText, filterRefs);
+    response.validation = validateWiringAgainstSemantics(response);
+    return Response.json(response, {
+      headers: { ...CORS, "Content-Type": "application/json" },
+    });
+  }
+
+  if (isEmaCrossTestClose(fullText, config)) {
+    const response = buildEmaCrossTestCloseWiring(fullText, config);
     applyBuiltinFilters(response, fullText, filterRefs);
     response.validation = validateWiringAgainstSemantics(response);
     return Response.json(response, {

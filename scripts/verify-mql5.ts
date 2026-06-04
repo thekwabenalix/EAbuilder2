@@ -632,6 +632,61 @@ runAiTest("EMA cross (template, drawn MAs)", "EMA_Cross_Template_Test.mq5", () =
 // Proves Phase 2B wiring: Direction/Setup/Execution brains call EGSM_*_ functions
 // (NOT a simplified inline body-engulf), and the assembler embeds + ticks + resets
 // one EGSM per brain timeframe.
+runAiTest("EMA CTC sequence (template, verified EMASM)", "EMA_CTC_Template_Test.mq5", () => {
+  const config: FourBrainConfig = {
+    direction: { modules: ["ema"], timeframe: "M30", params: { fastPeriod: 12, slowPeriod: 48 } },
+    setup: {
+      modules: ["ema"],
+      timeframe: "M30",
+      params: {
+        fastPeriod: 12,
+        slowPeriod: 48,
+        retestTarget: "slow",
+        sequenceMode: "cross_test_close",
+        requireCross: true,
+      },
+    },
+    execution: {
+      modules: ["ema"],
+      timeframe: "M30",
+      params: {
+        fastPeriod: 12,
+        slowPeriod: 48,
+        retestTarget: "slow",
+        sequenceMode: "cross_test_close",
+        requireCross: true,
+      },
+    },
+    management: {
+      riskPercent: 1,
+      rewardRisk: 3,
+      stopBuffer: 20,
+      breakEvenEnabled: true,
+      breakEvenAtR: 1.5,
+      maxOpenTrades: 1,
+    },
+  };
+  const code = generateEA({
+    eaName: "EMA_CTC_Template_Test",
+    config,
+    globalSymbol: "EURUSD",
+    globalMagic: 990787,
+  });
+  const checks: Array<[string, boolean]> = [
+    ["EMASM M30 embedded", code.includes("void EMASM_M30_Tick(")],
+    ["EMASM reset emitted", code.includes("EMASM_M30_Reset();")],
+    ["EMASM ticked with bias", code.includes("EMASM_M30_Tick(gBias);")],
+    ["setup reads EMASM active phase", code.includes("EMASM_M30_SetupActive()")],
+    ["setup SL hint from EMASM", code.includes("EMASM_M30_ActiveSL()")],
+    ["execution waits for confirmation", code.includes("EMASM_M30_JustConfirmed()")],
+    ["execution SL from pullback extreme", code.includes("EMASM_M30_ConfirmSL()")],
+    ["slow retest log present", code.includes("BULL retest of slow")],
+    ["close confirmation log present", code.includes("BULL CONFIRMED")],
+    ["old simple EMA entry not used", !code.includes("EMA GOLDEN CROSS")],
+  ];
+  return { code, checks };
+});
+
 runAiTest("Template built-in filters route by role", "Template_Filter_Gates_Test.mq5", () => {
   const config: FourBrainConfig = {
     direction: { modules: ["ema"], timeframe: "M5" },

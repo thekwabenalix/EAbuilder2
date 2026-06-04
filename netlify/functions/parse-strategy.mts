@@ -276,6 +276,11 @@ const SUPPORTED_MODULES = new Set([
   "ema",
   "engulfing",
   "pin_bar",
+  "seg",
+  "rbr_dbd",
+  "mef",
+  "qm_mef",
+  "snrc2",
 ]);
 
 const TIMEFRAMES = new Set(["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN"]);
@@ -361,6 +366,24 @@ function extractTfFromRule(rule: Record<string, unknown>, fallback: string): str
   return cleanTimeframe(match?.[1], fallback);
 }
 
+function extractTfFromText(text: string): string | undefined {
+  const match = text.toUpperCase().match(/\b(M1|M5|M15|M30|H1|H4|D1|W1|MN)\b/);
+  return match?.[1];
+}
+
+function extractTfNearText(text: string, keyword: RegExp, fallback: string): string {
+  const fragments = text
+    .split(/(?<=[.!?])\s+|[\r\n]+|(?:^|\s)[-*]\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  for (const fragment of fragments) {
+    if (!keyword.test(fragment)) continue;
+    const tf = extractTfFromText(fragment);
+    if (tf) return cleanTimeframe(tf, fallback);
+  }
+  return fallback;
+}
+
 function moduleFromRule(rule: Record<string, unknown>): string | undefined {
   const text = ruleText(rule);
   if (text.includes("sma") || text.includes("simple moving average")) return undefined;
@@ -411,6 +434,7 @@ function moduleFromRule(rule: Record<string, unknown>): string | undefined {
   if (text.includes("rejection") || text.includes("wick rejection")) return "rejection";
   if (text.includes("support") || text.includes("resistance") || text.includes("snr")) return "snr";
   if (text.includes("bollinger")) return "bb";
+  if (text.includes("strong engulfing") || text.includes("seg")) return "seg";
   if (text.includes("engulf")) return "engulfing";
   if (text.includes("pin bar") || text.includes("hammer") || text.includes("shooting star"))
     return "pin_bar";
@@ -450,6 +474,38 @@ function extractEmaRetestTargetFromText(
   if (fastOnly.some((pattern) => pattern.test(hay))) return "fast";
   if (slowOnly.some((pattern) => pattern.test(hay))) return "slow";
   return undefined;
+}
+
+function mentionsEmaCloseConfirmation(
+  text: string,
+  fastPeriod: number,
+  slowPeriod: number,
+): boolean {
+  const hay = text.toLowerCase();
+  const fast = `${fastPeriod}\\s*(?:period\\s*)?ema`;
+  const slow = `${slowPeriod}\\s*(?:period\\s*)?ema`;
+  return (
+    /\bctc\b|\bcross[-\s]*test[-\s]*close\b/.test(hay) ||
+    new RegExp(
+      `\\b(?:close|closes|closed|closing)\\b.{0,90}\\b(?:above|below|back)\\b.{0,70}\\b(?:${fast}|${slow}|fast\\s+ema|slow\\s+ema|ema)\\b`,
+    ).test(hay) ||
+    /\b(?:after|following)\b.{0,80}\b(?:test|retest|touch|tap)\b.{0,120}\b(?:close|closes|closed|closing)\b/.test(
+      hay,
+    ) ||
+    /\b(?:close|closes|closed|closing)\b.{0,120}\b(?:after|following)\b.{0,80}\b(?:test|retest|touch|tap)\b/.test(
+      hay,
+    )
+  );
+}
+
+function mentionsEmaCrossTestClose(text: string, fastPeriod: number, slowPeriod: number): boolean {
+  const hay = text.toLowerCase();
+  return (
+    /\bema\b|exponential moving average/.test(hay) &&
+    /\bcross/.test(hay) &&
+    /\b(?:retest|test|touch|tap|penetrat)/.test(hay) &&
+    mentionsEmaCloseConfirmation(hay, fastPeriod, slowPeriod)
+  );
 }
 
 function extractNumberNear(text: string, keyword: RegExp): number | undefined {
@@ -569,9 +625,15 @@ function syntheticRulesFromText(text: string, fallbackTf: string): Record<string
   const hasRetest = /\bretest\b|\btest\b|\btouch\b/.test(text);
   const { fastPeriod, slowPeriod } = extractEmaPeriodsFromText(text);
   const retestTarget = extractEmaRetestTargetFromText(text, fastPeriod, slowPeriod);
+  const isEmaCtc = mentionsEmaCrossTestClose(text, fastPeriod, slowPeriod);
   const retestPoints = extractRetestTolerancePoints(text);
   const expiryBars = extractExpiryBarsFromText(text);
   const entryEvent = extractIfvgEntryEventFromText(text);
+  const ifvgTf = extractTfNearText(
+    text,
+    /\b(?:ifvg|inversion\s+fvg|inversion\s+fair\s+value\s+gap|inverted\s+fvg|inverted\s+fair\s+value\s+gap)\b/i,
+    fallbackTf,
+  );
 
   if (hasEma && /\bcross/.test(text)) {
     rules.push({
@@ -595,6 +657,25 @@ function syntheticRulesFromText(text: string, fallbackTf: string): Record<string
         slowPeriod,
         ...(retestTarget ? { retestTarget } : {}),
         ...(retestPoints !== undefined ? { retestPoints } : {}),
+        ...(isEmaCtc ? { sequenceMode: "cross_test_close", requireCross: true } : {}),
+      },
+    });
+  }
+
+  if (isEmaCtc) {
+    rules.push({
+      id: "synthetic_ema_ctc_execution",
+      type: "ema_retest_confirm",
+      side: "both",
+      label: "EMA close confirmation after EMA retest is the execution trigger.",
+      parameters: {
+        timeframe: fallbackTf,
+        fastPeriod,
+        slowPeriod,
+        retestTarget: retestTarget ?? "slow",
+        ...(retestPoints !== undefined ? { retestPoints } : {}),
+        sequenceMode: "cross_test_close",
+        requireCross: true,
       },
     });
   }
@@ -606,7 +687,7 @@ function syntheticRulesFromText(text: string, fallbackTf: string): Record<string
       side: "both",
       label: "IFVG formation is the execution trigger.",
       parameters: {
-        timeframe: fallbackTf,
+        timeframe: ifvgTf,
         expiryBars: expiryBars ?? 100,
         ...(entryEvent ? { entryEvent } : {}),
       },
@@ -772,6 +853,37 @@ function repairEmaRetestSetupFromText(
       slowPeriod,
       ...(brain.params ?? {}),
       retestTarget,
+      ...(mentionsEmaCrossTestClose(sourceText, fastPeriod, slowPeriod)
+        ? { sequenceMode: "cross_test_close", requireCross: true }
+        : {}),
+    },
+  };
+}
+
+function repairEmaCtcExecutionFromText(
+  brain: ReturnType<typeof cleanBrain>,
+  sourceText: string,
+): ReturnType<typeof cleanBrain> {
+  if (!brain) return brain;
+  const { fastPeriod, slowPeriod } = extractEmaPeriodsFromText(sourceText);
+  if (!mentionsEmaCrossTestClose(sourceText, fastPeriod, slowPeriod)) return brain;
+  const modules = brain.modules.includes("ema")
+    ? ["ema", ...brain.modules.filter((module) => module !== "ema")]
+    : brain.modules;
+  if (modules[0] !== "ema") return brain;
+  const retestTarget = extractEmaRetestTargetFromText(sourceText, fastPeriod, slowPeriod) ?? "slow";
+  const retestPoints = extractRetestTolerancePoints(sourceText);
+  return {
+    ...brain,
+    modules,
+    params: {
+      fastPeriod,
+      slowPeriod,
+      ...(brain.params ?? {}),
+      retestTarget,
+      ...(retestPoints !== undefined ? { retestPoints } : {}),
+      sequenceMode: "cross_test_close",
+      requireCross: true,
     },
   };
 }
@@ -968,11 +1080,22 @@ function paramsFromRule(rule: Record<string, unknown>, module: string): Record<s
     const retestPoints =
       paramNumber(params, ["retestPoints", "tolerancePoints", "touchTolerancePoints"]) ??
       extractRetestTolerancePoints(text);
+    const isCtc =
+      params.sequenceMode === "cross_test_close" ||
+      text.includes("ema_retest_confirm") ||
+      mentionsEmaCrossTestClose(text, fastPeriod, slowPeriod);
     return {
       fastPeriod,
       slowPeriod,
       ...(retestTarget ? { retestTarget } : {}),
       ...(retestPoints !== undefined ? { retestPoints } : {}),
+      ...(isCtc
+        ? {
+            retestTarget: retestTarget ?? "slow",
+            sequenceMode: "cross_test_close",
+            requireCross: true,
+          }
+        : {}),
     };
   }
   if (module === "fvg" || module === "fvg_inversion") {
@@ -1094,10 +1217,12 @@ function inferFourBrain(blueprint: Record<string, unknown>, sourceText = "") {
     ? (blueprint.rules.filter((r) => r && typeof r === "object") as Record<string, unknown>[])
     : [];
   const corpus = blueprintText(blueprint, sourceText);
-  const fallbackTf = extractTfFromRule(
-    { type: "context", label: corpus, parameters: blueprint.execution ?? {} },
-    "M5",
-  );
+  const fallbackTf =
+    extractTfFromText(corpus) ??
+    extractTfFromRule(
+      { type: "context", label: corpus, parameters: blueprint.execution ?? {} },
+      "M5",
+    );
   const syntheticRules = syntheticRulesFromText(corpus, fallbackTf);
   const rules = [...baseRules, ...syntheticRules].filter((rule, index, allRules) => {
     const module = moduleFromRule(rule);
@@ -1145,6 +1270,8 @@ function inferFourBrain(blueprint: Record<string, unknown>, sourceText = "") {
       text.includes("trigger") ||
       text.includes("entry") ||
       text.includes("execute") ||
+      text.includes("ema_retest_confirm") ||
+      text.includes("close confirmation") ||
       text.includes("next candle") ||
       text.includes("engulf") ||
       text.includes("pin bar") ||
@@ -1371,11 +1498,12 @@ export function normalizeBlueprint(
     enrichBrainFromText(execution, corpus),
     corpus,
   );
+  const repairedExecution = repairEmaCtcExecutionFromText(enrichedExecution, corpus);
 
   blueprint.fourBrain = {
     direction,
     setup,
-    execution: enrichedExecution,
+    execution: repairedExecution,
     management: {
       riskPercent: num(rawMgmt.riskPercent, num(risk.riskPercent, 1)),
       rewardRisk: rewardRiskFromText ?? num(rawMgmt.rewardRisk, num(risk.rewardRisk, 2)),

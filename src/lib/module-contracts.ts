@@ -51,7 +51,11 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       {
         id: "cross",
         roles: ["direction", "setup"],
-        queryFunctions: ["EMASM_{id}_SetupActive()", "EMASM_{id}_ActiveDir()"],
+        queryFunctions: [
+          "EMASM_{id}_SetupActive()",
+          "EMASM_{id}_ActiveDir()",
+          "EMASM_{id}_ActiveSL()",
+        ],
         meaning: "Fast/slow EMA cross arms or updates directional state.",
       },
       {

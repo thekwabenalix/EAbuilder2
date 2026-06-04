@@ -7,6 +7,7 @@
  */
 import {
   buildAiWiringRepairPrompt,
+  buildEmaCrossTestCloseWiring,
   buildEmaTestThenIfvgFormationWiring,
   findUnsafeAiModules,
   inferLocalSemantics,
@@ -431,6 +432,29 @@ const cases: RegressionCase[] = [
         "> gEmaIfvgTestTime_M5",
         "execution gates after EMA test",
       );
+    },
+  },
+  {
+    name: "deterministic adapter builds EMA Cross-Test-Close with EMASM",
+    run: () => {
+      const wiring = buildEmaCrossTestCloseWiring(`
+        Create the Cross-Test-Close strategy. Default timeframe M30.
+        The 12 EMA crosses the 48 EMA for direction.
+        After the cross, price must test the 48 EMA.
+        Then a candle closes above the 12 EMA for buys or below it for sells.
+        Enter at the open of the next candle.
+      `);
+      assertEq(wiring.validation?.status, "pass", "CTC adapter validation status");
+      assertEq(wiring.semantics?.timeframe, "M30", "CTC timeframe");
+      assertEq(wiring.semantics?.setup?.target, "slow", "CTC retest target");
+      assertEq(wiring.semantics?.execution?.module, "ema", "CTC execution module");
+      assertIncludes(wiring.setup_brain, "EMASM_M30_SetupActive()", "setup uses EMASM");
+      assertIncludes(
+        wiring.execution_brain,
+        "EMASM_M30_JustConfirmed()",
+        "execution uses EMASM confirmation",
+      );
+      assertOk(Boolean(wiring.sm_configs.ema_M30), "EMASM config missing");
     },
   },
   {

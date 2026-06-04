@@ -70,7 +70,7 @@ add(
 const aiVocabularyIds = admissionIds.filter((id) => MODULE_ADMISSION[id].aiVocabulary);
 const detectorOnlyInAiVocabulary = admissionIds.filter((id) => {
   const record = MODULE_ADMISSION[id];
-  return record.status === "detector_only" && (libraryIds.includes(id) || brainIds.includes(id));
+  return record.status === "detector_only" && record.aiVocabulary;
 });
 add(
   "detector-only modules are not in AI vocabulary",
@@ -150,6 +150,15 @@ add(
   "emitted standalone detectors are admitted",
   missingEmittedDetectors.length === 0,
   missingEmittedDetectors.join(", "),
+);
+
+const emittedDetectorsMissingFromBrainBuilder = emittedDetectorIds.filter(
+  (id) => !brainIds.includes(id),
+);
+add(
+  "emitted standalone detectors appear in 4-Brain selector with guarded status",
+  emittedDetectorsMissingFromBrainBuilder.length === 0,
+  emittedDetectorsMissingFromBrainBuilder.join(", "),
 );
 
 const emittedDetectorNotDetectorOnly = emittedDetectorIds.filter((id) => {

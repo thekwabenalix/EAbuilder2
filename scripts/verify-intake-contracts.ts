@@ -191,6 +191,29 @@ const cases: ContractCase[] = [
     },
   },
   {
+    name: "strong engulfing wording maps to guarded SEG instead of EG/EF",
+    run: () => {
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          rules: [
+            {
+              id: "m5_strong_engulfing_entry",
+              type: "strong_engulfing",
+              side: "both",
+              label: "M5 strong engulfing candle is the entry trigger.",
+              parameters: { timeframe: "M5" },
+              compilable: true,
+            },
+          ],
+        }),
+      );
+
+      const fb = fourBrainOf(blueprint);
+      assertEq(modulesOf(brainOf(fb, "execution"))[0], "seg", "execution module");
+    },
+  },
+  {
     name: "supply and demand zones map to order-block family",
     run: () => {
       const blueprint = normalizeBlueprint(
@@ -501,6 +524,49 @@ const cases: ContractCase[] = [
       assertEq(management.breakEvenEnabled, true, "breakeven enabled");
       assertEq(management.breakEvenAtR, 1.5, "breakeven R");
       assertEq(management.maxStopPoints, 70, "max stop points");
+    },
+  },
+  {
+    name: "raw text fallback maps EMA Cross-Test-Close sequence",
+    run: () => {
+      const prompt = `
+        Create a Cross-Test-Close strategy. Default timeframe M30.
+        The 12 EMA crosses above or below the 48 EMA to set direction.
+        After a valid EMA cross, price must retrace to the 48 EMA.
+        Only the first valid 48 EMA test after the cross should be considered.
+        After the test, a candle must close above the 12 EMA for buys or below the 12 EMA for sells.
+        Enter at the open of the next candle after the close confirmation.
+        Risk 1%. Risk reward is 1:3. Move stop to breakeven at 1.5R.
+      `;
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          rules: [],
+          summary: "Cross-Test-Close EMA strategy.",
+        }),
+        prompt,
+      );
+
+      const fb = fourBrainOf(blueprint);
+      const direction = brainOf(fb, "direction");
+      const setup = brainOf(fb, "setup");
+      const execution = brainOf(fb, "execution");
+      const management = brainOf(fb, "management");
+      assertEq(modulesOf(direction)[0], "ema", "direction module");
+      assertEq(direction.timeframe, "M30", "direction timeframe");
+      assertEq(paramsOf(direction).fastPeriod, 12, "direction fast EMA");
+      assertEq(paramsOf(direction).slowPeriod, 48, "direction slow EMA");
+      assertEq(modulesOf(setup)[0], "ema", "setup module");
+      assertEq(setup.timeframe, "M30", "setup timeframe");
+      assertEq(paramsOf(setup).retestTarget, "slow", "setup 48 EMA retest target");
+      assertEq(paramsOf(setup).sequenceMode, "cross_test_close", "setup sequence mode");
+      assertEq(modulesOf(execution)[0], "ema", "execution module");
+      assertEq(execution.timeframe, "M30", "execution timeframe");
+      assertEq(paramsOf(execution).sequenceMode, "cross_test_close", "execution sequence mode");
+      assertEq(paramsOf(execution).retestTarget, "slow", "execution 48 EMA retest target");
+      assertEq(management.rewardRisk, 3, "reward risk");
+      assertEq(management.breakEvenEnabled, true, "breakeven enabled");
+      assertEq(management.breakEvenAtR, 1.5, "breakeven R");
     },
   },
   {

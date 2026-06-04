@@ -46,6 +46,23 @@ type ModuleDef = BrainModuleDef;
 const ALL_MODULES = ALL_BRAIN_MODULES;
 const TIMEFRAMES = [...TF_LIST];
 
+function unsafeAiModuleLabels(modules: Array<BrainModuleType | string | undefined>): string[] {
+  return [
+    ...new Set(
+      modules
+        .filter((moduleId): moduleId is BrainModuleType | string => Boolean(moduleId))
+        .map((moduleId) => moduleId.toLowerCase()),
+    ),
+  ]
+    .map((moduleId) => {
+      const admission = getModuleAdmission(moduleId);
+      if (!admission || admission.status === "verified_state_machine") return null;
+      const meta = MODULE_ADMISSION_STATUS_META[admission.status];
+      return `${admission.label} (${meta.shortLabel})`;
+    })
+    .filter((label): label is string => Boolean(label));
+}
+
 // ─── Presets ──────────────────────────────────────────────────────────────────
 
 interface Preset {
@@ -676,6 +693,15 @@ function FourBrainBuilderPage() {
       toast.error("Execution Brain is required — select a module and timeframe.");
       return;
     }
+    const unsafeAiModules = unsafeAiModuleLabels([
+      ...(direction?.modules ?? []),
+      ...(setup?.modules ?? []),
+      ...(execution.modules ?? []),
+    ]);
+    if (unsafeAiModules.length > 0) {
+      toast.error(`4-Brain EA generation is blocked for: ${unsafeAiModules.join(", ")}`);
+      return;
+    }
 
     const fourBrain: FourBrainConfig = {
       direction:
@@ -768,6 +794,12 @@ function FourBrainBuilderPage() {
   }
 
   const execConfigured = Boolean(execution?.modules?.[0] && execution.timeframe);
+  const unsafeAiModules = unsafeAiModuleLabels([
+    ...(direction?.modules ?? []),
+    ...(setup?.modules ?? []),
+    ...(execution?.modules ?? []),
+  ]);
+  const canBuildEa = execConfigured && unsafeAiModules.length === 0;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -1003,7 +1035,7 @@ function FourBrainBuilderPage() {
           </div>
           <Button
             size="lg"
-            disabled={!execConfigured || saving}
+            disabled={!canBuildEa || saving}
             onClick={onGenerate}
             className="shrink-0 gap-2"
           >
@@ -1022,6 +1054,12 @@ function FourBrainBuilderPage() {
         {!execConfigured && (
           <p className="text-xs text-amber-400 text-center">
             Configure the Execution Brain to enable EA generation.
+          </p>
+        )}
+        {execConfigured && unsafeAiModules.length > 0 && (
+          <p className="text-xs text-amber-400 text-center">
+            EA generation is blocked for: {unsafeAiModules.join(", ")}. These modules are visible
+            for planning, but need verified state-machine contracts before they can trade.
           </p>
         )}
       </div>
