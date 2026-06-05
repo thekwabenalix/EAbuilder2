@@ -64,11 +64,18 @@ const ACTION_CONFIG = {
 
 const ACTION_KEYS = new Set(Object.keys(ACTION_CONFIG));
 
+type EaAssistantToolIntent = {
+  action: EaAssistantAction;
+  reason?: string;
+  auto?: boolean;
+};
+
 /** Strip control markers from displayed message content. */
 function stripMarker(text: string): string {
   return text
     .replace(/\[FIX_READY\]\s*$/m, "")
     .replace(/^\s*\[ACTION:[a-z_]+\]\s*$/gm, "")
+    .replace(/^\s*\[TOOL:.+\]\s*$/gm, "")
     .trimEnd();
 }
 
@@ -81,6 +88,38 @@ function extractActionMarkers(text: string): EaAssistantAction[] {
     }
   }
   return actions;
+}
+
+function extractToolMarkers(text: string): EaAssistantToolIntent[] {
+  const tools: EaAssistantToolIntent[] = [];
+  for (const match of text.matchAll(/^\s*\[TOOL:(.+)\]\s*$/gm)) {
+    const payload = match[1]?.trim();
+    if (!payload) continue;
+
+    let parsed: unknown;
+    try {
+      parsed = payload.startsWith("{") ? JSON.parse(payload) : { action: payload };
+    } catch {
+      continue;
+    }
+
+    if (!parsed || typeof parsed !== "object") continue;
+    const record = parsed as Record<string, unknown>;
+    const action = typeof record.action === "string" ? record.action : "";
+    if (!ACTION_KEYS.has(action)) continue;
+
+    const intent: EaAssistantToolIntent = { action: action as EaAssistantAction };
+    if (typeof record.reason === "string" && record.reason.trim()) {
+      intent.reason = record.reason.trim();
+    }
+    if (typeof record.auto === "boolean") {
+      intent.auto = record.auto;
+    }
+    if (!tools.some((tool) => tool.action === intent.action)) {
+      tools.push(intent);
+    }
+  }
+  return tools;
 }
 
 function downloadJson(filename: string, value: unknown) {
@@ -450,6 +489,44 @@ export function EaChatDrawer({
     );
   };
 
+  const renderToolIntent = (tool: EaAssistantToolIntent, index: number) => {
+    const config = ACTION_CONFIG[tool.action];
+    const Icon = config.icon;
+    return (
+      <div
+        key={`${tool.action}-${index}`}
+        className="mt-2 rounded-md border border-primary/25 bg-primary/5 p-2"
+      >
+        <div className="flex items-start gap-2">
+          <div className="mt-0.5 h-6 w-6 rounded bg-primary/10 flex items-center justify-center shrink-0">
+            <Icon className="h-3.5 w-3.5 text-primary" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] uppercase tracking-wide text-primary/80">
+              Assistant tool
+            </div>
+            <div className="text-xs font-medium text-foreground">{config.label}</div>
+            {tool.reason && (
+              <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                {tool.reason}
+              </div>
+            )}
+          </div>
+          <Button
+            size="sm"
+            onClick={() => handleSafeAction(tool.action)}
+            disabled={
+              loading || applyLoading || (tool.action === "regen_template" && !onRegenTemplate)
+            }
+            className="h-7 px-2 text-[11px] shrink-0"
+          >
+            Run
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   const handleApplyFix = async () => {
     // Template path: instant deterministic regeneration — no AI involved
     if (isTemplateCode && onRegenTemplate) {
@@ -598,6 +675,8 @@ export function EaChatDrawer({
             const displayContent = m.role === "assistant" ? stripMarker(m.content) : m.content;
             const actions =
               m.role === "assistant" && !isStreaming ? extractActionMarkers(m.content) : [];
+            const toolIntents =
+              m.role === "assistant" && !isStreaming ? extractToolMarkers(m.content) : [];
 
             return (
               <div
@@ -638,6 +717,8 @@ export function EaChatDrawer({
                       {actions.map((action) => renderActionButton(action, true))}
                     </div>
                   )}
+                  {toolIntents.length > 0 &&
+                    toolIntents.map((tool, toolIndex) => renderToolIntent(tool, toolIndex))}
                   {isStreaming && m.content.length > 0 && (
                     <span className="inline-block w-1.5 h-3 bg-current ml-0.5 animate-pulse align-middle" />
                   )}
