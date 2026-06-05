@@ -46,7 +46,7 @@ import {
   X,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { EaChatDrawer } from "@/components/EaChatDrawer";
+import { EaChatDrawer, type EaAssistantAction } from "@/components/EaChatDrawer";
 import { toast } from "sonner";
 import {
   buildExportFilename,
@@ -123,6 +123,13 @@ function aiGenerationErrorMessage(error: unknown): string {
     const repair = (error.details as { repair?: AiBrainWiring["repair"] })?.repair;
     const repairSummary = formatRepairSummary(repair);
     if (repairSummary) return repairSummary;
+    const raw = `${error.message}\n${JSON.stringify(error.details ?? {})}`;
+    if (/modelId\.replace is not a function/i.test(raw)) {
+      return "AI provider/model configuration failed before strategy generation. This is a platform AI routing issue, not your strategy rules. Try AI Rebuild once; if it repeats, download the Evidence Pack and check the AI function logs.";
+    }
+  }
+  if (error instanceof Error && /modelId\.replace is not a function/i.test(error.message)) {
+    return "AI provider/model configuration failed before strategy generation. This is a platform AI routing issue, not your strategy rules. Try AI Rebuild once; if it repeats, download the Evidence Pack and check the AI function logs.";
   }
   return error instanceof Error ? error.message : "AI generation failed";
 }
@@ -318,6 +325,9 @@ function StrategyPage() {
   const [chatAutoMessage, setChatAutoMessage] = useState<string | null>(null);
   const [compileLog, setCompileLog] = useState<string | null>(null);
   const [backtestSummary, setBacktestSummary] = useState<ReportSummary | null>(null);
+  const [testerLog, setTesterLog] = useState<string | null>(null);
+  const [diagnosticContext, setDiagnosticContext] = useState<unknown>(null);
+  const [activeTab, setActiveTab] = useState("brains");
 
   useEffect(() => {
     if (data) {
@@ -325,6 +335,7 @@ function StrategyPage() {
       setGeneratedCode(data.generated_code);
       setName(data.name);
       setDirty(false);
+      setActiveTab(data.spec_json?.fourBrain ? "brains" : data.generated_code ? "spec" : "code");
     }
   }, [data]);
 
@@ -401,6 +412,59 @@ function StrategyPage() {
     setDirty(true);
   };
 
+  const regenFromTemplate = () => {
+    const fixed = generateMql5FromBlueprint(blueprint);
+    setGeneratedCode(fixed);
+    setDirty(true);
+    toast.success("Regenerated from template — save and recompile");
+  };
+
+  const handleAssistantAction = (action: EaAssistantAction) => {
+    if (action === "regen_template") {
+      regenFromTemplate();
+      return;
+    }
+    if (action === "rerun_interview") {
+      navigate({ to: "/new" });
+      return;
+    }
+    if (action === "open_modules") {
+      navigate({ to: "/modules" });
+      return;
+    }
+    if (action === "ai_rebuild") {
+      setActiveTab(isFourBrain ? "brains" : "builder");
+      toast.message(
+        isFourBrain
+          ? "Open the Brains tab AI Rebuild control to regenerate structured wiring"
+          : "Open the Builder tab to adjust the rules-based strategy",
+      );
+      return;
+    }
+    if (action === "download_tester_log") {
+      setActiveTab("backtest");
+      toast.message("Use the Tester log button in Backtest results after a report run");
+      return;
+    }
+    const nextTab =
+      action === "open_brains"
+        ? isFourBrain
+          ? "brains"
+          : "builder"
+        : action === "open_code"
+          ? "code"
+          : action === "open_backtest"
+            ? "backtest"
+            : action === "open_export"
+              ? "export"
+              : action === "open_validation"
+                ? isFourBrain
+                  ? "brains"
+                  : "validation"
+                : activeTab;
+    setActiveTab(nextTab);
+  };
+
   return (
     <div>
       <PageHeader
@@ -455,7 +519,7 @@ function StrategyPage() {
 
       {isFourBrain ? (
         /* ── 4-Brain strategy tabs ─────────────────────────────────────────── */
-        <Tabs defaultValue="brains" className="px-6 pt-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="px-6 pt-4">
           <TabsList>
             <TabsTrigger value="brains">
               <Brain className="h-3.5 w-3.5 mr-1.5" />
@@ -516,6 +580,8 @@ function StrategyPage() {
               code={generatedCode}
               onCompileLog={setCompileLog}
               onBacktestSummary={setBacktestSummary}
+              onBacktestLog={setTesterLog}
+              onDiagnosticContext={setDiagnosticContext}
               onOpenChat={(msg) => {
                 setChatAutoMessage(msg ?? null);
                 setChatOpen(true);
@@ -533,7 +599,7 @@ function StrategyPage() {
         </Tabs>
       ) : (
         /* ── Rules-based strategy tabs ─────────────────────────────────────── */
-        <Tabs defaultValue={data.generated_code ? "spec" : "code"} className="px-6 pt-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="px-6 pt-4">
           <TabsList>
             <TabsTrigger value="spec">Spec</TabsTrigger>
             <TabsTrigger value="builder">Builder</TabsTrigger>
@@ -585,6 +651,8 @@ function StrategyPage() {
               code={generatedCode}
               onCompileLog={setCompileLog}
               onBacktestSummary={setBacktestSummary}
+              onBacktestLog={setTesterLog}
+              onDiagnosticContext={setDiagnosticContext}
               onOpenChat={(msg) => {
                 setChatAutoMessage(msg ?? null);
                 setChatOpen(true);
@@ -613,24 +681,21 @@ function StrategyPage() {
           if (!open) setChatAutoMessage(null);
         }}
         autoMessage={chatAutoMessage ?? undefined}
+        prompt={data.prompt}
         blueprint={blueprint}
         code={generatedCode}
         compileLog={compileLog}
+        testerLog={testerLog}
         backtestSummary={backtestSummary}
+        diagnosticContext={diagnosticContext}
         onApplyCode={(code) => {
           setGeneratedCode(code);
           setDirty(true);
           setChatOpen(false);
           toast.success("AI code applied — remember to save");
         }}
-        onRegenTemplate={() => {
-          // For template-generated code the chat "Apply fix" button becomes a deterministic
-          // template regeneration — no AI rewrite, no risk of removing working features.
-          const fixed = generateMql5FromBlueprint(blueprint);
-          setGeneratedCode(fixed);
-          setDirty(true);
-          toast.success("Regenerated from template — save and recompile");
-        }}
+        onSafeAction={handleAssistantAction}
+        onRegenTemplate={regenFromTemplate}
       />
     </div>
   );
@@ -1828,6 +1893,8 @@ function BacktestTab({
   code,
   onCompileLog,
   onBacktestSummary,
+  onBacktestLog,
+  onDiagnosticContext,
   onOpenChat,
   onApplyCode,
 }: {
@@ -1837,6 +1904,8 @@ function BacktestTab({
   code: string;
   onCompileLog?: (log: string | null) => void;
   onBacktestSummary?: (summary: ReportSummary | null) => void;
+  onBacktestLog?: (log: string | null) => void;
+  onDiagnosticContext?: (context: unknown) => void;
   onOpenChat?: (message?: string) => void;
   onApplyCode?: (code: string) => void;
 }) {
@@ -1965,13 +2034,14 @@ function BacktestTab({
       const result = data as BacktestResult;
       setBacktestResult(result);
       onBacktestSummary?.(result.summary ?? null);
+      onBacktestLog?.(result.log ?? null);
       if (status === "succeeded") {
         toast.success("Backtest report ready");
       } else {
         toast.error("Backtest failed — " + (data.job.message || "see tester log"));
       }
     }
-  }, [backtestJobQuery.data, onBacktestSummary]);
+  }, [backtestJobQuery.data, onBacktestLog, onBacktestSummary]);
 
   useEffect(() => {
     const data = visualJobQuery.data;
@@ -2008,6 +2078,8 @@ function BacktestTab({
         testerConfig,
       });
       setBacktestResult(null);
+      onBacktestSummary?.(null);
+      onBacktestLog?.(null);
       setBacktestJobId(res.job.id);
       setBacktestPolling(true);
     },
@@ -2043,6 +2115,66 @@ function BacktestTab({
 
   const set = <K extends keyof typeof config>(k: K, v: (typeof config)[K]) =>
     setConfig((c) => ({ ...c, [k]: v }));
+
+  useEffect(() => {
+    onDiagnosticContext?.({
+      updatedAt: new Date().toISOString(),
+      runner: {
+        companionOnline,
+        runnerVersion: companion.data?.version ?? null,
+        mt5Configured,
+        mt5Status: mt5Status.data?.status ?? null,
+        configuredTerminal: mt5Status.data?.configuredTerminalPath?.split(/[\\/]/).at(-1) ?? null,
+        activeJobId: mt5Status.data?.activeJobId ?? null,
+        message: mt5Status.data?.message ?? null,
+      },
+      testerConfig: config,
+      approval: {
+        localApproval,
+      },
+      compile: {
+        running: compileMut.isPending || compilePolling,
+        jobId: compileJobId,
+        success: compileResult?.success ?? null,
+        errors: compileResult?.errors ?? null,
+        warnings: compileResult?.warnings ?? null,
+        artifactPath: compileResult?.artifactPath ?? null,
+        executablePath: compileResult?.executablePath ?? null,
+      },
+      backtest: {
+        running: backtestMut.isPending || backtestPolling,
+        jobId: backtestJobId,
+        success: backtestResult?.success ?? null,
+        totalTrades: backtestResult?.summary?.totalTrades ?? null,
+        reportPath: backtestResult?.reportPath ?? null,
+        blockedByRunningTerminal: backtestBlockedByRunningTerminal,
+      },
+      visual: {
+        running: visualMut.isPending || visualPolling,
+        jobId: visualJobId,
+      },
+    });
+  }, [
+    backtestBlockedByRunningTerminal,
+    backtestJobId,
+    backtestMut.isPending,
+    backtestPolling,
+    backtestResult,
+    companion.data,
+    companionOnline,
+    compileJobId,
+    compileMut.isPending,
+    compilePolling,
+    compileResult,
+    config,
+    localApproval,
+    mt5Configured,
+    mt5Status.data,
+    onDiagnosticContext,
+    visualJobId,
+    visualMut.isPending,
+    visualPolling,
+  ]);
 
   // ── Guard states ──
   if (!code) {
@@ -2543,6 +2675,34 @@ function BacktestTab({
               )}
               Tester log
             </Button>
+            {!backtestResult.success && onOpenChat && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  onOpenChat(
+                    "Diagnosis mode: Backtest failed. Use the compile log, tester log, runner status, generated code, blueprint, and module contracts. Tell me whether this is an EA logic problem, MT5 runner/tester problem, symbol/data issue, or risk/filter issue. End with the safest next action.",
+                  )
+                }
+              >
+                <Bot className="h-3.5 w-3.5 mr-1.5" />
+                Ask AI
+              </Button>
+            )}
+            {backtestResult.success && summary?.totalTrades === 0 && onOpenChat && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  onOpenChat(
+                    "Diagnosis mode: Why no trades? The backtest completed with zero trades. Use the original prompt, blueprint, module contracts, generated code, tester log, and backtest summary. Identify the exact gate that prevented entries: direction, setup, execution, management/risk, spread, max stop, max trades, date/data, or tester config. End with the safest next app action.",
+                  )
+                }
+              >
+                <Bot className="h-3.5 w-3.5 mr-1.5" />
+                Why no trades?
+              </Button>
+            )}
           </div>
 
           {summary && (

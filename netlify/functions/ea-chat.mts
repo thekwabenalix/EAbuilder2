@@ -1,4 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { buildCompactModuleContractContext } from "../../src/lib/module-contracts.js";
+import { buildCompactModuleLibraryContext } from "../../src/lib/module-library.js";
+import { buildModuleRepairPlan, MODULE_ADMISSION } from "../../src/lib/module-admission.js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -10,8 +13,61 @@ const CORS = {
 
 const SYSTEM = `You are an expert MQL5 developer and forex trading strategy specialist.
 
-You have full access to the user's strategy blueprint JSON and generated Expert Advisor code.
+You have access to the user's strategy prompt, strategy blueprint JSON, generated Expert Advisor code,
+platform module registry, module contracts, compile/tester logs, backtest summary, and screenshots
+when attached.
 Your role is to help the user understand, debug, improve, and iterate on their EA.
+
+You are the in-app EA Builder copilot. Think in the platform's architecture:
+Trader prompt -> AI interpretation -> 4-Brain blueprint -> verified module contracts/state machines
+-> self-contained MQL5 EA -> compile -> MT5 backtest -> diagnosis.
+
+When diagnosing, FIRST decide which layer is responsible:
+- PROMPT / INTERPRETATION: the blueprint does not match the trader's words.
+- BLUEPRINT / WIRING: the 4-Brain roles, modules, params, or sequence are wrong.
+- MODULE CONTRACT: the selected module cannot express the requested behaviour yet.
+- GENERATOR / STATE MACHINE: verified block behaviour needs a platform update.
+- MQL5 / COMPILE: generated code failed to compile.
+- MT5 RUNNER / TESTER: local runner, MT5 terminal, tester config, symbol, spread, date, or data issue.
+- TRADING LOGIC / RISK: spread, max trades, max stop, SL/TP, BE, or risk filter blocked the trade.
+
+If the user's message starts with "Diagnosis mode:", follow this output shape:
+1. Verdict - one sentence naming the most likely failing layer.
+2. Evidence - 2 to 5 concrete facts from prompt/blueprint/code/log/screenshot.
+3. Brain/Module Impact - explain Direction, Setup, Execution, and Management only where relevant.
+4. Next Action - one safe platform action, such as regenerate with AI, regen template, re-run interview,
+   compile, run report backtest, attach screenshot, download tester log, or developer/module update.
+Do not ramble. Do not invent screenshot details. If evidence is missing, say exactly what is missing.
+
+When your safest next action matches one of the app actions below, add exactly one marker on its own
+final line. The UI will turn it into a button. Do not use action markers for destructive,
+unsupported, or vague actions.
+- [ACTION:regen_template] for deterministic 4-Brain/template regeneration.
+- [ACTION:open_brains] to inspect or adjust the 4-Brain mapping/module params.
+- [ACTION:open_code] to inspect generated MQL5.
+- [ACTION:open_backtest] to compile, run report backtest, or download tester logs.
+- [ACTION:open_export] to download/export generated EA artifacts.
+- [ACTION:open_validation] to inspect rules-based validation.
+- [ACTION:download_evidence] to download a complete diagnostic evidence pack for support/debugging.
+- [ACTION:rerun_interview] when the trader's words must be reinterpreted from scratch.
+- [ACTION:ai_rebuild] when the 4-Brain wiring/SM configs should be regenerated from structured AI.
+- [ACTION:open_modules] when the issue is missing/guarded/detector-only module capability.
+- [ACTION:download_tester_log] when the next useful evidence is the MT5 tester log.
+
+If the user's message starts with "Repair flow:", follow this output shape:
+1. Repair Path - choose exactly one: re-run interview, adjust Brains, AI rebuild, regen template,
+   compile/backtest retry, download tester log, inspect modules, or developer/module update.
+2. Why - 2 to 4 evidence bullets from prompt/blueprint/contracts/logs/diagnostics.
+3. Do Now - one concrete app action the trader can take immediately.
+4. Verify After - one concrete compile/backtest/screenshot/log check.
+End with exactly one [ACTION:...] marker when a listed app action applies.
+
+Prefer safe platform actions over raw code rewrites:
+- For 4-Brain/template EAs, recommend Build with AI, Regen from Template, re-run interview, compile,
+  run backtest, download tester log, or inspect module contract.
+- Only use [FIX_READY] for small bounded edits to non-template AI-written brain wiring.
+- Never invent a module capability. If a module is template-only/detector-only/not verified, say so
+  and suggest verified alternatives from the platform context.
 
 ══════════════════════════════════════════════
 STRICT MQL5-ONLY RULES — NEVER USE MQL4 SYNTAX
@@ -45,6 +101,8 @@ WHAT YOU CAN DO
 - Suggest targeted improvements to the MQL5 code
 - Modify specific rules, conditions, or parameters when asked
 - Interpret backtest results and explain what they mean
+- Explain whether selected modules are verified, template-only, detector-only, or blocked for AI wiring
+- Explain which 4-Brain layer failed and which safe app action should be tried next
 
 ══════════════════════════════════════════════
 TEMPLATE-GENERATED CODE — CRITICAL RULE
@@ -91,6 +149,14 @@ Keep the summary to 3–8 lines maximum. No code snippets, no code blocks — ev
 ══════════════════════════════════════════════
 IMAGE HONESTY — ABSOLUTE RULE
 ══════════════════════════════════════════════
+Use the IMAGE STATUS line in the latest user message as the source of truth.
+If it says attached_and_parsed, an image is attached and you must not say "I don't
+see an attached image". Describe only what you genuinely see.
+If it says attached_but_unparsed, the user tried to attach an image but the app
+could not parse it; ask them to reattach/paste it and diagnose only from text/logs.
+If it says none, say plainly "I don't see an attached image" before asking for one.
+Never invent, assume, or guess chart contents, timeframe, arrows, panel text, or candle positions.
+
 You can analyse a screenshot ONLY when an image is actually attached to the
 latest message. If an image IS attached, describe what you genuinely see.
 If NO image is attached, you MUST say plainly "I don't see an attached image"
@@ -155,6 +221,71 @@ WHEN EXPLAINING (not modifying code)
 Answer normally. Do NOT include [FIX_READY] or any code blocks.
 Keep responses concise and actionable.`;
 
+type ChatMessage = { role: "user" | "assistant"; content: string };
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function brainModules(blueprint: unknown): string[] {
+  const fb = asRecord(asRecord(blueprint).fourBrain);
+  const roles = ["direction", "setup", "execution"] as const;
+  const modules: string[] = [];
+  for (const role of roles) {
+    const brain = asRecord(fb[role]);
+    const raw = brain.modules;
+    if (Array.isArray(raw)) {
+      for (const item of raw) if (typeof item === "string") modules.push(item.toLowerCase());
+    }
+  }
+  return [...new Set(modules)];
+}
+
+function compactAdmissionContext(moduleIds: string[]): string {
+  const selected = moduleIds.length ? moduleIds : Object.keys(MODULE_ADMISSION);
+  const lines = [
+    "MODULE ADMISSION STATUS - use this to decide whether AI wiring is safe.",
+    "verified_state_machine = safe for AI 4-Brain wiring. template_only = deterministic template only. detector_only/not_verified = cannot reliably trade yet.",
+    "",
+  ];
+  for (const id of selected) {
+    const admission = MODULE_ADMISSION[id] ?? MODULE_ADMISSION[id.replace(/^ob$/, "order_block")];
+    if (!admission) {
+      lines.push(`[${id}] Unknown - no admission record. Treat as blocked until implemented.`);
+      continue;
+    }
+    lines.push(
+      `[${admission.id}] ${admission.label}: ${admission.status}; aiVocabulary=${admission.aiVocabulary}; ${admission.notes}`,
+    );
+  }
+  const repair = buildModuleRepairPlan(moduleIds);
+  lines.push("");
+  lines.push(`Repair plan: ${repair.summary}`);
+  if (repair.blocked.length) {
+    for (const item of repair.blocked) {
+      const suggestions = item.suggestedModules.map((mod) => mod.label).join(", ") || "none";
+      lines.push(
+        `- ${item.label}: ${item.recommendation} Suggested verified modules: ${suggestions}.`,
+      );
+    }
+  }
+  return lines.join("\n");
+}
+
+function platformContext(blueprint: unknown): string {
+  const selectedModules = brainModules(blueprint);
+  return [
+    "=== EA BUILDER PLATFORM CONTEXT ===",
+    compactAdmissionContext(selectedModules),
+    "",
+    "=== VERIFIED MODULE CONTRACTS ===",
+    buildCompactModuleContractContext(),
+    "",
+    "=== MODULE VOCABULARY SUMMARY ===",
+    buildCompactModuleLibraryContext(),
+  ].join("\n");
+}
+
 /** Keep only error/warning/result lines from a compile log — strips verbose "information:" lines. */
 function trimCompileLog(log: string): string {
   const lines = log.split("\n");
@@ -187,14 +318,17 @@ export default async (req: Request): Promise<Response> => {
     return Response.json({ error: "Invalid JSON" }, { status: 400, headers: CORS });
   }
 
-  const messages = body.messages as { role: "user" | "assistant"; content: string }[];
+  const messages = body.messages as ChatMessage[];
   const blueprint = body.blueprint;
   const code = typeof body.code === "string" ? body.code : "";
+  const prompt = typeof body.prompt === "string" ? body.prompt : "";
   // Chart screenshots for behaviour diagnosis (base64 data URLs from the client)
   const images = Array.isArray(body.images)
     ? (body.images as unknown[]).filter((s): s is string => typeof s === "string")
     : [];
   const backtestSummary = body.backtestSummary ?? null;
+  const diagnosticContext = body.diagnosticContext ?? null;
+  const testerLog = typeof body.testerLog === "string" ? body.testerLog : null;
   const rawLog = typeof body.compileLog === "string" ? body.compileLog : null;
   const compileLog = rawLog ? trimCompileLog(rawLog) : null;
 
@@ -204,14 +338,36 @@ export default async (req: Request): Promise<Response> => {
 
   // Inject full context into the first user message only
   const contextBlock = [
+    platformContext(blueprint),
+    "",
+    "=== ORIGINAL STRATEGY PROMPT ===",
+    prompt || "(no original prompt supplied)",
+    "",
     "=== STRATEGY BLUEPRINT ===",
     JSON.stringify(blueprint, null, 2),
+    "",
+    "=== BLUEPRINT AUDIT / AI WIRING DIAGNOSTICS ===",
+    JSON.stringify(
+      {
+        blueprintAudit: asRecord(blueprint).blueprintAudit ?? null,
+        intentContract: asRecord(blueprint).intentContract ?? null,
+        aiWiringDiagnostics: asRecord(blueprint).aiWiringDiagnostics ?? null,
+        indicatorRefs: asRecord(blueprint).indicatorRefs ?? null,
+        filterRefs: asRecord(blueprint).filterRefs ?? null,
+      },
+      null,
+      2,
+    ),
     "",
     "=== GENERATED MQL5 CODE ===",
     code || "(no code generated yet)",
     compileLog ? `\n=== LAST COMPILE ERRORS ===\n${compileLog}` : "",
+    testerLog ? `\n=== LAST TESTER / BACKTEST LOG ===\n${testerLog}` : "",
     backtestSummary
       ? `\n=== LAST BACKTEST SUMMARY ===\n${JSON.stringify(backtestSummary, null, 2)}`
+      : "",
+    diagnosticContext
+      ? `\n=== PLATFORM / RUNNER DIAGNOSTIC CONTEXT ===\n${JSON.stringify(diagnosticContext, null, 2)}`
       : "",
   ]
     .filter(Boolean)
@@ -230,10 +386,19 @@ export default async (req: Request): Promise<Response> => {
     type: "image";
     source: { type: "base64"; media_type: string; data: string };
   }>;
+  const imageStatus =
+    images.length === 0
+      ? "none"
+      : imageBlocks.length > 0
+        ? "attached_and_parsed"
+        : "attached_but_unparsed";
 
   const lastIdx = messages.length - 1;
   const enrichedMessages = messages.map((m, i) => {
     let text = i === 0 ? `${contextBlock}\n\n=== USER MESSAGE ===\n${m.content}` : m.content;
+    if (i === lastIdx && m.role === "user") {
+      text = `IMAGE STATUS: ${imageStatus} (${images.length} received, ${imageBlocks.length} parsed)\n${text}`;
+    }
     // Attach any screenshots to the most recent user message as image blocks.
     if (i === lastIdx && m.role === "user" && imageBlocks.length > 0) {
       text = `[${imageBlocks.length} screenshot(s) attached above — analyse them]\n${text}`;
@@ -274,7 +439,12 @@ export default async (req: Request): Promise<Response> => {
         const fixReady = fullText.includes("[FIX_READY]");
         send({ done: true, fixReady });
       } catch (err) {
-        send({ error: err instanceof Error ? err.message : "Stream error" });
+        const message = err instanceof Error ? err.message : "Stream error";
+        send({
+          error: /modelId\.replace is not a function/i.test(message)
+            ? "AI provider/model configuration failed before the assistant could respond. This is a platform AI routing issue, not your strategy rules. Try again once; if it repeats, download the Evidence Pack and check the AI function logs."
+            : message,
+        });
       } finally {
         controller.close();
       }

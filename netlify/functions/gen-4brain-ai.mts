@@ -1907,6 +1907,15 @@ In "notes", explain how you mapped their module selections to state machines.`;
   } catch (err) {
     console.error("gen-4brain-ai error:", err);
     const msg = err instanceof Error ? err.message : "Internal server error";
+    if (/modelId\.replace is not a function/i.test(msg)) {
+      return Response.json(
+        {
+          error:
+            "AI provider/model configuration failed before strategy generation. This is a platform AI routing issue, not your strategy rules. Try again once; if it repeats, download the Evidence Pack and check the AI function logs.",
+        },
+        { status: 500, headers: CORS },
+      );
+    }
     return Response.json({ error: msg }, { status: 500, headers: CORS });
   }
 };
