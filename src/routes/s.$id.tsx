@@ -134,6 +134,19 @@ function aiGenerationErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "AI generation failed";
 }
 
+function isRecoverableAiServiceError(error: unknown): boolean {
+  if (error instanceof ApiError && [502, 503, 504].includes(error.status)) return true;
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : JSON.stringify(error);
+  return /status 50[234]|bad gateway|temporarily|overloaded|modelId\.replace is not a function/i.test(
+    message,
+  );
+}
+
 function aiWiringSuccessMessage(wiring: AiBrainWiring, fallback: string): string {
   if ((wiring.repairAttempts ?? 0) > 0) {
     return "AI wiring validated after one automatic repair";
@@ -1165,6 +1178,16 @@ function FourBrainTab({
       );
       onRegenerate(bpWithDiagnostics, code);
     } catch (e: unknown) {
+      if (isRecoverableAiServiceError(e)) {
+        try {
+          onRegenerate(bp);
+          toast.success("AI was busy, so I regenerated the verified template EA instead");
+          return;
+        } catch {
+          toast.error("AI is busy and this strategy needs AI wiring. Try AI Rebuild again.");
+          return;
+        }
+      }
       toast.error(aiGenerationErrorMessage(e));
     } finally {
       setAiGenerating(false);
@@ -1572,6 +1595,24 @@ function CodeTab({
         toast.success(aiWiringSuccessMessage(wiring, "AI-built EA ready"));
       }
     } catch (e: unknown) {
+      if (isRecoverableAiServiceError(e)) {
+        try {
+          const generated = generateMql5FromBlueprint(blueprint);
+          if (onAutoSave) {
+            await onAutoSave(generated, blueprint);
+            toast.success("AI was busy, so I generated a verified EA fallback and saved it");
+          } else {
+            onCodeChange(generated);
+            toast.success("AI was busy, so I generated a verified EA fallback");
+          }
+          return;
+        } catch {
+          toast.error(
+            "AI is busy and this strategy needs AI wiring. Open Brains and try AI Rebuild.",
+          );
+          return;
+        }
+      }
       toast.error(aiGenerationErrorMessage(e));
     } finally {
       setGenerating(false);

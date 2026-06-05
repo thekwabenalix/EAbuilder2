@@ -19,17 +19,34 @@ export class ApiError extends Error {
   }
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function isTransientAiStatus(path: string, status: number) {
+  return path === "/api/gen-4brain-ai" && [502, 503, 504].includes(status);
+}
+
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const payload = JSON.stringify(body);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: payload,
+    });
 
-  const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
 
-  if (!res.ok) {
-    const msg = (data as { error?: string })?.error;
+    if (res.ok) return data as T;
+
+    if (attempt === 0 && isTransientAiStatus(path, res.status)) {
+      await sleep(900);
+      continue;
+    }
+
+    const rawMsg = (data as { error?: string })?.error;
+    const msg = isTransientAiStatus(path, res.status)
+      ? "The AI builder is temporarily busy. I switched to the verified fallback path where possible."
+      : rawMsg;
     throw new ApiError(
       msg ?? `Request to ${path} failed with status ${res.status}`,
       res.status,
@@ -37,7 +54,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     );
   }
 
-  return data as T;
+  throw new ApiError("Request failed", 0, null);
 }
 
 export interface ParseStrategyResult {
