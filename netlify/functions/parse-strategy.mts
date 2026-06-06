@@ -1617,11 +1617,6 @@ async function extractBlueprint(prompt: string): Promise<Record<string, unknown>
         role: "user",
         content: `Extract a StrategyBlueprint JSON from this forex strategy description.\n\n${prompt}`,
       },
-      {
-        role: "assistant",
-        // Prefill forces Claude to continue from here — guarantees JSON-only output
-        content: "{",
-      },
     ],
   });
 
@@ -1629,8 +1624,7 @@ async function extractBlueprint(prompt: string): Promise<Record<string, unknown>
   if (block.type !== "text")
     throw new Error("Unexpected response type from Claude blueprint stage");
 
-  // Prepend the prefilled "{" back since Claude continues from it
-  const raw = "{" + block.text;
+  const raw = block.text;
   const text = cleanJson(raw);
 
   try {
