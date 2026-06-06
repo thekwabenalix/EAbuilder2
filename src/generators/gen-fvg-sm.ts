@@ -148,12 +148,6 @@ void ${P}Advance(int sh)
                PrintFormat("[FVGSM_${tf}] BULL CONFIRMED UL=%.5f SL=%.5f", ${P}zones[_k].ul, ${P}zones[_k].retestLow);
             }
          }
-         // Post-CONFIRMED: allow cycling
-         if(${P}zones[_k].state == ${P}CONFIRMED && lo <= ${P}zones[_k].ul)
-         {
-            ${P}zones[_k].state = ${P}RETESTED;
-            ${P}zones[_k].retestLow = lo;
-         }
       }
       else  // ── BEAR FVG ─────────────────────────────────────────
       {
@@ -175,11 +169,6 @@ void ${P}Advance(int sh)
                ${P}_bearSL = ${P}zones[_k].retestHigh;
                PrintFormat("[FVGSM_${tf}] BEAR CONFIRMED LL=%.5f SL=%.5f", ${P}zones[_k].ll, ${P}zones[_k].retestHigh);
             }
-         }
-         if(${P}zones[_k].state == ${P}CONFIRMED && hi >= ${P}zones[_k].ll)
-         {
-            ${P}zones[_k].state = ${P}RETESTED;
-            ${P}zones[_k].retestHigh = hi;
          }
       }
    }

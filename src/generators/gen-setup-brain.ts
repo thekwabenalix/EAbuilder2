@@ -60,6 +60,7 @@ void Setup_Brain_Execute()
 {
    gSetupActive = (gBias != 0);
    gSetupDir    = gBias;
+   gSetupSLHint = 0.0;
 }
 `;
   }

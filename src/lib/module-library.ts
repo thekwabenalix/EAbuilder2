@@ -2462,7 +2462,7 @@ export function buildCompactModuleLibraryContext(): string {
     // Inline API
     lines.push(`  Reset: ${m.inlineApi.reset}`);
     lines.push(`  Tick:  ${m.inlineApi.tick}`);
-    for (const s of m.inlineApi.signals.slice(0, 6)) {
+    for (const s of m.inlineApi.signals) {
       lines.push(`    ${s.fn} → ${s.meaning}`);
     }
     // 2 example phrases

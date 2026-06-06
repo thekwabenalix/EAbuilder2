@@ -362,7 +362,6 @@ ${detections}
             ObjectSetInteger(0, _dvline, OBJPROP_SELECTABLE, false);
          }
       }
-      gBias = _combined;
    }
 }
 `;

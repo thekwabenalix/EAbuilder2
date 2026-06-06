@@ -669,6 +669,9 @@ runAiTest("RSI HD setup template embeds verified SM", "RSI_HD_Template_Setup_Tes
     ["setup uses active bear", code.includes("RSIHDSM_M5_HasActiveBear()")],
     ["setup SL hint from RSI HD", code.includes("RSIHDSM_M5_ActiveBullSL()")],
     ["execution can use RSI HD", code.includes("RSIHDSM_M5_BullJustConfirmed()")],
+    ["RSI HD has active state", code.includes("ST_ACTIVE")],
+    ["RSI HD confirms beyond mid level", code.includes("cl > RSIHDSM_M5_rec[i].midLevel")],
+    ["RSI HD invalidates beyond second swing", code.includes("cl < RSIHDSM_M5_rec[i].swing2")],
     ["no RSI setup placeholder", !code.includes("Module 'rsi_hd' on M5: not yet implemented")],
   ];
   return { code, checks };

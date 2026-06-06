@@ -53,7 +53,7 @@ import {
   buildMockCompileLog,
   buildValidationReport,
 } from "@/lib/mql5-generator";
-import { generateCode, fixCompileErrors } from "@/lib/api-client";
+import { fixCompileErrors } from "@/lib/api-client";
 import { generateMql5FromBlueprint, analyzeBuildability } from "@/lib/mql5-template-generator";
 import type { StrategyBlueprint } from "@/types/blueprint";
 import { DEFAULT_BLUEPRINT } from "@/types/blueprint";
@@ -66,7 +66,6 @@ import { getModuleAdmission, MODULE_ADMISSION_STATUS_META } from "@/lib/module-a
 import {
   ApiError,
   generateAiBrainWiring,
-  generateAiEaFromDescription,
   type AiBrainWiring,
 } from "@/lib/api-client";
 import {
@@ -132,19 +131,6 @@ function aiGenerationErrorMessage(error: unknown): string {
     return "AI provider/model configuration failed before strategy generation. This is a platform AI routing issue, not your strategy rules. Try AI Rebuild once; if it repeats, download the Evidence Pack and check the AI function logs.";
   }
   return error instanceof Error ? error.message : "AI generation failed";
-}
-
-function isRecoverableAiServiceError(error: unknown): boolean {
-  if (error instanceof ApiError && [502, 503, 504].includes(error.status)) return true;
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "string"
-        ? error
-        : JSON.stringify(error);
-  return /status 50[234]|bad gateway|temporarily|overloaded|modelId\.replace is not a function/i.test(
-    message,
-  );
 }
 
 function aiWiringSuccessMessage(wiring: AiBrainWiring, fallback: string): string {
@@ -1178,16 +1164,6 @@ function FourBrainTab({
       );
       onRegenerate(bpWithDiagnostics, code);
     } catch (e: unknown) {
-      if (isRecoverableAiServiceError(e)) {
-        try {
-          onRegenerate(bp);
-          toast.success("AI was busy, so I regenerated the verified template EA instead");
-          return;
-        } catch {
-          toast.error("AI is busy and this strategy needs AI wiring. Try AI Rebuild again.");
-          return;
-        }
-      }
       toast.error(aiGenerationErrorMessage(e));
     } finally {
       setAiGenerating(false);
@@ -1504,25 +1480,6 @@ function CodeTab({
   });
   const companionOnline = Boolean(companion.data?.ok);
 
-  const generate = async () => {
-    setGenerating(true);
-    try {
-      // onChunk streams partial code into the editor so the user sees it being written live.
-      const result = await generateCode(blueprint, (partial) => onCodeChange(partial));
-      if (onAutoSave) {
-        await onAutoSave(result.code);
-        toast.success(code ? "Code regenerated & saved" : "MQL5 code generated & saved");
-      } else {
-        onCodeChange(result.code);
-        toast.success(code ? "Code regenerated" : "MQL5 code generated");
-      }
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Failed to generate code");
-    } finally {
-      setGenerating(false);
-    }
-  };
-
   const generateTemplate = async () => {
     if (contractError) {
       toast.error(contractError);
@@ -1559,19 +1516,26 @@ function CodeTab({
       return;
     }
 
-    const userPrompt = prompt || blueprint.marketPhilosophy || "";
-    if (!userPrompt.trim()) {
-      toast.error(
-        "No strategy description available. Use the AI Description Builder to write your strategy first.",
-      );
-      return;
-    }
+    const cfg = blueprint.fourBrain;
+    const brainNotes = [
+      cfg.direction?.description,
+      cfg.setup?.description,
+      cfg.execution.description,
+    ].filter(Boolean).join(". ");
+    const description = [
+      typeof blueprint.strategyNotes === "string" ? blueprint.strategyNotes : "",
+      brainNotes,
+      prompt,
+      blueprint.marketPhilosophy,
+    ].filter((s): s is string => Boolean(s)).join("\n\n") || undefined;
+
     setGenerating(true);
     setAiWiring(null);
     try {
-      const wiring = await generateAiEaFromDescription(
-        userPrompt,
+      const wiring = await generateAiBrainWiring(
+        { direction: cfg.direction, setup: cfg.setup, execution: cfg.execution },
         strategyName,
+        description,
         blueprint.filterRefs,
       );
       assertAiWiringValid(wiring);
@@ -1580,40 +1544,19 @@ function CodeTab({
       const { generateEA } = await import("@/generators/gen-ea");
       const generatedCode = generateEA({
         eaName: bpWithDiagnostics.name.replace(/[^\w\s-]/g, "").trim(),
-        config: bpWithDiagnostics.fourBrain!,
+        config: cfg,
         aiWiring: wiring,
       });
       if (onAutoSave) {
         await onAutoSave(generatedCode, bpWithDiagnostics);
         toast.success(
-          aiWiringSuccessMessage(
-            wiring,
-            "AI-built EA saved — Claude interpreted your strategy and wired the modules",
-          ),
+          aiWiringSuccessMessage(wiring, "Generated with verified 4-Brain assembler — saved"),
         );
       } else {
         onCodeChange(generatedCode);
-        toast.success(aiWiringSuccessMessage(wiring, "AI-built EA ready"));
+        toast.success(aiWiringSuccessMessage(wiring, "Generated with verified 4-Brain assembler"));
       }
     } catch (e: unknown) {
-      if (isRecoverableAiServiceError(e)) {
-        try {
-          const generated = generateMql5FromBlueprint(blueprint);
-          if (onAutoSave) {
-            await onAutoSave(generated, blueprint);
-            toast.success("AI was busy, so I generated a verified EA fallback and saved it");
-          } else {
-            onCodeChange(generated);
-            toast.success("AI was busy, so I generated a verified EA fallback");
-          }
-          return;
-        } catch {
-          toast.error(
-            "AI is busy and this strategy needs AI wiring. Open Brains and try AI Rebuild.",
-          );
-          return;
-        }
-      }
       toast.error(aiGenerationErrorMessage(e));
     } finally {
       setGenerating(false);

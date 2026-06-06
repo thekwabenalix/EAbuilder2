@@ -748,17 +748,18 @@ function isEmaTestThenIfvgFormation(text: string, config?: FourBrainConfig): boo
     ...(config?.execution?.modules ?? []),
   ].map((m) => m.toLowerCase());
 
-  const hasEma = /\bema\b/.test(hay) || modules.includes("ema");
+  const hasEma = /\b(?:ema|exponential moving average)\b/.test(hay) || modules.includes("ema");
   const hasIfvg =
     /\bifvg\b/.test(hay) ||
     /inversion\s+fair\s+value\s+gap/.test(hay) ||
     modules.includes("fvg_inversion");
-  const hasEmaTest = /(ema|moving average).{0,80}(test|touch|retest)/.test(hay);
-  const hasAfterGate = /(after|only after|ignore.{0,40}before|must.{0,80}before)/.test(hay);
+  const hasEmaTest = /(ema|moving average).{0,120}(?:test|touch|retest|tap)|(?:test|touch|retest|tap).{0,120}(?:ema|moving average)/.test(
+    hay,
+  );
+  const hasAfterGate = /(after|only after|ignore.{0,40}before|must.{0,80}before|once.{0,60}after|following)/.test(hay);
   const hasFormationEntry =
-    /(forms?|formation|becomes?|closes?\s+(above|below).{0,80}(boundary|fvg|gap)|inverted)/.test(
-      hay,
-    );
+    /(forms?|formation|becomes?|inverts?|inversion|inverted|closes?\s+(?:above|below).{0,80}(?:boundary|fvg|gap)|ifvg.{0,40}(?:forms?|becomes?|inverts?|inverted))/.
+      test(hay);
 
   return hasEma && hasIfvg && hasEmaTest && hasAfterGate && hasFormationEntry;
 }
@@ -770,17 +771,13 @@ function isEmaCrossTestClose(text: string, config?: FourBrainConfig): boolean {
     ...(config?.setup?.modules ?? []),
     ...(config?.execution?.modules ?? []),
   ].map((m) => m.toLowerCase());
-  const hasEma = /\bema\b/.test(hay) || modules.includes("ema");
+  const hasEma = /\b(?:ema|exponential moving average)\b/.test(hay) || modules.includes("ema");
   const hasCross = /\bcross/.test(hay);
-  const hasTest = /\b(?:test|retest|touch|tap|penetrat|retrac)/.test(hay);
+  const hasTest = /\b(?:test|retest|touch|tap|penetrat|retrac)\b/.test(hay);
   const hasClose =
     /\bctc\b|\bcross[-\s]*test[-\s]*close\b/.test(hay) ||
-    /\b(?:close|closes|closed|closing)\b.{0,120}\b(?:ema|trend direction|confirmation|confirms?)\b/.test(
-      hay,
-    ) ||
-    /\b(?:after|following)\b.{0,80}\b(?:test|retest|touch|tap)\b.{0,120}\b(?:close|closes|closed|closing)\b/.test(
-      hay,
-    );
+    /\b(?:close|closes|closed|closing)\b.{0,120}\b(?:ema|trend direction|confirmation|confirms?)\b/.test(hay) ||
+    /\b(?:after|following)\b.{0,80}\b(?:test|retest|touch|tap)\b.{0,120}\b(?:close|closes|closed|closing)\b/.test(hay);
   const hasIfvg = /\bifvg\b|inversion\s+fair\s+value\s+gap/.test(hay);
   return hasEma && hasCross && hasTest && hasClose && !hasIfvg;
 }
@@ -1898,6 +1895,17 @@ In "notes", explain how you mapped their module selections to state machines.`;
       } else {
         normalized.repairAttempts = 1;
         normalized.notes = `${normalized.notes}\n\nAI repair attempted but validation still failed; returning the first invalid wiring with validator errors for diagnosis.`;
+      }
+    }
+
+    if (normalized.validation?.status === "fail") {
+      const fallback = deterministicFallbackResponse(fullText, config, filterRefs);
+      if (fallback) {
+        fallback.notes = `${fallback.notes}\n\nDeterministic fallback used because AI wiring validation failed.`;
+        fallback.repairAttempts = normalized.repairAttempts ?? 0;
+        return Response.json(fallback, {
+          headers: { ...CORS, "Content-Type": "application/json" },
+        });
       }
     }
 
