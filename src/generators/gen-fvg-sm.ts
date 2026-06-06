@@ -4,7 +4,7 @@
  * Embeds FVG detection + full lifecycle state machine directly in an EA.
  * No external indicator required — zero dependencies.
  *
- * States: ACTIVE → RETESTED → CONFIRMED (→ re-RETESTED → ...) | MITIGATED | INVALIDATED | EXPIRED
+ * States: ACTIVE → RETESTED → CONFIRMED (consumed) | MITIGATED | INVALIDATED | EXPIRED
  *
  * Standard API:
  *   FVGSM_{id}_Reset()
