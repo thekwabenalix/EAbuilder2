@@ -515,6 +515,25 @@ void Setup_Brain_Execute()
         break;
       }
 
+      case "rsi_hd": {
+        parts.push(`
+   // RSI Hidden Divergence: verified continuation setup from RSIHDSM_${tf}
+   if(!gSetupActive)
+   {
+      if(RSIHDSM_${tf}_HasActiveBull() && (gBias == 0 || gBias == 1))
+      {
+         gSetupActive = true; gSetupDir = 1; gSetupSLHint = RSIHDSM_${tf}_ActiveBullSL();
+         PrintFormat("[SETUP/${tf}] RSI_HD BULL ACTIVE | SLhint=%.5f", gSetupSLHint);
+      }
+      else if(RSIHDSM_${tf}_HasActiveBear() && (gBias == 0 || gBias == -1))
+      {
+         gSetupActive = true; gSetupDir = -1; gSetupSLHint = RSIHDSM_${tf}_ActiveBearSL();
+         PrintFormat("[SETUP/${tf}] RSI_HD BEAR ACTIVE | SLhint=%.5f", gSetupSLHint);
+      }
+   }`);
+        break;
+      }
+
       default:
         parts.push(`
    // Module '${mod}' on ${tf}: not yet implemented for Setup Brain`);

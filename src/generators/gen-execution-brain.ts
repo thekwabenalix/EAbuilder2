@@ -473,6 +473,25 @@ void Execution_Brain_Execute() { gExecSignal = false; gExecDir = 0; gExecSL = 0;
         break;
       }
 
+      case "rsi_hd": {
+        parts.push(`
+   // RSI Hidden Divergence Execution: entry on verified RSIHDSM confirmation
+   if(!gExecSignal)
+   {
+      if(RSIHDSM_${tf}_BullJustConfirmed() && (gBias==0||gBias==1) && (gSetupDir==0||gSetupDir==1))
+      {
+         gExecSignal = true; gExecDir = 1; gExecSL = RSIHDSM_${tf}_BullConfirmSL();
+         PrintFormat("[EXEC/${tf}] RSI_HD BULL CONFIRMED | SL=%.5f", gExecSL);
+      }
+      else if(RSIHDSM_${tf}_BearJustConfirmed() && (gBias==0||gBias==-1) && (gSetupDir==0||gSetupDir==-1))
+      {
+         gExecSignal = true; gExecDir = -1; gExecSL = RSIHDSM_${tf}_BearConfirmSL();
+         PrintFormat("[EXEC/${tf}] RSI_HD BEAR CONFIRMED | SL=%.5f", gExecSL);
+      }
+   }`);
+        break;
+      }
+
       default:
         parts.push(`
    // Module '${mod}' on ${tf}: not yet implemented for Execution Brain`);

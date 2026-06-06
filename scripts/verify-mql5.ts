@@ -632,6 +632,48 @@ runAiTest("EMA cross (template, drawn MAs)", "EMA_Cross_Template_Test.mq5", () =
 // Proves Phase 2B wiring: Direction/Setup/Execution brains call EGSM_*_ functions
 // (NOT a simplified inline body-engulf), and the assembler embeds + ticks + resets
 // one EGSM per brain timeframe.
+runAiTest("RSI HD setup template embeds verified SM", "RSI_HD_Template_Setup_Test.mq5", () => {
+  const config: FourBrainConfig = {
+    direction: { modules: ["engulfing"], timeframe: "M5" },
+    setup: {
+      modules: ["rsi_hd"],
+      timeframe: "M5",
+      params: { rsiPeriod: 21, pivotLeft: 4, pivotRight: 4, maxBars: 80, expiryBars: 70 },
+    },
+    execution: {
+      modules: ["engulfing", "rsi_hd"],
+      timeframe: "M5",
+      params: { rsiPeriod: 21, pivotLeft: 4, pivotRight: 4, maxBars: 80, expiryBars: 70 },
+    },
+    management: {
+      riskPercent: 1,
+      rewardRisk: 2,
+      stopBuffer: 20,
+      breakEvenEnabled: true,
+      breakEvenAtR: 1,
+      maxOpenTrades: 3,
+    },
+  };
+  const code = generateEA({
+    eaName: "RSI_HD_Template_Setup_Test",
+    config,
+    globalSymbol: "EURUSD",
+    globalMagic: 990792,
+  });
+  const checks: Array<[string, boolean]> = [
+    ["RSIHDSM M5 embedded", code.includes("void RSIHDSM_M5_Tick(")],
+    ["RSIHDSM reset emitted", code.includes("RSIHDSM_M5_Reset();")],
+    ["RSIHDSM ticked", code.includes("RSIHDSM_M5_Tick(50);")],
+    ["RSI params preserved", code.includes("iRSI(InpSymbol, PERIOD_M5, 21, PRICE_CLOSE)")],
+    ["setup uses active bull", code.includes("RSIHDSM_M5_HasActiveBull()")],
+    ["setup uses active bear", code.includes("RSIHDSM_M5_HasActiveBear()")],
+    ["setup SL hint from RSI HD", code.includes("RSIHDSM_M5_ActiveBullSL()")],
+    ["execution can use RSI HD", code.includes("RSIHDSM_M5_BullJustConfirmed()")],
+    ["no RSI setup placeholder", !code.includes("Module 'rsi_hd' on M5: not yet implemented")],
+  ];
+  return { code, checks };
+});
+
 runAiTest("EMA CTC sequence (template, verified EMASM)", "EMA_CTC_Template_Test.mq5", () => {
   const config: FourBrainConfig = {
     direction: { modules: ["ema"], timeframe: "M30", params: { fastPeriod: 12, slowPeriod: 48 } },

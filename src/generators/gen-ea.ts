@@ -73,6 +73,21 @@ function collectEngulfingTFs(config: FourBrainConfig): Map<string, string> {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function collectRsiHdTFs(config: FourBrainConfig): Map<string, string> {
+  const result = new Map<string, string>();
+  const needs = (mods: BrainModuleType[] | undefined) => mods?.includes("rsi_hd") ?? false;
+  const add = (tf: string) => {
+    if (!tf) return;
+    const u = tf.toUpperCase();
+    const c = u === "MN" ? "PERIOD_MN1" : `PERIOD_${u}`;
+    result.set(u, c);
+  };
+  if (needs(config.direction?.modules)) add(config.direction!.timeframe);
+  if (needs(config.setup?.modules)) add(config.setup!.timeframe);
+  if (needs(config.execution?.modules)) add(config.execution.timeframe);
+  return result;
+}
+
 function isEmaCtcParams(params: Record<string, unknown> | undefined): boolean {
   return (
     params?.sequenceMode === "cross_test_close" ||
@@ -140,6 +155,46 @@ function emaCtcParamsForTf(
     retestPoints: 0,
     requireCross: true,
     repeatAfterConfirmation: false,
+  };
+}
+
+function rsiHdParamsForTf(
+  config: FourBrainConfig,
+  tf: string,
+): {
+  rsiPeriod: number;
+  pivotLeft: number;
+  pivotRight: number;
+  minBars: number;
+  maxBars: number;
+  expiryBars: number;
+} {
+  const brains = [config.setup, config.execution, config.direction];
+  for (const brain of brains) {
+    if (!brain?.modules?.includes("rsi_hd")) continue;
+    if (brain.timeframe.toUpperCase() !== tf.toUpperCase()) continue;
+    const params = paramsOfBrain(brain);
+    return {
+      rsiPeriod: typeof params.rsiPeriod === "number" ? params.rsiPeriod : 14,
+      pivotLeft: typeof params.pivotLeft === "number" ? params.pivotLeft : 3,
+      pivotRight: typeof params.pivotRight === "number" ? params.pivotRight : 3,
+      minBars: typeof params.minBars === "number" ? params.minBars : 5,
+      maxBars:
+        typeof params.maxBars === "number"
+          ? params.maxBars
+          : typeof params.lookback === "number"
+            ? params.lookback
+            : 50,
+      expiryBars: typeof params.expiryBars === "number" ? params.expiryBars : 60,
+    };
+  }
+  return {
+    rsiPeriod: 14,
+    pivotLeft: 3,
+    pivotRight: 3,
+    minBars: 5,
+    maxBars: 50,
+    expiryBars: 60,
   };
 }
 
@@ -727,9 +782,24 @@ export function generateEA(params: MQL5CodeGenParams): string {
     const ifvgTFs = collectIfvgTFs(config);
     const egTFs = collectEngulfingTFs(config);
     const emaCtcTFs = collectEmaCtcTFs(config);
+    const rsiHdTFs = collectRsiHdTFs(config);
     smCode = [
       ...[...ifvgTFs.entries()].map(([tf, TFconst]) => genFvgInversionSM(tf, TFconst, tf, 100)),
       ...[...egTFs.entries()].map(([tf, TFconst]) => genEgSM(tf, TFconst, tf, 50, 100)),
+      ...[...rsiHdTFs.entries()].map(([tf, TFconst]) => {
+        const cfg = rsiHdParamsForTf(config, tf);
+        return genRsiHdSM(
+          tf,
+          TFconst,
+          tf,
+          cfg.rsiPeriod,
+          cfg.pivotLeft,
+          cfg.pivotRight,
+          cfg.minBars,
+          cfg.maxBars,
+          cfg.expiryBars,
+        );
+      }),
       ...[...emaCtcTFs.entries()].map(([tf, TFconst]) => {
         const cfg = emaCtcParamsForTf(config, tf);
         return genEmaSM(
@@ -787,6 +857,7 @@ export function generateEA(params: MQL5CodeGenParams): string {
     const ifvgTFsForTick = collectIfvgTFs(config);
     const egTFsForTick = collectEngulfingTFs(config);
     const emaCtcTFsForTick = collectEmaCtcTFs(config);
+    const rsiHdTFsForTick = collectRsiHdTFs(config);
     // Dedup ticks across all three brains: each (SM,TF) machine is ticked exactly
     // once per bar, at the first brain (in DIR→SETUP→EXEC order) that uses it.
     const emittedTicks = new Set<string>();
@@ -803,6 +874,10 @@ export function generateEA(params: MQL5CodeGenParams): string {
       if (emaCtcTFsForTick.has(tf) && !emittedTicks.has(`EMA_${tf}`)) {
         emittedTicks.add(`EMA_${tf}`);
         calls.push(`EMASM_${tf}_Tick(gBias);`);
+      }
+      if (rsiHdTFsForTick.has(tf) && !emittedTicks.has(`RSIHD_${tf}`)) {
+        emittedTicks.add(`RSIHD_${tf}`);
+        calls.push(`RSIHDSM_${tf}_Tick(50);`);
       }
       return calls.join(" ");
     };
@@ -875,6 +950,7 @@ export function generateEA(params: MQL5CodeGenParams): string {
     : [
         ...[...collectIfvgTFs(config).keys()].map((tf) => `IFVGSM_${tf}_Reset();`),
         ...[...collectEngulfingTFs(config).keys()].map((tf) => `EGSM_${tf}_Reset();`),
+        ...[...collectRsiHdTFs(config).keys()].map((tf) => `RSIHDSM_${tf}_Reset();`),
         ...[...collectEmaCtcTFs(config).keys()].map((tf) => `EMASM_${tf}_Reset();`),
       ].join(" ");
 
