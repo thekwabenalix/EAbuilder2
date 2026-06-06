@@ -19,11 +19,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { StrategySpecForm } from "@/components/StrategySpecForm";
-import { CodeViewer } from "@/components/CodeViewer";
 import { BuilderProgress, BUILDER_STEPS, type BuilderStep } from "@/components/BuilderProgress";
 import { BlueprintExplanationPanel } from "@/components/BlueprintExplanationPanel";
 import {
   Save,
+  Check,
   Copy,
   Trash2,
   Loader2,
@@ -1478,6 +1478,7 @@ function CodeTab({
 }) {
   const [generating, setGenerating] = useState(false);
   const [compiling, setCompiling] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [compileLog, setCompileLog] = useState<string | null>(null);
   const [aiWiring, setAiWiring] = useState<AiWiringInsightData | null>(
     blueprint.aiWiringDiagnostics ?? null,
@@ -1647,6 +1648,89 @@ function CodeTab({
   };
 
   // No code yet — run buildability check, then surface generate options
+  const filename = buildExportFilename(blueprint, "mq5");
+
+  const copyCode = async () => {
+    if (!code.trim()) return;
+    await navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const downloadCode = () => {
+    if (!code.trim()) return;
+    const blob = new Blob([code], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const saveCode = async () => {
+    if (!code.trim()) {
+      toast.error("Paste or write MQL5 code first");
+      return;
+    }
+    if (!onAutoSave) {
+      toast.success("Code updated. Use Save changes to persist it.");
+      return;
+    }
+    try {
+      await onAutoSave(code, blueprint);
+      toast.success("Code saved");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Code save failed");
+    }
+  };
+
+  const editorPanel = (
+    <div className="rounded-md border border-border bg-card overflow-hidden">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-muted/30">
+        <div className="min-w-0 flex items-center gap-2">
+          <span className="text-xs text-muted-foreground font-mono truncate">{filename}</span>
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground/60">
+            editable mql5
+          </span>
+          {code.trim() && (
+            <span className="text-[10px] text-muted-foreground/60">
+              {code.split("\n").length} lines
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <Button size="sm" variant="ghost" onClick={saveCode} disabled={!code.trim()}>
+            <Save className="h-3.5 w-3.5 mr-1" />
+            Save Code
+          </Button>
+          <Button size="sm" variant="ghost" onClick={copyCode} disabled={!code.trim()}>
+            {copied ? (
+              <Check className="h-3.5 w-3.5 mr-1" />
+            ) : (
+              <Copy className="h-3.5 w-3.5 mr-1" />
+            )}
+            {copied ? "Copied" : "Copy"}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={downloadCode} disabled={!code.trim()}>
+            <Download className="h-3.5 w-3.5 mr-1" /> Download
+          </Button>
+        </div>
+      </div>
+      <textarea
+        value={code}
+        onChange={(event) => onCodeChange(event.currentTarget.value)}
+        spellCheck={false}
+        placeholder={
+          "// Paste or write a complete MT5 Expert Advisor here.\n// Then click Save Code, Compile, and run Backtest."
+        }
+        className="block h-[68vh] min-h-[420px] w-full resize-y bg-[#111827] px-4 py-3 font-mono text-xs leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/50"
+      />
+    </div>
+  );
+
   if (!code) {
     const build = analyzeBuildability(blueprint);
     const pillColor =
@@ -1657,7 +1741,56 @@ function CodeTab({
           : "border-destructive/40 text-destructive bg-destructive/10";
 
     return (
-      <div className="max-w-xl mx-auto py-10 space-y-5">
+      <div className="max-w-5xl mx-auto py-6 space-y-5">
+        <div className="space-y-2">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <p className="font-semibold text-base">Manual MQL5 workspace</p>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Paste or write any complete MT5 EA here, then save, compile, and backtest it.
+              </p>
+            </div>
+            {companionOnline ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={compile}
+                disabled={compiling || !code.trim()}
+                title="Compile this editor content with local MetaEditor"
+              >
+                {compiling ? (
+                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                ) : (
+                  <Hammer className="h-4 w-4 mr-1.5" />
+                )}
+                {compiling ? "Compiling..." : "Compile"}
+              </Button>
+            ) : (
+              <Button size="sm" variant="ghost" className="text-muted-foreground" disabled>
+                <WifiOff className="h-3.5 w-3.5 mr-1.5" />
+                Companion offline
+              </Button>
+            )}
+          </div>
+          {editorPanel}
+          {compileLog && (
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Compile log</p>
+              <pre className="rounded-md border border-border bg-card p-3 text-xs font-mono whitespace-pre-wrap max-h-64 overflow-auto">
+                {compileLog}
+              </pre>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="flex-1 h-px bg-border" />
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wide">
+            or generate from strategy
+          </span>
+          <div className="flex-1 h-px bg-border" />
+        </div>
+
         {/* Status header */}
         <div className="flex items-start gap-3">
           <FileCode2 className="h-8 w-8 text-muted-foreground/40 shrink-0 mt-1" />
@@ -1802,7 +1935,7 @@ function CodeTab({
     <div className="space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <p className="text-xs text-muted-foreground">
-          AI-generated MQL5 — compile in MetaEditor 5 to verify before using.
+          Editable MQL5 workspace - paste, modify, save, compile, and backtest any complete EA.
         </p>
         <div className="flex items-center gap-2">
           {/* Companion compile button */}
@@ -1811,7 +1944,7 @@ function CodeTab({
               size="sm"
               variant="outline"
               onClick={compile}
-              disabled={compiling}
+              disabled={compiling || !code.trim()}
               title="Compile with local MetaEditor via Desktop Companion"
             >
               {compiling ? (
@@ -1826,7 +1959,7 @@ function CodeTab({
               size="sm"
               variant="ghost"
               className="text-muted-foreground"
-              onClick={() => openMetaEditor(buildExportFilename(blueprint, "mq5")).catch(() => {})}
+              onClick={() => openMetaEditor(filename).catch(() => {})}
               title="Companion offline — open MetaEditor manually"
               disabled
             >
@@ -1866,7 +1999,7 @@ function CodeTab({
         </div>
       </div>
       <AiWiringInsight wiring={aiWiring} />
-      <CodeViewer code={code} filename={buildExportFilename(blueprint, "mq5")} />
+      {editorPanel}
       {compileLog && (
         <div className="space-y-1">
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Compile log</p>
