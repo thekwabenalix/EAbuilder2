@@ -1604,7 +1604,7 @@ function cleanJson(raw: string): string {
 async function extractBlueprint(prompt: string): Promise<Record<string, unknown>> {
   const response = await client.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 4096,
+    max_tokens: 2048,
     system: [
       {
         type: "text",

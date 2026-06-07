@@ -22,7 +22,8 @@ export class ApiError extends Error {
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function isTransientAiStatus(path: string, status: number) {
-  return path === "/api/gen-4brain-ai" && [502, 503, 504].includes(status);
+  const aiPaths = ["/api/gen-4brain-ai", "/api/parse-strategy"];
+  return aiPaths.includes(path) && [502, 503, 504].includes(status);
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
