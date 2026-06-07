@@ -170,13 +170,13 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
     smType: "fvg",
     smPrefix: "FVGSM",
     tickArgPolicy: "just_closed_bar",
-    supportedRoles: ["setup", "execution"],
+    supportedRoles: ["direction", "setup", "execution"],
     semanticEvents: [
       {
         id: "active_zone",
-        roles: ["setup"],
+        roles: ["direction", "setup"],
         queryFunctions: ["FVGSM_{id}_HasActiveBull()", "FVGSM_{id}_HasActiveBear()"],
-        meaning: "A valid bullish or bearish FVG zone is active.",
+        meaning: "An active FVG zone in the bias direction sets or confirms the directional bias.",
       },
       {
         id: "confirmation",
@@ -203,18 +203,18 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
     smType: "ob",
     smPrefix: "OBSM",
     tickArgPolicy: "lookback",
-    supportedRoles: ["setup", "execution"],
+    supportedRoles: ["direction", "setup", "execution"],
     semanticEvents: [
       {
         id: "active_zone",
-        roles: ["setup"],
+        roles: ["direction", "setup"],
         queryFunctions: [
           "OBSM_{id}_HasActiveBull()",
           "OBSM_{id}_HasActiveBear()",
           "OBSM_{id}_LatestBullLL()",
           "OBSM_{id}_LatestBearUL()",
         ],
-        meaning: "A bullish or bearish order block is active.",
+        meaning: "An active order block establishes or confirms directional bias.",
       },
       {
         id: "mitigation",
@@ -248,11 +248,11 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
     smType: "ob_fvg",
     smPrefix: "OBFVGSM",
     tickArgPolicy: "lookback",
-    supportedRoles: ["setup", "execution"],
+    supportedRoles: ["direction", "setup", "execution"],
     semanticEvents: [
       {
         id: "confluence_zone",
-        roles: ["setup"],
+        roles: ["direction", "setup"],
         queryFunctions: [
           "OBFVGSM_{id}_HasBullSetup()",
           "OBFVGSM_{id}_HasBearSetup()",
@@ -261,7 +261,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "OBFVGSM_{id}_ActiveBullSL()",
           "OBFVGSM_{id}_ActiveBearSL()",
         ],
-        meaning: "Order block and FVG confluence zone exists.",
+        meaning: "Order block and FVG confluence zone exists in the bias direction.",
       },
       {
         id: "entry",
