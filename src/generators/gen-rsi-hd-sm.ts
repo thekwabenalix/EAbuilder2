@@ -71,6 +71,11 @@ int   ${P}nextId   = 0;
 
 void ${P}Reset()
 {
+   for(int _oi = ObjectsTotal(0) - 1; _oi >= 0; _oi--)
+   {
+      string _on = ObjectName(0, _oi);
+      if(StringFind(_on, "4B_RSIHD_${tf}_") == 0) ObjectDelete(0, _on);
+   }
    if(${P}rsiHandle == INVALID_HANDLE)
       ${P}rsiHandle = iRSI(InpSymbol, ${TF}, ${rsiPeriod}, PRICE_CLOSE);
    ${P}lastBarTime = 0;
@@ -282,6 +287,31 @@ void ${P}Tick(int lookback)
       ${P}lastBarTime = curBar;
       ${P}ProcessPivots(1);
       ${P}Lifecycle(1);
+      // ── Chart visualization: arrow at divergence confirmation ─────
+      if(${P}_bullConfirmed || ${P}_bearConfirmed)
+      {
+         datetime _bt = iTime(InpSymbol, ${TF}, 1);
+         string   _an = StringFormat("4B_RSIHD_${tf}_%d", (int)_bt);
+         if(ObjectFind(0, _an) < 0)
+         {
+            if(${P}_bullConfirmed)
+            {
+               ObjectCreate(0, _an, OBJ_ARROW, 0, _bt, iLow(InpSymbol, ${TF}, 1));
+               ObjectSetInteger(0, _an, OBJPROP_ARROWCODE, 233);
+               ObjectSetInteger(0, _an, OBJPROP_COLOR,     clrYellow);
+               ObjectSetInteger(0, _an, OBJPROP_ANCHOR,    ANCHOR_TOP);
+            }
+            else
+            {
+               ObjectCreate(0, _an, OBJ_ARROW, 0, _bt, iHigh(InpSymbol, ${TF}, 1));
+               ObjectSetInteger(0, _an, OBJPROP_ARROWCODE, 234);
+               ObjectSetInteger(0, _an, OBJPROP_COLOR,     clrViolet);
+               ObjectSetInteger(0, _an, OBJPROP_ANCHOR,    ANCHOR_BOTTOM);
+            }
+            ObjectSetInteger(0, _an, OBJPROP_WIDTH,      2);
+            ObjectSetInteger(0, _an, OBJPROP_SELECTABLE, false);
+         }
+      }
    }
 }
 

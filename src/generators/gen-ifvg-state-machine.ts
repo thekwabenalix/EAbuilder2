@@ -81,6 +81,12 @@ datetime    ${P}lastBar   = 0;
 // ── Reset (call on OnInit or full recalc) ──────────────────────────────────
 void ${P}Reset()
 {
+   for(int _i = 0; _i < ${P}ifvgCount; _i++)
+   {
+      string _rn = StringFormat("4B_IFVG_${tf}_%d", (int)${P}ifvgList[_i].inversionTime);
+      ObjectDelete(0, _rn);
+      ObjectDelete(0, _rn + "_L");
+   }
    ${P}fvgCount  = 0;
    ${P}ifvgCount = 0;
    ${P}lastBar   = 0;
@@ -286,6 +292,43 @@ void ${P}UpdateStates(int sh)
             }
          }
       }
+   }
+   // ── Chart visualization ──────────────────────────────────────────
+   datetime _t2 = iTime(InpSymbol, PERIOD_CURRENT, 0) + PeriodSeconds(${TF}) * 5;
+   for(int _i = 0; _i < ${P}ifvgCount; _i++)
+   {
+      string _rn = StringFormat("4B_IFVG_${tf}_%d", (int)${P}ifvgList[_i].inversionTime);
+      string _ln = _rn + "_L";
+      int _st = ${P}ifvgList[_i].state;
+      if(_st == ${P}MITIGATED || _st == ${P}INVALIDATED || _st == ${P}EXPIRED)
+      {
+         ObjectDelete(0, _rn);
+         ObjectDelete(0, _ln);
+         continue;
+      }
+      color _col = _st == ${P}RETESTED  ? clrGold
+                 : _st == ${P}CONFIRMED  ? clrDimGray
+                 : ${P}ifvgList[_i].dir == 1 ? clrDodgerBlue
+                 :                             clrOrangeRed;
+      if(ObjectFind(0, _rn) < 0)
+         ObjectCreate(0, _rn, OBJ_RECTANGLE, 0, ${P}ifvgList[_i].inversionTime, ${P}ifvgList[_i].ul, _t2, ${P}ifvgList[_i].ll);
+      ObjectSetInteger(0, _rn, OBJPROP_TIME,       1, _t2);
+      ObjectSetInteger(0, _rn, OBJPROP_COLOR,         _col);
+      ObjectSetInteger(0, _rn, OBJPROP_STYLE,         STYLE_SOLID);
+      ObjectSetInteger(0, _rn, OBJPROP_WIDTH,         1);
+      ObjectSetInteger(0, _rn, OBJPROP_BACK,          true);
+      ObjectSetInteger(0, _rn, OBJPROP_FILL,          true);
+      ObjectSetInteger(0, _rn, OBJPROP_SELECTABLE,    false);
+      string _stxt = _st == ${P}RETESTED  ? (${P}ifvgList[_i].dir==1 ? "iFVG-T+" : "iFVG-T-")
+                   : _st == ${P}CONFIRMED  ? (${P}ifvgList[_i].dir==1 ? "iFVG-C+" : "iFVG-C-")
+                   :                         (${P}ifvgList[_i].dir==1 ? "iFVG+"   : "iFVG-");
+      double _mid = (${P}ifvgList[_i].ul + ${P}ifvgList[_i].ll) * 0.5;
+      if(ObjectFind(0, _ln) < 0)
+         ObjectCreate(0, _ln, OBJ_TEXT, 0, ${P}ifvgList[_i].inversionTime, _mid);
+      ObjectSetString (0, _ln, OBJPROP_TEXT,        _stxt);
+      ObjectSetInteger(0, _ln, OBJPROP_COLOR,       _col);
+      ObjectSetInteger(0, _ln, OBJPROP_FONTSIZE,    7);
+      ObjectSetInteger(0, _ln, OBJPROP_SELECTABLE,  false);
    }
 }
 

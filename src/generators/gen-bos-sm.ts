@@ -49,6 +49,11 @@ bool ${P}_bearBroke   = false;
 
 void ${P}Reset()
 {
+   for(int _oi = ObjectsTotal(0) - 1; _oi >= 0; _oi--)
+   {
+      string _on = ObjectName(0, _oi);
+      if(StringFind(_on, "4B_BOS_${tf}_") == 0) ObjectDelete(0, _on);
+   }
    ${P}swingCount = 0;
    ${P}trend      = 0;
    ${P}_bullBroke = false;
@@ -162,6 +167,33 @@ void ${P}Tick(int lb)
    for(int sh = lb + ${swingLen}; sh >= ${swingLen} + 1; sh--)
       ${P}DetectPivot(sh, total);
    ${P}CheckBreak();
+   // ── Chart visualization: arrow at break bar ──────────────────────
+   if(${P}_bullBroke || ${P}_bearBroke)
+   {
+      datetime _bt = iTime(InpSymbol, ${TF}, 1);
+      string   _an = StringFormat("4B_BOS_${tf}_%d", (int)_bt);
+      if(ObjectFind(0, _an) < 0)
+      {
+         if(${P}_bullBroke)
+         {
+            double _price = iLow(InpSymbol, ${TF}, 1);
+            ObjectCreate(0, _an, OBJ_ARROW, 0, _bt, _price);
+            ObjectSetInteger(0, _an, OBJPROP_ARROWCODE,  233);
+            ObjectSetInteger(0, _an, OBJPROP_COLOR,      clrDodgerBlue);
+            ObjectSetInteger(0, _an, OBJPROP_ANCHOR,     ANCHOR_TOP);
+         }
+         else
+         {
+            double _price = iHigh(InpSymbol, ${TF}, 1);
+            ObjectCreate(0, _an, OBJ_ARROW, 0, _bt, _price);
+            ObjectSetInteger(0, _an, OBJPROP_ARROWCODE,  234);
+            ObjectSetInteger(0, _an, OBJPROP_COLOR,      clrOrangeRed);
+            ObjectSetInteger(0, _an, OBJPROP_ANCHOR,     ANCHOR_BOTTOM);
+         }
+         ObjectSetInteger(0, _an, OBJPROP_WIDTH,      2);
+         ObjectSetInteger(0, _an, OBJPROP_SELECTABLE, false);
+      }
+   }
 }
 
 bool ${P}IsBull()       { return ${P}trend ==  1; }

@@ -60,6 +60,11 @@ double        ${P}_bearSL     = 0.0;
 
 void ${P}Reset()
 {
+   for(int _oi = ObjectsTotal(0) - 1; _oi >= 0; _oi--)
+   {
+      string _on = ObjectName(0, _oi);
+      if(StringFind(_on, "4B_LS_${tf}_") == 0) ObjectDelete(0, _on);
+   }
    ${P}swingCount = 0;
    ${P}sweepCount = 0;
    ${P}_bullConf  = false;
@@ -153,6 +158,33 @@ void ${P}Tick(int lb)
    for(int sh = lb + ${swingLen}; sh >= ${swingLen} + 1; sh--)
       ${P}DetectSwing(sh, total);
    ${P}CheckSweep(1);
+   // ── Chart visualization: arrow at sweep confirmation bar ────────────
+   if(${P}_bullConf || ${P}_bearConf)
+   {
+      datetime _bt = iTime(InpSymbol, ${TF}, 1);
+      string   _an = StringFormat("4B_LS_${tf}_%d", (int)_bt);
+      if(ObjectFind(0, _an) < 0)
+      {
+         if(${P}_bullConf)
+         {
+            double _price = iLow(InpSymbol, ${TF}, 1);
+            ObjectCreate(0, _an, OBJ_ARROW, 0, _bt, _price);
+            ObjectSetInteger(0, _an, OBJPROP_ARROWCODE, 233);
+            ObjectSetInteger(0, _an, OBJPROP_COLOR,     clrAqua);
+            ObjectSetInteger(0, _an, OBJPROP_ANCHOR,    ANCHOR_TOP);
+         }
+         else
+         {
+            double _price = iHigh(InpSymbol, ${TF}, 1);
+            ObjectCreate(0, _an, OBJ_ARROW, 0, _bt, _price);
+            ObjectSetInteger(0, _an, OBJPROP_ARROWCODE, 234);
+            ObjectSetInteger(0, _an, OBJPROP_COLOR,     clrMagenta);
+            ObjectSetInteger(0, _an, OBJPROP_ANCHOR,    ANCHOR_BOTTOM);
+         }
+         ObjectSetInteger(0, _an, OBJPROP_WIDTH,      2);
+         ObjectSetInteger(0, _an, OBJPROP_SELECTABLE, false);
+      }
+   }
 }
 
 bool   ${P}BullJustConfirmed() { return ${P}_bullConf; }

@@ -78,6 +78,11 @@ datetime ${P}lastBar    = 0;
 
 void ${P}Reset()
 {
+   for(int _oi = ObjectsTotal(0) - 1; _oi >= 0; _oi--)
+   {
+      string _on = ObjectName(0, _oi);
+      if(StringFind(_on, "4B_EMA_${tf}_") == 0) ObjectDelete(0, _on);
+   }
    ${P}phase = ${P}IDLE; ${P}activeDir = 0;
    ${P}swingLow = 0.0; ${P}swingHigh = 0.0;
    ${P}justConfirmed = false; ${P}confirmDir = 0; ${P}confirmSL = 0.0;
@@ -231,6 +236,50 @@ void ${P}Tick(int bias)
          else if(cl < f1)
          { ${P}justConfirmed = true; ${P}confirmDir = -1; ${P}confirmSL = ${P}swingHigh; ${P}consume = true;
            PrintFormat("[EMASM_${tf}] BEAR CONFIRMED close=%.5f < fast=%.5f SL=%.5f", cl, f1, ${P}swingHigh); }
+      }
+   }
+   ${P}DrawPhase();
+}
+
+// ── Chart visualization: phase label at current bar ─────────────────
+void ${P}DrawPhase()
+{
+   string _pn = "4B_EMA_${tf}_phase";
+   if(${P}phase == ${P}IDLE)
+   {
+      ObjectDelete(0, _pn);
+      return;
+   }
+   datetime _bt = iTime(InpSymbol, ${TF}, 1);
+   string _ptxt = ${P}phase == ${P}CROSSED ? (${P}activeDir==1?"EMA-X+":"EMA-X-")
+               : ${P}phase == ${P}ARMED   ? (${P}activeDir==1?"EMA-T+":"EMA-T-")
+               :                            (${P}activeDir==1?"EMA-C+":"EMA-C-");
+   double _lvl  = ${P}activeDir == 1
+      ? (${P}swingLow  > 0 ? ${P}swingLow  : iLow (InpSymbol, ${TF}, 1))
+      : (${P}swingHigh > 0 ? ${P}swingHigh : iHigh(InpSymbol, ${TF}, 1));
+   color  _col  = ${P}phase == ${P}ARMED ? clrGold : (${P}activeDir==1?clrCornflowerBlue:clrSalmon);
+   if(ObjectFind(0, _pn) < 0) ObjectCreate(0, _pn, OBJ_TEXT, 0, _bt, _lvl);
+   ObjectSetInteger(0, _pn, OBJPROP_TIME,       _bt);
+   ObjectSetDouble (0, _pn, OBJPROP_PRICE,      _lvl);
+   ObjectSetString (0, _pn, OBJPROP_TEXT,        _ptxt);
+   ObjectSetInteger(0, _pn, OBJPROP_COLOR,       _col);
+   ObjectSetInteger(0, _pn, OBJPROP_FONTSIZE,    8);
+   ObjectSetInteger(0, _pn, OBJPROP_SELECTABLE,  false);
+   if(${P}justConfirmed)
+   {
+      string _an = StringFormat("4B_EMA_${tf}_%d", (int)_bt);
+      if(ObjectFind(0, _an) < 0)
+      {
+         ObjectCreate(0, _an, OBJ_ARROW, 0, _bt,
+            ${P}confirmDir == 1 ? iLow(InpSymbol,${TF},1) : iHigh(InpSymbol,${TF},1));
+         ObjectSetInteger(0, _an, OBJPROP_ARROWCODE,
+            ${P}confirmDir == 1 ? 233 : 234);
+         ObjectSetInteger(0, _an, OBJPROP_COLOR,
+            ${P}confirmDir == 1 ? clrCornflowerBlue : clrSalmon);
+         ObjectSetInteger(0, _an, OBJPROP_ANCHOR,
+            ${P}confirmDir == 1 ? ANCHOR_TOP : ANCHOR_BOTTOM);
+         ObjectSetInteger(0, _an, OBJPROP_WIDTH,      2);
+         ObjectSetInteger(0, _an, OBJPROP_SELECTABLE, false);
       }
    }
 }

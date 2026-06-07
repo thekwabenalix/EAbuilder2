@@ -83,6 +83,12 @@ double      ${P}_bearSL        = 0.0;
 
 void ${P}Reset()
 {
+   for(int _k = 0; _k < ${P}zoneCount; _k++)
+   {
+      string _rn = StringFormat("4B_EG_${tf}_%d", (int)${P}zones[_k].c1Time);
+      ObjectDelete(0, _rn);
+      ObjectDelete(0, _rn + "_L");
+   }
    ${P}zoneCount      = 0;
    ${P}_bullConfirmed = false;
    ${P}_bearConfirmed = false;
@@ -306,6 +312,41 @@ void ${P}Tick(int lookback)
    ${P}_bearConfirmed = false;
    for(int sh = lookback; sh >= 2; sh--) ${P}Detect(sh);
    ${P}Advance(1);
+   // ── Chart visualization: rectangle per EG/EF zone ───────────────
+   datetime _t2 = iTime(InpSymbol, PERIOD_CURRENT, 0) + PeriodSeconds(${TF}) * 5;
+   for(int _k = 0; _k < ${P}zoneCount; _k++)
+   {
+      string _rn = StringFormat("4B_EG_${tf}_%d", (int)${P}zones[_k].c1Time);
+      string _ln = _rn + "_L";
+      if(${P}zones[_k].state >= ${P}MITIGATED)
+      {
+         ObjectDelete(0, _rn);
+         ObjectDelete(0, _ln);
+         continue;
+      }
+      color _col = ${P}zones[_k].state == ${P}RETESTED  ? clrGold
+                 : ${P}zones[_k].state == ${P}CONFIRMED  ? clrDimGray
+                 : ${P}zones[_k].dir   == 1              ? clrMediumOrchid
+                 :                                         clrPeru;
+      if(ObjectFind(0, _rn) < 0)
+         ObjectCreate(0, _rn, OBJ_RECTANGLE, 0, ${P}zones[_k].c1Time, ${P}zones[_k].hi, _t2, ${P}zones[_k].lo);
+      ObjectSetInteger(0, _rn, OBJPROP_TIME,       1, _t2);
+      ObjectSetInteger(0, _rn, OBJPROP_COLOR,         _col);
+      ObjectSetInteger(0, _rn, OBJPROP_STYLE,         STYLE_SOLID);
+      ObjectSetInteger(0, _rn, OBJPROP_WIDTH,         1);
+      ObjectSetInteger(0, _rn, OBJPROP_BACK,          true);
+      ObjectSetInteger(0, _rn, OBJPROP_FILL,          true);
+      ObjectSetInteger(0, _rn, OBJPROP_SELECTABLE,    false);
+      string _stxt = ${P}zones[_k].isEF ? (${P}zones[_k].dir==1?"EF+":"EF-")
+                   : (${P}zones[_k].dir==1 ? "EG+" : "EG-");
+      double _mid  = (${P}zones[_k].hi + ${P}zones[_k].lo) * 0.5;
+      if(ObjectFind(0, _ln) < 0)
+         ObjectCreate(0, _ln, OBJ_TEXT, 0, ${P}zones[_k].c1Time, _mid);
+      ObjectSetString (0, _ln, OBJPROP_TEXT,        _stxt);
+      ObjectSetInteger(0, _ln, OBJPROP_COLOR,       _col);
+      ObjectSetInteger(0, _ln, OBJPROP_FONTSIZE,    7);
+      ObjectSetInteger(0, _ln, OBJPROP_SELECTABLE,  false);
+   }
 }
 
 // ── Query functions ──────────────────────────────────────────────────────────

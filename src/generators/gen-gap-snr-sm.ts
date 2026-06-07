@@ -64,6 +64,11 @@ double      ${P}_bearSL = 0.0;
 
 void ${P}Reset()
 {
+   for(int _oi = ObjectsTotal(0) - 1; _oi >= 0; _oi--)
+   {
+      string _on = ObjectName(0, _oi);
+      if(StringFind(_on, "4B_GSNR_${tf}_") == 0) ObjectDelete(0, _on);
+   }
    ${P}levelCount     = 0;
    ${P}_bullConfirmed = false;
    ${P}_bearConfirmed = false;
@@ -182,6 +187,26 @@ void ${P}Advance(int sh)
          if(${P}levels[_k].state == ${P}CONFIRMED && hi >= lvl)
          { ${P}levels[_k].state = ${P}RETESTED; ${P}levels[_k].retestHigh = hi; }
       }
+   }
+   // ── Chart visualization: horizontal line per gap level ──────────
+   datetime _t2 = iTime(InpSymbol, PERIOD_CURRENT, 0) + PeriodSeconds(${TF}) * 20;
+   for(int _k = 0; _k < ${P}levelCount; _k++)
+   {
+      string _ln = StringFormat("4B_GSNR_${tf}_%d", (int)${P}levels[_k].levelTime);
+      if(${P}levels[_k].state >= ${P}BROKEN) { ObjectDelete(0, _ln); continue; }
+      color _col = ${P}levels[_k].state == ${P}RETESTED  ? clrGold
+                 : ${P}levels[_k].state == ${P}CONFIRMED  ? clrDimGray
+                 : ${P}levels[_k].dir   == 1              ? clrMediumSeaGreen
+                 :                                          clrLightCoral;
+      if(ObjectFind(0, _ln) < 0)
+         ObjectCreate(0, _ln, OBJ_TREND, 0, ${P}levels[_k].levelTime, ${P}levels[_k].level, _t2, ${P}levels[_k].level);
+      ObjectSetInteger(0, _ln, OBJPROP_TIME,       1, _t2);
+      ObjectSetDouble (0, _ln, OBJPROP_PRICE,      1, ${P}levels[_k].level);
+      ObjectSetInteger(0, _ln, OBJPROP_COLOR,         _col);
+      ObjectSetInteger(0, _ln, OBJPROP_STYLE,         STYLE_DASH);
+      ObjectSetInteger(0, _ln, OBJPROP_WIDTH,         1);
+      ObjectSetInteger(0, _ln, OBJPROP_RAY_RIGHT,     true);
+      ObjectSetInteger(0, _ln, OBJPROP_SELECTABLE,    false);
    }
 }
 
