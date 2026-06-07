@@ -1898,17 +1898,6 @@ In "notes", explain how you mapped their module selections to state machines.`;
       }
     }
 
-    if (normalized.validation?.status === "fail") {
-      const fallback = deterministicFallbackResponse(fullText, config, filterRefs);
-      if (fallback) {
-        fallback.notes = `${fallback.notes}\n\nDeterministic fallback used because AI wiring validation failed.`;
-        fallback.repairAttempts = normalized.repairAttempts ?? 0;
-        return Response.json(fallback, {
-          headers: { ...CORS, "Content-Type": "application/json" },
-        });
-      }
-    }
-
     return Response.json(normalized, {
       headers: { ...CORS, "Content-Type": "application/json" },
     });
