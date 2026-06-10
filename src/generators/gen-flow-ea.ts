@@ -370,6 +370,25 @@ ${nameInit}
 
 void OnDeinit(const int reason) { Comment(""); }
 
+// Emit one EA_BUILDER_EQUITY marker per CLOSED trade so the runner's report can
+// count trades and plot the equity curve (it reads these lines from the log).
+void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest &request, const MqlTradeResult &result)
+{
+   if(trans.type != TRADE_TRANSACTION_DEAL_ADD) return;
+   ulong ticket = trans.deal;
+   if(ticket == 0 || !HistoryDealSelect(ticket)) return;
+   if((long)HistoryDealGetInteger(ticket, DEAL_MAGIC) != InpMagic) return;
+   if(HistoryDealGetInteger(ticket, DEAL_ENTRY) != DEAL_ENTRY_OUT) return; // only closes
+   double profit  = HistoryDealGetDouble(ticket, DEAL_PROFIT)
+                  + HistoryDealGetDouble(ticket, DEAL_SWAP)
+                  + HistoryDealGetDouble(ticket, DEAL_COMMISSION);
+   double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+   double equity  = AccountInfoDouble(ACCOUNT_EQUITY);
+   datetime dt    = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
+   PrintFormat("EA_BUILDER_EQUITY|time=%s|balance=%.2f|equity=%.2f|profit=%.2f|deal=%I64u",
+               TimeToString(dt, TIME_DATE|TIME_MINUTES), balance, equity, profit, ticket);
+}
+
 void OnTick()
 {
 ${onTickBody}
