@@ -23,7 +23,8 @@ import type { StrategyBlueprint } from "@/types/blueprint";
 import { parseStrategy } from "@/lib/api-client";
 import { createStrategy } from "@/lib/strategies";
 import { toast } from "sonner";
-import { analyzeBuildability } from "@/lib/mql5-template-generator";
+import { analyzeBuildability, generateMql5FromBlueprint } from "@/lib/mql5-template-generator";
+import { blueprintReadyForGeneration } from "@/lib/ea-generation-policy";
 import type { BuildabilityResult } from "@/lib/mql5-template-generator";
 import { formatBrainChain } from "@/lib/brain-modules";
 import { BlueprintExplanationPanel } from "@/components/BlueprintExplanationPanel";
@@ -76,18 +77,26 @@ function StrategyBuilders() {
       toast.error("Fix the strategy contract before saving.");
       return;
     }
+    if (!blueprintReadyForGeneration(blueprint)) {
+      setError(
+        "This strategy needs a 4-Brain execution configuration. Refine your prompt or use the Visual Builder.",
+      );
+      toast.error("4-Brain configuration required for new strategies.");
+      return;
+    }
     setError(null);
     setStage("generating");
-    setStageLabel("Saving strategy…");
+    setStageLabel("Saving strategy and generating EA…");
     try {
+      const generatedCode = generateMql5FromBlueprint(blueprint);
       const row = await createStrategy({
         userId: user.id,
         name: blueprint.name || "Untitled Strategy",
         prompt,
         blueprint,
-        generatedCode: "",
+        generatedCode,
       });
-      toast.success("Strategy draft created — open the Code tab to generate MQL5");
+      toast.success("Strategy created with blueprint EA — ready to compile");
       navigate({ to: "/s/$id", params: { id: row.id } });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to save strategy. Please try again.");

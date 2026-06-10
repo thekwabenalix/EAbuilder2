@@ -26,10 +26,20 @@ import type {
   NormalizedRule,
   FourBrainConfig,
   BrainConfig,
-  MQL5CodeGenParams,
 } from "@/types/blueprint";
-import { generateEA } from "@/generators/gen-ea";
 import { configUsesLegacyHeuristics } from "@/generators/gen-blueprint-wiring";
+import { LEGACY_FLAT_RULES_MESSAGE } from "@/lib/ea-generation-policy";
+import { generateEaFromBlueprint } from "@/lib/generate-ea-router";
+
+export {
+  EaGenerationError,
+  generateEaFromBlueprint,
+  generationPathLabel,
+  resolveStrategyFlow,
+} from "@/lib/generate-ea-router";
+export type { EaGenerationPath, GenerateEaFromBlueprintResult } from "@/lib/generate-ea-router";
+
+export { isLegacyFlatRulesBlueprint, blueprintReadyForGeneration } from "@/lib/ea-generation-policy";
 
 // ─── Primitive registries (single source of truth) ───────────────────────────
 // These are the rule types that have a concrete template implementation.
@@ -2342,20 +2352,7 @@ function fb_tf(tf: string): string {
 // ── Inputs ────────────────────────────────────────────────────────────────────
 
 function generateFourBrainEA(bp: StrategyBlueprint): string {
-  const config = bp.fourBrain!;
-  const safeName = (bp.name || "4Brain_Strategy").replace(/[^\w\s-]/g, "").trim();
-
-  const params: MQL5CodeGenParams = {
-    eaName: safeName,
-    config: config as FourBrainConfig,
-    globalSymbol: bp.execution?.symbol || "EURUSD",
-    globalMagic: bp.execution?.magicNumber || 990001,
-    filterRefs: bp.filterRefs,
-  };
-
-  // Use the new modular generator
-  const ea = generateEA(params);
-  return ea;
+  return generateEaFromBlueprint(bp).code;
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -2369,13 +2366,20 @@ function generateFourBrainEA(bp: StrategyBlueprint): string {
  *           Demand/Supply Zones, session filters, HTF trend filter,
  *           engulfing, pin bar, inside bar, hammer, shooting star.
  */
-export function generateMql5FromBlueprint(bp: StrategyBlueprint): string {
-  // 4-Brain path — structured multi-TF EA
+export function generateMql5FromBlueprint(
+  bp: StrategyBlueprint,
+  options?: { allowLegacyFlatRules?: boolean },
+): string {
   if (bp.fourBrain) return generateFourBrainEA(bp);
 
-  // Flat-rules path — existing single-TF EA (unchanged)
+  if (options?.allowLegacyFlatRules === false) {
+    throw new Error(LEGACY_FLAT_RULES_MESSAGE);
+  }
+
+  // Legacy flat-rules path — deprecated; kept for existing saved strategies only.
   const ctx = analyze(bp);
   return [
+    `// DEPRECATED — legacy flat-rules EA. Recreate this strategy in the 4-Brain / Strategy Flow builder.\n`,
     genHeader(bp),
     genInputs(bp, ctx),
     genGlobals(ctx),
@@ -2386,4 +2390,12 @@ export function generateMql5FromBlueprint(bp: StrategyBlueprint): string {
     genOnDeinit(ctx),
     genOnTick(bp, ctx),
   ].join("");
+}
+
+/** Same as generateMql5FromBlueprint but returns which engine path was chosen. */
+export function generateMql5FromBlueprintDetailed(bp: StrategyBlueprint) {
+  if (!bp.fourBrain) {
+    throw new Error(LEGACY_FLAT_RULES_MESSAGE);
+  }
+  return generateEaFromBlueprint(bp);
 }

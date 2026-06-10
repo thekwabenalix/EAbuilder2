@@ -27,6 +27,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { applyFix } from "@/lib/api-client";
+import {
+  APPLY_FIX_BLOCKED_MESSAGE,
+  canApplyAiSurgicalFix,
+  prefersBlueprintRegen,
+} from "@/lib/ea-generation-policy";
 import type { EaChatMessage } from "@/lib/api-client";
 import type { StrategyBlueprint } from "@/types/blueprint";
 
@@ -420,7 +425,7 @@ export function EaChatDrawer({
   // Template-generated code is detected by the fixed header the generator always emits.
   // For template code, "Apply fix" must regenerate from the template (deterministic, always
   // correct) — NOT call the AI rewriter which may remove working features or reorder logic.
-  const isTemplateCode = code.includes("template mode — always compiles");
+  const isRegenPreferred = prefersBlueprintRegen(code, blueprint);
 
   const handleSafeAction = (action: EaAssistantAction) => {
     if (loading || applyLoading) return;
@@ -528,19 +533,29 @@ export function EaChatDrawer({
   };
 
   const handleApplyFix = async () => {
-    // Template path: instant deterministic regeneration — no AI involved
-    if (isTemplateCode && onRegenTemplate) {
+    const gate = canApplyAiSurgicalFix(code, blueprint, compileLog);
+    if (!gate.allowed) {
+      toast.error(gate.reason ?? APPLY_FIX_BLOCKED_MESSAGE);
+      if (onRegenTemplate) {
+        onRegenTemplate();
+        setFixReady(false);
+        onOpenChange(false);
+      }
+      return;
+    }
+
+    // Assembler EA without compile errors: regenerate from blueprint instead of AI rewrite
+    if (isRegenPreferred && onRegenTemplate && !compileLog?.toLowerCase().includes("error")) {
       try {
         onRegenTemplate();
         setFixReady(false);
         onOpenChange(false);
       } catch (e: unknown) {
-        toast.error(e instanceof Error ? e.message : "Template regeneration failed");
+        toast.error(e instanceof Error ? e.message : "Blueprint regeneration failed");
       }
       return;
     }
 
-    // AI path: only for AI-generated code that the template engine doesn't cover
     setApplyLoading(true);
     try {
       const result = await applyFix(messages, blueprint, code, compileLog, backtestSummary);
@@ -748,8 +763,8 @@ export function EaChatDrawer({
               <>
                 <Wrench className="h-4 w-4 text-emerald-400 shrink-0" />
                 <p className="text-xs text-emerald-300 flex-1 font-medium">
-                  {isTemplateCode && onRegenTemplate
-                    ? "Template code detected — click to regenerate from the latest template (no AI rewrite)"
+                  {isRegenPreferred && onRegenTemplate
+                    ? "Assembler EA — regenerate from blueprint (no AI rewrite)"
                     : "Fix is ready — click Apply to generate the corrected code"}
                 </p>
                 <Button
@@ -757,7 +772,7 @@ export function EaChatDrawer({
                   onClick={handleApplyFix}
                   className="shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white border-0"
                 >
-                  {isTemplateCode && onRegenTemplate ? "Regen Template" : "Apply fix"}
+                  {isRegenPreferred && onRegenTemplate ? "Regen Blueprint" : "Apply fix"}
                 </Button>
               </>
             )}

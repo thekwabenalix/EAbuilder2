@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getStrategy, updateStrategy, deleteStrategy, duplicateStrategy } from "@/lib/strategies";
@@ -54,7 +54,15 @@ import {
   buildValidationReport,
 } from "@/lib/mql5-generator";
 import { fixCompileErrors } from "@/lib/api-client";
-import { generateMql5FromBlueprint, analyzeBuildability } from "@/lib/mql5-template-generator";
+import {
+  generateMql5FromBlueprint,
+  generateEaFromBlueprint,
+  generationPathLabel,
+  analyzeBuildability,
+  isLegacyFlatRulesBlueprint,
+} from "@/lib/mql5-template-generator";
+import { EaGenerationError } from "@/lib/generate-ea-router";
+import { blueprintReadyForGeneration } from "@/lib/ea-generation-policy";
 import type { StrategyBlueprint } from "@/types/blueprint";
 import { DEFAULT_BLUEPRINT } from "@/types/blueprint";
 import type { FourBrainConfig, BrainConfig, BrainModuleType } from "@/types/blueprint";
@@ -343,21 +351,50 @@ function StrategyPage() {
   const [testerLog, setTesterLog] = useState<string | null>(null);
   const [diagnosticContext, setDiagnosticContext] = useState<unknown>(null);
   const [activeTab, setActiveTab] = useState("brains");
+  const autoSavedCodeRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (data) {
-      setBlueprint(data.spec_json);
-      const savedCode = data.generated_code;
-      if (!savedCode && data.spec_json?.fourBrain?.execution?.modules?.length) {
-        setGeneratedCode(generateMql5FromBlueprint(data.spec_json));
-      } else {
-        setGeneratedCode(savedCode);
+    if (!data) return;
+
+    setBlueprint(data.spec_json);
+    setName(data.name);
+
+    const savedCode = data.generated_code;
+    const canAutoGenerate = blueprintReadyForGeneration(data.spec_json);
+
+    if (!savedCode && canAutoGenerate) {
+      try {
+        const result = generateEaFromBlueprint(data.spec_json);
+        setGeneratedCode(result.code);
+        setActiveTab("code");
+
+        if (autoSavedCodeRef.current !== data.id) {
+          autoSavedCodeRef.current = data.id;
+          updateStrategy(data.id, {
+            name: data.name || "Untitled Strategy",
+            blueprint: data.spec_json,
+            generatedCode: result.code,
+          })
+            .then(() => {
+              qc.invalidateQueries({ queryKey: ["strategy", data.id] });
+              qc.invalidateQueries({ queryKey: ["strategies"] });
+              toast.success(`Blueprint EA generated — ${generationPathLabel(result.path)}`);
+            })
+            .catch((e: unknown) => {
+              autoSavedCodeRef.current = null;
+              toast.error(e instanceof Error ? e.message : "Auto-save failed — save manually");
+            });
+        }
+      } catch (e: unknown) {
+        toast.error(e instanceof EaGenerationError ? e.message : "Auto-generate failed");
       }
-      setName(data.name);
-      setDirty(false);
+    } else {
+      setGeneratedCode(savedCode);
       setActiveTab(data.spec_json?.fourBrain ? "brains" : savedCode ? "spec" : "code");
     }
-  }, [data]);
+
+    setDirty(false);
+  }, [data, qc]);
 
   const saveMut = useMutation({
     mutationFn: () =>
@@ -537,6 +574,17 @@ function StrategyPage() {
         }
       />
 
+      {!isFourBrain && isLegacyFlatRulesBlueprint(blueprint) && (
+        <div className="mx-6 mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          <strong className="font-medium">Legacy flat-rules strategy.</strong> This EA uses the
+          deprecated single-timeframe template path. Create a new strategy via{" "}
+          <Link to="/build" className="underline text-amber-100">
+            Visual Builder
+          </Link>{" "}
+          or refine your prompt so intake produces a 4-Brain configuration.
+        </div>
+      )}
+
       {isFourBrain ? (
         /* ── 4-Brain strategy tabs ─────────────────────────────────────────── */
         <Tabs value={activeTab} onValueChange={setActiveTab} className="px-6 pt-4">
@@ -557,11 +605,19 @@ function StrategyPage() {
                 onBlueprintChange(next);
               }}
               onRegenerate={(next, aiCode) => {
-                // If AI provided the code directly, use it; otherwise generate from template
-                const code = aiCode ?? generateMql5FromBlueprint(next);
-                setGeneratedCode(code);
-                setDirty(true);
-                if (!aiCode) toast.success("EA regenerated from blueprint wiring");
+                if (aiCode) {
+                  setGeneratedCode(aiCode);
+                  setDirty(true);
+                  return;
+                }
+                try {
+                  const result = generateEaFromBlueprint(next);
+                  setGeneratedCode(result.code);
+                  setDirty(true);
+                  toast.success(`EA regenerated — ${generationPathLabel(result.path)}`);
+                } catch (e: unknown) {
+                  toast.error(e instanceof EaGenerationError ? e.message : "Regeneration failed");
+                }
               }}
             />
           </TabsContent>
@@ -1414,47 +1470,9 @@ function FourBrainTab({
         </Button>
       </div>
       <p className="text-[11px] text-muted-foreground text-center">
-        <strong>Template</strong> — fast, no API cost · <strong>AI</strong> — Claude reads your
+        <strong>Template</strong> — auto-picks Strategy Flow (ordered event gate) when all modules
+        are covered; otherwise Blueprint assembler · <strong>AI</strong> — Claude reads your
         descriptions and wires the proven modules intelligently
-      </p>
-
-      {/* Flow engine — ordered, timestamped instance gate (beta) */}
-      <Button
-        variant="outline"
-        className="w-full border-sky-500/40 text-sky-300 hover:bg-sky-500/10"
-        onClick={async () => {
-          if (!canRegenerate) {
-            toast.error("Execution Brain needs at least one module and a timeframe.");
-            return;
-          }
-          const bp = buildUpdatedBp();
-          const cfg = bp.fourBrain;
-          if (!cfg) {
-            toast.error("No 4-Brain config on this strategy.");
-            return;
-          }
-          const { tryGenerateFlowEAFromFourBrain } = await import("@/generators/gen-flow-ea");
-          const eaName = (bp.name || "FLOW_EA").replace(/[^A-Za-z0-9_]/g, "_");
-          const code = tryGenerateFlowEAFromFourBrain(cfg, eaName);
-          if (!code) {
-            toast.error(
-              "Flow engine needs verified state-machine modules. Direction must be EMA/BOS/CHoCH; setup & entry can be any verified zone module. This combo isn't covered — use Template or AI.",
-            );
-            return;
-          }
-          onChange(bp);
-          onRegenerate(bp, code);
-          toast.success("Generated with Flow engine — ordered, timestamped instance gate");
-        }}
-      >
-        <Sparkles className="h-4 w-4 mr-1.5" />
-        Flow Engine (beta) — ordered event gate
-      </Button>
-      <p className="text-[11px] text-muted-foreground text-center">
-        <strong>Flow Engine</strong> — each instance fires only after its dependencies, in order,
-        with a trade audit chain, running on the verified state machines (BOS, CHoCH, EMA, FVG,
-        iFVG, OB, OB+FVG, Engulfing, S/R, Gap S/R, Breakout, Rejection, Missed Level, RSI HD,
-        Liquidity Sweep).
       </p>
     </div>
   );
@@ -1557,16 +1575,16 @@ function CodeTab({
     }
     setGenerating(true);
     try {
-      const generated = generateMql5FromBlueprint(blueprint);
+      const result = generateEaFromBlueprint(blueprint);
       if (onAutoSave) {
-        await onAutoSave(generated);
-        toast.success("Blueprint EA generated & saved — verified state machines embedded");
+        await onAutoSave(result.code);
+        toast.success(`EA generated & saved — ${generationPathLabel(result.path)}`);
       } else {
-        onCodeChange(generated);
-        toast.success("Blueprint EA generated — verified state machines embedded");
+        onCodeChange(result.code);
+        toast.success(`EA generated — ${generationPathLabel(result.path)}`);
       }
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Template generation failed");
+      toast.error(e instanceof EaGenerationError ? e.message : "Template generation failed");
     } finally {
       setGenerating(false);
     }

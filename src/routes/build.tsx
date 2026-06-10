@@ -756,14 +756,16 @@ function FourBrainBuilderPage() {
 
     setSaving(true);
     try {
+      const { generateMql5FromBlueprint } = await import("@/lib/mql5-template-generator");
+      const generatedCode = generateMql5FromBlueprint(bp);
       const row = await createStrategy({
         userId: user.id,
         name: bp.name,
         prompt: summary(),
         blueprint: bp,
-        generatedCode: "",
+        generatedCode,
       });
-      toast.success("4-Brain strategy created — generate the EA on the Code tab");
+      toast.success("Strategy created with blueprint EA — ready to compile");
       navigate({ to: "/s/$id", params: { id: row.id } });
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to create strategy");

@@ -1,10 +1,11 @@
 // Applies the AI-described fix to the MQL5 code via SURGICAL SEARCH/REPLACE.
-//
-// The model outputs ONLY the small changed snippets (not the whole file), and the
-// server applies them deterministically to the original code. The full file is
-// never regenerated, so it CANNOT truncate — which is what broke large EAs when
-// this function re-emitted all 800 lines (it ran out of tokens / time mid-file).
 import Anthropic from "@anthropic-ai/sdk";
+import {
+  APPLY_FIX_BLOCKED_MESSAGE,
+  canApplyAiSurgicalFix,
+  compileLogHasErrors,
+} from "../../src/lib/ea-generation-policy";
+import type { StrategyBlueprint } from "../../src/types/blueprint";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -43,6 +44,12 @@ MQL5 syntax corrections (apply only if the fix targets them):
   AccountBalance()/AccountEquity() → AccountInfoDouble(ACCOUNT_BALANCE/EQUITY)
   MarketInfo() → SymbolInfoDouble/Integer(_Symbol, ...)
   null in numeric inputs → a valid default (0, 0.0, 2.0, ...)`;
+
+const COMPILE_FIX_SYSTEM = `${SYSTEM}
+
+IMPORTANT: This EA was built by the verified assembler. You may ONLY fix MetaEditor
+compile/syntax errors shown in COMPILE ERRORS. Do NOT change strategy logic, brain
+wiring, state-machine calls, confluence gates, or trade rules.`;
 
 /** Keep only error/warning/result lines — strips verbose information: lines. */
 function trimCompileLog(log: string): string {
@@ -128,7 +135,7 @@ export default async (req: Request): Promise<Response> => {
   }
 
   const messages = body.messages as { role: "user" | "assistant"; content: string }[];
-  const blueprint = body.blueprint;
+  const blueprint = body.blueprint as StrategyBlueprint | undefined;
   const code = typeof body.code === "string" ? body.code : "";
   const rawLog = typeof body.compileLog === "string" ? body.compileLog : null;
   const compileLog = rawLog ? trimCompileLog(rawLog) : null;
@@ -139,6 +146,16 @@ export default async (req: Request): Promise<Response> => {
       { error: "messages and code are required" },
       { status: 400, headers: CORS },
     );
+  }
+
+  if (blueprint) {
+    const gate = canApplyAiSurgicalFix(code, blueprint, compileLog);
+    if (!gate.allowed) {
+      return Response.json({ error: gate.reason ?? APPLY_FIX_BLOCKED_MESSAGE }, {
+        status: 400,
+        headers: CORS,
+      });
+    }
   }
 
   const conversationHistory = messages
@@ -176,7 +193,13 @@ export default async (req: Request): Promise<Response> => {
         const resp = await client.messages.create({
           model: "claude-sonnet-4-6",
           max_tokens: 8000,
-          system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
+          system: [
+            {
+              type: "text",
+              text: compileLogHasErrors(compileLog) ? COMPILE_FIX_SYSTEM : SYSTEM,
+              cache_control: { type: "ephemeral" },
+            },
+          ],
           messages: [{ role: "user", content: userContent }],
         });
         const out = resp.content.map((b) => (b.type === "text" ? b.text : "")).join("");

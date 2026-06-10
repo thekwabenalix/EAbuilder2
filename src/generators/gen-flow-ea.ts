@@ -13,6 +13,10 @@
  */
 
 import type { StrategyFlowConfig, StrategyStepConfig, FourBrainConfig } from "../types/blueprint";
+import {
+  fourBrainToStrategyFlow,
+  validateStrategyFlowSchema,
+} from "../lib/strategy-flow";
 import { genBosSM, type BosSmMode } from "./gen-bos-sm";
 import { genEmaSM } from "./gen-ema-sm";
 import { genFvgSM } from "./gen-fvg-sm";
@@ -610,63 +614,16 @@ ${onTickBody}
 `;
 }
 
-// ── 4-Brain -> flow EA (maps any module the engine covers) ──────────────────────
+// ── 4-Brain -> flow EA (uses shared strategy-flow adapter) ───────────────────────
 export function tryGenerateFlowEAFromFourBrain(
   config: FourBrainConfig,
   eaName = "FLOW_EA",
 ): string | null {
-  const steps: StrategyStepConfig[] = [];
-
-  if (config.direction) {
-    const m = config.direction.modules?.[0] ?? "";
-    if (!flowSupportsModuleRole(m, "direction")) return null;
-    steps.push({
-      id: "s_dir",
-      name: `Direction ${m.toUpperCase()} ${config.direction.timeframe}`,
-      role: "direction",
-      module: m,
-      timeframe: config.direction.timeframe,
-      event: "BOS_CONFIRMED",
-      params: config.direction.params ?? {},
-      directionSource: { mode: "own_event" },
-    });
-  }
-  if (config.setup) {
-    const m = config.setup.modules?.[0] ?? "";
-    if (!flowSupportsModuleRole(m, "setup")) return null;
-    const dirId = steps[0]?.id;
-    steps.push({
-      id: "s_setup",
-      name: `Setup ${m.toUpperCase()} ${config.setup.timeframe}`,
-      role: "setup",
-      module: m,
-      timeframe: config.setup.timeframe,
-      event: "FVG_RETESTED",
-      params: config.setup.params ?? {},
-      dependsOn: dirId ? [{ stepId: dirId, relation: "after", required: true }] : undefined,
-      directionSource: dirId ? { mode: "from_step", stepId: dirId } : { mode: "neutral" },
-    });
-  }
-  const em = config.execution.modules?.[0] ?? "";
-  if (!flowSupportsModuleRole(em, "entry")) return null;
-  const prevId = steps[steps.length - 1]?.id;
-  steps.push({
-    id: "s_entry",
-    name: `Entry ${em.toUpperCase()} ${config.execution.timeframe}`,
-    role: "entry",
-    module: em,
-    timeframe: config.execution.timeframe,
-    event: "BOS_CONFIRMED",
-    params: config.execution.params ?? {},
-    dependsOn: prevId ? [{ stepId: prevId, relation: "after", required: true }] : undefined,
-    directionSource: { mode: "own_event" },
-    slSource: { mode: "event_sl", bufferPoints: 0 },
-  });
-
-  return generateFlowEA(
-    { version: 1, mode: "simple_4brain", source: "fourbrain_adapter", steps, management: config.management },
-    eaName,
-  );
+  const flow = fourBrainToStrategyFlow(config);
+  if (!flowEaSupportsAllSteps(flow)) return null;
+  const validation = validateStrategyFlowSchema(flow);
+  if (!validation.ok) return null;
+  return generateFlowEA(flow, eaName);
 }
 
 // ── Demo flow (verify-mql5 compile anchor) ──────────────────────────────────────
