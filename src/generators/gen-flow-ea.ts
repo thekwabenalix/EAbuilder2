@@ -1,15 +1,7 @@
 /**
  * Strategy Flow EA generator — config-driven INSTANCE RUNTIME over the VERIFIED SMs.
  *
- * Each instance registers a TIMESTAMPED event; an entry instance fires only when
- * its dependencies happened BEFORE it, in order, direction-aligned, not expired.
- * Per-instance detection EMBEDS the module's existing verified state machine and
- * registers events from its real query functions — so the engine covers the whole
- * module library, not a hand-coded strategy.
- *
- * Covered modules (profile table below): ema, bos, choch, fvg, fvg_inversion, order_block.
- * Adding a module = adding one profile entry. flowSupportsModuleRole() lets the
- * caller fall back to the legacy assembler for anything not covered yet.
+ * State machines are embedded via sm-embed-registry.ts (shared with gen-ea.ts).
  */
 
 import type { StrategyFlowConfig, StrategyStepConfig, FourBrainConfig } from "../types/blueprint";
@@ -17,159 +9,27 @@ import {
   fourBrainToStrategyFlow,
   validateStrategyFlowSchema,
 } from "../lib/strategy-flow";
-import { genBosSM, type BosSmMode } from "./gen-bos-sm";
-import { genEmaSM } from "./gen-ema-sm";
-import { genFvgSM } from "./gen-fvg-sm";
-import { genFvgInversionSM } from "./gen-ifvg-state-machine";
-import { genObSM } from "./gen-ob-sm";
-import { genBreakoutSM } from "./gen-breakout-sm";
-import { genGapSnrSM } from "./gen-gap-snr-sm";
-import { genLiqSweepSM } from "./gen-liqsweep-sm";
-import { genMissSM } from "./gen-miss-sm";
-import { genObFvgSM } from "./gen-obfvg-sm";
-import { genRejectionSM } from "./gen-rejection-sm";
-import { genRsiHdSM } from "./gen-rsi-hd-sm";
-import { genSnrSM } from "./gen-snr-sm";
-import { genEgSM } from "./gen-eg-sm";
+import {
+  emitStateMachineForModule,
+  flowSupportsModuleRole,
+  getSmFlowProfile,
+  pInt,
+  SM_MODULE_META,
+  tickArgForSm,
+  tfConst,
+} from "./sm-embed-registry";
+
+export { flowSupportsModuleRole } from "./sm-embed-registry";
 
 export const FLOW_DEMO_EA_NAME = "FLOW_BOS_FVG_BOS_Demo";
 
-type Params = Record<string, unknown>;
-function pInt(p: Params | undefined, k: string, d: number): number {
-  const v = p?.[k];
-  return typeof v === "number" && isFinite(v) ? Math.trunc(v) : d;
-}
-function tfConst(tf: string): string {
-  const u = (tf || "H1").toUpperCase();
-  return u === "MN" ? "PERIOD_MN1" : `PERIOD_${u}`;
-}
 function isEntry(role: string): boolean {
   return role === "entry" || role === "confirmation";
 }
 
-// ── Module profiles: embed the verified SM + register from its real queries ──────
-// family:
-//   "zone" — uniform verified API (BullJustConfirmed/BearJustConfirmed + ConfirmSL,
-//            optional HasActiveBull/Bear). Serves setup (active or fired) + entry.
-//   "bias_break" — BOS/CHoCH: Trend() bias + BullJustBroke/BearJustBroke (swing SL).
-//   "ema" — EMA: Bias() / SetupActive+ActiveDir / JustConfirmed+ConfirmDir+ConfirmSL.
-interface SmProfile {
-  prefix: string;
-  emitSM: (tf: string, p: Params) => string; // tf is uppercase id
-  tickArg: (p: Params) => string;
-  family: "zone" | "bias_break" | "ema";
-  hasActive?: boolean; // zone family: HasActiveBull/Bear exists (setup via active zone)
+export function flowEaSupportsAllSteps(flow: StrategyFlowConfig): boolean {
+  return (flow.steps ?? []).every((s) => flowSupportsModuleRole(s.module, s.role));
 }
-const SM_PROFILES: Record<string, SmProfile> = {
-  ema: {
-    prefix: "EMASM",
-    emitSM: (tf, p) =>
-      genEmaSM(tf, tfConst(tf), tf, pInt(p, "fastPeriod", 12), pInt(p, "slowPeriod", 48)),
-    tickArg: () => "0",
-    family: "ema",
-  },
-  bos: {
-    prefix: "BOSSM",
-    emitSM: (tf, p) =>
-      genBosSM(tf, tfConst(tf), tf, "bos" as BosSmMode, pInt(p, "swingLen", 5), pInt(p, "lookback", 20)),
-    tickArg: (p) => `${pInt(p, "lookback", 20)}`,
-    family: "bias_break",
-  },
-  choch: {
-    prefix: "BOSSM",
-    emitSM: (tf, p) =>
-      genBosSM(tf, tfConst(tf), tf, "choch" as BosSmMode, pInt(p, "swingLen", 5), pInt(p, "lookback", 20)),
-    tickArg: (p) => `${pInt(p, "lookback", 20)}`,
-    family: "bias_break",
-  },
-  fvg: {
-    prefix: "FVGSM",
-    emitSM: (tf, p) => genFvgSM(tf, tfConst(tf), tf, pInt(p, "expiryBars", 100)),
-    tickArg: (p) => `${pInt(p, "fvgLookback", 50)}`,
-    family: "zone",
-    hasActive: true,
-  },
-  fvg_inversion: {
-    prefix: "IFVGSM",
-    emitSM: (tf, p) => genFvgInversionSM(tf, tfConst(tf), tf, pInt(p, "expiryBars", 100)),
-    tickArg: () => "1",
-    family: "zone",
-    hasActive: true,
-  },
-  order_block: {
-    prefix: "OBSM",
-    emitSM: (tf, p) =>
-      genObSM(tf, tfConst(tf), tf, 0.6, pInt(p, "scanBack", 5), pInt(p, "expiryBars", 100)),
-    tickArg: () => "50",
-    family: "zone",
-    hasActive: true,
-  },
-  ob_fvg: {
-    prefix: "OBFVGSM",
-    emitSM: (tf, p) => genObFvgSM(tf, tfConst(tf), tf, pInt(p, "expiryBars", 250)),
-    tickArg: () => "50",
-    family: "zone",
-    hasActive: true,
-  },
-  engulfing: {
-    prefix: "EGSM",
-    emitSM: (tf, p) => genEgSM(tf, tfConst(tf), tf, pInt(p, "scanBack", 3), pInt(p, "expiryBars", 100)),
-    tickArg: () => "50",
-    family: "zone",
-    hasActive: true,
-  },
-  snr: {
-    prefix: "SNRSM",
-    emitSM: (tf, p) => genSnrSM(tf, tfConst(tf), tf, pInt(p, "lookback", 20), pInt(p, "expiryBars", 100)),
-    tickArg: () => "50",
-    family: "zone",
-    hasActive: true,
-  },
-  gap_snr: {
-    prefix: "GSNRSM",
-    emitSM: (tf, p) => genGapSnrSM(tf, tfConst(tf), tf, pInt(p, "lookback", 20), pInt(p, "expiryBars", 100)),
-    tickArg: () => "50",
-    family: "zone",
-    hasActive: true,
-  },
-  breakout: {
-    prefix: "BRKSM",
-    emitSM: (tf, p) => genBreakoutSM(tf, tfConst(tf), tf, pInt(p, "lookback", 20), pInt(p, "expiryBars", 100)),
-    tickArg: () => "50",
-    family: "zone",
-    hasActive: true,
-  },
-  rejection: {
-    prefix: "REJSM",
-    emitSM: (tf, p) => genRejectionSM(tf, tfConst(tf), tf, pInt(p, "lookback", 30), 0.5, pInt(p, "expiryBars", 150)),
-    tickArg: () => "50",
-    family: "zone",
-    hasActive: true,
-  },
-  miss: {
-    prefix: "MISSSM",
-    emitSM: (tf, p) =>
-      genMissSM(tf, tfConst(tf), tf, pInt(p, "lookback", 40), pInt(p, "swingLen", 3), pInt(p, "nearPoints", 50), pInt(p, "expiryBars", 200)),
-    tickArg: () => "50",
-    family: "zone",
-    hasActive: true,
-  },
-  rsi_hd: {
-    prefix: "RSIHDSM",
-    emitSM: (tf, p) =>
-      genRsiHdSM(tf, tfConst(tf), tf, pInt(p, "rsiPeriod", 14), pInt(p, "pivotLeft", 3), pInt(p, "pivotRight", 3), pInt(p, "minBars", 5), pInt(p, "maxBars", 50), pInt(p, "expiryBars", 60)),
-    tickArg: () => "50",
-    family: "zone",
-    hasActive: true,
-  },
-  liqsweep: {
-    prefix: "LSSM",
-    emitSM: (tf, p) => genLiqSweepSM(tf, tfConst(tf), tf, pInt(p, "swingLen", 3), pInt(p, "lookback", 20)),
-    tickArg: () => "50",
-    family: "zone",
-    hasActive: false, // no HasActive — setup arms on the fired sweep event
-  },
-};
 
 // Indicator-handle helper the EMA SM depends on (B4_MA / B4_MAval), included only
 // when an EMA instance is present.
@@ -220,18 +80,6 @@ double B4_Buf(int handle, int buffer, int shift)
 double B4_MAval(int handle, int shift) { return B4_Buf(handle, 0, shift); }
 `;
 
-/** Can the flow engine handle this module in this role? */
-export function flowSupportsModuleRole(module: string, role: string): boolean {
-  const prof = SM_PROFILES[module];
-  if (!prof) return false;
-  if (role === "direction") return prof.family === "ema" || prof.family === "bias_break";
-  if (role === "setup" || role === "filter" || isEntry(role)) return true; // every covered module
-  return false;
-}
-export function flowEaSupportsAllSteps(flow: StrategyFlowConfig): boolean {
-  return (flow.steps ?? []).every((s) => flowSupportsModuleRole(s.module, s.role));
-}
-
 function biasIndex(step: StrategyStepConfig, steps: StrategyStepConfig[]): number {
   if (step.directionSource?.mode === "from_step" && step.directionSource.stepId) {
     const i = steps.findIndex((s) => s.id === step.directionSource!.stepId);
@@ -256,7 +104,7 @@ function depIndices(step: StrategyStepConfig, steps: StrategyStepConfig[]): numb
 function emitDetection(step: StrategyStepConfig, i: number, steps: StrategyStepConfig[]): string {
   const m = step.module;
   const tf = step.timeframe.toUpperCase();
-  const prof = SM_PROFILES[m];
+  const prof = getSmFlowProfile(m);
   if (!prof) return `void DetectStep_${i}() { /* ${m} not supported */ }`;
   const P = `${prof.prefix}_${tf}`;
   const T1 = `iTime(InpSymbol, gTF[${i}], 1)`;
@@ -391,21 +239,29 @@ export function generateFlowEA(flow: StrategyFlowConfig, eaName = "FLOW_EA"): st
   const expiryBars = pInt(setupStep?.params, "expiryBars", 100);
 
   // unique SMs by (prefix, tf)
-  const smKey = (s: StrategyStepConfig) => `${SM_PROFILES[s.module]?.prefix}_${s.timeframe.toUpperCase()}`;
+  const smKey = (s: StrategyStepConfig) => {
+    const prefix = SM_MODULE_META[s.module]?.prefix ?? getSmFlowProfile(s.module)?.prefix ?? "SM";
+    return `${prefix}_${s.timeframe.toUpperCase()}`;
+  };
   const smEmit = new Map<string, string>();
   const smReset: string[] = [];
   const smTickByTf = new Map<string, string[]>();
   for (const s of steps) {
-    const prof = SM_PROFILES[s.module];
-    if (!prof) continue;
+    const prof = getSmFlowProfile(s.module);
+    const meta = SM_MODULE_META[s.module];
+    if (!prof || !meta) continue;
     const tf = s.timeframe.toUpperCase();
     const key = smKey(s);
     if (!smEmit.has(key)) {
-      smEmit.set(key, prof.emitSM(tf, s.params ?? {}));
+      smEmit.set(key, emitStateMachineForModule(s.module, s.timeframe, s.params ?? {}));
       smReset.push(`   ${prof.prefix}_${tf}_Reset();`);
       const tfc = tfConst(s.timeframe);
       if (!smTickByTf.has(tfc)) smTickByTf.set(tfc, []);
-      smTickByTf.get(tfc)!.push(`${prof.prefix}_${tf}_Tick(${prof.tickArg(s.params ?? {})});`);
+      smTickByTf
+        .get(tfc)!
+        .push(
+          `${prof.prefix}_${tf}_Tick(${tickArgForSm(meta.type, s.params ?? {}, "flow_bar")});`,
+        );
     }
   }
 

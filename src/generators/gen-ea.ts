@@ -21,28 +21,21 @@ import type { FourBrainConfig, MQL5CodeGenParams, BrainModuleType } from "@/type
 import { genDirectionBrain } from "./gen-direction-brain";
 import { genSetupBrain } from "./gen-setup-brain";
 import { genExecutionBrain } from "./gen-execution-brain";
-import { genFvgInversionSM } from "./gen-ifvg-state-machine";
-import { genFvgSM } from "./gen-fvg-sm";
-import { genBosSM } from "./gen-bos-sm";
-import type { BosSmMode } from "./gen-bos-sm";
-import { genObSM } from "./gen-ob-sm";
-import { genLiqSweepSM } from "./gen-liqsweep-sm";
-import { genSnrSM } from "./gen-snr-sm";
-import { genGapSnrSM } from "./gen-gap-snr-sm";
-import { genBreakoutSM } from "./gen-breakout-sm";
-import { genRejectionSM } from "./gen-rejection-sm";
-import { genMissSM } from "./gen-miss-sm";
-import { genRsiHdSM } from "./gen-rsi-hd-sm";
-import { genObFvgSM } from "./gen-obfvg-sm";
-import { genEmaSM } from "./gen-ema-sm";
-import { genEgSM } from "./gen-eg-sm";
 import type { AiBrainWiring } from "@/lib/api-client";
-import { getModuleContract } from "@/lib/module-contracts";
 import type { BuiltinFilterRef } from "@/lib/builtin-filter-contracts";
 import {
   buildBlueprintWiring,
   configUsesLegacyHeuristics,
 } from "./gen-blueprint-wiring";
+import {
+  emitStateMachine,
+  periodConst,
+  SM_PREFIX_REGEX,
+  SM_PREFIX_TYPE,
+  smPrefixForType,
+  tfConst,
+  tickArgForSm,
+} from "./sm-embed-registry";
 
 /** Collect all unique TFs that need an iFVG state machine instance. */
 function collectIfvgTFs(config: FourBrainConfig): Map<string, string> {
@@ -204,84 +197,7 @@ function rsiHdParamsForTf(
   };
 }
 
-function tfConst(tf: string): string {
-  const map: Record<string, string> = {
-    M1: "PERIOD_M1",
-    M5: "PERIOD_M5",
-    M15: "PERIOD_M15",
-    M30: "PERIOD_M30",
-    H1: "PERIOD_H1",
-    H4: "PERIOD_H4",
-    D1: "PERIOD_D1",
-    W1: "PERIOD_W1",
-    MN: "PERIOD_MN1",
-  };
-  return map[(tf ?? "H1").toUpperCase()] ?? "PERIOD_H1";
-}
-
 // ─── AI-mode: build state machine code from sm_configs ────────────────────────
-
-/** Map an SM function-name prefix back to its generator type. */
-const SM_PREFIX_TYPE: Record<string, string> = {
-  IFVGSM: "fvg_inversion",
-  FVGSM: "fvg",
-  OBSM: "ob",
-  EGSM: "engulfing",
-  BOSSM: "bos",
-  LSSM: "liqsweep",
-  SNRSM: "snr",
-  GSNRSM: "gap_snr",
-  BRKSM: "breakout",
-  REJSM: "rejection",
-  MISSSM: "miss",
-  RSIHDSM: "rsi_hd",
-  OBFVGSM: "ob_fvg",
-  EMASM: "ema",
-};
-
-/** Map an sm_config type to its function-name prefix. */
-function smPrefixForType(type: string): string {
-  switch (type) {
-    case "fvg_inversion":
-      return "IFVGSM";
-    case "fvg":
-      return "FVGSM";
-    case "ob":
-      return "OBSM";
-    case "liqsweep":
-      return "LSSM";
-    case "snr":
-      return "SNRSM";
-    case "gap_snr":
-      return "GSNRSM";
-    case "breakout":
-      return "BRKSM";
-    case "rejection":
-      return "REJSM";
-    case "miss":
-      return "MISSSM";
-    case "rsi_hd":
-      return "RSIHDSM";
-    case "ob_fvg":
-      return "OBFVGSM";
-    case "ema":
-      return "EMASM";
-    case "engulfing":
-      return "EGSM";
-    case "bos":
-    case "choch":
-    case "bos_choch":
-      return "BOSSM";
-    default:
-      return type.toUpperCase();
-  }
-}
-
-/** Build the PERIOD_ constant from a TF id like "M5", "H1", "MN". */
-function periodConst(id: string): string {
-  const u = id.toUpperCase();
-  return u === "MN" ? "PERIOD_MN1" : `PERIOD_${u}`;
-}
 
 /**
  * RECONCILE: scan the AI-generated brain code for every state-machine function
@@ -309,8 +225,7 @@ function reconcileStateMachines(aiWiring: AiBrainWiring): AiBrainWiring["sm_conf
 
   // Match  PREFIX_ID_  where PREFIX is a known SM prefix and ID is the TF label.
   // IFVGSM must precede FVGSM in the alternation so the longer prefix wins.
-  const re =
-    /\b(RSIHDSM|OBFVGSM|EMASM|IFVGSM|FVGSM|EGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM)_([A-Za-z0-9]+)_/g;
+  const re = new RegExp(`\\b(${SM_PREFIX_REGEX})_([A-Za-z0-9]+)_`, "g");
   let m: RegExpExecArray | null;
   while ((m = re.exec(allCode)) !== null) {
     const prefix = m[1];
@@ -340,163 +255,19 @@ function reconcileStateMachines(aiWiring: AiBrainWiring): AiBrainWiring["sm_conf
 
 function buildAiStateMachines(configs: AiBrainWiring["sm_configs"]): string {
   const parts: string[] = [];
-  const emitted = new Set<string>(); // prevent duplicate SM emission (same prefix+id)
+  const emitted = new Set<string>();
 
-  for (const [key, cfg] of Object.entries(configs)) {
-    const { type, id, TF, tf, params: p = {} } = cfg;
-    const prefix = smPrefixForType(type);
-    const emitKey = `${prefix}|${id.toUpperCase()}`;
-    if (emitted.has(emitKey)) continue; // same machine already emitted
+  for (const [, cfg] of Object.entries(configs)) {
+    const prefix = smPrefixForType(cfg.type);
+    const emitKey = `${prefix}|${cfg.id.toUpperCase()}`;
+    if (emitted.has(emitKey)) continue;
     emitted.add(emitKey);
-
-    switch (type) {
-      case "fvg":
-        parts.push(genFvgSM(id, TF, tf, (p.expiryBars as number) ?? 100));
-        break;
-      case "fvg_inversion":
-        parts.push(genFvgInversionSM(id, TF, tf, (p.expiryBars as number) ?? 100));
-        break;
-      case "ob":
-        parts.push(
-          genObSM(
-            id,
-            TF,
-            tf,
-            (p.dispMult as number) ?? 0.6,
-            (p.scanBack as number) ?? 5,
-            (p.expiryBars as number) ?? 100,
-          ),
-        );
-        break;
-      case "bos":
-      case "choch":
-      case "bos_choch":
-        parts.push(
-          genBosSM(
-            id,
-            TF,
-            tf,
-            type as BosSmMode,
-            (p.swingLen as number) ?? 5,
-            (p.lookback as number) ?? 20,
-          ),
-        );
-        break;
-      case "liqsweep":
-        parts.push(
-          genLiqSweepSM(id, TF, tf, (p.swingLen as number) ?? 3, (p.lookback as number) ?? 20),
-        );
-        break;
-      case "snr":
-        parts.push(
-          genSnrSM(id, TF, tf, (p.lookback as number) ?? 20, (p.expiryBars as number) ?? 100),
-        );
-        break;
-      case "gap_snr":
-        parts.push(
-          genGapSnrSM(id, TF, tf, (p.lookback as number) ?? 20, (p.expiryBars as number) ?? 100),
-        );
-        break;
-      case "breakout":
-        parts.push(
-          genBreakoutSM(id, TF, tf, (p.lookback as number) ?? 20, (p.expiryBars as number) ?? 100),
-        );
-        break;
-      case "rejection":
-        parts.push(
-          genRejectionSM(
-            id,
-            TF,
-            tf,
-            (p.lookback as number) ?? 30,
-            (p.minWickRatio as number) ?? 0.5,
-            (p.expiryBars as number) ?? 150,
-          ),
-        );
-        break;
-      case "miss":
-        parts.push(
-          genMissSM(
-            id,
-            TF,
-            tf,
-            (p.lookback as number) ?? 40,
-            (p.swingLen as number) ?? 3,
-            (p.nearPoints as number) ?? 50,
-            (p.expiryBars as number) ?? 200,
-          ),
-        );
-        break;
-      case "rsi_hd":
-        parts.push(
-          genRsiHdSM(
-            id,
-            TF,
-            tf,
-            (p.rsiPeriod as number) ?? 14,
-            (p.pivotLeft as number) ?? 3,
-            (p.pivotRight as number) ?? 3,
-            (p.minBars as number) ?? 5,
-            (p.maxBars as number) ?? 50,
-            (p.expiryBars as number) ?? 60,
-          ),
-        );
-        break;
-      case "ob_fvg":
-        parts.push(genObFvgSM(id, TF, tf, (p.expiryBars as number) ?? 250));
-        break;
-      case "ema":
-        parts.push(
-          genEmaSM(
-            id,
-            TF,
-            tf,
-            (p.fastPeriod as number) ?? 12,
-            (p.slowPeriod as number) ?? 48,
-            (p.retestPoints as number) ?? 0,
-            (p.requireCross as boolean) ?? true,
-            (p.repeatAfterConfirmation as boolean) ?? false,
-          ),
-        );
-        break;
-      case "engulfing":
-        parts.push(
-          genEgSM(id, TF, tf, (p.scanBack as number) ?? 3, (p.expiryBars as number) ?? 100),
-        );
-        break;
-      default:
-        parts.push(`// Unknown SM type: ${type} (key=${key})`);
-    }
+    parts.push(emitStateMachine(cfg.type, cfg.id, cfg.TF, cfg.tf, cfg.params ?? {}));
   }
   return parts.join("\n");
 }
 
 // ─── Main generator ───────────────────────────────────────────────────────────
-
-function tickArgForConfig(cfg: AiBrainWiring["sm_configs"][string]): string {
-  const p = cfg.params ?? {};
-  const contract = getModuleContract(cfg.type);
-  if (contract?.tickArgPolicy === "just_closed_bar") return "1";
-  if (contract?.tickArgPolicy === "external_bias") return "gBias";
-  if (contract?.tickArgPolicy === "none") return "";
-
-  switch (cfg.type) {
-    case "fvg_inversion":
-      return "1";
-    case "ema":
-      return "gBias";
-    case "ob":
-      return String((p.lookback as number) ?? (p.scanBack as number) ?? 20);
-    case "rsi_hd":
-      return String((p.lookback as number) ?? (p.maxBars as number) ?? 50);
-    case "ob_fvg":
-      return String((p.lookback as number) ?? 50);
-    case "engulfing":
-      return String((p.scanBack as number) ?? (p.lookback as number) ?? 3);
-    default:
-      return String((p.lookback as number) ?? 20);
-  }
-}
 
 function smInstanceName(cfg: AiBrainWiring["sm_configs"][string]): string {
   return `${smPrefixForType(cfg.type)}_${cfg.id}`;
@@ -524,7 +295,7 @@ void ${wrapper}()
    datetime _bt = iTime(InpSymbol, ${cfg.TF}, 0);
    if(_bt == ${lastBar}) return;
    ${lastBar} = _bt;
-   ${instance}_Tick(${tickArgForConfig(cfg)});
+   ${instance}_Tick(${tickArgForSm(cfg.type, cfg.params ?? {}, "assembler_brain")});
 }`);
   }
 

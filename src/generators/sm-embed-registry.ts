@@ -1,0 +1,341 @@
+/**
+ * Phase 2 — single source of truth for verified inline state-machine embedding.
+ *
+ * Used by:
+ *   - gen-ea.ts (blueprint + AI assembler)
+ *   - gen-flow-ea.ts (strategy flow runtime)
+ *   - gen-blueprint-wiring.ts (sm_configs collection)
+ */
+
+import type { BosSmMode } from "./gen-bos-sm";
+import { genBosSM } from "./gen-bos-sm";
+import { genBreakoutSM } from "./gen-breakout-sm";
+import { genEmaSM } from "./gen-ema-sm";
+import { genEgSM } from "./gen-eg-sm";
+import { genFvgSM } from "./gen-fvg-sm";
+import { genGapSnrSM } from "./gen-gap-snr-sm";
+import { genFvgInversionSM } from "./gen-ifvg-state-machine";
+import { genLiqSweepSM } from "./gen-liqsweep-sm";
+import { genMissSM } from "./gen-miss-sm";
+import { genObFvgSM } from "./gen-obfvg-sm";
+import { genObSM } from "./gen-ob-sm";
+import { genRejectionSM } from "./gen-rejection-sm";
+import { genRsiHdSM } from "./gen-rsi-hd-sm";
+import { genSnrSM } from "./gen-snr-sm";
+import { getModuleContract } from "@/lib/module-contracts";
+
+export type SmFamily = "zone" | "bias_break" | "ema";
+export type SmTickContext = "flow_bar" | "assembler_brain";
+
+type Params = Record<string, unknown>;
+
+export function pInt(p: Params | undefined, k: string, d: number): number {
+  const v = p?.[k];
+  return typeof v === "number" && isFinite(v) ? Math.trunc(v) : d;
+}
+
+export function periodConst(id: string): string {
+  const u = id.toUpperCase();
+  return u === "MN" ? "PERIOD_MN1" : `PERIOD_${u}`;
+}
+
+export function tfConst(tf: string): string {
+  return periodConst((tf || "H1").toUpperCase());
+}
+
+/** Blueprint module id → sm_config metadata (prefix + config type). */
+export const SM_MODULE_META: Record<
+  string,
+  { prefix: string; type: string; bosMode?: BosSmMode }
+> = {
+  bos: { prefix: "BOSSM", type: "bos", bosMode: "bos" },
+  choch: { prefix: "BOSSM", type: "choch", bosMode: "choch" },
+  bos_choch: { prefix: "BOSSM", type: "bos_choch", bosMode: "both" },
+  fvg: { prefix: "FVGSM", type: "fvg" },
+  fvg_inversion: { prefix: "IFVGSM", type: "fvg_inversion" },
+  order_block: { prefix: "OBSM", type: "ob" },
+  ob_fvg: { prefix: "OBFVGSM", type: "ob_fvg" },
+  liqsweep: { prefix: "LSSM", type: "liqsweep" },
+  snr: { prefix: "SNRSM", type: "snr" },
+  gap_snr: { prefix: "GSNRSM", type: "gap_snr" },
+  breakout: { prefix: "BRKSM", type: "breakout" },
+  rejection: { prefix: "REJSM", type: "rejection" },
+  miss: { prefix: "MISSSM", type: "miss" },
+  rsi_hd: { prefix: "RSIHDSM", type: "rsi_hd" },
+  engulfing: { prefix: "EGSM", type: "engulfing" },
+  ema: { prefix: "EMASM", type: "ema" },
+};
+
+/** Map SM function-name prefix back to generator type (reconcile guard). */
+export const SM_PREFIX_TYPE: Record<string, string> = {
+  IFVGSM: "fvg_inversion",
+  FVGSM: "fvg",
+  OBSM: "ob",
+  EGSM: "engulfing",
+  BOSSM: "bos",
+  LSSM: "liqsweep",
+  SNRSM: "snr",
+  GSNRSM: "gap_snr",
+  BRKSM: "breakout",
+  REJSM: "rejection",
+  MISSSM: "miss",
+  RSIHDSM: "rsi_hd",
+  OBFVGSM: "ob_fvg",
+  EMASM: "ema",
+};
+
+export interface SmFlowProfile {
+  prefix: string;
+  family: SmFamily;
+  /** Zone modules: HasActiveBull/Bear exists (setup via active zone). */
+  hasActive?: boolean;
+}
+
+const FLOW_PROFILES: Record<string, SmFlowProfile> = {
+  ema: { prefix: "EMASM", family: "ema" },
+  bos: { prefix: "BOSSM", family: "bias_break" },
+  choch: { prefix: "BOSSM", family: "bias_break" },
+  bos_choch: { prefix: "BOSSM", family: "bias_break" },
+  fvg: { prefix: "FVGSM", family: "zone", hasActive: true },
+  fvg_inversion: { prefix: "IFVGSM", family: "zone", hasActive: true },
+  order_block: { prefix: "OBSM", family: "zone", hasActive: true },
+  ob_fvg: { prefix: "OBFVGSM", family: "zone", hasActive: true },
+  engulfing: { prefix: "EGSM", family: "zone", hasActive: true },
+  snr: { prefix: "SNRSM", family: "zone", hasActive: true },
+  gap_snr: { prefix: "GSNRSM", family: "zone", hasActive: true },
+  breakout: { prefix: "BRKSM", family: "zone", hasActive: true },
+  rejection: { prefix: "REJSM", family: "zone", hasActive: true },
+  miss: { prefix: "MISSSM", family: "zone", hasActive: true },
+  rsi_hd: { prefix: "RSIHDSM", family: "zone", hasActive: true },
+  liqsweep: { prefix: "LSSM", family: "zone", hasActive: false },
+};
+
+export function smPrefixForType(type: string): string {
+  switch (type) {
+    case "fvg_inversion":
+      return "IFVGSM";
+    case "fvg":
+      return "FVGSM";
+    case "ob":
+      return "OBSM";
+    case "liqsweep":
+      return "LSSM";
+    case "snr":
+      return "SNRSM";
+    case "gap_snr":
+      return "GSNRSM";
+    case "breakout":
+      return "BRKSM";
+    case "rejection":
+      return "REJSM";
+    case "miss":
+      return "MISSSM";
+    case "rsi_hd":
+      return "RSIHDSM";
+    case "ob_fvg":
+      return "OBFVGSM";
+    case "ema":
+      return "EMASM";
+    case "engulfing":
+      return "EGSM";
+    case "bos":
+    case "choch":
+    case "bos_choch":
+      return "BOSSM";
+    default:
+      return type.toUpperCase();
+  }
+}
+
+function bosModeForType(type: string, override?: BosSmMode): BosSmMode {
+  if (override) return override;
+  if (type === "choch") return "choch";
+  if (type === "bos_choch") return "both";
+  return "bos";
+}
+
+/** Emit verified inline SM source for a config type + TF instance. */
+export function emitStateMachine(
+  type: string,
+  id: string,
+  TF: string,
+  tf: string,
+  params: Params = {},
+  bosModeOverride?: BosSmMode,
+): string {
+  switch (type) {
+    case "fvg":
+      return genFvgSM(id, TF, tf, pInt(params, "expiryBars", 100));
+    case "fvg_inversion":
+      return genFvgInversionSM(id, TF, tf, pInt(params, "expiryBars", 100));
+    case "ob":
+      return genObSM(
+        id,
+        TF,
+        tf,
+        (params.dispMult as number) ?? 0.6,
+        pInt(params, "scanBack", 5),
+        pInt(params, "expiryBars", 100),
+      );
+    case "bos":
+    case "choch":
+    case "bos_choch":
+      return genBosSM(
+        id,
+        TF,
+        tf,
+        bosModeForType(type, bosModeOverride),
+        pInt(params, "swingLen", 5),
+        pInt(params, "lookback", 20),
+      );
+    case "liqsweep":
+      return genLiqSweepSM(id, TF, tf, pInt(params, "swingLen", 3), pInt(params, "lookback", 20));
+    case "snr":
+      return genSnrSM(id, TF, tf, pInt(params, "lookback", 20), pInt(params, "expiryBars", 100));
+    case "gap_snr":
+      return genGapSnrSM(
+        id,
+        TF,
+        tf,
+        pInt(params, "lookback", 20),
+        pInt(params, "expiryBars", 100),
+      );
+    case "breakout":
+      return genBreakoutSM(
+        id,
+        TF,
+        tf,
+        pInt(params, "lookback", 20),
+        pInt(params, "expiryBars", 100),
+      );
+    case "rejection":
+      return genRejectionSM(
+        id,
+        TF,
+        tf,
+        pInt(params, "lookback", 30),
+        (params.minWickRatio as number) ?? 0.5,
+        pInt(params, "expiryBars", 150),
+      );
+    case "miss":
+      return genMissSM(
+        id,
+        TF,
+        tf,
+        pInt(params, "lookback", 40),
+        pInt(params, "swingLen", 3),
+        pInt(params, "nearPoints", 50),
+        pInt(params, "expiryBars", 200),
+      );
+    case "rsi_hd":
+      return genRsiHdSM(
+        id,
+        TF,
+        tf,
+        pInt(params, "rsiPeriod", 14),
+        pInt(params, "pivotLeft", 3),
+        pInt(params, "pivotRight", 3),
+        pInt(params, "minBars", 5),
+        pInt(params, "maxBars", 50),
+        pInt(params, "expiryBars", 60),
+      );
+    case "ob_fvg":
+      return genObFvgSM(id, TF, tf, pInt(params, "expiryBars", 250));
+    case "ema":
+      return genEmaSM(
+        id,
+        TF,
+        tf,
+        pInt(params, "fastPeriod", 12),
+        pInt(params, "slowPeriod", 48),
+        pInt(params, "retestPoints", 0),
+        (params.requireCross as boolean) ?? true,
+        (params.repeatAfterConfirmation as boolean) ?? false,
+      );
+    case "engulfing":
+      return genEgSM(id, TF, tf, pInt(params, "scanBack", 3), pInt(params, "expiryBars", 100));
+    default:
+      return `// Unknown SM type: ${type} (id=${id})`;
+  }
+}
+
+/** Convenience: embed by blueprint module id + timeframe label. */
+export function emitStateMachineForModule(
+  moduleId: string,
+  timeframe: string,
+  params: Params = {},
+): string {
+  const meta = SM_MODULE_META[moduleId];
+  if (!meta) return `// Unknown module SM: ${moduleId}`;
+  const id = timeframe.toUpperCase();
+  const TF = periodConst(id);
+  return emitStateMachine(meta.type, id, TF, id, params, meta.bosMode);
+}
+
+/** Tick argument for PREFIX_TF_Tick(...) — context differs between flow bar loop and assembler brains. */
+export function tickArgForSm(
+  type: string,
+  params: Params = {},
+  context: SmTickContext = "assembler_brain",
+): string {
+  if (context === "flow_bar") {
+    switch (type) {
+      case "ema":
+        return "0";
+      case "fvg_inversion":
+        return "1";
+      case "bos":
+      case "choch":
+      case "bos_choch":
+      case "liqsweep":
+        return String(pInt(params, "lookback", 20));
+      case "fvg":
+        return String(pInt(params, "fvgLookback", 50));
+      default:
+        return String(pInt(params, "lookback", 50));
+    }
+  }
+
+  const contract = getModuleContract(type === "ob" ? "order_block" : type);
+  if (contract?.tickArgPolicy === "just_closed_bar") return "1";
+  if (contract?.tickArgPolicy === "external_bias") return "gBias";
+  if (contract?.tickArgPolicy === "none") return "";
+
+  switch (type) {
+    case "fvg_inversion":
+      return "1";
+    case "ema":
+      return "gBias";
+    case "ob":
+      return String(pInt(params, "lookback", pInt(params, "scanBack", 20)));
+    case "rsi_hd":
+      return String(pInt(params, "lookback", pInt(params, "maxBars", 50)));
+    case "ob_fvg":
+      return String(pInt(params, "lookback", 50));
+    case "engulfing":
+      return String(pInt(params, "scanBack", pInt(params, "lookback", 3)));
+    default:
+      return String(pInt(params, "lookback", 20));
+  }
+}
+
+export function getSmFlowProfile(moduleId: string): SmFlowProfile | undefined {
+  return FLOW_PROFILES[moduleId];
+}
+
+function isEntryRole(role: string): boolean {
+  return role === "entry" || role === "confirmation";
+}
+
+/** Can the flow engine handle this module in this role? */
+export function flowSupportsModuleRole(module: string, role: string): boolean {
+  const prof = getSmFlowProfile(module);
+  if (!prof) return false;
+  if (role === "direction") return prof.family === "ema" || prof.family === "bias_break";
+  if (role === "setup" || role === "filter" || isEntryRole(role)) return true;
+  return false;
+}
+
+/** Regex alternation of known SM prefixes (IFVGSM before FVGSM). */
+export const SM_PREFIX_REGEX =
+  "RSIHDSM|OBFVGSM|EMASM|IFVGSM|FVGSM|EGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM";

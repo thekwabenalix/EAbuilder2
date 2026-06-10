@@ -8,6 +8,9 @@
 import type { AiBrainWiring } from "@/lib/api-client";
 import type { BrainConfig, BrainModuleType, FourBrainConfig } from "@/types/blueprint";
 import type { BuiltinFilterRef } from "@/lib/builtin-filter-contracts";
+import { SM_MODULE_META } from "./sm-embed-registry";
+
+export { SM_MODULE_META } from "./sm-embed-registry";
 
 /** Modules that still use legacy heuristic brain generators (no verified SM). */
 const LEGACY_HEURISTIC_MODULES = new Set<BrainModuleType>([
@@ -15,27 +18,6 @@ const LEGACY_HEURISTIC_MODULES = new Set<BrainModuleType>([
   "bb",
   "swing_structure",
 ]);
-
-export const SM_MODULE_META: Record<
-  string,
-  { prefix: string; type: string; bosMode?: "bos" | "choch" | "bos_choch" }
-> = {
-  bos: { prefix: "BOSSM", type: "bos", bosMode: "bos" },
-  choch: { prefix: "BOSSM", type: "choch", bosMode: "choch" },
-  bos_choch: { prefix: "BOSSM", type: "bos_choch", bosMode: "bos_choch" },
-  fvg: { prefix: "FVGSM", type: "fvg" },
-  fvg_inversion: { prefix: "IFVGSM", type: "fvg_inversion" },
-  order_block: { prefix: "OBSM", type: "ob" },
-  ob_fvg: { prefix: "OBFVGSM", type: "ob_fvg" },
-  liqsweep: { prefix: "LSSM", type: "liqsweep" },
-  snr: { prefix: "SNRSM", type: "snr" },
-  gap_snr: { prefix: "GSNRSM", type: "gap_snr" },
-  breakout: { prefix: "BRKSM", type: "breakout" },
-  rejection: { prefix: "REJSM", type: "rejection" },
-  miss: { prefix: "MISSSM", type: "miss" },
-  rsi_hd: { prefix: "RSIHDSM", type: "rsi_hd" },
-  engulfing: { prefix: "EGSM", type: "engulfing" },
-};
 
 function period(tf: string): string {
   const u = tf.toUpperCase();
