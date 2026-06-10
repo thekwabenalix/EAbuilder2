@@ -72,6 +72,22 @@ double   gZoneHi[STEP_COUNT];
 double   gZoneLo[STEP_COUNT];
 
 datetime gLastTradedEntry = 0;
+string   gLastGate = "idle";
+int      gTradeCount = 0;
+
+string DirTxt(int d) { return d == 1 ? "BULL" : d == -1 ? "BEAR" : "-"; }
+
+void UpdatePanel()
+{
+   string s = "FLOW EA (instance runtime)\\n";
+   s += "Instance 1 Direction(BOS): " + (gFired[STEP_DIR]   ? DirTxt(gDir[STEP_DIR])   + " @ " + TimeToString(gTime[STEP_DIR],   TIME_DATE|TIME_MINUTES) : "waiting") + "\\n";
+   s += "Instance 2 Setup(FVG-retest): " + (gFired[STEP_SETUP] ? DirTxt(gDir[STEP_SETUP]) + " @ " + TimeToString(gTime[STEP_SETUP], TIME_DATE|TIME_MINUTES) : "waiting") + "\\n";
+   s += "Instance 3 Entry(BOS): " + (gFired[STEP_ENTRY] ? DirTxt(gDir[STEP_ENTRY]) + " @ " + TimeToString(gTime[STEP_ENTRY], TIME_DATE|TIME_MINUTES) : "watching") + "\\n";
+   s += "Last gate: " + gLastGate + "\\n";
+   s += "Trades opened: " + IntegerToString(gTradeCount) + "\\n";
+   s += "Risk " + DoubleToString(InpRiskPct, 1) + "%  R:R " + DoubleToString(InpRewardRisk, 1) + "x";
+   Comment(s);
+}
 
 void RegisterEvent(int step, int dir, datetime t, double price, double sl)
 {
@@ -222,23 +238,23 @@ void EvaluateGate()
 
    int dir = gDir[STEP_ENTRY];
 
-   if(!gFired[STEP_DIR])  { if(InpAudit) Print("[GATE] BLOCKED: no direction event"); return; }
-   if(!gFired[STEP_SETUP]){ if(InpAudit) Print("[GATE] BLOCKED: no setup event");     return; }
+   if(!gFired[STEP_DIR])  { gLastGate = "BLOCKED: no direction yet"; if(InpAudit) Print("[GATE] " + gLastGate); return; }
+   if(!gFired[STEP_SETUP]){ gLastGate = "BLOCKED: no setup yet";     if(InpAudit) Print("[GATE] " + gLastGate); return; }
 
    // ORDER: direction <= setup < entry   (strict: entry must be AFTER setup)
    if(!(gTime[STEP_DIR] <= gTime[STEP_SETUP]))
-   { if(InpAudit) Print("[GATE] BLOCKED: direction not before setup"); return; }
+   { gLastGate = "BLOCKED: direction not before setup"; if(InpAudit) Print("[GATE] " + gLastGate); return; }
    if(!(gTime[STEP_SETUP] < gTime[STEP_ENTRY]))
-   { if(InpAudit) Print("[GATE] BLOCKED: execution not after setup (same/earlier timestamp)"); return; }
+   { gLastGate = "BLOCKED: execution not after setup"; if(InpAudit) Print("[GATE] " + gLastGate); return; }
 
    // DIRECTION aligned across instances
    if(gDir[STEP_DIR] != dir || gDir[STEP_SETUP] != dir)
-   { if(InpAudit) Print("[GATE] BLOCKED: instance direction mismatch"); return; }
+   { gLastGate = "BLOCKED: direction mismatch"; if(InpAudit) Print("[GATE] " + gLastGate); return; }
 
    // SETUP freshness (expiry in entry-TF bars)
    int expirySec = InpSetupExpiryBars * PeriodSeconds(InpEntryTF);
    if((int)(gTime[STEP_ENTRY] - gTime[STEP_SETUP]) > expirySec)
-   { if(InpAudit) Print("[GATE] BLOCKED: setup expired before execution"); return; }
+   { gLastGate = "BLOCKED: setup expired"; if(InpAudit) Print("[GATE] " + gLastGate); return; }
 
    if(OpenPositions() >= InpMaxOpenTrades) return;
 
@@ -262,6 +278,8 @@ void EvaluateGate()
    if(ok)
    {
       gLastTradedEntry = gTime[STEP_ENTRY];
+      gTradeCount++;
+      gLastGate = "TRADE " + (dir == 1 ? "BUY" : "SELL") + " @ " + TimeToString(gTime[STEP_ENTRY], TIME_DATE|TIME_MINUTES);
       if(InpAudit)
       {
          Print("===== TRADE AUDIT =====");
@@ -293,7 +311,7 @@ int OnInit()
    return INIT_SUCCEEDED;
 }
 
-void OnDeinit(const int reason) {}
+void OnDeinit(const int reason) { Comment(""); }
 
 datetime gLastDirBar = 0, gLastSetupBar = 0, gLastEntryBar = 0;
 
@@ -307,6 +325,8 @@ void OnTick()
 
    datetime eBar = iTime(InpSymbol, InpEntryTF, 0);
    if(eBar != gLastEntryBar) { gLastEntryBar = eBar; DetectEntryBOS(); EvaluateGate(); }
+
+   UpdatePanel();
 }
 `;
 }
