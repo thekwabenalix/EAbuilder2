@@ -33,6 +33,9 @@ import { generateMefDetector } from "../src/lib/smc-modules/mef-detector";
 import { generateQmMefDetector } from "../src/lib/smc-modules/qm-mef-detector";
 import { generateSnrc2Detector } from "../src/lib/smc-modules/snrc2-detector";
 
+// Strategy Flow runtime (instance event gate) — proof-of-feasibility EA
+import { generateFlowDemoEA } from "../src/generators/gen-flow-ea";
+
 // Inline state-machine fragment generators
 import { genRsiHdSM } from "../src/generators/gen-rsi-hd-sm";
 import { genObFvgSM } from "../src/generators/gen-obfvg-sm";
@@ -50,6 +53,13 @@ import {
   getModuleContract,
   moduleContractAllowsSmFunction,
 } from "../src/lib/module-contracts";
+import {
+  MODULE_SEMANTIC_EVENT_TYPES,
+  STRATEGY_EVENT_CONTRACTS,
+  resolveModuleSemanticEventType,
+  strategyEventSupportsRole,
+} from "../src/lib/strategy-events";
+import { fourBrainToStrategyFlow, validateStrategyFlowSchema } from "../src/lib/strategy-flow";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT = resolve(__dirname, "..", "verify", "mql5");
@@ -124,6 +134,10 @@ const items: Item[] = [
   {
     file: "SNRC2_Detector.mq5",
     code: generateSnrc2Detector(),
+  },
+  {
+    file: "FLOW_BOS_FVG_BOS_Demo.mq5",
+    code: generateFlowDemoEA(),
   },
   {
     file: "_TEST_RSIHDSM_M15.mq5",
@@ -1335,12 +1349,54 @@ function runModuleContractAudit() {
       eventsWithoutQueries.map((event) => event.id).join(", "),
     ]);
 
+    const eventsWithoutCanonicalType = contract.semanticEvents.filter(
+      (event) => !resolveModuleSemanticEventType(id, event.id),
+    );
+    checks.push([
+      `${id}: events map to strategy event contracts`,
+      eventsWithoutCanonicalType.length === 0,
+      eventsWithoutCanonicalType.map((event) => event.id).join(", "),
+    ]);
+
+    const roleMismatches = contract.semanticEvents.filter((event) => {
+      const eventType = resolveModuleSemanticEventType(id, event.id);
+      if (!eventType) return false;
+      return event.roles.some((role) => !strategyEventSupportsRole(eventType, role));
+    });
+    checks.push([
+      `${id}: strategy event roles cover module roles`,
+      roleMismatches.length === 0,
+      roleMismatches.map((event) => event.id).join(", "),
+    ]);
+
     if (contract.implementation === "state_machine") {
       checks.push([`${id}: state-machine prefix declared`, Boolean(contract.smPrefix)]);
       checks.push([`${id}: state-machine type declared`, Boolean(contract.smType)]);
       checks.push([`${id}: state-machine tick policy declared`, contract.tickArgPolicy !== "none"]);
     }
   }
+
+  const eventTypes = Object.keys(STRATEGY_EVENT_CONTRACTS);
+  const mappedTypes = [
+    ...new Set(
+      Object.values(MODULE_SEMANTIC_EVENT_TYPES).flatMap((events) => Object.values(events)),
+    ),
+  ];
+  const missingEventContracts = mappedTypes.filter((eventType) => !eventTypes.includes(eventType));
+  checks.push([
+    "every mapped strategy event type has a contract",
+    missingEventContracts.length === 0,
+    missingEventContracts.join(", "),
+  ]);
+
+  const payloadlessEvents = Object.values(STRATEGY_EVENT_CONTRACTS).filter(
+    (event) => !event.carriesDirection && !event.carriesPrice && !event.carriesZone,
+  );
+  checks.push([
+    "strategy event contracts declare runtime payload",
+    payloadlessEvents.length === 0,
+    payloadlessEvents.map((event) => event.id).join(", "),
+  ]);
 
   for (const [name, ok, detail] of checks) {
     console.log(`        ${ok ? "✓" : "✗"} ${name}${!ok && detail ? ` (${detail})` : ""}`);
@@ -1349,6 +1405,66 @@ function runModuleContractAudit() {
 }
 
 runModuleContractAudit();
+
+function runStrategyFlowSchemaAudit() {
+  console.log(`\n── Strategy flow schema audit ──`);
+
+  const checks: Array<[string, boolean, string?]> = [];
+  const flow = fourBrainToStrategyFlow({
+    direction: {
+      modules: ["bos"],
+      timeframe: "H1",
+      params: { lookback: 20, swingLen: 5 },
+      description: "H1 BOS sets directional bias.",
+    },
+    setup: {
+      modules: ["fvg"],
+      timeframe: "H1",
+      params: { expiryBars: 100 },
+      description: "Price pulls back into an H1 fair value gap.",
+    },
+    execution: {
+      modules: ["bos"],
+      timeframe: "M5",
+      params: { lookback: 20, swingLen: 5 },
+      description: "After the H1 FVG, wait for M5 BOS and enter next candle.",
+    },
+    management: { riskPercent: 1, rewardRisk: 3, stopBuffer: 20, maxOpenTrades: 2 },
+  });
+  const result = validateStrategyFlowSchema(flow);
+  checks.push([
+    "4-Brain adapter creates a valid strategy flow",
+    result.ok,
+    result.errors.join(", "),
+  ]);
+  checks.push(["flow has three ordered steps", flow.steps.length === 3]);
+  checks.push(["direction step uses BOS bias event", flow.steps[0]?.event === "BOS_BIAS"]);
+  checks.push(["setup step uses FVG event", flow.steps[1]?.event === "FVG_CREATED"]);
+  checks.push(["entry step uses BOS confirmed event", flow.steps[2]?.event === "BOS_CONFIRMED"]);
+  checks.push([
+    "setup depends on direction",
+    flow.steps[1]?.dependsOn?.[0]?.stepId === "step_direction",
+  ]);
+  checks.push(["entry depends on setup", flow.steps[2]?.dependsOn?.[0]?.stepId === "step_setup"]);
+
+  const broken = validateStrategyFlowSchema({
+    ...flow,
+    steps: [
+      {
+        ...flow.steps[2],
+        dependsOn: [{ stepId: "missing_step", relation: "after", required: true }],
+      },
+    ],
+  });
+  checks.push(["validator rejects missing dependencies", !broken.ok]);
+
+  for (const [name, ok, detail] of checks) {
+    console.log(`        ${ok ? "✓" : "✗"} ${name}${!ok && detail ? ` (${detail})` : ""}`);
+  }
+  if (checks.some(([, ok]) => !ok)) totalWarn++;
+}
+
+runStrategyFlowSchemaAudit();
 
 console.log(`\n${items.length + 1} files emitted, ${totalWarn} static warning(s).`);
 console.log(`Next: open verify/mql5/*.mq5 in MetaEditor and compile (F7).\n`);
