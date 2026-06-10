@@ -21,6 +21,8 @@ import {
   Crosshair,
   Settings2,
   Sparkles,
+  RefreshCw,
+  GitBranch,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createStrategy } from "@/lib/strategies";
@@ -35,6 +37,15 @@ import type { UIParam } from "@/lib/module-library";
 import { getModuleAdmission, MODULE_ADMISSION_STATUS_META } from "@/lib/module-admission";
 import { firstBlueprintGenerationError } from "@/lib/blueprint-generation-gate";
 import { EaGenerationError } from "@/lib/generate-ea-router";
+import { StrategyFlowBuilder } from "@/components/StrategyFlowBuilder";
+import { fourBrainToStrategyFlow } from "@/lib/strategy-flow";
+import {
+  attachUserFlowToBlueprint,
+  createDefaultStep,
+  nameFromFlowSteps,
+  type BuilderFlowMode,
+} from "@/lib/strategy-flow-ui";
+import type { StrategyFlowConfig } from "@/types/blueprint";
 
 export const Route = createFileRoute("/build")({
   component: FourBrainBuilderPage,
@@ -656,56 +667,31 @@ function FourBrainBuilderPage() {
   const [maxStopPts, setMaxStopPts] = useState(0); // 0 = no limit
   const [strategyNotes, setStrategyNotes] = useState("");
 
+  const [builderMode, setBuilderMode] = useState<BuilderFlowMode>("simple");
+  const [flowConfig, setFlowConfig] = useState<StrategyFlowConfig>(() => ({
+    version: 1,
+    mode: "advanced_instances",
+    source: "user",
+    steps: [createDefaultStep([])],
+  }));
+
   const [saving, setSaving] = useState(false);
 
-  // ── Preset application ────────────────────────────────────────────────────
-  function applyPreset(p: Preset) {
-    setDirection(p.direction ? { ...p.direction } : undefined);
-    setSetup(p.setup ? { ...p.setup } : undefined);
-    setExecution({ ...p.execution });
-    setRr(p.rr);
-    setRisk(p.risk);
-    setBe(p.be);
+  function buildManagementConfig() {
+    return {
+      riskPercent: risk,
+      rewardRisk: rr,
+      breakEvenEnabled: be,
+      breakEvenAtR: beAt,
+      maxOpenTrades: maxTrades,
+      stopBuffer: stopBuffer,
+      maxStopPoints: maxStopPts,
+    };
   }
 
-  // ── Live summary ──────────────────────────────────────────────────────────
-  function summary() {
-    const parts: string[] = [];
-    if (direction?.modules?.[0] && direction.timeframe) {
-      const mods = direction.modules.map((m) => m.replace(/_/g, " ").toUpperCase()).join(" + ");
-      parts.push(`${direction.timeframe} ${mods}`);
-    }
-    if (setup?.modules?.[0] && setup.timeframe) {
-      const mods = setup.modules.map((m) => m.replace(/_/g, " ").toUpperCase()).join(" + ");
-      parts.push(`${setup.timeframe} ${mods}`);
-    }
-    if (execution?.modules?.[0] && execution.timeframe) {
-      const mods = execution.modules.map((m) => m.replace(/_/g, " ").toUpperCase()).join(" + ");
-      parts.push(`${execution.timeframe} ${mods}`);
-    }
-    const chain = parts.join(" → ");
-    const mgmt = `${risk}% risk · ${rr}R TP${be ? ` · BE@${beAt}R` : ""}`;
-    return chain ? `${chain} | ${mgmt}` : mgmt;
-  }
-
-  // ── Generate ──────────────────────────────────────────────────────────────
-  async function onGenerate() {
-    if (!user) return;
-    if (!execution?.modules?.[0] || !execution.timeframe) {
-      toast.error("Execution Brain is required — select a module and timeframe.");
-      return;
-    }
-    const unsafeAiModules = unsafeAiModuleLabels([
-      ...(direction?.modules ?? []),
-      ...(setup?.modules ?? []),
-      ...(execution.modules ?? []),
-    ]);
-    if (unsafeAiModules.length > 0) {
-      toast.error(`4-Brain EA generation is blocked for: ${unsafeAiModules.join(", ")}`);
-      return;
-    }
-
-    const fourBrain: FourBrainConfig = {
+  function buildFourBrainConfig(): FourBrainConfig | undefined {
+    if (!execution?.modules?.[0] || !execution.timeframe) return undefined;
+    return {
       direction:
         direction?.modules?.[0] && direction.timeframe
           ? {
@@ -730,16 +716,184 @@ function FourBrainBuilderPage() {
         description: execution.description,
         params: execution.params ?? {},
       },
-      management: {
-        riskPercent: risk,
-        rewardRisk: rr,
-        breakEvenEnabled: be,
-        breakEvenAtR: beAt,
-        maxOpenTrades: maxTrades,
-        stopBuffer: stopBuffer, // in points — gen-ea.ts uses as int (input int InpStopBuffer)
-        maxStopPoints: maxStopPts,
-      },
+      management: buildManagementConfig(),
     };
+  }
+
+  function seedFlowFromBrains(fourBrain?: FourBrainConfig) {
+    const cfg = fourBrain ?? buildFourBrainConfig();
+    if (cfg) {
+      const adapted = fourBrainToStrategyFlow(cfg);
+      setFlowConfig({
+        ...adapted,
+        mode: "advanced_instances",
+        source: "user",
+        management: buildManagementConfig(),
+      });
+      return;
+    }
+    setFlowConfig({
+      version: 1,
+      mode: "advanced_instances",
+      source: "user",
+      steps: [createDefaultStep([])],
+      management: buildManagementConfig(),
+    });
+  }
+
+  function activateAdvancedMode() {
+    setBuilderMode("advanced");
+    if (flowConfig.steps.length === 0) {
+      seedFlowFromBrains();
+    }
+  }
+
+  // ── Preset application ────────────────────────────────────────────────────
+  function applyPreset(p: Preset) {
+    setDirection(p.direction ? { ...p.direction } : undefined);
+    setSetup(p.setup ? { ...p.setup } : undefined);
+    setExecution({ ...p.execution });
+    setRr(p.rr);
+    setRisk(p.risk);
+    setBe(p.be);
+    if (builderMode === "advanced") {
+      const fourBrain: FourBrainConfig = {
+        direction: p.direction,
+        setup: p.setup,
+        execution: p.execution,
+        management: {
+          riskPercent: p.risk,
+          rewardRisk: p.rr,
+          breakEvenEnabled: p.be,
+          breakEvenAtR: beAt,
+          maxOpenTrades: maxTrades,
+          stopBuffer: stopBuffer,
+          maxStopPoints: maxStopPts,
+        },
+      };
+      seedFlowFromBrains(fourBrain);
+    }
+  }
+
+  // ── Live summary ──────────────────────────────────────────────────────────
+  function summary() {
+    if (builderMode === "advanced" && flowConfig.steps.length) {
+      const chain = nameFromFlowSteps(flowConfig.steps);
+      const mgmt = `${risk}% risk · ${rr}R TP${be ? ` · BE@${beAt}R` : ""}`;
+      return `${chain} | ${mgmt}`;
+    }
+    const parts: string[] = [];
+    if (direction?.modules?.[0] && direction.timeframe) {
+      const mods = direction.modules.map((m) => m.replace(/_/g, " ").toUpperCase()).join(" + ");
+      parts.push(`${direction.timeframe} ${mods}`);
+    }
+    if (setup?.modules?.[0] && setup.timeframe) {
+      const mods = setup.modules.map((m) => m.replace(/_/g, " ").toUpperCase()).join(" + ");
+      parts.push(`${setup.timeframe} ${mods}`);
+    }
+    if (execution?.modules?.[0] && execution.timeframe) {
+      const mods = execution.modules.map((m) => m.replace(/_/g, " ").toUpperCase()).join(" + ");
+      parts.push(`${execution.timeframe} ${mods}`);
+    }
+    const chain = parts.join(" → ");
+    const mgmt = `${risk}% risk · ${rr}R TP${be ? ` · BE@${beAt}R` : ""}`;
+    return chain ? `${chain} | ${mgmt}` : mgmt;
+  }
+
+  // ── Generate ──────────────────────────────────────────────────────────────
+  async function onGenerate() {
+    if (!user) return;
+
+    if (builderMode === "advanced") {
+      const hasEntry = flowConfig.steps.some(
+        (s) => s.enabled !== false && (s.role === "entry" || s.role === "confirmation"),
+      );
+      if (!hasEntry) {
+        toast.error("Add at least one Entry step to your Strategy Flow.");
+        return;
+      }
+      const unsafeModules = unsafeAiModuleLabels(flowConfig.steps.map((s) => s.module));
+      if (unsafeModules.length > 0) {
+        toast.error(`EA generation is blocked for: ${unsafeModules.join(", ")}`);
+        return;
+      }
+
+      const entryStep = flowConfig.steps.find(
+        (s) => s.enabled !== false && (s.role === "entry" || s.role === "confirmation"),
+      )!;
+      const fourBrain: FourBrainConfig =
+        buildFourBrainConfig() ?? {
+          execution: {
+            modules: [entryStep.module as BrainModuleType],
+            timeframe: entryStep.timeframe,
+            params: entryStep.params ?? {},
+          },
+          management: buildManagementConfig(),
+        };
+
+      let bp = {
+        ...DEFAULT_BLUEPRINT,
+        name: nameFromFlowSteps(flowConfig.steps),
+        fourBrain,
+        strategyNotes: strategyNotes.trim(),
+        risk: {
+          ...DEFAULT_BLUEPRINT.risk,
+          riskPercent: risk,
+          rewardRisk: rr,
+          breakevenEnabled: be,
+          maxOpenTrades: maxTrades,
+          stopBufferPoints: stopBuffer,
+        },
+      } as StrategyBlueprint;
+
+      bp = attachUserFlowToBlueprint(bp, {
+        ...flowConfig,
+        management: buildManagementConfig(),
+      });
+
+      setSaving(true);
+      try {
+        const generationError = firstBlueprintGenerationError(bp);
+        if (generationError) {
+          toast.error(generationError);
+          return;
+        }
+        const { generateMql5FromBlueprint } = await import("@/lib/mql5-template-generator");
+        const generatedCode = generateMql5FromBlueprint(bp);
+        const row = await createStrategy({
+          userId: user.id,
+          name: bp.name,
+          prompt: summary(),
+          blueprint: bp,
+          generatedCode,
+        });
+        toast.success("Strategy Flow EA created — ready to compile");
+        navigate({ to: "/s/$id", params: { id: row.id } });
+      } catch (e: unknown) {
+        toast.error(
+          e instanceof EaGenerationError ? e.message : e instanceof Error ? e.message : "Failed to create strategy",
+        );
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    if (!execution?.modules?.[0] || !execution.timeframe) {
+      toast.error("Execution Brain is required — select a module and timeframe.");
+      return;
+    }
+    const unsafeAiModules = unsafeAiModuleLabels([
+      ...(direction?.modules ?? []),
+      ...(setup?.modules ?? []),
+      ...(execution.modules ?? []),
+    ]);
+    if (unsafeAiModules.length > 0) {
+      toast.error(`4-Brain EA generation is blocked for: ${unsafeAiModules.join(", ")}`);
+      return;
+    }
+
+    const fourBrain = buildFourBrainConfig()!;
 
     const bp = {
       ...DEFAULT_BLUEPRINT,
@@ -803,12 +957,19 @@ function FourBrainBuilderPage() {
   }
 
   const execConfigured = Boolean(execution?.modules?.[0] && execution.timeframe);
+  const flowHasEntry = flowConfig.steps.some(
+    (s) => s.enabled !== false && (s.role === "entry" || s.role === "confirmation"),
+  );
   const unsafeAiModules = unsafeAiModuleLabels([
     ...(direction?.modules ?? []),
     ...(setup?.modules ?? []),
     ...(execution?.modules ?? []),
+    ...(builderMode === "advanced" ? flowConfig.steps.map((s) => s.module) : []),
   ]);
-  const canBuildEa = execConfigured && unsafeAiModules.length === 0;
+  const canBuildEa =
+    builderMode === "advanced"
+      ? flowHasEntry && unsafeAiModules.length === 0
+      : execConfigured && unsafeAiModules.length === 0;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -849,6 +1010,67 @@ function FourBrainBuilderPage() {
           </div>
         </div>
 
+        {/* ── Builder mode ── */}
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+            Builder mode
+          </p>
+          <div className="rounded-lg border border-border p-1 flex gap-1 bg-muted/20 max-w-xl">
+            <button
+              type="button"
+              onClick={() => setBuilderMode("simple")}
+              className={[
+                "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-all",
+                builderMode === "simple"
+                  ? "bg-background text-foreground shadow-sm border border-border"
+                  : "text-muted-foreground hover:text-foreground",
+              ].join(" ")}
+            >
+              Simple — 4-Brain preset
+            </button>
+            <button
+              type="button"
+              onClick={activateAdvancedMode}
+              className={[
+                "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-all",
+                builderMode === "advanced"
+                  ? "bg-background text-foreground shadow-sm border border-border"
+                  : "text-muted-foreground hover:text-foreground",
+              ].join(" ")}
+            >
+              Advanced — Strategy Flow
+            </button>
+          </div>
+          <p className="text-[11px] text-muted-foreground max-w-2xl">
+            {builderMode === "simple"
+              ? "Three brain slots (Direction · Setup · Execution). The compiler expands them into ordered steps automatically."
+              : "Build any number of ordered module steps from scratch — same Strategy Flow engine as AI output and the advanced editor on saved strategies."}
+          </p>
+        </div>
+
+        {builderMode === "advanced" ? (
+          <div className="space-y-4 max-w-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <GitBranch className="h-4 w-4 text-sky-400" />
+                Ordered event chain — add, reorder, and configure each step
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs shrink-0"
+                disabled={!buildFourBrainConfig()}
+                onClick={() => seedFlowFromBrains()}
+              >
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                Import from 4-Brain preset
+              </Button>
+            </div>
+            <StrategyFlowBuilder flow={flowConfig} onChange={setFlowConfig} />
+          </div>
+        ) : (
+          <>
         {/* ── Brain flow ── */}
         <div>
           <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">
@@ -893,6 +1115,8 @@ function FourBrainBuilderPage() {
             />
           </div>
         </div>
+          </>
+        )}
 
         {/* ── Management Brain ── */}
         <div className="rounded-xl border border-border bg-card p-4">
@@ -1060,12 +1284,17 @@ function FourBrainBuilderPage() {
           </Button>
         </div>
 
-        {!execConfigured && (
+        {!canBuildEa && builderMode === "simple" && !execConfigured && (
           <p className="text-xs text-amber-400 text-center">
             Configure the Execution Brain to enable EA generation.
           </p>
         )}
-        {execConfigured && unsafeAiModules.length > 0 && (
+        {!canBuildEa && builderMode === "advanced" && !flowHasEntry && (
+          <p className="text-xs text-amber-400 text-center">
+            Add at least one Entry step to your Strategy Flow to enable EA generation.
+          </p>
+        )}
+        {!canBuildEa && unsafeAiModules.length > 0 && (
           <p className="text-xs text-amber-400 text-center">
             EA generation is blocked for: {unsafeAiModules.join(", ")}. These modules are visible
             for planning, but need verified state-machine contracts before they can trade.
