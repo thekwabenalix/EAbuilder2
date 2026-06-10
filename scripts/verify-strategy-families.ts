@@ -8,6 +8,7 @@
  */
 import { normalizeBlueprint } from "../netlify/functions/parse-strategy.mts";
 import { buildEmaTestThenIfvgFormationWiring } from "../netlify/functions/gen-4brain-ai.mts";
+import { buildBlueprintWiring } from "../src/generators/gen-blueprint-wiring";
 import { generateEA } from "../src/generators/gen-ea";
 import type { AiBrainWiring } from "../src/lib/api-client";
 import type { FourBrainConfig, StrategyBlueprint } from "../src/types/blueprint";
@@ -70,126 +71,6 @@ const baseBlueprint: StrategyBlueprint = {
   compilable: true,
   confidence: 1,
 };
-
-const smMeta: Record<string, { prefix: string; type: string }> = {
-  bos: { prefix: "BOSSM", type: "bos" },
-  choch: { prefix: "BOSSM", type: "choch" },
-  bos_choch: { prefix: "BOSSM", type: "bos_choch" },
-  fvg: { prefix: "FVGSM", type: "fvg" },
-  fvg_inversion: { prefix: "IFVGSM", type: "fvg_inversion" },
-  order_block: { prefix: "OBSM", type: "ob" },
-  ob_fvg: { prefix: "OBFVGSM", type: "ob_fvg" },
-  liqsweep: { prefix: "LSSM", type: "liqsweep" },
-  snr: { prefix: "SNRSM", type: "snr" },
-  gap_snr: { prefix: "GSNRSM", type: "gap_snr" },
-  breakout: { prefix: "BRKSM", type: "breakout" },
-  rejection: { prefix: "REJSM", type: "rejection" },
-  miss: { prefix: "MISSSM", type: "miss" },
-  rsi_hd: { prefix: "RSIHDSM", type: "rsi_hd" },
-  engulfing: { prefix: "EGSM", type: "engulfing" },
-};
-
-function period(tf: string): string {
-  return tf === "MN" ? "PERIOD_MN1" : `PERIOD_${tf}`;
-}
-
-function brainModule(config: FourBrainConfig, role: "direction" | "setup" | "execution") {
-  const brain = config[role];
-  const module = brain?.modules?.[0];
-  assertOk(module, `${role} module missing`);
-  return { module, tf: brain?.timeframe ?? "M5", params: brain?.params ?? {} };
-}
-
-function smConfig(module: string, tf: string, params: Record<string, unknown>) {
-  const meta = smMeta[module];
-  assertOk(meta, `No SM metadata for ${module}`);
-  return {
-    type: meta.type,
-    id: tf,
-    TF: period(tf),
-    tf,
-    params,
-  };
-}
-
-function setupSnippet(module: string, tf: string): string {
-  const prefix = smMeta[module]?.prefix;
-  assertOk(prefix, `No setup prefix for ${module}`);
-  if (module === "order_block") {
-    return `if((gBias == 0 || gBias == 1) && ${prefix}_${tf}_HasActiveBull()) { gSetupActive = true; gSetupDir = 1; gSetupSLHint = ${prefix}_${tf}_LatestBullLL(); }
-  else if((gBias == 0 || gBias == -1) && ${prefix}_${tf}_HasActiveBear()) { gSetupActive = true; gSetupDir = -1; gSetupSLHint = ${prefix}_${tf}_LatestBearUL(); }`;
-  }
-  if (module === "rsi_hd" || module === "ob_fvg") {
-    return `if((gBias == 0 || gBias == 1) && ${prefix}_${tf}_HasActiveBull()) { gSetupActive = true; gSetupDir = 1; gSetupSLHint = ${prefix}_${tf}_ActiveBullSL(); }
-  else if((gBias == 0 || gBias == -1) && ${prefix}_${tf}_HasActiveBear()) { gSetupActive = true; gSetupDir = -1; gSetupSLHint = ${prefix}_${tf}_ActiveBearSL(); }`;
-  }
-  if (module === "liqsweep") {
-    return `if((gBias == 0 || gBias == 1) && ${prefix}_${tf}_BullJustConfirmed()) { gSetupActive = true; gSetupDir = 1; gSetupSLHint = ${prefix}_${tf}_BullConfirmSL(); }
-  else if((gBias == 0 || gBias == -1) && ${prefix}_${tf}_BearJustConfirmed()) { gSetupActive = true; gSetupDir = -1; gSetupSLHint = ${prefix}_${tf}_BearConfirmSL(); }`;
-  }
-  return `if((gBias == 0 || gBias == 1) && ${prefix}_${tf}_HasActiveBull()) { gSetupActive = true; gSetupDir = 1; gSetupSLHint = ${prefix}_${tf}_BullConfirmSL(); }
-  else if((gBias == 0 || gBias == -1) && ${prefix}_${tf}_HasActiveBear()) { gSetupActive = true; gSetupDir = -1; gSetupSLHint = ${prefix}_${tf}_BearConfirmSL(); }`;
-}
-
-function executionSnippet(module: string, tf: string): string {
-  const prefix = smMeta[module]?.prefix;
-  assertOk(prefix, `No execution prefix for ${module}`);
-  const bullEvent = module === "fvg_inversion" ? "BullJustInverted" : "BullJustConfirmed";
-  const bearEvent = module === "fvg_inversion" ? "BearJustInverted" : "BearJustConfirmed";
-  return `if(!gSetupActive) return;
-  if((gSetupDir == 0 || gSetupDir == 1) && ${prefix}_${tf}_${bullEvent}()) { gExecSignal = true; gExecDir = 1; gExecSL = ${prefix}_${tf}_BullConfirmSL(); }
-  else if((gSetupDir == 0 || gSetupDir == -1) && ${prefix}_${tf}_${bearEvent}()) { gExecSignal = true; gExecDir = -1; gExecSL = ${prefix}_${tf}_BearConfirmSL(); }`;
-}
-
-function buildGenericWiring(config: FourBrainConfig): AiBrainWiring {
-  const smConfigs: AiBrainWiring["sm_configs"] = {};
-  const requiredSms: string[] = [];
-  const addSm = (
-    module: string | undefined,
-    tf: string | undefined,
-    params: Record<string, unknown> | undefined,
-  ) => {
-    if (!module || !tf) return;
-    const meta = smMeta[module];
-    if (!meta) return;
-    const key = `${meta.type}_${tf}`;
-    smConfigs[key] = smConfig(module, tf, params ?? {});
-    requiredSms.push(`${meta.prefix}_${tf}`);
-  };
-
-  const direction = config.direction ? brainModule(config, "direction") : undefined;
-  const setup = config.setup ? brainModule(config, "setup") : undefined;
-  const execution = brainModule(config, "execution");
-  addSm(direction?.module, direction?.tf, direction?.params);
-  addSm(setup?.module, setup?.tf, setup?.params);
-  addSm(execution.module, execution.tf, execution.params);
-
-  const directionBrain =
-    direction && smMeta[direction.module]?.prefix === "BOSSM"
-      ? `void Direction_Brain_Execute() {
-  if(BOSSM_${direction.tf}_IsBull()) gBias = 1;
-  else if(BOSSM_${direction.tf}_IsBear()) gBias = -1;
-}`
-      : `void Direction_Brain_Execute() { gBias = 0; }`;
-
-  const setupBrain = setup
-    ? `void Setup_Brain_Execute() {
-  gSetupActive = false; gSetupDir = 0; gSetupSLHint = 0.0;
-  ${setupSnippet(setup.module, setup.tf)}
-}`
-    : `void Setup_Brain_Execute() { gSetupActive = true; gSetupDir = gBias; }`;
-
-  return {
-    direction_brain: directionBrain,
-    setup_brain: setupBrain,
-    execution_brain: `void Execution_Brain_Execute() {
-  gExecSignal = false; gExecDir = 0; gExecSL = 0.0;
-  ${executionSnippet(execution.module, execution.tf)}
-}`,
-    required_sms: [...new Set(requiredSms)],
-    sm_configs: smConfigs,
-  };
-}
 
 function normalizePrompt(prompt: string): StrategyBlueprint {
   return normalizeBlueprint({ ...baseBlueprint, summary: prompt }, prompt) as StrategyBlueprint;
@@ -312,10 +193,10 @@ for (const test of cases) {
       assertOk(contractCodes.includes(code), `contract missing ${code}`);
     }
 
-    const aiWiring =
+    const aiWiring: AiBrainWiring | undefined =
       test.wiring === "ema_ifvg"
         ? buildEmaTestThenIfvgFormationWiring(test.prompt, config)
-        : buildGenericWiring(config);
+        : undefined;
     const code = generateEA({
       eaName: test.name.replace(/[^\w]+/g, "_"),
       config,
@@ -323,6 +204,9 @@ for (const test of cases) {
       globalMagic: 260604,
       aiWiring,
     });
+    if (!aiWiring) {
+      assertIncludes(code, "(blueprint SM)", "blueprint generation mode");
+    }
     for (const snippet of test.expected.code) {
       assertIncludes(code, snippet, "generated EA");
     }

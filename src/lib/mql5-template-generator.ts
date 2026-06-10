@@ -29,6 +29,7 @@ import type {
   MQL5CodeGenParams,
 } from "@/types/blueprint";
 import { generateEA } from "@/generators/gen-ea";
+import { configUsesLegacyHeuristics } from "@/generators/gen-blueprint-wiring";
 
 // ─── Primitive registries (single source of truth) ───────────────────────────
 // These are the rule types that have a concrete template implementation.
@@ -152,16 +153,17 @@ export interface BuildabilityResult {
  * so the user refines their spec rather than getting broken MQL5.
  */
 export function analyzeBuildability(bp: StrategyBlueprint): BuildabilityResult {
-  // PHASE 0 ENHANCEMENT: 4-Brain architecture is always buildable
   if (bp.fourBrain && bp.fourBrain.execution) {
+    const legacy = configUsesLegacyHeuristics(bp.fourBrain);
+    const execMods = bp.fourBrain.execution.modules ?? [];
     return {
-      buildable: true, // 4-Brain config is always buildable
-      coverage: 100,
+      buildable: true,
+      coverage: legacy ? 75 : 100,
       statuses: [],
-      supportedCount: 0,
+      supportedCount: execMods.length,
       unsupportedCount: 0,
       unsupportedRules: [],
-      hasFvgMachine: false,
+      hasFvgMachine: execMods.some((m) => m === "fvg" || m === "fvg_inversion"),
     };
   }
 

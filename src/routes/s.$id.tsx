@@ -347,10 +347,15 @@ function StrategyPage() {
   useEffect(() => {
     if (data) {
       setBlueprint(data.spec_json);
-      setGeneratedCode(data.generated_code);
+      const savedCode = data.generated_code;
+      if (!savedCode && data.spec_json?.fourBrain?.execution?.modules?.length) {
+        setGeneratedCode(generateMql5FromBlueprint(data.spec_json));
+      } else {
+        setGeneratedCode(savedCode);
+      }
       setName(data.name);
       setDirty(false);
-      setActiveTab(data.spec_json?.fourBrain ? "brains" : data.generated_code ? "spec" : "code");
+      setActiveTab(data.spec_json?.fourBrain ? "brains" : savedCode ? "spec" : "code");
     }
   }, [data]);
 
@@ -431,7 +436,7 @@ function StrategyPage() {
     const fixed = generateMql5FromBlueprint(blueprint);
     setGeneratedCode(fixed);
     setDirty(true);
-    toast.success("Regenerated from template — save and recompile");
+    toast.success("Regenerated from blueprint — save and recompile");
   };
 
   const handleAssistantAction = (action: EaAssistantAction) => {
@@ -556,7 +561,7 @@ function StrategyPage() {
                 const code = aiCode ?? generateMql5FromBlueprint(next);
                 setGeneratedCode(code);
                 setDirty(true);
-                if (!aiCode) toast.success("EA regenerated from template");
+                if (!aiCode) toast.success("EA regenerated from blueprint wiring");
               }}
             />
           </TabsContent>
@@ -1555,10 +1560,10 @@ function CodeTab({
       const generated = generateMql5FromBlueprint(blueprint);
       if (onAutoSave) {
         await onAutoSave(generated);
-        toast.success("Template code generated & saved — compiles guaranteed");
+        toast.success("Blueprint EA generated & saved — verified state machines embedded");
       } else {
         onCodeChange(generated);
-        toast.success("Template code generated — compiles guaranteed");
+        toast.success("Blueprint EA generated — verified state machines embedded");
       }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Template generation failed");
@@ -1815,7 +1820,7 @@ function CodeTab({
           <div>
             <p className="font-semibold text-base">Generate MQL5 Expert Advisor</p>
             <p className="text-sm text-muted-foreground mt-0.5">
-              The template engine maps your blueprint rules to verified code blocks.
+              The blueprint assembler maps your strategy to verified state-machine code.
             </p>
           </div>
         </div>
@@ -2004,7 +2009,7 @@ function CodeTab({
             variant="outline"
             onClick={generateTemplate}
             disabled={generating || Boolean(contractError)}
-            title="Instant template regeneration — always compiles"
+            title="Instant blueprint regeneration — verified state machines"
             className="border-border text-muted-foreground"
           >
             {generating ? (
@@ -2707,7 +2712,8 @@ function BacktestTab({
             // and truncates). The correct fix is to regenerate — template or AI Rebuild
             // from the Brains tab — NOT a freeform rewrite.
             const isFourBrain = Boolean(blueprint.fourBrain);
-            const isTemplateCode = code.includes("template mode — always compiles");
+            const isBlueprintCode = code.includes("(blueprint SM)");
+            const isLegacyTemplateCode = code.includes("template mode — always compiles");
             return (
               <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 flex items-start gap-3">
                 <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
@@ -2720,16 +2726,15 @@ function BacktestTab({
                     {fixingAi
                       ? "Generating fixed code — this takes 15–30 seconds…"
                       : isFourBrain
-                        ? "This is a 4-Brain EA. Regenerate from Template (instant, deterministic) or use AI Rebuild on the Brains tab. Do NOT use freeform AI fix — it rewrites the whole file."
-                        : isTemplateCode
-                          ? "This is template-generated code. Regenerating from the template is faster and safer than AI rewrite."
+                        ? "This is a 4-Brain EA. Regenerate from Blueprint (instant, verified SMs) or use AI Rebuild on the Brains tab. Do NOT use freeform AI fix — it rewrites the whole file."
+                        : isBlueprintCode || isLegacyTemplateCode
+                          ? "This is blueprint-generated code. Regenerating from the blueprint is faster and safer than AI rewrite."
                           : "Click Fix with AI to automatically correct all errors in one step."}
                   </p>
                 </div>
                 {onApplyCode && (
                   <div className="flex items-center gap-2 shrink-0">
-                    {/* 4-Brain or template: primary action is deterministic template regen */}
-                    {(isFourBrain || isTemplateCode) && (
+                    {(isFourBrain || isBlueprintCode || isLegacyTemplateCode) && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -2738,15 +2743,15 @@ function BacktestTab({
                         onClick={() => {
                           try {
                             onApplyCode(generateMql5FromBlueprint(blueprint));
-                            toast.success("Regenerated from template — recompile to verify");
+                            toast.success("Regenerated from blueprint — recompile to verify");
                           } catch (e: unknown) {
                             toast.error(
-                              e instanceof Error ? e.message : "Template generation failed",
+                              e instanceof Error ? e.message : "Blueprint generation failed",
                             );
                           }
                         }}
                       >
-                        <Hammer className="h-3.5 w-3.5 mr-1.5" /> Regen from Template
+                        <Hammer className="h-3.5 w-3.5 mr-1.5" /> Regen from Blueprint
                       </Button>
                     )}
                     {/* Freeform AI fix — ONLY for non-4-brain, raw AI-generated code */}
