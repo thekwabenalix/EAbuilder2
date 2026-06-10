@@ -18,6 +18,15 @@ import { genEmaSM } from "./gen-ema-sm";
 import { genFvgSM } from "./gen-fvg-sm";
 import { genFvgInversionSM } from "./gen-ifvg-state-machine";
 import { genObSM } from "./gen-ob-sm";
+import { genBreakoutSM } from "./gen-breakout-sm";
+import { genGapSnrSM } from "./gen-gap-snr-sm";
+import { genLiqSweepSM } from "./gen-liqsweep-sm";
+import { genMissSM } from "./gen-miss-sm";
+import { genObFvgSM } from "./gen-obfvg-sm";
+import { genRejectionSM } from "./gen-rejection-sm";
+import { genRsiHdSM } from "./gen-rsi-hd-sm";
+import { genSnrSM } from "./gen-snr-sm";
+import { genEgSM } from "./gen-eg-sm";
 
 export const FLOW_DEMO_EA_NAME = "FLOW_BOS_FVG_BOS_Demo";
 
@@ -35,10 +44,17 @@ function isEntry(role: string): boolean {
 }
 
 // ── Module profiles: embed the verified SM + register from its real queries ──────
+// family:
+//   "zone" — uniform verified API (BullJustConfirmed/BearJustConfirmed + ConfirmSL,
+//            optional HasActiveBull/Bear). Serves setup (active or fired) + entry.
+//   "bias_break" — BOS/CHoCH: Trend() bias + BullJustBroke/BearJustBroke (swing SL).
+//   "ema" — EMA: Bias() / SetupActive+ActiveDir / JustConfirmed+ConfirmDir+ConfirmSL.
 interface SmProfile {
   prefix: string;
   emitSM: (tf: string, p: Params) => string; // tf is uppercase id
   tickArg: (p: Params) => string;
+  family: "zone" | "bias_break" | "ema";
+  hasActive?: boolean; // zone family: HasActiveBull/Bear exists (setup via active zone)
 }
 const SM_PROFILES: Record<string, SmProfile> = {
   ema: {
@@ -46,38 +62,110 @@ const SM_PROFILES: Record<string, SmProfile> = {
     emitSM: (tf, p) =>
       genEmaSM(tf, tfConst(tf), tf, pInt(p, "fastPeriod", 12), pInt(p, "slowPeriod", 48)),
     tickArg: () => "0",
+    family: "ema",
   },
   bos: {
     prefix: "BOSSM",
     emitSM: (tf, p) =>
       genBosSM(tf, tfConst(tf), tf, "bos" as BosSmMode, pInt(p, "swingLen", 5), pInt(p, "lookback", 20)),
     tickArg: (p) => `${pInt(p, "lookback", 20)}`,
+    family: "bias_break",
   },
   choch: {
     prefix: "BOSSM",
     emitSM: (tf, p) =>
       genBosSM(tf, tfConst(tf), tf, "choch" as BosSmMode, pInt(p, "swingLen", 5), pInt(p, "lookback", 20)),
     tickArg: (p) => `${pInt(p, "lookback", 20)}`,
+    family: "bias_break",
   },
   fvg: {
     prefix: "FVGSM",
     emitSM: (tf, p) => genFvgSM(tf, tfConst(tf), tf, pInt(p, "expiryBars", 100)),
     tickArg: (p) => `${pInt(p, "fvgLookback", 50)}`,
+    family: "zone",
+    hasActive: true,
   },
   fvg_inversion: {
     prefix: "IFVGSM",
     emitSM: (tf, p) => genFvgInversionSM(tf, tfConst(tf), tf, pInt(p, "expiryBars", 100)),
     tickArg: () => "1",
+    family: "zone",
+    hasActive: true,
   },
   order_block: {
     prefix: "OBSM",
     emitSM: (tf, p) =>
       genObSM(tf, tfConst(tf), tf, 0.6, pInt(p, "scanBack", 5), pInt(p, "expiryBars", 100)),
     tickArg: () => "50",
+    family: "zone",
+    hasActive: true,
+  },
+  ob_fvg: {
+    prefix: "OBFVGSM",
+    emitSM: (tf, p) => genObFvgSM(tf, tfConst(tf), tf, pInt(p, "expiryBars", 250)),
+    tickArg: () => "50",
+    family: "zone",
+    hasActive: true,
+  },
+  engulfing: {
+    prefix: "EGSM",
+    emitSM: (tf, p) => genEgSM(tf, tfConst(tf), tf, pInt(p, "scanBack", 3), pInt(p, "expiryBars", 100)),
+    tickArg: () => "50",
+    family: "zone",
+    hasActive: true,
+  },
+  snr: {
+    prefix: "SNRSM",
+    emitSM: (tf, p) => genSnrSM(tf, tfConst(tf), tf, pInt(p, "lookback", 20), pInt(p, "expiryBars", 100)),
+    tickArg: () => "50",
+    family: "zone",
+    hasActive: true,
+  },
+  gap_snr: {
+    prefix: "GSNRSM",
+    emitSM: (tf, p) => genGapSnrSM(tf, tfConst(tf), tf, pInt(p, "lookback", 20), pInt(p, "expiryBars", 100)),
+    tickArg: () => "50",
+    family: "zone",
+    hasActive: true,
+  },
+  breakout: {
+    prefix: "BRKSM",
+    emitSM: (tf, p) => genBreakoutSM(tf, tfConst(tf), tf, pInt(p, "lookback", 20), pInt(p, "expiryBars", 100)),
+    tickArg: () => "50",
+    family: "zone",
+    hasActive: true,
+  },
+  rejection: {
+    prefix: "REJSM",
+    emitSM: (tf, p) => genRejectionSM(tf, tfConst(tf), tf, pInt(p, "lookback", 30), 0.5, pInt(p, "expiryBars", 150)),
+    tickArg: () => "50",
+    family: "zone",
+    hasActive: true,
+  },
+  miss: {
+    prefix: "MISSSM",
+    emitSM: (tf, p) =>
+      genMissSM(tf, tfConst(tf), tf, pInt(p, "lookback", 40), pInt(p, "swingLen", 3), pInt(p, "nearPoints", 50), pInt(p, "expiryBars", 200)),
+    tickArg: () => "50",
+    family: "zone",
+    hasActive: true,
+  },
+  rsi_hd: {
+    prefix: "RSIHDSM",
+    emitSM: (tf, p) =>
+      genRsiHdSM(tf, tfConst(tf), tf, pInt(p, "rsiPeriod", 14), pInt(p, "pivotLeft", 3), pInt(p, "pivotRight", 3), pInt(p, "minBars", 5), pInt(p, "maxBars", 50), pInt(p, "expiryBars", 60)),
+    tickArg: () => "50",
+    family: "zone",
+    hasActive: true,
+  },
+  liqsweep: {
+    prefix: "LSSM",
+    emitSM: (tf, p) => genLiqSweepSM(tf, tfConst(tf), tf, pInt(p, "swingLen", 3), pInt(p, "lookback", 20)),
+    tickArg: () => "50",
+    family: "zone",
+    hasActive: false, // no HasActive — setup arms on the fired sweep event
   },
 };
-
-const ZONE_MODULES = new Set(["fvg", "fvg_inversion", "order_block"]);
 
 // Indicator-handle helper the EMA SM depends on (B4_MA / B4_MAval), included only
 // when an EMA instance is present.
@@ -132,10 +220,8 @@ double B4_MAval(int handle, int shift) { return B4_Buf(handle, 0, shift); }
 export function flowSupportsModuleRole(module: string, role: string): boolean {
   const prof = SM_PROFILES[module];
   if (!prof) return false;
-  if (role === "direction") return module === "ema" || module === "bos" || module === "choch";
-  if (role === "setup" || role === "filter")
-    return ZONE_MODULES.has(module) || module === "ema";
-  if (isEntry(role)) return ZONE_MODULES.has(module) || module === "ema" || module === "bos" || module === "choch";
+  if (role === "direction") return prof.family === "ema" || prof.family === "bias_break";
+  if (role === "setup" || role === "filter" || isEntry(role)) return true; // every covered module
   return false;
 }
 export function flowEaSupportsAllSteps(flow: StrategyFlowConfig): boolean {
@@ -173,62 +259,12 @@ function emitDetection(step: StrategyStepConfig, i: number, steps: StrategyStepC
   const C1 = `iClose(InpSymbol, gTF[${i}], 1)`;
   const biasIdx = biasIndex(step, steps);
   const role = step.role;
+  const biasGuard = biasIdx >= 0 ? `   if(!gFired[${biasIdx}]) return;\n` : "";
+  const biasExpr = biasIdx >= 0 ? `gDir[${biasIdx}]` : "0";
+  const wrap = (body: string) => `void DetectStep_${i}()\n{\n${body}\n}`;
 
-  // DIRECTION — persistent bias
-  if (role === "direction") {
-    const fn = m === "ema" ? `${P}_Bias()` : `${P}_Trend()`;
-    return `void DetectStep_${i}()
-{
-   int _d = ${fn};
-   if(_d != 0 && (!gFired[${i}] || gDir[${i}] != _d)) RegisterEvent(${i}, _d, ${T1}, ${C1}, 0.0);
-}`;
-  }
-
-  // SETUP — an armed zone in the bias direction (edge-detected so it fires once)
-  if (role === "setup" || role === "filter") {
-    if (ZONE_MODULES.has(m)) {
-      const guard = biasIdx >= 0 ? `   if(!gFired[${biasIdx}]) return;\n` : "";
-      const bias = biasIdx >= 0 ? `gDir[${biasIdx}]` : "0";
-      return `void DetectStep_${i}()
-{
-${guard}   int _bias = ${bias};
-   bool _ab = ${P}_HasActiveBull();
-   bool _bb = ${P}_HasActiveBear();
-   if((_bias == 0 || _bias == 1) && _ab && !gPrevA[${i}]) RegisterEvent(${i}, 1, ${T1}, ${C1}, 0.0);
-   else if((_bias == 0 || _bias == -1) && _bb && !gPrevB[${i}]) RegisterEvent(${i}, -1, ${T1}, ${C1}, 0.0);
-   gPrevA[${i}] = _ab; gPrevB[${i}] = _bb;
-}`;
-    }
-    if (m === "ema") {
-      return `void DetectStep_${i}()
-{
-   bool _sa = ${P}_SetupActive();
-   if(_sa && !gPrevA[${i}]) { int _d = ${P}_ActiveDir(); if(_d != 0) RegisterEvent(${i}, _d, ${T1}, ${C1}, 0.0); }
-   gPrevA[${i}] = _sa;
-}`;
-    }
-  }
-
-  // ENTRY — discrete confirmation, carries SL
-  if (isEntry(role)) {
-    if (ZONE_MODULES.has(m)) {
-      return `void DetectStep_${i}()
-{
-   if(${P}_BullJustConfirmed())      RegisterEvent(${i}, 1, ${T1}, ${C1}, ${P}_BullConfirmSL());
-   else if(${P}_BearJustConfirmed()) RegisterEvent(${i}, -1, ${T1}, ${C1}, ${P}_BearConfirmSL());
-}`;
-    }
-    if (m === "ema") {
-      return `void DetectStep_${i}()
-{
-   if(${P}_JustConfirmed()) { int _d = ${P}_ConfirmDir(); RegisterEvent(${i}, _d, ${T1}, ${C1}, ${P}_ConfirmSL()); }
-}`;
-    }
-    if (m === "bos" || m === "choch") {
-      const lb = pInt(step.params, "lookback", 20);
-      return `void DetectStep_${i}()
-{
-   int _total = iBars(InpSymbol, gTF[${i}]);
+  // swing-SL helper for bias_break entries (BOS/CHoCH carry no ConfirmSL)
+  const swingSL = (lb: number) => `   int _total = iBars(InpSymbol, gTF[${i}]);
    if(_total < ${lb} + 3) return;
    double _swH = iHigh(InpSymbol, gTF[${i}], 2);
    double _swL = iLow (InpSymbol, gTF[${i}], 2);
@@ -237,11 +273,66 @@ ${guard}   int _bias = ${bias};
       double _l = iLow (InpSymbol, gTF[${i}], _k);
       if(_h > _swH) _swH = _h;
       if(_l < _swL) _swL = _l;
-   }
-   if(${P}_BullJustBroke())      RegisterEvent(${i}, 1, ${T1}, ${C1}, _swL);
-   else if(${P}_BearJustBroke()) RegisterEvent(${i}, -1, ${T1}, ${C1}, _swH);
-}`;
+   }`;
+
+  // DIRECTION — persistent bias (ema / bias_break only)
+  if (role === "direction") {
+    const fn = prof.family === "ema" ? `${P}_Bias()` : `${P}_Trend()`;
+    return wrap(
+      `   int _d = ${fn};
+   if(_d != 0 && (!gFired[${i}] || gDir[${i}] != _d)) RegisterEvent(${i}, _d, ${T1}, ${C1}, 0.0);`,
+    );
+  }
+
+  // SETUP — arm in the bias direction (fires once per arming)
+  if (role === "setup" || role === "filter") {
+    if (prof.family === "ema") {
+      return wrap(
+        `   bool _sa = ${P}_SetupActive();
+   if(_sa && !gPrevA[${i}]) { int _d = ${P}_ActiveDir(); if(_d != 0) RegisterEvent(${i}, _d, ${T1}, ${C1}, 0.0); }
+   gPrevA[${i}] = _sa;`,
+      );
     }
+    if (prof.family === "zone" && prof.hasActive) {
+      return wrap(
+        `${biasGuard}   int _bias = ${biasExpr};
+   bool _ab = ${P}_HasActiveBull();
+   bool _bb = ${P}_HasActiveBear();
+   if((_bias == 0 || _bias == 1) && _ab && !gPrevA[${i}]) RegisterEvent(${i}, 1, ${T1}, ${C1}, 0.0);
+   else if((_bias == 0 || _bias == -1) && _bb && !gPrevB[${i}]) RegisterEvent(${i}, -1, ${T1}, ${C1}, 0.0);
+   gPrevA[${i}] = _ab; gPrevB[${i}] = _bb;`,
+      );
+    }
+    // zone-without-active (liqsweep) or bias_break — arm on the discrete fired event
+    const bull = prof.family === "bias_break" ? `${P}_BullJustBroke()` : `${P}_BullJustConfirmed()`;
+    const bear = prof.family === "bias_break" ? `${P}_BearJustBroke()` : `${P}_BearJustConfirmed()`;
+    return wrap(
+      `${biasGuard}   int _bias = ${biasExpr};
+   if((_bias == 0 || _bias == 1) && ${bull}) RegisterEvent(${i}, 1, ${T1}, ${C1}, 0.0);
+   else if((_bias == 0 || _bias == -1) && ${bear}) RegisterEvent(${i}, -1, ${T1}, ${C1}, 0.0);`,
+    );
+  }
+
+  // ENTRY — discrete confirmation, carries SL
+  if (isEntry(role)) {
+    if (prof.family === "ema") {
+      return wrap(
+        `   if(${P}_JustConfirmed()) { int _d = ${P}_ConfirmDir(); RegisterEvent(${i}, _d, ${T1}, ${C1}, ${P}_ConfirmSL()); }`,
+      );
+    }
+    if (prof.family === "bias_break") {
+      const lb = pInt(step.params, "lookback", 20);
+      return wrap(
+        `${swingSL(lb)}
+   if(${P}_BullJustBroke())      RegisterEvent(${i}, 1, ${T1}, ${C1}, _swL);
+   else if(${P}_BearJustBroke()) RegisterEvent(${i}, -1, ${T1}, ${C1}, _swH);`,
+      );
+    }
+    // zone family (all carry ConfirmSL)
+    return wrap(
+      `   if(${P}_BullJustConfirmed())      RegisterEvent(${i}, 1, ${T1}, ${C1}, ${P}_BullConfirmSL());
+   else if(${P}_BearJustConfirmed()) RegisterEvent(${i}, -1, ${T1}, ${C1}, ${P}_BearConfirmSL());`,
+    );
   }
 
   return `void DetectStep_${i}() { /* ${m}/${role} not supported */ }`;

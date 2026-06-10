@@ -154,6 +154,32 @@ const items: Item[] = [
     )!,
   },
   {
+    // BOS -> Liquidity Sweep setup -> Engulfing entry (no-HasActive setup + EG SM)
+    file: "FLOW_BOS_LIQ_ENG_Demo.mq5",
+    code: tryGenerateFlowEAFromFourBrain(
+      {
+        direction: { modules: ["bos"], timeframe: "H1", params: { lookback: 20 } },
+        setup: { modules: ["liqsweep"], timeframe: "M15", params: {} },
+        execution: { modules: ["engulfing"], timeframe: "M5", params: {} },
+        management: { riskPercent: 1, rewardRisk: 2, maxOpenTrades: 1 },
+      } as unknown as Parameters<typeof tryGenerateFlowEAFromFourBrain>[0],
+      "FLOW_BOS_LIQ_ENG_Demo",
+    )!,
+  },
+  {
+    // EMA -> S/R setup -> RSI Hidden Divergence entry (B4_MA + SNRSM + RSIHDSM/iRSI)
+    file: "FLOW_EMA_SNR_RSI_Demo.mq5",
+    code: tryGenerateFlowEAFromFourBrain(
+      {
+        direction: { modules: ["ema"], timeframe: "M15", params: { fastPeriod: 12, slowPeriod: 48 } },
+        setup: { modules: ["snr"], timeframe: "M15", params: {} },
+        execution: { modules: ["rsi_hd"], timeframe: "M5", params: {} },
+        management: { riskPercent: 1, rewardRisk: 2, maxOpenTrades: 1 },
+      } as unknown as Parameters<typeof tryGenerateFlowEAFromFourBrain>[0],
+      "FLOW_EMA_SNR_RSI_Demo",
+    )!,
+  },
+  {
     file: "_TEST_RSIHDSM_M15.mq5",
     code: wrapInlineSM(
       "RSIHDSM M15",

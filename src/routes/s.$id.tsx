@@ -1433,7 +1433,7 @@ function FourBrainTab({
           const code = tryGenerateFlowEAFromFourBrain(cfg, eaName);
           if (!code) {
             toast.error(
-              "Flow engine covers EMA/BOS direction, FVG/iFVG/OB setups, and EMA/BOS/FVG/iFVG/OB entries so far. This combo isn't supported yet — use Template or AI.",
+              "Flow engine needs verified state-machine modules. Direction must be EMA/BOS/CHoCH; setup & entry can be any verified zone module. This combo isn't covered — use Template or AI.",
             );
             return;
           }
@@ -1447,8 +1447,9 @@ function FourBrainTab({
       </Button>
       <p className="text-[11px] text-muted-foreground text-center">
         <strong>Flow Engine</strong> — each instance fires only after its dependencies, in order,
-        with a trade audit chain, using the verified state machines. Covers EMA, BOS, FVG, iFVG,
-        Order Block today; expanding per module.
+        with a trade audit chain, running on the verified state machines (BOS, CHoCH, EMA, FVG,
+        iFVG, OB, OB+FVG, Engulfing, S/R, Gap S/R, Breakout, Rejection, Missed Level, RSI HD,
+        Liquidity Sweep).
       </p>
     </div>
   );
