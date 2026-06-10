@@ -160,6 +160,12 @@ function emitGate(entryIdx: number, step: StrategyStepConfig, steps: StrategySte
     setupDep !== undefined
       ? `   if((int)(gTime[${entryIdx}] - gTime[${setupDep}]) > gExpirySec) { gLastGate = "BLOCKED: setup expired"; if(InpAudit) Print("[GATE] " + gLastGate); return; }`
       : "";
+  // Consume the non-direction dependencies (the setup) on a filled entry, so each
+  // armed setup yields ONE entry. Direction (persistent bias) is left intact.
+  const consume = deps
+    .filter((d) => steps[d].role !== "direction")
+    .map((d) => `         gFired[${d}] = false;`)
+    .join("\n");
   return `void EvaluateEntry_${entryIdx}()
 {
    if(!gFired[${entryIdx}]) return;
@@ -169,7 +175,10 @@ function emitGate(entryIdx: number, step: StrategyStepConfig, steps: StrategySte
 ${checks}
 ${expiry}
    if(OpenPositions() >= InpMaxOpenTrades) return;
-   OpenTrade(${entryIdx}, dir);
+   if(OpenTrade(${entryIdx}, dir))
+   {
+${consume || "         /* no setup to consume */"}
+   }
 }`;
 }
 
@@ -298,19 +307,19 @@ double LotsForRisk(double slDistance)
    return lots;
 }
 
-void OpenTrade(int entryIdx, int dir)
+bool OpenTrade(int entryIdx, int dir)
 {
    double entryPx = (dir == 1) ? SymbolInfoDouble(InpSymbol, SYMBOL_ASK)
                                : SymbolInfoDouble(InpSymbol, SYMBOL_BID);
    double sl = gSL[entryIdx];
-   if(sl <= 0) { gLastGate = "BLOCKED: no SL"; return; }
+   if(sl <= 0) { gLastGate = "BLOCKED: no SL"; return false; }
    double slDist = MathAbs(entryPx - sl);
    double pt = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
    if(InpMaxStopPts > 0 && pt > 0 && (slDist / pt) > InpMaxStopPts)
-   { gLastGate = "SKIP: SL too wide"; if(InpAudit) Print("[GATE] " + gLastGate); return; }
+   { gLastGate = "SKIP: SL too wide"; if(InpAudit) Print("[GATE] " + gLastGate); return false; }
    double tp = (dir == 1) ? entryPx + InpRewardRisk * slDist : entryPx - InpRewardRisk * slDist;
    double lots = LotsForRisk(slDist);
-   if(lots <= 0) { gLastGate = "BLOCKED: lot calc"; return; }
+   if(lots <= 0) { gLastGate = "BLOCKED: lot calc"; return false; }
    bool ok = (dir == 1) ? trade.Buy(lots, InpSymbol, entryPx, sl, tp)
                         : trade.Sell(lots, InpSymbol, entryPx, sl, tp);
    if(ok) {
@@ -327,6 +336,7 @@ void OpenTrade(int entryIdx, int dir)
          Print("=======================");
       }
    }
+   return ok;
 }
 
 // ── Per-instance detection ────────────────────────────────────────────────────
