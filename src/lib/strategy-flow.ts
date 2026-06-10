@@ -1,51 +1,22 @@
 import type {
-  BrainConfig,
-  FourBrainConfig,
   StrategyFlowConfig,
   StrategyStepConfig,
-  StrategyStepRole,
 } from "../types/blueprint";
 import { getModuleContract } from "./module-contracts";
-import type { BrainRole } from "./module-contracts";
 import {
-  MODULE_SEMANTIC_EVENT_TYPES,
+  moduleSupportsStrategyEvent,
+} from "./strategy-flow-events";
+import {
   STRATEGY_EVENT_CONTRACTS,
-  type StrategyEventType,
 } from "./strategy-events";
+
+export { moduleSupportsStrategyEvent, firstEventForRole } from "./strategy-flow-events";
+export { fourBrainToStrategyFlow, downstreamAnchorSteps, moduleStepId } from "./fourbrain-flow-adapter";
 
 export interface StrategyFlowValidationResult {
   ok: boolean;
   errors: string[];
   warnings: string[];
-}
-
-export function moduleSupportsStrategyEvent(
-  moduleId: string,
-  eventType: StrategyEventType,
-): boolean {
-  return Object.values(MODULE_SEMANTIC_EVENT_TYPES[moduleId] ?? {}).includes(eventType);
-}
-
-function contractRolesForStepRole(role: StrategyStepRole): BrainRole[] {
-  if (role === "entry" || role === "confirmation") return ["execution"];
-  if (role === "filter") return ["setup", "execution"];
-  if (role === "context" || role === "risk") return ["direction", "setup", "execution"];
-  return [role];
-}
-
-function firstEventForRole(
-  moduleId: string,
-  role: StrategyStepRole,
-): StrategyEventType | undefined {
-  const contract = getModuleContract(moduleId);
-  if (!contract) return undefined;
-  const roles = contractRolesForStepRole(role);
-  for (const semanticEvent of contract.semanticEvents) {
-    if (!semanticEvent.roles.some((eventRole) => roles.includes(eventRole))) continue;
-    const eventType = MODULE_SEMANTIC_EVENT_TYPES[moduleId]?.[semanticEvent.id];
-    if (eventType) return eventType;
-  }
-  return undefined;
 }
 
 export function validateStrategyFlowSchema(
@@ -111,72 +82,4 @@ export function validateStrategyFlowSchema(
   }
 
   return { ok: errors.length === 0, errors, warnings };
-}
-
-function stepFromBrain(
-  id: string,
-  name: string,
-  role: StrategyStepRole,
-  brain: BrainConfig,
-  dependsOn?: StrategyStepConfig[],
-): StrategyStepConfig {
-  const moduleId = brain.modules[0] ?? "custom";
-  const event = firstEventForRole(moduleId, role) ?? firstEventForRole(moduleId, "entry");
-  return {
-    id,
-    name,
-    role,
-    module: moduleId,
-    timeframe: brain.timeframe,
-    event: event ?? "BOS_CONFIRMED",
-    enabled: true,
-    params: brain.params,
-    dependsOn: dependsOn?.map((step) => ({
-      stepId: step.id,
-      relation: "after",
-      required: true,
-    })),
-    directionSource:
-      role === "direction"
-        ? { mode: "own_event" }
-        : dependsOn?.[0]
-          ? { mode: "from_step", stepId: dependsOn[0].id }
-          : { mode: "own_event" },
-    slSource:
-      role === "entry"
-        ? { mode: "event_sl", bufferPoints: 0 }
-        : { mode: "event_sl", bufferPoints: 0 },
-    notes: brain.description,
-  };
-}
-
-export function fourBrainToStrategyFlow(config: FourBrainConfig): StrategyFlowConfig {
-  const steps: StrategyStepConfig[] = [];
-  const directionStep = config.direction
-    ? stepFromBrain("step_direction", "Direction", "direction", config.direction)
-    : undefined;
-  if (directionStep) steps.push(directionStep);
-
-  const setupStep = config.setup
-    ? stepFromBrain(
-        "step_setup",
-        "Setup",
-        "setup",
-        config.setup,
-        directionStep ? [directionStep] : undefined,
-      )
-    : undefined;
-  if (setupStep) steps.push(setupStep);
-
-  const executionDeps = setupStep ? [setupStep] : directionStep ? [directionStep] : undefined;
-  steps.push(stepFromBrain("step_entry", "Entry", "entry", config.execution, executionDeps));
-
-  return {
-    version: 1,
-    mode: "simple_4brain",
-    source: "fourbrain_adapter",
-    steps,
-    management: config.management,
-    notes: "Generated compatibility flow from the existing 4-Brain configuration.",
-  };
 }
