@@ -33,6 +33,8 @@ import type { BrainModuleDef } from "@/lib/brain-modules";
 import { MODULE_UI_PARAMS } from "@/lib/module-library";
 import type { UIParam } from "@/lib/module-library";
 import { getModuleAdmission, MODULE_ADMISSION_STATUS_META } from "@/lib/module-admission";
+import { firstBlueprintGenerationError } from "@/lib/blueprint-generation-gate";
+import { EaGenerationError } from "@/lib/generate-ea-router";
 
 export const Route = createFileRoute("/build")({
   component: FourBrainBuilderPage,
@@ -756,6 +758,11 @@ function FourBrainBuilderPage() {
 
     setSaving(true);
     try {
+      const generationError = firstBlueprintGenerationError(bp);
+      if (generationError) {
+        toast.error(generationError);
+        return;
+      }
       const { generateMql5FromBlueprint } = await import("@/lib/mql5-template-generator");
       const generatedCode = generateMql5FromBlueprint(bp);
       const row = await createStrategy({
@@ -768,7 +775,7 @@ function FourBrainBuilderPage() {
       toast.success("Strategy created with blueprint EA — ready to compile");
       navigate({ to: "/s/$id", params: { id: row.id } });
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Failed to create strategy");
+      toast.error(e instanceof EaGenerationError ? e.message : e instanceof Error ? e.message : "Failed to create strategy");
     } finally {
       setSaving(false);
     }

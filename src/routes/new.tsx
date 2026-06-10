@@ -24,11 +24,11 @@ import { parseStrategy } from "@/lib/api-client";
 import { createStrategy } from "@/lib/strategies";
 import { toast } from "sonner";
 import { analyzeBuildability, generateMql5FromBlueprint } from "@/lib/mql5-template-generator";
-import { blueprintReadyForGeneration } from "@/lib/ea-generation-policy";
 import type { BuildabilityResult } from "@/lib/mql5-template-generator";
+import { firstBlueprintGenerationError } from "@/lib/blueprint-generation-gate";
+import { EaGenerationError } from "@/lib/generate-ea-router";
 import { formatBrainChain } from "@/lib/brain-modules";
 import { BlueprintExplanationPanel } from "@/components/BlueprintExplanationPanel";
-import { firstBlueprintContractError } from "@/lib/blueprint-explanation";
 
 export const Route = createFileRoute("/new")({
   component: StrategyBuilders,
@@ -71,17 +71,10 @@ function StrategyBuilders() {
 
   const onCreateDraft = async () => {
     if (!blueprint || !user) return;
-    const contractError = firstBlueprintContractError(blueprint);
-    if (contractError) {
-      setError(contractError);
-      toast.error("Fix the strategy contract before saving.");
-      return;
-    }
-    if (!blueprintReadyForGeneration(blueprint)) {
-      setError(
-        "This strategy needs a 4-Brain execution configuration. Refine your prompt or use the Visual Builder.",
-      );
-      toast.error("4-Brain configuration required for new strategies.");
+    const generationError = firstBlueprintGenerationError(blueprint);
+    if (generationError) {
+      setError(generationError);
+      toast.error("Fix strategy validation errors before saving.");
       return;
     }
     setError(null);
@@ -99,7 +92,7 @@ function StrategyBuilders() {
       toast.success("Strategy created with blueprint EA — ready to compile");
       navigate({ to: "/s/$id", params: { id: row.id } });
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to save strategy. Please try again.");
+      setError(e instanceof EaGenerationError ? e.message : e instanceof Error ? e.message : "Failed to save strategy. Please try again.");
       setStage("reviewed");
     } finally {
       setStageLabel(null);

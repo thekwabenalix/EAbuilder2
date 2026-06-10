@@ -23,9 +23,7 @@ export function isLegacyFlatRulesBlueprint(bp: StrategyBlueprint): boolean {
   return !bp.fourBrain;
 }
 
-export function blueprintReadyForGeneration(bp: StrategyBlueprint): boolean {
-  return Boolean(bp.fourBrain?.execution?.modules?.length && bp.fourBrain.execution.timeframe);
-}
+export { blueprintReadyForGeneration } from "@/lib/blueprint-generation-gate";
 
 export function detectEaCodegenKind(code: string, blueprint?: StrategyBlueprint): EaCodegenKind {
   if (

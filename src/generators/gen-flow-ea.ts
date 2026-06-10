@@ -9,6 +9,7 @@ import {
   fourBrainToStrategyFlow,
   validateStrategyFlowSchema,
 } from "../lib/strategy-flow";
+import { EaGenerationError } from "@/lib/blueprint-generation-gate";
 import {
   emitStateMachineForModule,
   flowSupportsModuleRole,
@@ -227,6 +228,14 @@ ${consume || "         /* no setup to consume */"}
 
 // ── Main generator ───────────────────────────────────────────────────────────────
 export function generateFlowEA(flow: StrategyFlowConfig, eaName = "FLOW_EA"): string {
+  const validation = validateStrategyFlowSchema(flow);
+  if (!validation.ok) {
+    throw new EaGenerationError(
+      `Strategy flow validation failed:\n${validation.errors.join("\n")}`,
+      validation.errors,
+    );
+  }
+
   const steps = flow.steps ?? [];
   const n = steps.length;
   const mgmt = flow.management;

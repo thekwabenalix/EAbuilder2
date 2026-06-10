@@ -63,13 +63,17 @@ import {
 } from "@/lib/mql5-template-generator";
 import { EaGenerationError } from "@/lib/generate-ea-router";
 import { blueprintReadyForGeneration } from "@/lib/ea-generation-policy";
+import {
+  assertBlueprintGeneratable,
+  firstBlueprintGenerationError,
+  validateBlueprintForGeneration,
+} from "@/lib/blueprint-generation-gate";
 import type { StrategyBlueprint } from "@/types/blueprint";
 import { DEFAULT_BLUEPRINT } from "@/types/blueprint";
 import type { FourBrainConfig, BrainConfig, BrainModuleType } from "@/types/blueprint";
 import { ALL_BRAIN_MODULES, TIMEFRAMES as TF_LIST, formatBrainChain } from "@/lib/brain-modules";
 import { MODULE_UI_PARAMS } from "@/lib/module-library";
 import type { UIParam } from "@/lib/module-library";
-import { firstBlueprintContractError } from "@/lib/blueprint-explanation";
 import { getModuleAdmission, MODULE_ADMISSION_STATUS_META } from "@/lib/module-admission";
 import { ApiError, generateAiBrainWiring, type AiBrainWiring } from "@/lib/api-client";
 import {
@@ -1191,7 +1195,7 @@ function FourBrainTab({
       return;
     }
     const bp = buildUpdatedBp();
-    const contractError = firstBlueprintContractError(bp);
+    const contractError = firstBlueprintGenerationError(bp);
     if (contractError) {
       toast.error(contractError);
       return;
@@ -1226,7 +1230,7 @@ function FourBrainTab({
       assertAiWiringValid(wiring);
       const bpWithDiagnostics = withAiWiringDiagnostics(bp, wiring);
       setAiWiring(bpWithDiagnostics.aiWiringDiagnostics ?? wiring);
-      // Generate EA with AI wiring embedded
+      assertBlueprintGeneratable(bpWithDiagnostics);
       const { generateEA } = await import("@/generators/gen-ea");
       const code = generateEA({
         eaName: bpWithDiagnostics.name.replace(/[^\w\s-]/g, "").trim(),
@@ -1242,6 +1246,7 @@ function FourBrainTab({
       onRegenerate(bpWithDiagnostics, code);
     } catch (e: unknown) {
       if (isAiProviderUnavailable(e)) {
+        assertBlueprintGeneratable(bp);
         const { generateEA } = await import("@/generators/gen-ea");
         const code = generateEA({
           eaName: bp.name.replace(/[^\w\s-]/g, "").trim(),
@@ -1436,7 +1441,7 @@ function FourBrainTab({
               return;
             }
             const bp = buildUpdatedBp();
-            const contractError = firstBlueprintContractError(bp);
+            const contractError = firstBlueprintGenerationError(bp);
             if (contractError) {
               toast.error(contractError);
               return;
@@ -1551,12 +1556,13 @@ function CodeTab({
     setAiWiring(blueprint.aiWiringDiagnostics ?? null);
   }, [blueprint.aiWiringDiagnostics]);
   const unsafeAiModules = unsafeFourBrainAiModules(blueprint.fourBrain);
-  const contractError = firstBlueprintContractError(blueprint);
+  const generationGate = validateBlueprintForGeneration(blueprint);
+  const generationError = generationGate.ok ? undefined : generationGate.errors[0];
   const canUseFourBrainAi = Boolean(
     blueprint.fourBrain?.execution?.modules?.length &&
     blueprint.fourBrain.execution.timeframe &&
     unsafeAiModules.length === 0 &&
-    !contractError,
+    generationGate.ok,
   );
 
   const companion = useQuery({
@@ -1569,8 +1575,8 @@ function CodeTab({
   const companionOnline = Boolean(companion.data?.ok);
 
   const generateTemplate = async () => {
-    if (contractError) {
-      toast.error(contractError);
+    if (generationError) {
+      toast.error(generationError);
       return;
     }
     setGenerating(true);
@@ -1591,8 +1597,8 @@ function CodeTab({
   };
 
   const generateWithAi = async () => {
-    if (contractError) {
-      toast.error(contractError);
+    if (generationError) {
+      toast.error(generationError);
       return;
     }
     if (!canUseFourBrainAi || !blueprint.fourBrain) {
@@ -1634,6 +1640,7 @@ function CodeTab({
       assertAiWiringValid(wiring);
       const bpWithDiagnostics = withAiWiringDiagnostics(blueprint, wiring);
       setAiWiring(bpWithDiagnostics.aiWiringDiagnostics ?? wiring);
+      assertBlueprintGeneratable(bpWithDiagnostics);
       const { generateEA } = await import("@/generators/gen-ea");
       const generatedCode = generateEA({
         eaName: bpWithDiagnostics.name.replace(/[^\w\s-]/g, "").trim(),
@@ -1917,8 +1924,8 @@ function CodeTab({
             )}
           </Button>
           <p className="text-[11px] text-center text-muted-foreground">
-            {contractError
-              ? `Generation blocked: ${contractError}`
+            {generationError
+              ? `Generation blocked: ${generationError}`
               : unsafeAiModules.length > 0
                 ? `AI wiring is blocked for: ${unsafeAiModules.join(", ")}`
                 : canUseFourBrainAi
@@ -1936,7 +1943,7 @@ function CodeTab({
           {/* Secondary: Template — instant, offline */}
           <Button
             onClick={generateTemplate}
-            disabled={generating || !build.buildable || Boolean(contractError)}
+            disabled={generating || !build.buildable || Boolean(generationError)}
             variant="outline"
             size="sm"
             className="w-full"
@@ -1960,9 +1967,9 @@ function CodeTab({
               any strategy.
             </p>
           )}
-          {contractError && (
+          {generationError && (
             <p className="text-[11px] text-center text-destructive/80">
-              Fix the Blueprint Audit error before generating.
+              Fix validation errors before generating (Blueprint Audit + Strategy Flow).
             </p>
           )}
         </div>
@@ -2026,7 +2033,7 @@ function CodeTab({
             size="sm"
             variant="outline"
             onClick={generateTemplate}
-            disabled={generating || Boolean(contractError)}
+            disabled={generating || Boolean(generationError)}
             title="Instant blueprint regeneration — verified state machines"
             className="border-border text-muted-foreground"
           >

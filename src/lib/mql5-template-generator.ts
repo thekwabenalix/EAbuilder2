@@ -37,6 +37,11 @@ export {
   generationPathLabel,
   resolveStrategyFlow,
 } from "@/lib/generate-ea-router";
+export {
+  assertBlueprintGeneratable,
+  firstBlueprintGenerationError,
+  validateBlueprintForGeneration,
+} from "@/lib/blueprint-generation-gate";
 export type { EaGenerationPath, GenerateEaFromBlueprintResult } from "@/lib/generate-ea-router";
 
 export { isLegacyFlatRulesBlueprint, blueprintReadyForGeneration } from "@/lib/ea-generation-policy";

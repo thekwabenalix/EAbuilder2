@@ -3,7 +3,7 @@
  *
  * All blueprint → .mq5 paths go through here:
  *   1. Resolve StrategyFlow (explicit or 4-Brain adapter)
- *   2. Validate step schema
+ *   2. Validate step schema (blueprint-generation-gate)
  *   3. Flow engine when all steps are supported (ordered event gate)
  *   4. Blueprint assembler fallback (verified SMs, boolean confluence)
  *   5. Legacy heuristic fallback for pin_bar / bb / swing_structure only
@@ -17,11 +17,11 @@ import {
   flowEaSupportsAllSteps,
   generateFlowEA,
 } from "@/generators/gen-flow-ea";
-import {
-  fourBrainToStrategyFlow,
-  validateStrategyFlowSchema,
-} from "@/lib/strategy-flow";
 import type { StrategyFlowConfig } from "@/types/blueprint";
+import {
+  assertBlueprintGeneratable,
+  resolveStrategyFlow,
+} from "@/lib/blueprint-generation-gate";
 
 export type EaGenerationPath = "flow_engine" | "blueprint_assembler" | "legacy_heuristic";
 
@@ -32,30 +32,10 @@ export interface GenerateEaFromBlueprintResult {
   validationWarnings: string[];
 }
 
-export class EaGenerationError extends Error {
-  validationErrors: string[];
-
-  constructor(message: string, validationErrors: string[] = []) {
-    super(message);
-    this.name = "EaGenerationError";
-    this.validationErrors = validationErrors;
-  }
-}
+export { EaGenerationError, resolveStrategyFlow } from "@/lib/blueprint-generation-gate";
 
 function eaNameFromBlueprint(bp: StrategyBlueprint): string {
   return (bp.name || "Strategy_EA").replace(/[^\w\s-]/g, "").trim() || "Strategy_EA";
-}
-
-/** Resolve ordered steps from explicit strategyFlow or 4-Brain adapter. */
-export function resolveStrategyFlow(bp: StrategyBlueprint): StrategyFlowConfig | null {
-  if (bp.strategyFlow?.steps?.length) {
-    return {
-      ...bp.strategyFlow,
-      management: bp.strategyFlow.management ?? bp.fourBrain?.management,
-    };
-  }
-  if (bp.fourBrain) return fourBrainToStrategyFlow(bp.fourBrain);
-  return null;
 }
 
 function generateBlueprintAssemblerEa(bp: StrategyBlueprint): string {
@@ -72,26 +52,11 @@ function generateBlueprintAssemblerEa(bp: StrategyBlueprint): string {
 
 /**
  * Generate MQL5 for a 4-Brain / strategy-flow blueprint.
- * Throws EaGenerationError when step validation fails.
+ * Throws EaGenerationError when validation fails.
  */
 export function generateEaFromBlueprint(bp: StrategyBlueprint): GenerateEaFromBlueprintResult {
-  if (!bp.fourBrain) {
-    throw new EaGenerationError("4-Brain configuration is required for assembler generation.");
-  }
-
-  const flow = resolveStrategyFlow(bp);
-  if (!flow) {
-    throw new EaGenerationError("Could not resolve strategy flow from blueprint.");
-  }
-
-  const validation = validateStrategyFlowSchema(flow);
-  if (!validation.ok) {
-    throw new EaGenerationError(
-      `Strategy flow validation failed:\n${validation.errors.join("\n")}`,
-      validation.errors,
-    );
-  }
-
+  const gate = assertBlueprintGeneratable(bp);
+  const flow = gate.flow!;
   const eaName = eaNameFromBlueprint(bp);
 
   if (flowEaSupportsAllSteps(flow)) {
@@ -99,17 +64,17 @@ export function generateEaFromBlueprint(bp: StrategyBlueprint): GenerateEaFromBl
       code: generateFlowEA(flow, eaName),
       path: "flow_engine",
       flow,
-      validationWarnings: validation.warnings,
+      validationWarnings: gate.warnings,
     };
   }
 
-  if (configUsesLegacyHeuristics(bp.fourBrain)) {
+  if (configUsesLegacyHeuristics(bp.fourBrain!)) {
     return {
       code: generateBlueprintAssemblerEa(bp),
       path: "legacy_heuristic",
       flow,
       validationWarnings: [
-        ...validation.warnings,
+        ...gate.warnings,
         "Flow engine does not cover all modules — using legacy heuristic brain generators.",
       ],
     };
@@ -119,7 +84,7 @@ export function generateEaFromBlueprint(bp: StrategyBlueprint): GenerateEaFromBl
     code: generateBlueprintAssemblerEa(bp),
     path: "blueprint_assembler",
     flow,
-    validationWarnings: validation.warnings,
+    validationWarnings: gate.warnings,
   };
 }
 
