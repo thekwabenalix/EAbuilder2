@@ -28,6 +28,11 @@ import {
   collectBuiltinFilterRefs,
   getBuiltinFilterContract,
 } from "../../src/lib/builtin-filter-contracts.js";
+import {
+  normalizeAiStrategyFlowInResponse,
+  usesStrategyFlowOutput,
+  validateAiStrategyFlowWiring,
+} from "../../src/lib/ai-strategy-flow.js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -101,8 +106,68 @@ GLOBAL VARIABLES (already declared — do NOT redeclare)
 YOUR OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════════════════
 
-Return a JSON object with EXACTLY this structure:
+Return a JSON object. PREFERRED output_mode is "strategy_flow" — structured steps
+the compiler maps to the ordered event gate. Use "brain_bodies" ONLY when the
+strategy cannot be expressed as verified module steps (e.g. custom EMA+IFVG timing).
+
+PRIMARY — strategy_flow mode (preferred):
 {
+  "output_mode": "strategy_flow",
+  "strategy_flow": {
+    "version": 1,
+    "steps": [
+      {
+        "id": "step_direction",
+        "name": "H1 BOS bias",
+        "role": "direction",
+        "module": "bos",
+        "timeframe": "H1",
+        "event": "BOS_BIAS",
+        "params": { "lookback": 20, "swingLen": 5 },
+        "directionSource": { "mode": "own_event" }
+      },
+      {
+        "id": "step_setup",
+        "name": "H1 FVG zone",
+        "role": "setup",
+        "module": "fvg",
+        "timeframe": "H1",
+        "event": "FVG_CREATED",
+        "params": { "expiryBars": 100 },
+        "dependsOn": [{ "stepId": "step_direction", "relation": "after", "required": true }]
+      },
+      {
+        "id": "step_entry",
+        "name": "M5 BOS entry",
+        "role": "entry",
+        "module": "bos",
+        "timeframe": "M5",
+        "event": "BOS_CONFIRMED",
+        "params": { "lookback": 20 },
+        "dependsOn": [{ "stepId": "step_setup", "relation": "after", "required": true }],
+        "directionSource": { "mode": "from_step", "stepId": "step_direction" }
+      }
+    ],
+    "notes": "Brief explanation of step order and module choices."
+  },
+  "direction_brain": "",
+  "setup_brain": "",
+  "execution_brain": "",
+  "semantics": { ... },
+  "sm_configs": {},
+  "required_sms": [],
+  "notes": "One paragraph: which modules you chose, which role they play, how steps chain together, and how you interpreted the trader's description."
+}
+
+Step roles: direction | setup | entry (alias: execution — treated as entry).
+Use ONLY verified module ids and contract-backed event names from the module library.
+dependsOn enforces chronological order between steps.
+Leave sm_configs and required_sms empty in strategy_flow mode — the compiler embeds
+state machines from steps automatically.
+
+LEGACY FALLBACK — brain_bodies mode (only when steps cannot express the strategy):
+{
+  "output_mode": "brain_bodies",
   "direction_brain": "void Direction_Brain_Execute()\\n{\\n  ...\\n}",
   "setup_brain":     "void Setup_Brain_Execute()\\n{\\n  ...\\n}",
   "execution_brain": "void Execution_Brain_Execute()\\n{\\n  ...\\n}",
@@ -436,6 +501,33 @@ interface GenRequest {
 }
 
 export interface AiBrainWiringResponse {
+  output_mode?: "strategy_flow" | "brain_bodies";
+  strategy_flow?: {
+    version: 1;
+    steps: Array<{
+      id?: string;
+      name?: string;
+      role?: string;
+      module?: string;
+      timeframe?: string;
+      event?: string;
+      enabled?: boolean;
+      params?: Record<string, unknown>;
+      dependsOn?: Array<{
+        stepId: string;
+        relation?: "after" | "same_or_after" | "before" | string;
+        required?: boolean;
+        withinBars?: number;
+      }>;
+      directionSource?: {
+        mode: "own_event" | "from_step" | "fixed" | "neutral";
+        stepId?: string;
+        direction?: 1 | -1 | 0;
+      };
+      notes?: string;
+    }>;
+    notes?: string;
+  };
   direction_brain: string;
   setup_brain: string;
   execution_brain: string;
@@ -1476,6 +1568,14 @@ export function validateWiringAgainstSemantics(response: AiBrainWiringResponse):
   return { status, errors, warnings };
 }
 
+/** Route validation to strategy_flow schema or legacy brain-body semantics checks. */
+export function validateAiWiringResponse(response: AiBrainWiringResponse): WiringValidation {
+  if (usesStrategyFlowOutput(response)) {
+    return validateAiStrategyFlowWiring(response);
+  }
+  return validateWiringAgainstSemantics(response);
+}
+
 export function normalizeAiResponse(
   parsed: Record<string, unknown>,
   fullText: string,
@@ -1483,11 +1583,18 @@ export function normalizeAiResponse(
   filterRefs?: BuiltinFilterRef[],
 ): AiBrainWiringResponse {
   const response = parsed as unknown as AiBrainWiringResponse;
+  if (!response.direction_brain) response.direction_brain = "";
+  if (!response.setup_brain) response.setup_brain = "";
+  if (!response.execution_brain) response.execution_brain = "";
+  if (!response.sm_configs) response.sm_configs = {};
+  if (!response.required_sms) response.required_sms = [];
+  if (!response.notes) response.notes = "";
+  normalizeAiStrategyFlowInResponse(response);
   if (!response.semantics || typeof response.semantics !== "object") {
     response.semantics = inferLocalSemantics(fullText, config);
   }
   applyBuiltinFilters(response, fullText, filterRefs);
-  response.validation = validateWiringAgainstSemantics(response);
+  response.validation = validateAiWiringResponse(response);
   const repair = buildModuleRepairPlan(response.semantics.modules ?? []);
   if (repair.hasBlockedModules) response.repair = repair;
   return response;
@@ -1826,7 +1933,7 @@ Instructions:
 - Decide which module goes in which brain role (direction/setup/execution)
 - If the trader specifies timeframes, use them exactly. If not, choose sensible defaults (D1 direction, H4 setup, H1/M15 execution)
 - Extract any configuration values from their words (lookback bars, expiry, pivot strength)
-- Generate the complete three brain functions
+- Generate strategy_flow steps (preferred) or legacy brain functions if steps cannot express the strategy
 - In "notes", explain exactly how you interpreted their description and which modules you chose`;
   } else if (config?.execution) {
     // ── Config-guided mode ──────────────────────────────────────────────────
@@ -1849,7 +1956,7 @@ Instructions:
 
     const execDesc = `EXECUTION BRAIN — modules: [${config.execution.modules.join(", ")}] @ ${config.execution.timeframe}${paramLine(config.execution.params)}${config.execution.description ? `\nTrader notes: "${config.execution.description}"` : ""}`;
 
-    userMessage = `Generate the 4-Brain wiring code for this EA: "${eaName}"
+    userMessage = `Generate strategy_flow steps (preferred) or legacy brain wiring for this EA: "${eaName}"
 ${description ? `\nOverall strategy intent: ${description}\n` : ""}
 
 The trader configured these brains in the visual builder:
@@ -1860,9 +1967,10 @@ ${setupDesc}
 
 ${execDesc}
 
-Use the module library to select the best state machine for each brain,
-extract any configuration from the trader's notes, and generate the wiring code.
-In "notes", explain how you mapped their module selections to state machines.`;
+Map each brain to one or more strategy_flow steps with correct dependsOn order.
+Use the module library to select verified modules and contract-backed events.
+Extract configuration from the trader's notes and EXACT PARAMETERS blocks.
+In "notes", explain how you mapped their module selections to steps.`;
   } else {
     return Response.json(
       { error: "Either prompt or config.execution is required" },

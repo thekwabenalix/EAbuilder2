@@ -263,6 +263,34 @@ export async function applyFix(
 // ─── AI 4-Brain generator ─────────────────────────────────────────────────────
 
 export interface AiBrainWiring {
+  /** Primary Phase 6 output: structured flow steps (preferred). */
+  output_mode?: "strategy_flow" | "brain_bodies";
+  strategy_flow?: {
+    version: 1;
+    steps: Array<{
+      id?: string;
+      name?: string;
+      role?: string;
+      module?: string;
+      timeframe?: string;
+      event?: string;
+      enabled?: boolean;
+      params?: Record<string, unknown>;
+      dependsOn?: Array<{
+        stepId: string;
+        relation?: "after" | "same_or_after" | "before" | string;
+        required?: boolean;
+        withinBars?: number;
+      }>;
+      directionSource?: {
+        mode: "own_event" | "from_step" | "fixed" | "neutral";
+        stepId?: string;
+        direction?: 1 | -1 | 0;
+      };
+      notes?: string;
+    }>;
+    notes?: string;
+  };
   direction_brain: string;
   setup_brain: string;
   execution_brain: string;

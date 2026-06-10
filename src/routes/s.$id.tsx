@@ -76,6 +76,8 @@ import { MODULE_UI_PARAMS } from "@/lib/module-library";
 import type { UIParam } from "@/lib/module-library";
 import { getModuleAdmission, MODULE_ADMISSION_STATUS_META } from "@/lib/module-admission";
 import { ApiError, generateAiBrainWiring, type AiBrainWiring } from "@/lib/api-client";
+import { aiWiringHasStrategyFlow, mergeAiFlowIntoBlueprint } from "@/lib/ai-strategy-flow";
+import { generateEaFromAiWiring } from "@/lib/generate-ea-from-ai-wiring";
 import {
   getLocalRunnerHealth,
   getMt5Status,
@@ -162,6 +164,16 @@ function isAiProviderUnavailable(error: unknown): boolean {
 }
 
 function aiWiringSuccessMessage(wiring: AiBrainWiring, fallback: string): string {
+  if (wiring.output_mode === "strategy_flow" || aiWiringHasStrategyFlow(wiring)) {
+    const stepCount = wiring.strategy_flow?.steps?.length ?? 0;
+    if ((wiring.repairAttempts ?? 0) > 0) {
+      return `Strategy Flow validated after repair (${stepCount} steps)`;
+    }
+    if (wiring.validation?.status === "warn") {
+      return `Strategy Flow generated with warnings (${stepCount} steps)`;
+    }
+    return fallback;
+  }
   if ((wiring.repairAttempts ?? 0) > 0) {
     return "AI wiring validated after one automatic repair";
   }
@@ -183,6 +195,8 @@ function buildAiWiringDiagnostics(wiring: AiBrainWiring): AiWiringDiagnostic {
     required_sms: wiring.required_sms ?? [],
     sm_configs: wiring.sm_configs ?? {},
     notes: wiring.notes ?? "",
+    output_mode: wiring.output_mode,
+    flowStepCount: wiring.strategy_flow?.steps?.length,
   };
 }
 
@@ -190,10 +204,13 @@ function withAiWiringDiagnostics(
   blueprint: StrategyBlueprint,
   wiring: AiBrainWiring,
 ): StrategyBlueprint {
-  return {
-    ...blueprint,
-    aiWiringDiagnostics: buildAiWiringDiagnostics(wiring),
-  };
+  return mergeAiFlowIntoBlueprint(
+    {
+      ...blueprint,
+      aiWiringDiagnostics: buildAiWiringDiagnostics(wiring),
+    },
+    wiring,
+  );
 }
 
 function AiWiringInsight({ wiring }: { wiring: AiWiringInsightData | null }) {
@@ -1231,29 +1248,22 @@ function FourBrainTab({
       const bpWithDiagnostics = withAiWiringDiagnostics(bp, wiring);
       setAiWiring(bpWithDiagnostics.aiWiringDiagnostics ?? wiring);
       assertBlueprintGeneratable(bpWithDiagnostics);
-      const { generateEA } = await import("@/generators/gen-ea");
-      const code = generateEA({
-        eaName: bpWithDiagnostics.name.replace(/[^\w\s-]/g, "").trim(),
-        config: cfg,
-        aiWiring: wiring,
-      });
+      const result = generateEaFromAiWiring(bpWithDiagnostics, wiring);
       toast.success(
         aiWiringSuccessMessage(
           wiring,
-          "AI-powered EA generated — Claude wired the modules intelligently",
+          result.aiMode === "strategy_flow"
+            ? `Strategy Flow EA generated (${generationPathLabel(result.path)})`
+            : "AI-powered EA generated — Claude wired the modules intelligently",
         ),
       );
-      onRegenerate(bpWithDiagnostics, code);
+      onRegenerate(bpWithDiagnostics, result.code);
     } catch (e: unknown) {
       if (isAiProviderUnavailable(e)) {
         assertBlueprintGeneratable(bp);
-        const { generateEA } = await import("@/generators/gen-ea");
-        const code = generateEA({
-          eaName: bp.name.replace(/[^\w\s-]/g, "").trim(),
-          config: bp.fourBrain!,
-        });
+        const templateResult = generateEaFromBlueprint(bp);
         toast.warning(aiGenerationErrorMessage(e));
-        onRegenerate(bp, code);
+        onRegenerate(bp, templateResult.code);
         return;
       }
       toast.error(aiGenerationErrorMessage(e));
@@ -1641,20 +1651,27 @@ function CodeTab({
       const bpWithDiagnostics = withAiWiringDiagnostics(blueprint, wiring);
       setAiWiring(bpWithDiagnostics.aiWiringDiagnostics ?? wiring);
       assertBlueprintGeneratable(bpWithDiagnostics);
-      const { generateEA } = await import("@/generators/gen-ea");
-      const generatedCode = generateEA({
-        eaName: bpWithDiagnostics.name.replace(/[^\w\s-]/g, "").trim(),
-        config: cfg,
-        aiWiring: wiring,
-      });
+      const result = generateEaFromAiWiring(bpWithDiagnostics, wiring);
       if (onAutoSave) {
-        await onAutoSave(generatedCode, bpWithDiagnostics);
+        await onAutoSave(result.code, bpWithDiagnostics);
         toast.success(
-          aiWiringSuccessMessage(wiring, "Generated with verified 4-Brain assembler — saved"),
+          aiWiringSuccessMessage(
+            wiring,
+            result.aiMode === "strategy_flow"
+              ? `Strategy Flow EA generated (${generationPathLabel(result.path)}) — saved`
+              : "Generated with verified 4-Brain assembler — saved",
+          ),
         );
       } else {
-        onCodeChange(generatedCode);
-        toast.success(aiWiringSuccessMessage(wiring, "Generated with verified 4-Brain assembler"));
+        onCodeChange(result.code);
+        toast.success(
+          aiWiringSuccessMessage(
+            wiring,
+            result.aiMode === "strategy_flow"
+              ? `Strategy Flow EA generated (${generationPathLabel(result.path)})`
+              : "Generated with verified 4-Brain assembler",
+          ),
+        );
       }
     } catch (e: unknown) {
       if (isAiProviderUnavailable(e)) {

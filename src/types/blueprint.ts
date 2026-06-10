@@ -237,6 +237,8 @@ export interface StrategyBlueprint {
       }
     >;
     notes: string;
+    output_mode?: "strategy_flow" | "brain_bodies";
+    flowStepCount?: number;
   };
 
   /**
