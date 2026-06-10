@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "verify": "npm run verify:modules && npm run verify:intake && npm run verify:families && npm run verify:ai && npm run verify:policy && npm run verify:router && npm run verify:adapter && npm run verify:sm-embed && npm run verify:golden && npm run verify:gate && npm run verify:ai-flow && npm run verify:mql5 && npm run verify:runner-download",
+    "verify": "npm run verify:modules && npm run verify:intake && npm run verify:families && npm run verify:ai && npm run verify:policy && npm run verify:router && npm run verify:adapter && npm run verify:sm-embed && npm run verify:golden && npm run verify:gate && npm run verify:ai-flow && npm run verify:flow-ui && npm run verify:mql5 && npm run verify:runner-download",
     "verify:modules": "tsx scripts/verify-module-admission.ts",
     "verify:intake": "tsx scripts/verify-intake-contracts.ts",
     "verify:families": "tsx scripts/verify-strategy-families.ts",
@@ -23,6 +23,7 @@
     "verify:golden": "tsx scripts/verify-golden-sequences.ts",
     "verify:gate": "tsx scripts/verify-generation-gate.ts",
     "verify:ai-flow": "tsx scripts/verify-ai-strategy-flow.ts",
+    "verify:flow-ui": "tsx scripts/verify-strategy-flow-ui.ts",
     "verify:runner-download": "tsx scripts/verify-runner-download.ts",
     "verify:release": "npm run verify && npx tsc --noEmit && npm run lint && npm run build"
   },

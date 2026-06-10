@@ -21,6 +21,7 @@ import {
 import { StrategySpecForm } from "@/components/StrategySpecForm";
 import { BuilderProgress, BUILDER_STEPS, type BuilderStep } from "@/components/BuilderProgress";
 import { BlueprintExplanationPanel } from "@/components/BlueprintExplanationPanel";
+import { StrategyFlowBuilder } from "@/components/StrategyFlowBuilder";
 import {
   Save,
   Check,
@@ -78,6 +79,16 @@ import { getModuleAdmission, MODULE_ADMISSION_STATUS_META } from "@/lib/module-a
 import { ApiError, generateAiBrainWiring, type AiBrainWiring } from "@/lib/api-client";
 import { aiWiringHasStrategyFlow, mergeAiFlowIntoBlueprint } from "@/lib/ai-strategy-flow";
 import { generateEaFromAiWiring } from "@/lib/generate-ea-from-ai-wiring";
+import {
+  attachUserFlowToBlueprint,
+  builderModeFromBlueprint,
+  detachAdvancedFlow,
+  nameFromFlowSteps,
+  seedAdvancedFlow,
+  type BuilderFlowMode,
+} from "@/lib/strategy-flow-ui";
+import { fourBrainToStrategyFlow } from "@/lib/strategy-flow";
+import type { StrategyFlowConfig } from "@/types/blueprint";
 import {
   getLocalRunnerHealth,
   getMt5Status,
@@ -1128,8 +1139,30 @@ function FourBrainTab({
   const [beAtR, setBeAtR] = useState(mgmt?.breakEvenAtR ?? 1);
   const [maxTrades, setMaxTrades] = useState(mgmt?.maxOpenTrades ?? 1);
 
-  function buildUpdatedBp(): StrategyBlueprint {
-    const newCfg: FourBrainConfig = {
+  const [builderMode, setBuilderMode] = useState<BuilderFlowMode>(() =>
+    builderModeFromBlueprint(blueprint),
+  );
+  const [flowConfig, setFlowConfig] = useState<StrategyFlowConfig>(() =>
+    seedAdvancedFlow(blueprint, cfg),
+  );
+
+  const strategyFlowSyncKey = [
+    blueprint.strategyFlow?.source ?? "",
+    blueprint.strategyFlow?.mode ?? "",
+    blueprint.strategyFlow?.steps?.length ?? 0,
+    blueprint.strategyFlow?.steps?.map((s) => s.id).join(",") ?? "",
+  ].join("|");
+
+  useEffect(() => {
+    const flow = blueprint.strategyFlow;
+    if (flow?.steps?.length) {
+      setBuilderMode("advanced");
+      setFlowConfig(flow);
+    }
+  }, [strategyFlowSyncKey]);
+
+  function buildFourBrainConfig(): FourBrainConfig {
+    return {
       direction: direction?.modules?.length ? direction : undefined,
       setup: setup?.modules?.length ? setup : undefined,
       execution,
@@ -1143,7 +1176,10 @@ function FourBrainTab({
         maxOpenTrades: maxTrades,
       },
     };
-    // Rebuild strategy name from new config
+  }
+
+  function buildUpdatedBp(): StrategyBlueprint {
+    const newCfg = buildFourBrainConfig();
     const parts: string[] = [];
     if (newCfg.direction)
       parts.push(
@@ -1156,9 +1192,25 @@ function FourBrainTab({
     parts.push(
       `${newCfg.execution.timeframe} ${newCfg.execution.modules.map((m) => m.replace(/_/g, " ").toUpperCase()).join("+")}`,
     );
-    const newBp = { ...blueprint, name: parts.join(" → "), fourBrain: newCfg };
-    // Store strategy-level notes so they persist and flow into AI generation
+
+    let newBp: StrategyBlueprint = {
+      ...blueprint,
+      name:
+        builderMode === "advanced" && flowConfig.steps.length
+          ? nameFromFlowSteps(flowConfig.steps)
+          : parts.join(" → "),
+      fourBrain: newCfg,
+    };
     (newBp as unknown as Record<string, unknown>).strategyNotes = strategyNotes;
+
+    if (builderMode === "advanced") {
+      newBp = attachUserFlowToBlueprint(newBp, {
+        ...flowConfig,
+        management: newCfg.management,
+      });
+    } else {
+      newBp = detachAdvancedFlow(newBp);
+    }
     return newBp;
   }
 
@@ -1185,14 +1237,22 @@ function FourBrainTab({
     beOn,
     beAtR,
     maxTrades,
+    builderMode,
+    flowConfig,
   ]);
 
   const unsafeAiModules = unsafeAiModuleLabels([
     ...(direction?.modules ?? []),
     ...(setup?.modules ?? []),
     ...(execution.modules ?? []),
+    ...(builderMode === "advanced" ? flowConfig.steps.map((s) => s.module) : []),
   ]);
-  const canRegenerate = execution.modules.length > 0 && execution.timeframe;
+  const canRegenerate =
+    builderMode === "advanced"
+      ? flowConfig.steps.some(
+          (s) => s.enabled !== false && (s.role === "entry" || s.role === "confirmation"),
+        )
+      : execution.modules.length > 0 && execution.timeframe;
   const canAiRegenerate = canRegenerate && unsafeAiModules.length === 0;
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiWiring, setAiWiring] = useState<AiWiringInsightData | null>(
@@ -1274,6 +1334,44 @@ function FourBrainTab({
 
   return (
     <div className="max-w-2xl space-y-4">
+      {/* Builder mode — Simple 4-Brain vs Advanced Strategy Flow */}
+      <div className="rounded-lg border border-border p-1 flex gap-1 bg-muted/20">
+        <button
+          type="button"
+          onClick={() => setBuilderMode("simple")}
+          className={[
+            "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-all",
+            builderMode === "simple"
+              ? "bg-background text-foreground shadow-sm border border-border"
+              : "text-muted-foreground hover:text-foreground",
+          ].join(" ")}
+        >
+          Simple — 4-Brain preset
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (builderMode !== "advanced") {
+              setFlowConfig(seedAdvancedFlow(buildUpdatedBp(), buildFourBrainConfig()));
+            }
+            setBuilderMode("advanced");
+          }}
+          className={[
+            "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-all",
+            builderMode === "advanced"
+              ? "bg-background text-foreground shadow-sm border border-border"
+              : "text-muted-foreground hover:text-foreground",
+          ].join(" ")}
+        >
+          Advanced — Strategy Flow
+        </button>
+      </div>
+      <p className="text-[11px] text-muted-foreground -mt-2">
+        {builderMode === "simple"
+          ? "Three brain slots (Direction · Setup · Execution). The compiler expands them into ordered steps automatically."
+          : "Build any number of ordered module steps. Each step must occur before the next — same compiler as AI strategy_flow output."}
+      </p>
+
       {/* Strategy-level notes — cross-brain conditions, filters, invalidation rules */}
       <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
         <div>
@@ -1299,6 +1397,35 @@ function FourBrainTab({
 
       <BlueprintExplanationPanel blueprint={buildUpdatedBp()} />
 
+      {builderMode === "advanced" ? (
+        <>
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={() => {
+                const seeded = fourBrainToStrategyFlow(buildFourBrainConfig());
+                setFlowConfig({
+                  ...seeded,
+                  mode: "advanced_instances",
+                  source: "user",
+                  management: buildFourBrainConfig().management,
+                });
+              }}
+            >
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+              Import from 4-Brain preset
+            </Button>
+          </div>
+          <StrategyFlowBuilder
+            flow={flowConfig}
+            onChange={(next) => setFlowConfig(next)}
+          />
+        </>
+      ) : (
+        <>
       {/* Direction brain */}
       <BrainCard
         role="direction"
@@ -1327,6 +1454,8 @@ function FourBrainTab({
         optional={false}
         onChange={setExecution}
       />
+        </>
+      )}
 
       {/* Management */}
       <div className="rounded-lg border border-border p-4 space-y-4">
