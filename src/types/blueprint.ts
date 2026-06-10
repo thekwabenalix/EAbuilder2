@@ -1,6 +1,8 @@
 // Universal StrategyBlueprint — replaces the old EMA-hardcoded StrategySpec.
 // The AI extracts this from any plain-English strategy description.
 
+import type { StrategyDirection, StrategyEventType } from "../lib/strategy-events";
+
 export type RuleType =
   // Indicator-based
   | "ema_cross"
@@ -244,6 +246,17 @@ export interface StrategyBlueprint {
    * unchanged when this field is absent.
    */
   fourBrain?: FourBrainConfig;
+
+  /**
+   * Optional ordered strategy-flow configuration.
+   *
+   * This is the new "instances/steps" architecture: traders can build any
+   * number of named steps, and the compiler can enforce event order with
+   * timestamps instead of relying only on loose 4-Brain booleans.
+   *
+   * Existing strategies remain valid when this field is absent.
+   */
+  strategyFlow?: StrategyFlowConfig;
 }
 
 export const DEFAULT_BLUEPRINT: StrategyBlueprint = {
@@ -327,6 +340,69 @@ export interface BrainConfig {
   params?: Record<string, unknown>;
   /** Plain-English description of how the selected modules work together. */
   description?: string;
+}
+
+export type StrategyStepRole =
+  | "context"
+  | "direction"
+  | "setup"
+  | "confirmation"
+  | "entry"
+  | "filter"
+  | "risk";
+
+export type StrategyStepDependencyRelation = "after" | "same_or_after" | "before";
+
+export interface StrategyStepDependency {
+  stepId: string;
+  relation: StrategyStepDependencyRelation;
+  required?: boolean;
+  expiryBars?: number;
+  resetOnOppositeDirection?: boolean;
+}
+
+export interface StrategyStepDirectionSource {
+  mode: "own_event" | "from_step" | "fixed" | "neutral";
+  stepId?: string;
+  direction?: StrategyDirection;
+}
+
+export interface StrategyStepSlSource {
+  mode: "event_sl" | "step_sl" | "zone_edge" | "fixed_points" | "none";
+  stepId?: string;
+  bufferPoints?: number;
+  fixedPoints?: number;
+}
+
+export interface StrategyStepResetRule {
+  onOppositeDirection?: boolean;
+  onStepInvalidated?: string;
+  expiryBars?: number;
+}
+
+export interface StrategyStepConfig {
+  id: string;
+  name: string;
+  role: StrategyStepRole;
+  module: BrainModuleType | string;
+  timeframe: Timeframe | string;
+  event: StrategyEventType;
+  enabled?: boolean;
+  params?: Record<string, unknown>;
+  dependsOn?: StrategyStepDependency[];
+  directionSource?: StrategyStepDirectionSource;
+  reset?: StrategyStepResetRule;
+  slSource?: StrategyStepSlSource;
+  notes?: string;
+}
+
+export interface StrategyFlowConfig {
+  version: 1;
+  mode: "simple_4brain" | "advanced_instances" | "ai_extracted";
+  source: "user" | "ai" | "fourbrain_adapter" | "local_extractor";
+  steps: StrategyStepConfig[];
+  management?: ManagementBrainConfig;
+  notes?: string;
 }
 
 /**
