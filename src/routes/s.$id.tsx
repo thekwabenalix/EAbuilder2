@@ -1412,6 +1412,43 @@ function FourBrainTab({
         <strong>Template</strong> — fast, no API cost · <strong>AI</strong> — Claude reads your
         descriptions and wires the proven modules intelligently
       </p>
+
+      {/* Flow engine — ordered, timestamped instance gate (beta) */}
+      <Button
+        variant="outline"
+        className="w-full border-sky-500/40 text-sky-300 hover:bg-sky-500/10"
+        onClick={async () => {
+          if (!canRegenerate) {
+            toast.error("Execution Brain needs at least one module and a timeframe.");
+            return;
+          }
+          const bp = buildUpdatedBp();
+          const cfg = bp.fourBrain;
+          if (!cfg) {
+            toast.error("No 4-Brain config on this strategy.");
+            return;
+          }
+          const { tryGenerateFlowEAFromFourBrain } = await import("@/generators/gen-flow-ea");
+          const eaName = (bp.name || "FLOW_EA").replace(/[^A-Za-z0-9_]/g, "_");
+          const code = tryGenerateFlowEAFromFourBrain(cfg, eaName);
+          if (!code) {
+            toast.error(
+              "Flow engine covers BOS direction/entry + FVG-retest setup so far. This combo isn't supported yet — use Template or AI.",
+            );
+            return;
+          }
+          onChange(bp);
+          onRegenerate(bp, code);
+          toast.success("Generated with Flow engine — ordered, timestamped instance gate");
+        }}
+      >
+        <Sparkles className="h-4 w-4 mr-1.5" />
+        Flow Engine (beta) — ordered event gate
+      </Button>
+      <p className="text-[11px] text-muted-foreground text-center">
+        <strong>Flow Engine</strong> — each instance fires only after its dependencies, in order,
+        with a trade audit chain. Covers BOS + FVG-retest today; expanding per module.
+      </p>
     </div>
   );
 }

@@ -16,7 +16,7 @@
  * covered. Coverage expands module-by-module.
  */
 
-import type { StrategyFlowConfig, StrategyStepConfig } from "../types/blueprint";
+import type { StrategyFlowConfig, StrategyStepConfig, FourBrainConfig } from "../types/blueprint";
 import type { StrategyEventType } from "../lib/strategy-events";
 
 export const FLOW_DEMO_EA_NAME = "FLOW_BOS_FVG_BOS_Demo";
@@ -415,4 +415,74 @@ function demoFlow(): StrategyFlowConfig {
 
 export function generateFlowDemoEA(): string {
   return generateFlowEA(demoFlow(), FLOW_DEMO_EA_NAME);
+}
+
+/**
+ * Build a flow EA from an existing 4-Brain config, mapping each brain's module to
+ * the event the flow engine actually implements (bos -> BOS_CONFIRMED, fvg setup
+ * -> FVG_RETESTED). Returns null when any brain uses a module/role the flow engine
+ * does not cover yet, so the caller can fall back to the legacy assembler.
+ *
+ * Coverage today: direction = BOS (optional), setup = FVG-retest (optional),
+ * execution = BOS. This is exactly the H1 BOS -> H1 FVG retest -> M5 BOS family.
+ */
+export function tryGenerateFlowEAFromFourBrain(
+  config: FourBrainConfig,
+  eaName = "FLOW_EA",
+): string | null {
+  const steps: StrategyStepConfig[] = [];
+
+  if (config.direction) {
+    if (config.direction.modules?.[0] !== "bos") return null;
+    steps.push({
+      id: "s_dir",
+      name: `Direction BOS ${config.direction.timeframe}`,
+      role: "direction",
+      module: "bos",
+      timeframe: config.direction.timeframe,
+      event: "BOS_CONFIRMED",
+      params: config.direction.params ?? {},
+      directionSource: { mode: "own_event" },
+    });
+  }
+
+  if (config.setup) {
+    if (config.setup.modules?.[0] !== "fvg") return null;
+    const dirId = steps[0]?.id;
+    steps.push({
+      id: "s_setup",
+      name: `Setup FVG retest ${config.setup.timeframe}`,
+      role: "setup",
+      module: "fvg",
+      timeframe: config.setup.timeframe,
+      event: "FVG_RETESTED",
+      params: config.setup.params ?? {},
+      dependsOn: dirId ? [{ stepId: dirId, relation: "after", required: true }] : undefined,
+      directionSource: dirId ? { mode: "from_step", stepId: dirId } : { mode: "neutral" },
+    });
+  }
+
+  if (config.execution.modules?.[0] !== "bos") return null;
+  const prevId = steps[steps.length - 1]?.id;
+  steps.push({
+    id: "s_entry",
+    name: `Entry BOS ${config.execution.timeframe}`,
+    role: "entry",
+    module: "bos",
+    timeframe: config.execution.timeframe,
+    event: "BOS_CONFIRMED",
+    params: config.execution.params ?? {},
+    dependsOn: prevId ? [{ stepId: prevId, relation: "after", required: true }] : undefined,
+    directionSource: { mode: "own_event" },
+    slSource: { mode: "event_sl", bufferPoints: 0 },
+  });
+
+  const flow: StrategyFlowConfig = {
+    version: 1,
+    mode: "simple_4brain",
+    source: "fourbrain_adapter",
+    steps,
+    management: config.management,
+  };
+  return generateFlowEA(flow, eaName);
 }
