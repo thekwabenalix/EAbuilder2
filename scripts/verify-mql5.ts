@@ -34,7 +34,7 @@ import { generateQmMefDetector } from "../src/lib/smc-modules/qm-mef-detector";
 import { generateSnrc2Detector } from "../src/lib/smc-modules/snrc2-detector";
 
 // Strategy Flow runtime (instance event gate) — proof-of-feasibility EA
-import { generateFlowDemoEA } from "../src/generators/gen-flow-ea";
+import { generateFlowDemoEA, tryGenerateFlowEAFromFourBrain } from "../src/generators/gen-flow-ea";
 
 // Inline state-machine fragment generators
 import { genRsiHdSM } from "../src/generators/gen-rsi-hd-sm";
@@ -138,6 +138,20 @@ const items: Item[] = [
   {
     file: "FLOW_BOS_FVG_BOS_Demo.mq5",
     code: generateFlowDemoEA(),
+  },
+  {
+    // EMA direction -> iFVG setup -> iFVG entry: proves the flow engine covers
+    // EMA + iFVG via their verified SMs (the strategy the UI rejected before).
+    file: "FLOW_EMA_IFVG_Demo.mq5",
+    code: tryGenerateFlowEAFromFourBrain(
+      {
+        direction: { modules: ["ema"], timeframe: "M5", params: { fastPeriod: 12, slowPeriod: 48 } },
+        setup: { modules: ["fvg_inversion"], timeframe: "M5", params: { expiryBars: 100 } },
+        execution: { modules: ["fvg_inversion"], timeframe: "M5", params: {} },
+        management: { riskPercent: 1, rewardRisk: 2, maxOpenTrades: 1 },
+      } as unknown as Parameters<typeof tryGenerateFlowEAFromFourBrain>[0],
+      "FLOW_EMA_IFVG_Demo",
+    )!,
   },
   {
     file: "_TEST_RSIHDSM_M15.mq5",

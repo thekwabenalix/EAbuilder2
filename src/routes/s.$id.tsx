@@ -1433,7 +1433,7 @@ function FourBrainTab({
           const code = tryGenerateFlowEAFromFourBrain(cfg, eaName);
           if (!code) {
             toast.error(
-              "Flow engine covers BOS direction/entry + FVG-retest setup so far. This combo isn't supported yet — use Template or AI.",
+              "Flow engine covers EMA/BOS direction, FVG/iFVG/OB setups, and EMA/BOS/FVG/iFVG/OB entries so far. This combo isn't supported yet — use Template or AI.",
             );
             return;
           }
@@ -1447,7 +1447,8 @@ function FourBrainTab({
       </Button>
       <p className="text-[11px] text-muted-foreground text-center">
         <strong>Flow Engine</strong> — each instance fires only after its dependencies, in order,
-        with a trade audit chain. Covers BOS + FVG-retest today; expanding per module.
+        with a trade audit chain, using the verified state machines. Covers EMA, BOS, FVG, iFVG,
+        Order Block today; expanding per module.
       </p>
     </div>
   );
