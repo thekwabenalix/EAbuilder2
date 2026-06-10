@@ -26,6 +26,10 @@ function isTransientAiStatus(path: string, status: number) {
   return aiPaths.includes(path) && [502, 503, 504].includes(status);
 }
 
+function isProviderCreditError(raw: string) {
+  return /credit balance is too low|plans\s*&\s*billing|purchase credits/i.test(raw);
+}
+
 async function post<T>(path: string, body: unknown): Promise<T> {
   const payload = JSON.stringify(body);
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -45,9 +49,12 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     }
 
     const rawMsg = (data as { error?: string })?.error;
+    const rawText = `${rawMsg ?? ""}\n${JSON.stringify(data)}`;
     const msg = isTransientAiStatus(path, res.status)
       ? "The AI builder is temporarily busy. I switched to the verified fallback path where possible."
-      : rawMsg;
+      : isProviderCreditError(rawText)
+        ? "AI generation is unavailable because the provider credit balance is too low. I switched to the verified fallback path where possible."
+        : rawMsg;
     throw new ApiError(
       msg ?? `Request to ${path} failed with status ${res.status}`,
       res.status,

@@ -63,11 +63,7 @@ import { MODULE_UI_PARAMS } from "@/lib/module-library";
 import type { UIParam } from "@/lib/module-library";
 import { firstBlueprintContractError } from "@/lib/blueprint-explanation";
 import { getModuleAdmission, MODULE_ADMISSION_STATUS_META } from "@/lib/module-admission";
-import {
-  ApiError,
-  generateAiBrainWiring,
-  type AiBrainWiring,
-} from "@/lib/api-client";
+import { ApiError, generateAiBrainWiring, type AiBrainWiring } from "@/lib/api-client";
 import {
   getLocalRunnerHealth,
   getMt5Status,
@@ -118,11 +114,19 @@ function formatRepairSummary(repair: AiBrainWiring["repair"]): string {
 }
 
 function aiGenerationErrorMessage(error: unknown): string {
+  const raw =
+    error instanceof ApiError
+      ? `${error.message}\n${JSON.stringify(error.details ?? {})}`
+      : error instanceof Error
+        ? error.message
+        : String(error ?? "");
+  if (isAiProviderUnavailable(error)) {
+    return "AI generation is unavailable right now, so I used the verified Template generator instead. You can still compile, backtest, and edit the EA.";
+  }
   if (error instanceof ApiError) {
     const repair = (error.details as { repair?: AiBrainWiring["repair"] })?.repair;
     const repairSummary = formatRepairSummary(repair);
     if (repairSummary) return repairSummary;
-    const raw = `${error.message}\n${JSON.stringify(error.details ?? {})}`;
     if (/modelId\.replace is not a function/i.test(raw)) {
       return "AI provider/model configuration failed before strategy generation. This is a platform AI routing issue, not your strategy rules. Try AI Rebuild once; if it repeats, download the Evidence Pack and check the AI function logs.";
     }
@@ -131,6 +135,18 @@ function aiGenerationErrorMessage(error: unknown): string {
     return "AI provider/model configuration failed before strategy generation. This is a platform AI routing issue, not your strategy rules. Try AI Rebuild once; if it repeats, download the Evidence Pack and check the AI function logs.";
   }
   return error instanceof Error ? error.message : "AI generation failed";
+}
+
+function isAiProviderUnavailable(error: unknown): boolean {
+  const raw =
+    error instanceof ApiError
+      ? `${error.status}\n${error.message}\n${JSON.stringify(error.details ?? {})}`
+      : error instanceof Error
+        ? error.message
+        : String(error ?? "");
+  return /credit balance is too low|plans\s*&\s*billing|purchase credits|bad gateway|status 502|temporarily busy/i.test(
+    raw,
+  );
 }
 
 function aiWiringSuccessMessage(wiring: AiBrainWiring, fallback: string): string {
@@ -1164,6 +1180,16 @@ function FourBrainTab({
       );
       onRegenerate(bpWithDiagnostics, code);
     } catch (e: unknown) {
+      if (isAiProviderUnavailable(e)) {
+        const { generateEA } = await import("@/generators/gen-ea");
+        const code = generateEA({
+          eaName: bp.name.replace(/[^\w\s-]/g, "").trim(),
+          config: bp.fourBrain!,
+        });
+        toast.warning(aiGenerationErrorMessage(e));
+        onRegenerate(bp, code);
+        return;
+      }
       toast.error(aiGenerationErrorMessage(e));
     } finally {
       setAiGenerating(false);
@@ -1521,13 +1547,18 @@ function CodeTab({
       cfg.direction?.description,
       cfg.setup?.description,
       cfg.execution.description,
-    ].filter(Boolean).join(". ");
-    const description = [
-      typeof blueprint.strategyNotes === "string" ? blueprint.strategyNotes : "",
-      brainNotes,
-      prompt,
-      blueprint.marketPhilosophy,
-    ].filter((s): s is string => Boolean(s)).join("\n\n") || undefined;
+    ]
+      .filter(Boolean)
+      .join(". ");
+    const description =
+      [
+        typeof blueprint.strategyNotes === "string" ? blueprint.strategyNotes : "",
+        brainNotes,
+        prompt,
+        blueprint.marketPhilosophy,
+      ]
+        .filter((s): s is string => Boolean(s))
+        .join("\n\n") || undefined;
 
     setGenerating(true);
     setAiWiring(null);
@@ -1557,6 +1588,11 @@ function CodeTab({
         toast.success(aiWiringSuccessMessage(wiring, "Generated with verified 4-Brain assembler"));
       }
     } catch (e: unknown) {
+      if (isAiProviderUnavailable(e)) {
+        toast.warning(aiGenerationErrorMessage(e));
+        await generateTemplate();
+        return;
+      }
       toast.error(aiGenerationErrorMessage(e));
     } finally {
       setGenerating(false);

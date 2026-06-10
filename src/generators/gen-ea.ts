@@ -889,14 +889,14 @@ export function generateEA(params: MQL5CodeGenParams): string {
   // Direction gate: require a bias AND that the execution direction AGREES with it.
   // (Confluence = all active brains agree. A BULL bias must never open a SELL.)
   const dirGate = hasDirBrain
-    ? `if(gBias == 0) { PrintFormat("[GATE] BLOCKED: no bias"); return; }
-      if(gExecDir != 0 && gExecDir != gBias) { PrintFormat("[GATE] BLOCKED: exec dir %d disagrees with bias %d", gExecDir, gBias); return; }`
+    ? `if(gBias == 0) { B4_DebugGate("NO_BIAS", "BLOCKED: no bias", clrSilver); return; }
+      if(gExecDir != 0 && gExecDir != gBias) { PrintFormat("[GATE] BLOCKED: exec dir %d disagrees with bias %d", gExecDir, gBias); B4_DebugGate("DIR_MISMATCH", "BLOCKED: direction mismatch", clrTomato); return; }`
     : `// Direction Brain disabled — no bias gate`;
 
   // Setup gate: require an active setup AND that exec direction agrees with the setup direction.
   const setupGate = hasSetupBrain
-    ? `if(!gSetupActive) { PrintFormat("[GATE] BLOCKED: no setup"); return; }
-      if(gSetupDir != 0 && gExecDir != 0 && gExecDir != gSetupDir) { PrintFormat("[GATE] BLOCKED: exec dir %d disagrees with setup dir %d", gExecDir, gSetupDir); return; }`
+    ? `if(!gSetupActive) { B4_DebugGate("NO_SETUP", "BLOCKED: no setup", clrSilver); return; }
+      if(gSetupDir != 0 && gExecDir != 0 && gExecDir != gSetupDir) { PrintFormat("[GATE] BLOCKED: exec dir %d disagrees with setup dir %d", gExecDir, gSetupDir); B4_DebugGate("SETUP_MISMATCH", "BLOCKED: setup mismatch", clrTomato); return; }`
     : `// Setup Brain disabled — no zone gate`;
 
   // Break-even management code
@@ -983,6 +983,8 @@ input int             InpStopBuffer  = ${stopBuf};           // Stop buffer (poi
 input int             InpMaxSpread   = 25;                   // Max spread filter (0=off)
 input int             InpMaxStopPts  = ${maxStopPts};         // Max SL distance (points, 0=no limit)
 input int             InpMaxTrades   = ${maxTrades};         // Max simultaneous positions
+input bool            InpDebugMarkers = true;                // Draw rule/gate markers on chart
+input bool            InpDebugJournal = true;                // Print rule/gate diagnostics
 ${beEnabled ? `input double InpBEAtR = ${beAtR};  // Move SL to B/E at this R multiple` : ""}
 
 //--- Global brain state (shared across all brains)
@@ -1097,9 +1099,33 @@ void DrawInfoPanel()
       clrSilver, 75);
 }
 
+void B4_DebugMark(const string key, ENUM_TIMEFRAMES tf, int shift, double price, color clr, const string text)
+{
+   if(!InpDebugMarkers) return;
+   datetime t = iTime(InpSymbol, tf, shift);
+   if(t <= 0 || price <= 0.0) return;
+   string name = StringFormat("4B_DBG_%s_%d_%d", key, (int)tf, (int)t);
+   if(ObjectFind(0, name) < 0)
+      ObjectCreate(0, name, OBJ_TEXT, 0, t, price);
+   ObjectSetInteger(0, name, OBJPROP_TIME,       t);
+   ObjectSetDouble (0, name, OBJPROP_PRICE,      price);
+   ObjectSetString (0, name, OBJPROP_TEXT,       text);
+   ObjectSetInteger(0, name, OBJPROP_COLOR,      clr);
+   ObjectSetInteger(0, name, OBJPROP_FONTSIZE,   8);
+   ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
+}
+
+void B4_DebugGate(const string key, const string text, color clr)
+{
+   if(InpDebugJournal) PrintFormat("[GATE] %s", text);
+   double pt = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   double hi = iHigh(InpSymbol, InpExecTF, 1);
+   B4_DebugMark("GATE_" + key, InpExecTF, 1, hi + 40.0 * pt, clr, text);
+}
+
 void DeleteAllChartObjects()
 {
-   string prefixes[] = { "4B_DIR_", "4B_SETUP_", "4B_EXEC_", "4B_P0", "4B_P1", "4B_P2", "4B_P3", "4B_P4" };
+   string prefixes[] = { "4B_DIR_", "4B_SETUP_", "4B_EXEC_", "4B_DBG_", "4B_P0", "4B_P1", "4B_P2", "4B_P3", "4B_P4" };
    for(int _p = 0; _p < ArraySize(prefixes); _p++)
    {
       for(int _i = ObjectsTotal(0) - 1; _i >= 0; _i--)
@@ -1356,9 +1382,9 @@ ${breakEvenCode}
       // ── Confluence Gate ──────────────────────────────────────────────────────
       ${dirGate}
       ${setupGate}
-      if(!gExecSignal) { PrintFormat("[GATE] BLOCKED: no exec signal"); return; }
-      if(!SpreadOk())  { PrintFormat("[GATE] BLOCKED: spread too wide"); return; }
-      if(CountPositions() >= InpMaxTrades) { PrintFormat("[GATE] BLOCKED: max trades %d", InpMaxTrades); return; }
+      if(!gExecSignal) { B4_DebugGate("NO_EXEC", "BLOCKED: no exec signal", clrSilver); return; }
+      if(!SpreadOk())  { B4_DebugGate("SPREAD", "BLOCKED: spread too wide", clrTomato); return; }
+      if(CountPositions() >= InpMaxTrades) { PrintFormat("[GATE] BLOCKED: max trades %d", InpMaxTrades); B4_DebugGate("MAX_TRADES", "BLOCKED: max trades", clrTomato); return; }
 
       PrintFormat("[GATE] OPEN — bias=%d setup=%d execDir=%d SL=%.5f",
                   gBias, gSetupActive, gExecDir, gExecSL);

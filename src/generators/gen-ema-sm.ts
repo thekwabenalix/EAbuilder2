@@ -130,12 +130,14 @@ bool ${P}BootstrapCross(int bias, int hF, int hS)
       {
          ${P}phase = ${P}CROSSED; ${P}activeDir = 1; ${P}bootstrapUsed = true;
          PrintFormat("[EMASM_${tf}] BULL cross bootstrapped from recent history");
+         B4_DebugMark("EMA_${tf}_BULL_BOOT", ${TF}, 1, iLow(InpSymbol, ${TF}, 1), clrDodgerBlue, "RECENT BULL CROSS");
          return true;
       }
       if(bias == -1 && bearCross)
       {
          ${P}phase = ${P}CROSSED; ${P}activeDir = -1; ${P}bootstrapUsed = true;
          PrintFormat("[EMASM_${tf}] BEAR cross bootstrapped from recent history");
+         B4_DebugMark("EMA_${tf}_BEAR_BOOT", ${TF}, 1, iHigh(InpSymbol, ${TF}, 1), clrOrangeRed, "RECENT BEAR CROSS");
          return true;
       }
       if((bias == 1 && bearCross) || (bias == -1 && bullCross)) return false;
@@ -187,9 +189,11 @@ void ${P}Tick(int bias)
       if(${P}phase == ${P}IDLE)
       {
          if(!requireCross && bullRetestSlow)        // retest-only mode: arm directly
-         { ${P}phase = ${P}ARMED; ${P}activeDir = 1; ${P}swingLow = lo; }
+         { ${P}phase = ${P}ARMED; ${P}activeDir = 1; ${P}swingLow = lo;
+           B4_DebugMark("EMA_${tf}_BULL_TEST", ${TF}, 1, lo, clrGold, "SLOW EMA TEST"); }
          else if(requireCross && bullCross)         // cross arms the setup
          { ${P}phase = ${P}CROSSED; ${P}activeDir = 1;
+           B4_DebugMark("EMA_${tf}_BULL_CROSS", ${TF}, 1, lo, clrDodgerBlue, "BULL CROSS");
            PrintFormat("[EMASM_${tf}] BULL cross — setup armed (12 over 48)"); }
          else if(requireCross && !${P}bootstrapUsed) ${P}BootstrapCross(1, hF, hS);
       }
@@ -198,15 +202,18 @@ void ${P}Tick(int bias)
          if(bearCross || cl < s1) { ${P}phase = ${P}IDLE; ${P}activeDir = 0; }      // regime flipped / slow EMA failed
          else if(bullRetestSlow)                    // candle actually touched the slow EMA
          { ${P}phase = ${P}ARMED; ${P}swingLow = lo;
+           B4_DebugMark("EMA_${tf}_BULL_TEST", ${TF}, 1, lo, clrGold, "SLOW EMA TEST");
            PrintFormat("[EMASM_${tf}] BULL retest of slow=%.5f low=%.5f", s1, lo); }
       }
       else                                          // ARMED
       {
          if(lo < ${P}swingLow) ${P}swingLow = lo;
          if(bearCross || cl < s1) { ${P}phase = ${P}IDLE; ${P}activeDir = 0;
+            B4_DebugMark("EMA_${tf}_BULL_INVALID", ${TF}, 1, cl, clrTomato, "BULL SETUP INVALID");
             PrintFormat("[EMASM_${tf}] BULL setup invalidated"); }
          else if(cl > f1)                           // confirmation: close above fast
          { ${P}justConfirmed = true; ${P}confirmDir = 1; ${P}confirmSL = ${P}swingLow; ${P}consume = true;
+           B4_DebugMark("EMA_${tf}_BULL_CONFIRM", ${TF}, 1, lo, clrLime, "CLOSE CONFIRMED");
            PrintFormat("[EMASM_${tf}] BULL CONFIRMED close=%.5f > fast=%.5f SL=%.5f", cl, f1, ${P}swingLow); }
       }
    }
