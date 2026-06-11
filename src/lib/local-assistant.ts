@@ -23,6 +23,26 @@ export interface LocalAssistantInput {
   compileLog?: string | null;
 }
 
+function wantsCloudOfflineHelp(msg: string): boolean {
+  return /cloud offline|cloud ai|why offline|why is cloud|anthropic|credits|api key/i.test(msg);
+}
+
+function cloudOfflineSection(): string[] {
+  return [
+    "",
+    "## Why is cloud AI offline?",
+    "",
+    "The in-app assistant calls **Anthropic (Claude)** on the server. It switches to offline mode when:",
+    "- **ANTHROPIC_API_KEY is missing or wrong** on Netlify / your dev server (most common when billing still shows a balance), or",
+    "- **API credits exhausted** on the key’s organization (less common if you still have balance), or",
+    "- The request failed (timeout, prompt too long, gateway error).",
+    "",
+    "**Your Anthropic console balance ≠ the server key.** The app uses whatever key is in deploy env vars — it must belong to the same org and be set on the site that serves `/api/ea-chat`.",
+    "",
+    "**Offline mode still works** — it reads your blueprint, EA, and tester log. Use **Apply now** for regen / backtest period. Full conversational AI returns once cloud access is restored.",
+  ];
+}
+
 function wantsNoTradesHelp(msg: string): boolean {
   return /zero trades|no trades|why no|didn't trade|did not trade|no execution|no trade|not trade|please fix|fix it|fix this|wasn't trade|was not trade/i.test(
     msg,
@@ -207,13 +227,41 @@ function noTradesSection(
       for (const [name, count] of byStep) {
         lines.push(`- ${name}: ${count}×`);
       }
-      const expectedNames = new Set(expected.map((s) => s.name));
-      const missing = expected.filter((s) => !byStep.has(s.name) && !s.isEntry);
+      const missing = expected.filter((s) => !byStep.has(s.name));
       if (missing.length) {
-        lines.push("", "**Steps never fired (check wiring / market conditions):**");
+        lines.push("", "**Steps never fired:**");
         for (const m of missing) {
-          lines.push(`- ${m.name} (${m.event})`);
+          lines.push(`- **${m.name}** (${m.event})${m.isEntry ? " ← entry gate — no trade possible" : ""}`);
         }
+      }
+
+      const entryStep = expected.find((s) => s.isEntry);
+      const dirCount = [...byStep.entries()].find(([n]) => /direction/i.test(n))?.[1] ?? 0;
+      const setupCount = [...byStep.entries()].find(([n]) => /setup/i.test(n))?.[1] ?? 0;
+      const entryCount = entryStep ? (byStep.get(entryStep.name) ?? 0) : 0;
+
+      if (entryStep && entryCount === 0) {
+        lines.push(
+          "",
+          "## Verdict",
+          "",
+          `**Entry never fired** (${entryStep.event}). Direction logged **${dirCount}×**, Setup **${setupCount}×**, Entry **0×**.`,
+          "",
+          "The EA never reached the final gate, so **OpenTrade() was never called**.",
+        );
+        if (dirCount > 10 && setupCount <= 2) {
+          lines.push(
+            "- **Direction fires too often** vs Setup — bias may reset each bar while cross/confirm need a stable sequence.",
+            "- Your prompt describes **Cross-Test-Close** (cross → test → close confirm → entry). The current 3-step flow may be **too simplified** — re-interview or add confirmation steps in **Configure**.",
+          );
+        } else {
+          lines.push(
+            "- Check **setup expiry**, **direction mismatch** between steps, and that **EMA_CLOSE_CONFIRMED** can occur after Setup on the same M30 series.",
+          );
+        }
+        lines.push(
+          "- Regenerate EA after flow changes, then re-backtest on **M30** with **InpAudit=true**.",
+        );
       }
     }
   }
@@ -356,7 +404,9 @@ export function answerLocalAssistant(input: LocalAssistantInput): string {
     lines.push("[ACTION:regen_template]");
   }
 
-  if (wantsNoTradesHelp(msg)) {
+  if (wantsCloudOfflineHelp(msg)) {
+    lines.push(...cloudOfflineSection());
+  } else if (wantsNoTradesHelp(msg)) {
     lines.push(...noTradesSection(input.blueprint, input.testerLog, input.backtestSummary));
   } else if (wantsGenerationVerdict(msg)) {
     lines.push(...generationVsStrategySection(input.blueprint, input.testerLog, input.backtestSummary));

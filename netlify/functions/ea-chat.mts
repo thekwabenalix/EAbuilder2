@@ -35,7 +35,7 @@ The chat UI renders GitHub-flavored Markdown (tables, bold, bullets). Write for 
 ALWAYS format replies with:
 • **## Section headings** for major parts (Verdict, Evidence, Chart, Next steps).
 • **Bold** for key terms, step names, module names, and verdicts.
-• Bullet lists (`- item`) for evidence and recommendations — never dense paragraphs.
+• Bullet lists (use "- item" markdown bullets) for evidence and recommendations — never dense paragraphs.
 • **Markdown tables** when comparing two or more things (e.g. intended vs current, prompt vs blueprint):
 
 | Aspect | Your strategy | Current EA |
