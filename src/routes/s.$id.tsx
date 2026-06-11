@@ -22,6 +22,7 @@ import { StrategySpecForm } from "@/components/StrategySpecForm";
 import { BuilderProgress, BUILDER_STEPS, type BuilderStep } from "@/components/BuilderProgress";
 import { BlueprintExplanationPanel } from "@/components/BlueprintExplanationPanel";
 import { StrategyFlowBuilder } from "@/components/StrategyFlowBuilder";
+import { TradeAuditPanel } from "@/components/TradeAuditPanel";
 import {
   Save,
   Check,
@@ -89,6 +90,11 @@ import {
 } from "@/lib/strategy-flow-ui";
 import { fourBrainToStrategyFlow } from "@/lib/strategy-flow";
 import type { StrategyFlowConfig } from "@/types/blueprint";
+import {
+  buildExpectedTradePath,
+  parseTesterLogForTradeAudit,
+  summarizeTradeAudit,
+} from "@/lib/trade-audit";
 import {
   getLocalRunnerHealth,
   getMt5Status,
@@ -1569,6 +1575,8 @@ function FourBrainTab({
 
       <AiWiringInsight wiring={aiWiring} />
 
+      <TradeAuditPanel blueprint={buildUpdatedBp()} compact />
+
       {/* Two generation options */}
       <div className="grid grid-cols-2 gap-3">
         {/* Template — fast, offline */}
@@ -2521,6 +2529,10 @@ function BacktestTab({
         running: visualMut.isPending || visualPolling,
         jobId: visualJobId,
       },
+      tradeAudit: summarizeTradeAudit(
+        buildExpectedTradePath(blueprint),
+        backtestResult?.log ? parseTesterLogForTradeAudit(backtestResult.log) : null,
+      ),
     });
   }, [
     backtestBlockedByRunningTerminal,
@@ -2528,6 +2540,7 @@ function BacktestTab({
     backtestMut.isPending,
     backtestPolling,
     backtestResult,
+    blueprint,
     companion.data,
     companionOnline,
     compileJobId,
@@ -3118,6 +3131,8 @@ function BacktestTab({
               />
             </div>
           )}
+
+          <TradeAuditPanel blueprint={blueprint} testerLog={backtestResult.log} />
 
           {backtestResult.log && (
             <div className="space-y-1">
