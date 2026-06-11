@@ -77,9 +77,7 @@ import { ALL_BRAIN_MODULES, TIMEFRAMES as TF_LIST, formatBrainChain } from "@/li
 import { MODULE_UI_PARAMS } from "@/lib/module-library";
 import type { UIParam } from "@/lib/module-library";
 import { getModuleAdmission, MODULE_ADMISSION_STATUS_META } from "@/lib/module-admission";
-import { ApiError, generateAiBrainWiring, type AiBrainWiring } from "@/lib/api-client";
-import { aiWiringHasStrategyFlow, mergeAiFlowIntoBlueprint } from "@/lib/ai-strategy-flow";
-import { generateEaFromAiWiring } from "@/lib/generate-ea-from-ai-wiring";
+import type { AiBrainWiring } from "@/lib/api-client";
 import {
   attachUserFlowToBlueprint,
   builderModeFromBlueprint,
@@ -122,113 +120,8 @@ function downloadText(filename: string, content: string, mime = "text/plain") {
   URL.revokeObjectURL(url);
 }
 
-function assertAiWiringValid(wiring: AiBrainWiring) {
-  if (wiring.validation?.status !== "fail") return;
-  if (wiring.repair?.hasBlockedModules) {
-    throw new Error(`AI wiring blocked: ${formatRepairSummary(wiring.repair)}`);
-  }
-  const message =
-    wiring.validation.errors[0] ??
-    "AI wiring does not match the extracted strategy rules. Please regenerate.";
-  throw new Error(`AI wiring blocked: ${message}`);
-}
-
-function formatRepairSummary(repair: AiBrainWiring["repair"]): string {
-  if (!repair?.hasBlockedModules) return "";
-  const fixes = repair.blocked.map((item) => {
-    const alternatives = item.suggestedModules.map((mod) => mod.label).join(", ");
-    return alternatives
-      ? `${item.label}: ${item.recommendation} Suggested verified modules: ${alternatives}.`
-      : `${item.label}: ${item.recommendation}`;
-  });
-  return [repair.summary, ...fixes].join(" ");
-}
-
-function aiGenerationErrorMessage(error: unknown): string {
-  const raw =
-    error instanceof ApiError
-      ? `${error.message}\n${JSON.stringify(error.details ?? {})}`
-      : error instanceof Error
-        ? error.message
-        : String(error ?? "");
-  if (isAiProviderUnavailable(error)) {
-    return "AI generation is unavailable right now, so I used the verified Template generator instead. You can still compile, backtest, and edit the EA.";
-  }
-  if (error instanceof ApiError) {
-    const repair = (error.details as { repair?: AiBrainWiring["repair"] })?.repair;
-    const repairSummary = formatRepairSummary(repair);
-    if (repairSummary) return repairSummary;
-    if (/modelId\.replace is not a function/i.test(raw)) {
-      return "AI provider/model configuration failed before strategy generation. This is a platform AI routing issue, not your strategy rules. Try AI Rebuild once; if it repeats, download the Evidence Pack and check the AI function logs.";
-    }
-  }
-  if (error instanceof Error && /modelId\.replace is not a function/i.test(error.message)) {
-    return "AI provider/model configuration failed before strategy generation. This is a platform AI routing issue, not your strategy rules. Try AI Rebuild once; if it repeats, download the Evidence Pack and check the AI function logs.";
-  }
-  return error instanceof Error ? error.message : "AI generation failed";
-}
-
-function isAiProviderUnavailable(error: unknown): boolean {
-  const raw =
-    error instanceof ApiError
-      ? `${error.status}\n${error.message}\n${JSON.stringify(error.details ?? {})}`
-      : error instanceof Error
-        ? error.message
-        : String(error ?? "");
-  return /credit balance is too low|plans\s*&\s*billing|purchase credits|bad gateway|status 502|temporarily busy/i.test(
-    raw,
-  );
-}
-
-function aiWiringSuccessMessage(wiring: AiBrainWiring, fallback: string): string {
-  if (wiring.output_mode === "strategy_flow" || aiWiringHasStrategyFlow(wiring)) {
-    const stepCount = wiring.strategy_flow?.steps?.length ?? 0;
-    if ((wiring.repairAttempts ?? 0) > 0) {
-      return `Strategy Flow validated after repair (${stepCount} steps)`;
-    }
-    if (wiring.validation?.status === "warn") {
-      return `Strategy Flow generated with warnings (${stepCount} steps)`;
-    }
-    return fallback;
-  }
-  if ((wiring.repairAttempts ?? 0) > 0) {
-    return "AI wiring validated after one automatic repair";
-  }
-  if (wiring.validation?.status === "warn") {
-    return "AI wiring generated with warnings";
-  }
-  return fallback;
-}
-
 type AiWiringDiagnostic = NonNullable<StrategyBlueprint["aiWiringDiagnostics"]>;
 type AiWiringInsightData = AiBrainWiring | AiWiringDiagnostic;
-
-function buildAiWiringDiagnostics(wiring: AiBrainWiring): AiWiringDiagnostic {
-  return {
-    generatedAt: new Date().toISOString(),
-    validation: wiring.validation,
-    repairAttempts: wiring.repairAttempts ?? 0,
-    semantics: wiring.semantics,
-    required_sms: wiring.required_sms ?? [],
-    sm_configs: wiring.sm_configs ?? {},
-    notes: wiring.notes ?? "",
-    output_mode: wiring.output_mode,
-    flowStepCount: wiring.strategy_flow?.steps?.length,
-  };
-}
-
-function withAiWiringDiagnostics(
-  blueprint: StrategyBlueprint,
-  wiring: AiBrainWiring,
-): StrategyBlueprint {
-  return mergeAiFlowIntoBlueprint(
-    {
-      ...blueprint,
-      aiWiringDiagnostics: buildAiWiringDiagnostics(wiring),
-    },
-    wiring,
-  );
-}
 
 function AiWiringInsight({ wiring }: { wiring: AiWiringInsightData | null }) {
   if (!wiring) return null;
@@ -528,12 +421,7 @@ function StrategyPage() {
       return;
     }
     if (action === "ai_rebuild") {
-      setActiveTab(isFourBrain ? "brains" : "builder");
-      toast.message(
-        isFourBrain
-          ? "Open the Brains tab AI Rebuild control to regenerate structured wiring"
-          : "Open the Builder tab to adjust the rules-based strategy",
-      );
+      regenFromTemplate();
       return;
     }
     if (action === "download_tester_log") {
@@ -1247,96 +1135,15 @@ function FourBrainTab({
     flowConfig,
   ]);
 
-  const unsafeAiModules = unsafeAiModuleLabels([
-    ...(direction?.modules ?? []),
-    ...(setup?.modules ?? []),
-    ...(execution.modules ?? []),
-    ...(builderMode === "advanced" ? flowConfig.steps.map((s) => s.module) : []),
-  ]);
   const canRegenerate =
     builderMode === "advanced"
       ? flowConfig.steps.some(
           (s) => s.enabled !== false && (s.role === "entry" || s.role === "confirmation"),
         )
       : execution.modules.length > 0 && execution.timeframe;
-  const canAiRegenerate = canRegenerate && unsafeAiModules.length === 0;
-  const [aiGenerating, setAiGenerating] = useState(false);
-  const [aiWiring, setAiWiring] = useState<AiWiringInsightData | null>(
+  const [aiWiring] = useState<AiWiringInsightData | null>(
     blueprint.aiWiringDiagnostics ?? null,
   );
-  useEffect(() => {
-    setAiWiring(blueprint.aiWiringDiagnostics ?? null);
-  }, [blueprint.aiWiringDiagnostics]);
-
-  async function onAiGenerate() {
-    if (!canRegenerate) {
-      toast.error("Execution Brain needs at least one module and a timeframe.");
-      return;
-    }
-    if (unsafeAiModules.length > 0) {
-      toast.error(`AI 4-Brain wiring is blocked for: ${unsafeAiModules.join(", ")}`);
-      return;
-    }
-    const bp = buildUpdatedBp();
-    const contractError = firstBlueprintGenerationError(bp);
-    if (contractError) {
-      toast.error(contractError);
-      return;
-    }
-    setAiGenerating(true);
-    setAiWiring(null);
-    onChange(bp);
-    try {
-      const cfg = bp.fourBrain!;
-      // Build description: strategy-level notes + per-brain notes combined
-      const brainNotes = [
-        cfg.direction?.description,
-        cfg.setup?.description,
-        cfg.execution.description,
-      ]
-        .filter(Boolean)
-        .join(". ");
-      const fullDescription = [strategyNotes, brainNotes]
-        .filter(Boolean)
-        .join("\n\nPer-brain notes: ");
-
-      const wiring = await generateAiBrainWiring(
-        {
-          direction: cfg.direction,
-          setup: cfg.setup,
-          execution: cfg.execution,
-        },
-        bp.name,
-        fullDescription || undefined,
-        bp.filterRefs,
-      );
-      assertAiWiringValid(wiring);
-      const bpWithDiagnostics = withAiWiringDiagnostics(bp, wiring);
-      setAiWiring(bpWithDiagnostics.aiWiringDiagnostics ?? wiring);
-      assertBlueprintGeneratable(bpWithDiagnostics);
-      const result = generateEaFromAiWiring(bpWithDiagnostics, wiring);
-      toast.success(
-        aiWiringSuccessMessage(
-          wiring,
-          result.aiMode === "strategy_flow"
-            ? `Strategy Flow EA generated (${generationPathLabel(result.path)})`
-            : "AI-powered EA generated — Claude wired the modules intelligently",
-        ),
-      );
-      onRegenerate(bpWithDiagnostics, result.code);
-    } catch (e: unknown) {
-      if (isAiProviderUnavailable(e)) {
-        assertBlueprintGeneratable(bp);
-        const templateResult = generateEaFromBlueprint(bp);
-        toast.warning(aiGenerationErrorMessage(e));
-        onRegenerate(bp, templateResult.code);
-        return;
-      }
-      toast.error(aiGenerationErrorMessage(e));
-    } finally {
-      setAiGenerating(false);
-    }
-  }
 
   return (
     <div className="max-w-2xl space-y-4">
@@ -1384,8 +1191,8 @@ function FourBrainTab({
           <Label className="text-xs font-semibold text-amber-400">Strategy Rules</Label>
           <p className="text-[11px] text-muted-foreground mt-0.5">
             Describe conditions that apply across the whole strategy — max SL distance, invalidation
-            rules, required sequences (e.g. "must retest EMA before entry"), session filters. Claude
-            reads this when you click <strong>Generate with AI</strong>.
+            rules, required sequences (e.g. "must retest EMA before entry"), session filters. The
+            AI assistant reads these when helping you debug or refine the strategy.
           </p>
         </div>
         <textarea
@@ -1577,11 +1384,9 @@ function FourBrainTab({
 
       <TradeAuditPanel blueprint={buildUpdatedBp()} compact />
 
-      {/* Two generation options */}
-      <div className="grid grid-cols-2 gap-3">
-        {/* Template — fast, offline */}
+      {/* Generate EA — deterministic Strategy Flow compiler */}
+      <div className="space-y-2">
         <Button
-          variant="outline"
           onClick={() => {
             if (!canRegenerate) {
               toast.error("Execution Brain needs at least one module and a timeframe.");
@@ -1596,36 +1401,17 @@ function FourBrainTab({
             onChange(bp);
             onRegenerate(bp);
           }}
-          className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+          className="w-full bg-emerald-600 hover:bg-emerald-600/90 text-white"
         >
           <Hammer className="h-4 w-4 mr-1.5" />
-          Template
+          Generate EA
         </Button>
-
-        {/* AI — Claude interprets and wires */}
-        <Button
-          onClick={onAiGenerate}
-          disabled={aiGenerating || !canAiRegenerate}
-          className="bg-primary hover:bg-primary/90 text-primary-foreground"
-        >
-          {aiGenerating ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-              Claude thinking…
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-4 w-4 mr-1.5" />
-              Generate with AI
-            </>
-          )}
-        </Button>
+        <p className="text-[11px] text-muted-foreground text-center">
+          Compiles from your Strategy Flow using verified modules (Strategy Flow engine when
+          supported). Use the <strong>AI Assistant</strong> to debug backtests, adjust steps, or
+          explain why trades did not fire.
+        </p>
       </div>
-      <p className="text-[11px] text-muted-foreground text-center">
-        <strong>Template</strong> — auto-picks Strategy Flow (ordered event gate) when all modules
-        are covered; otherwise Blueprint assembler · <strong>AI</strong> — Claude reads your
-        descriptions and wires the proven modules intelligently
-      </p>
     </div>
   );
 }
@@ -1696,21 +1482,11 @@ function CodeTab({
   const [compiling, setCompiling] = useState(false);
   const [copied, setCopied] = useState(false);
   const [compileLog, setCompileLog] = useState<string | null>(null);
-  const [aiWiring, setAiWiring] = useState<AiWiringInsightData | null>(
+  const [aiWiring] = useState<AiWiringInsightData | null>(
     blueprint.aiWiringDiagnostics ?? null,
   );
-  useEffect(() => {
-    setAiWiring(blueprint.aiWiringDiagnostics ?? null);
-  }, [blueprint.aiWiringDiagnostics]);
-  const unsafeAiModules = unsafeFourBrainAiModules(blueprint.fourBrain);
   const generationGate = validateBlueprintForGeneration(blueprint);
   const generationError = generationGate.ok ? undefined : generationGate.errors[0];
-  const canUseFourBrainAi = Boolean(
-    blueprint.fourBrain?.execution?.modules?.length &&
-    blueprint.fourBrain.execution.timeframe &&
-    unsafeAiModules.length === 0 &&
-    generationGate.ok,
-  );
 
   const companion = useQuery({
     queryKey: ["local-runner-health"],
@@ -1738,85 +1514,6 @@ function CodeTab({
       }
     } catch (e: unknown) {
       toast.error(e instanceof EaGenerationError ? e.message : "Template generation failed");
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const generateWithAi = async () => {
-    if (generationError) {
-      toast.error(generationError);
-      return;
-    }
-    if (!canUseFourBrainAi || !blueprint.fourBrain) {
-      if (unsafeAiModules.length > 0) {
-        toast.error(`AI 4-Brain wiring is blocked for: ${unsafeAiModules.join(", ")}`);
-        return;
-      }
-      toast.error("AI 4-Brain generation needs a real 4-Brain strategy. Use the 4-Brain Builder.");
-      return;
-    }
-
-    const cfg = blueprint.fourBrain;
-    const brainNotes = [
-      cfg.direction?.description,
-      cfg.setup?.description,
-      cfg.execution.description,
-    ]
-      .filter(Boolean)
-      .join(". ");
-    const description =
-      [
-        typeof blueprint.strategyNotes === "string" ? blueprint.strategyNotes : "",
-        brainNotes,
-        prompt,
-        blueprint.marketPhilosophy,
-      ]
-        .filter((s): s is string => Boolean(s))
-        .join("\n\n") || undefined;
-
-    setGenerating(true);
-    setAiWiring(null);
-    try {
-      const wiring = await generateAiBrainWiring(
-        { direction: cfg.direction, setup: cfg.setup, execution: cfg.execution },
-        strategyName,
-        description,
-        blueprint.filterRefs,
-      );
-      assertAiWiringValid(wiring);
-      const bpWithDiagnostics = withAiWiringDiagnostics(blueprint, wiring);
-      setAiWiring(bpWithDiagnostics.aiWiringDiagnostics ?? wiring);
-      assertBlueprintGeneratable(bpWithDiagnostics);
-      const result = generateEaFromAiWiring(bpWithDiagnostics, wiring);
-      if (onAutoSave) {
-        await onAutoSave(result.code, bpWithDiagnostics);
-        toast.success(
-          aiWiringSuccessMessage(
-            wiring,
-            result.aiMode === "strategy_flow"
-              ? `Strategy Flow EA generated (${generationPathLabel(result.path)}) — saved`
-              : "Generated with verified 4-Brain assembler — saved",
-          ),
-        );
-      } else {
-        onCodeChange(result.code);
-        toast.success(
-          aiWiringSuccessMessage(
-            wiring,
-            result.aiMode === "strategy_flow"
-              ? `Strategy Flow EA generated (${generationPathLabel(result.path)})`
-              : "Generated with verified 4-Brain assembler",
-          ),
-        );
-      }
-    } catch (e: unknown) {
-      if (isAiProviderUnavailable(e)) {
-        toast.warning(aiGenerationErrorMessage(e));
-        await generateTemplate();
-        return;
-      }
-      toast.error(aiGenerationErrorMessage(e));
     } finally {
       setGenerating(false);
     }
@@ -2056,69 +1753,35 @@ function CodeTab({
           )}
         </div>
 
-        {/* Generation options */}
+        {/* Generation */}
         <div className="space-y-3">
-          {/* Primary: AI generation — interprets description, selects modules, embeds logic */}
           <Button
-            onClick={generateWithAi}
-            disabled={generating || !canUseFourBrainAi}
+            onClick={generateTemplate}
+            disabled={generating || !build.buildable || Boolean(generationError)}
             size="lg"
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+            className="w-full bg-emerald-600 hover:bg-emerald-600/90 text-white"
           >
             {generating ? (
               <>
                 <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                Claude is building your EA…
+                Generating…
               </>
             ) : (
               <>
-                <Sparkles className="h-4 w-4 mr-1.5" />
-                Build EA with AI
+                <Hammer className="h-4 w-4 mr-1.5" />
+                Generate EA
               </>
             )}
           </Button>
           <p className="text-[11px] text-center text-muted-foreground">
             {generationError
               ? `Generation blocked: ${generationError}`
-              : unsafeAiModules.length > 0
-                ? `AI wiring is blocked for: ${unsafeAiModules.join(", ")}`
-                : canUseFourBrainAi
-                  ? "Claude reads your strategy description, selects the right detection modules, and generates a self-contained EA."
-                  : "AI 4-Brain generation is available after creating a strategy with the 4-Brain Builder."}
+              : "Compiles your blueprint via the Strategy Flow engine (verified modules). Use the AI Assistant to debug or refine the strategy."}
           </p>
-
-          {/* Divider */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex-1 h-px bg-border" />
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">or</span>
-            <div className="flex-1 h-px bg-border" />
-          </div>
-
-          {/* Secondary: Template — instant, offline */}
-          <Button
-            onClick={generateTemplate}
-            disabled={generating || !build.buildable || Boolean(generationError)}
-            variant="outline"
-            size="sm"
-            className="w-full"
-          >
-            {generating ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                Generating…
-              </>
-            ) : (
-              <>
-                <Hammer className="h-3.5 w-3.5 mr-1.5" />
-                Template (instant, no AI)
-              </>
-            )}
-          </Button>
 
           {!build.buildable && (
             <p className="text-[11px] text-center text-muted-foreground">
-              Template requires a supported entry trigger. Use <strong>Build with AI</strong> for
-              any strategy.
+              Add a supported entry trigger in the Brains tab, or refine the strategy in /new.
             </p>
           )}
           {generationError && (
@@ -2171,32 +1834,17 @@ function CodeTab({
           )}
           <Button
             size="sm"
-            onClick={generateWithAi}
-            disabled={generating || !canUseFourBrainAi}
-            title="Claude interprets your description and rebuilds with proven modules"
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
-          >
-            {generating ? (
-              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4 mr-1.5" />
-            )}
-            AI Rebuild
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
             onClick={generateTemplate}
             disabled={generating || Boolean(generationError)}
-            title="Instant blueprint regeneration — verified state machines"
-            className="border-border text-muted-foreground"
+            title="Regenerate from Strategy Flow blueprint"
+            className="bg-emerald-600 hover:bg-emerald-600/90 text-white"
           >
             {generating ? (
               <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
             ) : (
               <Hammer className="h-4 w-4 mr-1.5" />
             )}
-            Template
+            Regenerate EA
           </Button>
         </div>
       </div>

@@ -105,14 +105,42 @@ function biasIndex(step: StrategyStepConfig, steps: StrategyStepConfig[]): numbe
   return -1;
 }
 
-function emaFlowTickBias(steps: StrategyStepConfig[], tf: string): string {
-  const dirIdx = steps.findIndex(
+function emaDirectionBiasIndex(steps: StrategyStepConfig[], tf: string): number {
+  const emaDirIdx = steps.findIndex(
     (s) =>
       s.module === "ema" &&
       s.role === "direction" &&
       s.timeframe.toUpperCase() === tf.toUpperCase(),
   );
+  if (emaDirIdx >= 0) return emaDirIdx;
+
+  const emaStep = steps.find(
+    (s) => s.module === "ema" && s.timeframe.toUpperCase() === tf.toUpperCase(),
+  );
+  if (emaStep) {
+    const fromDep = biasIndex(emaStep, steps);
+    if (fromDep >= 0) return fromDep;
+  }
+
+  return steps.findIndex(
+    (s) => s.role === "direction" && s.timeframe.toUpperCase() === tf.toUpperCase(),
+  );
+}
+
+function emaFlowTickBias(steps: StrategyStepConfig[], tf: string): string {
+  const dirIdx = emaDirectionBiasIndex(steps, tf);
   return dirIdx >= 0 ? `gDir[${dirIdx}]` : "0";
+}
+
+function priorConfirmationIndex(i: number, steps: StrategyStepConfig[]): number {
+  for (const dep of steps[i].dependsOn ?? []) {
+    const j = steps.findIndex((s) => s.id === dep.stepId);
+    if (j >= 0 && steps[j].role === "confirmation") return j;
+  }
+  for (let j = i - 1; j >= 0; j--) {
+    if (steps[j].role === "confirmation" && steps[j].module === steps[i].module) return j;
+  }
+  return -1;
 }
 
 // ── Per-instance detection (registers events from the module's SM queries) ───────
@@ -226,6 +254,26 @@ function emitDetection(step: StrategyStepConfig, i: number, steps: StrategyStepC
   // ENTRY — discrete confirmation, carries SL
   if (isEntry(role)) {
     if (prof.family === "ema") {
+      const confIdx = role === "entry" ? priorConfirmationIndex(i, steps) : -1;
+      if (confIdx >= 0) {
+        const fast = pInt(step.params, "fastPeriod", 12);
+        return wrap(
+          `${biasGuard}   if(!gFired[${confIdx}]) return;
+   datetime _confT = gTime[${confIdx}];
+   if(_confT <= 0 || ${T1} <= _confT) return;
+   int _bias = gDir[${confIdx}];
+   int hFast = B4_MA(gTF[${i}], ${fast}, MODE_EMA);
+   double f1 = B4_MAval(hFast, 1);
+   double cl = iClose(InpSymbol, gTF[${i}], 1);
+   bool _ok = (_bias == 1 && cl > f1) || (_bias == -1 && cl < f1);
+   if(_ok && !gPrevA[${i}]) {
+      RegisterEvent(${i}, _bias, ${T1}, ${C1}, gSL[${confIdx}]);
+      gPrevA[${i}] = true;
+   } else if(!_ok) {
+      gPrevA[${i}] = false;
+   }`,
+        );
+      }
       return wrap(
         `   if(${P}_JustConfirmed()) { int _d = ${P}_ConfirmDir(); RegisterEvent(${i}, _d, ${T1}, ${C1}, ${P}_ConfirmSL()); }`,
       );

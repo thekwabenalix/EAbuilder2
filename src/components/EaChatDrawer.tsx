@@ -62,7 +62,7 @@ const ACTION_CONFIG = {
   open_validation: { label: "Open Validation", icon: ClipboardList },
   download_evidence: { label: "Evidence Pack", icon: Download },
   rerun_interview: { label: "Re-run Interview", icon: RotateCcw },
-  ai_rebuild: { label: "AI Rebuild", icon: Bot },
+  ai_rebuild: { label: "Regenerate EA", icon: Hammer },
   open_modules: { label: "Open Modules", icon: Puzzle },
   download_tester_log: { label: "Tester Log", icon: FileWarning },
 } satisfies Record<EaAssistantAction, { label: string; icon: typeof Hammer }>;
@@ -458,6 +458,16 @@ export function EaChatDrawer({
       return;
     }
     if (action === "ai_rebuild") {
+      if (onRegenTemplate) {
+        try {
+          onRegenTemplate();
+          setFixReady(false);
+          onOpenChange(false);
+        } catch (e: unknown) {
+          toast.error(e instanceof Error ? e.message : "EA regeneration failed");
+        }
+        return;
+      }
       onSafeAction?.(action);
       onOpenChange(false);
       return;

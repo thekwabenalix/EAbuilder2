@@ -1,7 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { buildCompactModuleContractContext } from "../../src/lib/module-contracts.js";
-import { buildCompactModuleLibraryContext } from "../../src/lib/module-library.js";
-import { buildModuleRepairPlan, MODULE_ADMISSION } from "../../src/lib/module-admission.js";
+import { buildAssistantPlatformContext } from "../../src/lib/assistant-platform-context.js";
+import type { StrategyBlueprint } from "../../src/types/blueprint.js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -19,24 +18,25 @@ when attached.
 Your role is to help the user understand, debug, improve, and iterate on their EA.
 
 You are the in-app EA Builder copilot. Think in the platform's architecture:
-Trader prompt -> AI interpretation -> 4-Brain blueprint -> verified module contracts/state machines
--> self-contained MQL5 EA -> compile -> MT5 backtest -> diagnosis.
+Trader prompt / visual config → StrategyFlow (ordered steps) → verified module state machines
+→ flow_engine EA (preferred) → compile → MT5 backtest → diagnosis via this assistant.
 
 When diagnosing, FIRST decide which layer is responsible:
-- PROMPT / INTERPRETATION: the blueprint does not match the trader's words.
-- BLUEPRINT / WIRING: the 4-Brain roles, modules, params, or sequence are wrong.
+- PROMPT / INTERPRETATION: the blueprint or flow does not match the trader's words.
+- STRATEGY FLOW / WIRING: step order, roles, events, dependencies, or module params are wrong.
 - MODULE CONTRACT: the selected module cannot express the requested behaviour yet.
 - GENERATOR / STATE MACHINE: verified block behaviour needs a platform update.
 - MQL5 / COMPILE: generated code failed to compile.
 - MT5 RUNNER / TESTER: local runner, MT5 terminal, tester config, symbol, spread, date, or data issue.
-- TRADING LOGIC / RISK: spread, max trades, max stop, SL/TP, BE, or risk filter blocked the trade.
+- TRADING LOGIC / RISK: spread, max trades, max stop, SL/TP, or entry gate blocked the trade.
 
 If the user's message starts with "Diagnosis mode:", follow this output shape:
 1. Verdict - one sentence naming the most likely failing layer.
 2. Evidence - 2 to 5 concrete facts from prompt/blueprint/code/log/screenshot.
 3. Brain/Module Impact - explain Direction, Setup, Execution, and Management only where relevant.
-4. Next Action - one safe platform action, such as regenerate with AI, regen template, re-run interview,
-   compile, run report backtest, attach screenshot, download tester log, or developer/module update.
+4. Next Action - one safe platform action, such as regen template, adjust Strategy Flow steps,
+   compile, run report backtest, attach screenshot, download tester log, or ask the assistant
+   to explain a gate/blocker.
 Do not ramble. Do not invent screenshot details. If evidence is missing, say exactly what is missing.
 
 When your safest next action matches one of the app actions below, add exactly one marker on its own
@@ -50,7 +50,7 @@ unsupported, or vague actions.
 - [ACTION:open_validation] to inspect rules-based validation.
 - [ACTION:download_evidence] to download a complete diagnostic evidence pack for support/debugging.
 - [ACTION:rerun_interview] when the trader's words must be reinterpreted from scratch.
-- [ACTION:ai_rebuild] when the 4-Brain wiring/SM configs should be regenerated from structured AI.
+- [ACTION:ai_rebuild] when the EA should be regenerated from the current Strategy Flow (same as regen_template).
 - [ACTION:open_modules] when the issue is missing/guarded/detector-only module capability.
 - [ACTION:download_tester_log] when the next useful evidence is the MT5 tester log.
 
@@ -65,7 +65,7 @@ for the same response. Never invent tools. Never request arbitrary code executio
 file edits, database writes, or destructive actions.
 
 If the user's message starts with "Repair flow:", follow this output shape:
-1. Repair Path - choose exactly one: re-run interview, adjust Brains, AI rebuild, regen template,
+1. Repair Path - choose exactly one: re-run interview, adjust Brains, regenerate EA (template),
    compile/backtest retry, download tester log, inspect modules, or developer/module update.
 2. Why - 2 to 4 evidence bullets from prompt/blueprint/contracts/logs/diagnostics.
 3. Do Now - one concrete app action the trader can take immediately.
@@ -73,8 +73,8 @@ If the user's message starts with "Repair flow:", follow this output shape:
 End with exactly one [TOOL:...] marker when a listed app action applies.
 
 Prefer safe platform actions over raw code rewrites:
-- For 4-Brain/template EAs, recommend Build with AI, Regen from Template, re-run interview, compile,
-  run backtest, download tester log, or inspect module contract.
+- For Strategy Flow / template EAs, recommend Regen Template, adjust flow steps in Brains,
+  compile, run backtest, download tester log, or inspect module contract.
 - Only use [FIX_READY] for small bounded edits to non-template AI-written brain wiring.
 - Never invent a module capability. If a module is template-only/detector-only/not verified, say so
   and suggest verified alternatives from the platform context.
@@ -211,10 +211,9 @@ When the user says the EA mis-traded, produce a STRUCTURED diagnosis:
        (EMASM / FVGSM / OBSM / the gate) to BEHAVE differently (a missing phase,
        no cross state, no memory). Do NOT rewrite the embedded SM inline (it is
        large and rewriting risks truncating the 800-line file). Instead tell the
-       user: "Click 'Build with AI' to regenerate — the generator's building
-       blocks are updated frequently and may already include this." You are
-       looking at THIS EA's code, not the generator, so NEVER say regenerating is
-       pointless.
+       user: "Click **Regen Template** to regenerate — the generator's building
+       blocks are updated frequently and may already include this." Tell the user to click
+       **Regen Template** after a platform fix, or describe the blueprint change needed.
 
    [DEV] LAST RESORT — only if a surgical [FIX] is not possible AND regenerating
        did not help: name the building block + the exact behaviour that must
@@ -243,63 +242,8 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
 
-function brainModules(blueprint: unknown): string[] {
-  const fb = asRecord(asRecord(blueprint).fourBrain);
-  const roles = ["direction", "setup", "execution"] as const;
-  const modules: string[] = [];
-  for (const role of roles) {
-    const brain = asRecord(fb[role]);
-    const raw = brain.modules;
-    if (Array.isArray(raw)) {
-      for (const item of raw) if (typeof item === "string") modules.push(item.toLowerCase());
-    }
-  }
-  return [...new Set(modules)];
-}
-
-function compactAdmissionContext(moduleIds: string[]): string {
-  const selected = moduleIds.length ? moduleIds : Object.keys(MODULE_ADMISSION);
-  const lines = [
-    "MODULE ADMISSION STATUS - use this to decide whether AI wiring is safe.",
-    "verified_state_machine = safe for AI 4-Brain wiring. template_only = deterministic template only. detector_only/not_verified = cannot reliably trade yet.",
-    "",
-  ];
-  for (const id of selected) {
-    const admission = MODULE_ADMISSION[id] ?? MODULE_ADMISSION[id.replace(/^ob$/, "order_block")];
-    if (!admission) {
-      lines.push(`[${id}] Unknown - no admission record. Treat as blocked until implemented.`);
-      continue;
-    }
-    lines.push(
-      `[${admission.id}] ${admission.label}: ${admission.status}; aiVocabulary=${admission.aiVocabulary}; ${admission.notes}`,
-    );
-  }
-  const repair = buildModuleRepairPlan(moduleIds);
-  lines.push("");
-  lines.push(`Repair plan: ${repair.summary}`);
-  if (repair.blocked.length) {
-    for (const item of repair.blocked) {
-      const suggestions = item.suggestedModules.map((mod) => mod.label).join(", ") || "none";
-      lines.push(
-        `- ${item.label}: ${item.recommendation} Suggested verified modules: ${suggestions}.`,
-      );
-    }
-  }
-  return lines.join("\n");
-}
-
-function platformContext(blueprint: unknown): string {
-  const selectedModules = brainModules(blueprint);
-  return [
-    "=== EA BUILDER PLATFORM CONTEXT ===",
-    compactAdmissionContext(selectedModules),
-    "",
-    "=== VERIFIED MODULE CONTRACTS ===",
-    buildCompactModuleContractContext(),
-    "",
-    "=== MODULE VOCABULARY SUMMARY ===",
-    buildCompactModuleLibraryContext(),
-  ].join("\n");
+function asBlueprint(value: unknown): StrategyBlueprint {
+  return (value && typeof value === "object" ? value : {}) as StrategyBlueprint;
 }
 
 /** Keep only error/warning/result lines from a compile log — strips verbose "information:" lines. */
@@ -354,7 +298,7 @@ export default async (req: Request): Promise<Response> => {
 
   // Inject full context into the first user message only
   const contextBlock = [
-    platformContext(blueprint),
+    buildAssistantPlatformContext(asBlueprint(blueprint)),
     "",
     "=== ORIGINAL STRATEGY PROMPT ===",
     prompt || "(no original prompt supplied)",

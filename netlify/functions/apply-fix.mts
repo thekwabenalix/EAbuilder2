@@ -208,7 +208,7 @@ export default async (req: Request): Promise<Response> => {
         if (edits.length === 0) {
           send({
             error:
-              "The fix could not be expressed as edits. Try rephrasing, or use Build with AI to regenerate.",
+              "The fix could not be expressed as edits. Try rephrasing, or use Generate EA to regenerate.",
           });
           send({ done: true });
           controller.close();
@@ -218,7 +218,7 @@ export default async (req: Request): Promise<Response> => {
         const { code: patched, failures } = applyEdits(code, edits);
         if (failures.length > 0) {
           send({
-            error: `Could not locate ${failures.length} edit target(s) in the code (the snippet did not match). Try Build with AI to regenerate instead.`,
+            error: `Could not locate ${failures.length} edit target(s) in the code (the snippet did not match). Try Generate EA to regenerate instead.`,
           });
           send({ done: true });
           controller.close();
@@ -227,7 +227,7 @@ export default async (req: Request): Promise<Response> => {
         if (!balanced(patched)) {
           send({
             error:
-              "The edit would unbalance braces/parentheses — refusing to apply a broken file. Try Build with AI to regenerate.",
+              "The edit would unbalance braces/parentheses — refusing to apply a broken file. Try Generate EA to regenerate.",
           });
           send({ done: true });
           controller.close();
