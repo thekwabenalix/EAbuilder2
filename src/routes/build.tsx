@@ -43,6 +43,7 @@ import {
   attachUserFlowToBlueprint,
   createDefaultStep,
   nameFromFlowSteps,
+  normalizeFlowStepNames,
   type BuilderFlowMode,
 } from "@/lib/strategy-flow-ui";
 import type { StrategyFlowConfig } from "@/types/blueprint";
@@ -729,6 +730,7 @@ function FourBrainBuilderPage() {
         mode: "advanced_instances",
         source: "user",
         management: buildManagementConfig(),
+        steps: normalizeFlowStepNames(adapted.steps ?? []),
       });
       return;
     }

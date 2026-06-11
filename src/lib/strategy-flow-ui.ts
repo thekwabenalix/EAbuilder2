@@ -15,6 +15,7 @@ import { fourBrainToStrategyFlow } from "@/lib/fourbrain-flow-adapter";
 import { firstEventForRole } from "@/lib/strategy-flow-events";
 import { flowEaSupportsAllSteps } from "@/generators/gen-flow-ea";
 import { validateStrategyFlowSchema } from "@/lib/strategy-flow";
+import { formatStepDisplayName, normalizeFlowStepNames } from "@/lib/strategy-step-label";
 
 export type BuilderFlowMode = "simple" | "advanced";
 
@@ -45,7 +46,10 @@ export function seedAdvancedFlow(
   fourBrain?: FourBrainConfig,
 ): StrategyFlowConfig {
   if (blueprintUsesAdvancedFlow(bp) && bp.strategyFlow) {
-    return { ...bp.strategyFlow };
+    return {
+      ...bp.strategyFlow,
+      steps: normalizeFlowStepNames(bp.strategyFlow.steps ?? []),
+    };
   }
   const cfg = fourBrain ?? bp.fourBrain;
   if (cfg) {
@@ -54,6 +58,7 @@ export function seedAdvancedFlow(
       ...adapted,
       mode: "advanced_instances",
       source: "user",
+      steps: normalizeFlowStepNames(adapted.steps ?? []),
     };
   }
   return {
@@ -82,9 +87,10 @@ export function newStepId(steps: StrategyStepConfig[], role: StrategyStepRole): 
   return id;
 }
 
+export { formatStepDisplayName, normalizeFlowStepNames, syncStepNameIfAuto } from "@/lib/strategy-step-label";
+
 export function defaultStepName(moduleId: string, timeframe: string, role: StrategyStepRole): string {
-  const roleLabel = STEP_ROLE_OPTIONS.find((r) => r.value === role)?.label ?? role;
-  return `${roleLabel} ${moduleId.replace(/_/g, " ").toUpperCase()} ${timeframe}`;
+  return formatStepDisplayName(moduleId, timeframe, role);
 }
 
 /** Create a new step chained after the last step. */
@@ -170,7 +176,7 @@ export function attachUserFlowToBlueprint(
   bp: StrategyBlueprint,
   flow: StrategyFlowConfig,
 ): StrategyBlueprint {
-  const steps = syncLinearDependencies(flow.steps ?? []);
+  const steps = normalizeFlowStepNames(syncLinearDependencies(flow.steps ?? []));
   return {
     ...bp,
     strategyFlow: {

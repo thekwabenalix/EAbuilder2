@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type {
   BrainModuleType,
   StrategyFlowConfig,
@@ -11,6 +11,8 @@ import { eventsForStepRole, firstEventForRole } from "@/lib/strategy-flow-events
 import { flowSupportsModuleRole } from "@/generators/gen-flow-ea";
 import {
   createDefaultStep,
+  formatStepDisplayName,
+  normalizeFlowStepNames,
   reorderSteps,
   removeStepAt,
   STEP_ROLE_OPTIONS,
@@ -126,6 +128,10 @@ function StepCard({
   const admission = getModuleAdmission(step.module);
   const admissionMeta = admission ? MODULE_ADMISSION_STATUS_META[admission.status] : null;
 
+  function withSyncedName(next: StrategyStepConfig): StrategyStepConfig {
+    return { ...next, name: formatStepDisplayName(next.module, next.timeframe, next.role) };
+  }
+
   function setModule(moduleId: BrainModuleType) {
     const events = eventsForStepRole(moduleId, step.role);
     const event =
@@ -133,14 +139,13 @@ function StepCard({
       firstEventForRole(moduleId, step.role) ??
       firstEventForRole(moduleId, "entry") ??
       step.event;
-    onChange({
-      ...step,
-      module: moduleId,
-      event,
-      name: step.name.includes(step.module)
-        ? step.name.replace(step.module.toUpperCase(), moduleId.replace(/_/g, " ").toUpperCase())
-        : step.name,
-    });
+    onChange(
+      withSyncedName({
+        ...step,
+        module: moduleId,
+        event,
+      }),
+    );
   }
 
   function setRole(role: StrategyStepRole) {
@@ -150,7 +155,7 @@ function StepCard({
       firstEventForRole(step.module, role) ??
       firstEventForRole(step.module, "entry") ??
       step.event;
-    onChange({ ...step, role, event });
+    onChange(withSyncedName({ ...step, role, event }));
   }
 
   return (
@@ -254,7 +259,10 @@ function StepCard({
 
       <div className="space-y-1">
         <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Timeframe</Label>
-        <TfPicker value={step.timeframe} onChange={(tf) => onChange({ ...step, timeframe: tf })} />
+        <TfPicker
+          value={step.timeframe}
+          onChange={(tf) => onChange(withSyncedName({ ...step, timeframe: tf }))}
+        />
       </div>
 
       <div className="space-y-1">
@@ -306,6 +314,17 @@ export function StrategyFlowBuilder({
 }) {
   const steps = flow.steps ?? [];
   const validation = useMemo(() => validateFlowForBuilder(flow), [flow]);
+  const normalizedOnMount = useRef(false);
+
+  useEffect(() => {
+    if (normalizedOnMount.current) return;
+    normalizedOnMount.current = true;
+    const fixed = normalizeFlowStepNames(steps);
+    const changed = fixed.some((step, index) => step.name !== steps[index]?.name);
+    if (changed) {
+      onChange({ ...flow, steps: syncLinearDependencies(fixed) });
+    }
+  }, [flow, onChange, steps]);
 
   function updateSteps(nextSteps: StrategyStepConfig[]) {
     onChange({

@@ -6,6 +6,7 @@ import {
   blueprintUsesAdvancedFlow,
   builderModeFromBlueprint,
   createDefaultStep,
+  formatStepDisplayName,
   nameFromFlowSteps,
   reorderSteps,
   removeStepAt,
@@ -82,4 +83,28 @@ const validation = validateFlowForBuilder(fourBrainToStrategyFlow(fourBrain));
 assertOk(validation.schemaOk, "classic flow validates in builder");
 assertOk(validation.flowEngineOk, "classic flow supported by flow engine");
 
-console.log("\n12 strategy flow builder UI check(s) passed.\n");
+assertEq(
+  formatStepDisplayName("engulfing", "H4", "direction"),
+  "Direction Engulfing / EF H4",
+  "step label uses module label and role",
+);
+
+const staleStep = {
+  ...chained[0]!,
+  module: "engulfing" as const,
+  role: "direction" as const,
+  timeframe: "H4",
+  name: "Entry BOS M5",
+};
+assertEq(
+  attachUserFlowToBlueprint(bp, {
+    version: 1,
+    mode: "advanced_instances",
+    source: "user",
+    steps: [staleStep, ...chained.slice(1)],
+  }).strategyFlow?.steps[0]?.name,
+  "Direction Engulfing / EF H4",
+  "attach normalizes stale auto-generated step names",
+);
+
+console.log("\n14 strategy flow builder UI check(s) passed.\n");

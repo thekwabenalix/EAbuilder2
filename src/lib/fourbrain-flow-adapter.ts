@@ -19,6 +19,7 @@ import type {
 } from "../types/blueprint";
 import type { StrategyEventType } from "./strategy-events";
 import { firstEventForRole } from "./strategy-flow-events";
+import { formatStepDisplayName } from "./strategy-step-label";
 
 type BrainKind = "direction" | "setup" | "execution";
 
@@ -46,9 +47,8 @@ function stepLabel(
   index: number,
   total: number,
 ): string {
-  const prefix = brain === "direction" ? "Direction" : brain === "setup" ? "Setup" : "Entry";
-  const base = `${prefix} ${moduleId.toUpperCase()} ${timeframe}`;
-  return total > 1 ? `${base} (${index + 1}/${total})` : base;
+  const role = stepRoleForBrain(brain);
+  return formatStepDisplayName(moduleId, timeframe, role, { index, total });
 }
 
 function resolveEvent(moduleId: string, role: StrategyStepRole): StrategyEventType {
