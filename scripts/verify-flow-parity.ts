@@ -79,6 +79,20 @@ assertOk(!isFlowVerifiedModule("bb"), "bb excluded from advanced flow picker");
 assertOk(isFlowVerifiedModule("engulfing"), "engulfing is flow verified");
 console.log("[OK  ] legacy heuristic modules gated from flow picker");
 
+function assertOnTickOrder(code: string, directionIdx: number, setupIdx: number, smTickNeedle: string): void {
+  const onTickStart = code.indexOf("void OnTick()");
+  assertOk(onTickStart >= 0, "OnTick handler present");
+  const onTickBody = code.slice(onTickStart);
+  const dirPos = onTickBody.indexOf(`DetectStep_${directionIdx}();`);
+  const tickPos = onTickBody.indexOf(smTickNeedle);
+  const setupPos = onTickBody.indexOf(`DetectStep_${setupIdx}();`);
+  assertOk(dirPos >= 0, `direction DetectStep_${directionIdx} present in OnTick`);
+  assertOk(tickPos >= 0, `${smTickNeedle} present in OnTick`);
+  assertOk(setupPos >= 0, `setup DetectStep_${setupIdx} present in OnTick`);
+  assertOk(dirPos < tickPos, `DetectStep_${directionIdx} runs before ${smTickNeedle} on each bar`);
+  assertOk(tickPos < setupPos, `${smTickNeedle} runs before DetectStep_${setupIdx} on each bar`);
+}
+
 const bosEmaFlow = {
   version: 1 as const,
   mode: "advanced_instances" as const,
@@ -133,6 +147,101 @@ const bosEmaFlow = {
 const bosEmaCode = generateFlowEA(bosEmaFlow, "BOS_EMA_Bias_Test");
 assertOk(bosEmaCode.includes("EMASM_M30_Tick(gDir[0])"), "EMA SM uses BOS direction bias");
 assertOk(bosEmaCode.includes("_confT"), "EMA entry waits for bar after confirmation");
+assertOnTickOrder(bosEmaCode, 0, 1, "EMASM_M30_Tick");
 console.log("[OK  ] BOS direction feeds EMA state machine bias");
 
-console.log("\n6 flow engine parity check(s) passed.\n");
+const emaSameTfFlow = {
+  version: 1 as const,
+  mode: "advanced_instances" as const,
+  source: "user" as const,
+  management: { riskPercent: 1, rewardRisk: 2, maxOpenTrades: 1 },
+  steps: [
+    {
+      id: "dir_ema",
+      name: "Direction EMA M15",
+      role: "direction" as const,
+      module: "ema",
+      timeframe: "M15",
+      event: "EMA_BIAS",
+      params: { fastPeriod: 12, slowPeriod: 48 },
+      enabled: true,
+    },
+    {
+      id: "setup_ema",
+      name: "Setup EMA M15",
+      role: "setup" as const,
+      module: "ema",
+      timeframe: "M15",
+      event: "EMA_CROSS",
+      params: { fastPeriod: 12, slowPeriod: 48 },
+      dependsOn: [{ stepId: "dir_ema", relation: "after" as const }],
+      enabled: true,
+    },
+    {
+      id: "entry_ema",
+      name: "Entry EMA M15",
+      role: "entry" as const,
+      module: "ema",
+      timeframe: "M15",
+      event: "EMA_CLOSE_CONFIRMED",
+      params: { fastPeriod: 12, slowPeriod: 48 },
+      dependsOn: [{ stepId: "setup_ema", relation: "same_or_after" as const }],
+      enabled: true,
+    },
+  ],
+};
+const emaSameTfCode = generateFlowEA(emaSameTfFlow, "EmaSameTfTickOrderTest");
+assertOk(emaSameTfCode.includes("EMASM_M15_Tick(gDir[0])"), "same-TF EMA chain uses direction gDir for tick");
+assertOnTickOrder(emaSameTfCode, 0, 1, "EMASM_M15_Tick");
+console.log("[OK  ] EMA direction detect runs before EMA SM tick on same timeframe");
+
+const sameBarGateFlow = {
+  version: 1 as const,
+  mode: "advanced_instances" as const,
+  source: "user" as const,
+  management: { riskPercent: 1, rewardRisk: 2, maxOpenTrades: 1 },
+  steps: [
+    {
+      id: "dir_bos",
+      name: "Direction BOS H1",
+      role: "direction" as const,
+      module: "bos",
+      timeframe: "H1",
+      event: "BOS_BIAS",
+      params: { lookback: 20 },
+      enabled: true,
+    },
+    {
+      id: "setup_fvg",
+      name: "Setup FVG H1",
+      role: "setup" as const,
+      module: "fvg",
+      timeframe: "H1",
+      event: "FVG_CREATED",
+      params: { expiryBars: 100 },
+      dependsOn: [{ stepId: "dir_bos", relation: "after" as const }],
+      enabled: true,
+    },
+    {
+      id: "entry_bos",
+      name: "Entry BOS M5",
+      role: "entry" as const,
+      module: "bos",
+      timeframe: "M5",
+      event: "BOS_CONFIRMED",
+      params: { lookback: 20 },
+      dependsOn: [
+        { stepId: "dir_bos", relation: "after" as const },
+        { stepId: "setup_fvg", relation: "same_or_after" as const },
+      ],
+      enabled: true,
+    },
+  ],
+};
+const sameBarCode = generateFlowEA(sameBarGateFlow, "SameBarGateTest");
+assertOk(sameBarCode.includes("gTime[1] <= gTime[2]"), "same_or_after dependency uses <=");
+assertOk(sameBarCode.includes("gTime[0] < gTime[2]"), "after dependency uses strict <");
+assertOk(sameBarCode.includes("not same bar or before entry"), "same_or_after gate message emitted");
+console.log("[OK  ] flow entry gate honors after vs same_or_after");
+
+console.log("\n9 flow engine parity check(s) passed.\n");

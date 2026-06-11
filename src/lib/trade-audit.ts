@@ -60,6 +60,8 @@ function normalizeBlockReason(raw: string): string {
   if (/setup mismatch/i.test(text)) return "Setup direction mismatch";
   if (/not fired/i.test(text)) return "Upstream step not fired";
   if (/not before entry/i.test(text)) return "Step out of order (not before entry)";
+  if (/not same bar or before entry/i.test(text)) return "Step out of order (same bar not allowed)";
+  if (/not after entry bar/i.test(text)) return "Step out of order (must be after entry bar)";
   if (/setup expired/i.test(text)) return "Setup expired";
   if (/no SL/i.test(text)) return "Missing stop loss";
   if (/SL too wide/i.test(text)) return "Stop loss too wide";

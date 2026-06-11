@@ -4,7 +4,7 @@
  * State machines are embedded via sm-embed-registry.ts (shared with gen-ea.ts).
  */
 
-import type { StrategyFlowConfig, StrategyStepConfig, FourBrainConfig } from "../types/blueprint";
+import type { StrategyFlowConfig, StrategyStepConfig, FourBrainConfig, StrategyStepDependencyRelation } from "../types/blueprint";
 import type { BuiltinFilterRef } from "@/lib/builtin-filter-contracts";
 import {
   B4_FILTER_EXTRA_FUNCTIONS,
@@ -302,10 +302,40 @@ function emitDetection(step: StrategyStepConfig, i: number, steps: StrategyStepC
   return `void DetectStep_${i}() { /* ${m}/${role} not supported */ }`;
 }
 
-function emitDepCheck(stepIdx: number, entryIdx: number, steps: StrategyStepConfig[]): string {
+function depTimeRelationExpr(
+  stepIdx: number,
+  entryIdx: number,
+  relation: StrategyStepDependencyRelation = "after",
+): { expr: string; failMsg: string } {
+  switch (relation) {
+    case "same_or_after":
+      return {
+        expr: `gTime[${stepIdx}] <= gTime[${entryIdx}]`,
+        failMsg: "not same bar or before entry",
+      };
+    case "before":
+      return {
+        expr: `gTime[${stepIdx}] > gTime[${entryIdx}]`,
+        failMsg: "not after entry bar",
+      };
+    default:
+      return {
+        expr: `gTime[${stepIdx}] < gTime[${entryIdx}]`,
+        failMsg: "not before entry",
+      };
+  }
+}
+
+function emitDepCheck(
+  stepIdx: number,
+  entryIdx: number,
+  steps: StrategyStepConfig[],
+  relation: StrategyStepDependencyRelation = "after",
+): string {
   const nm = (steps[stepIdx].name || `step${stepIdx}`).replace(/[^A-Za-z0-9 ]/g, "");
+  const { expr, failMsg } = depTimeRelationExpr(stepIdx, entryIdx, relation);
   return `   if(!gFired[${stepIdx}]) { gLastGate = "BLOCKED: ${nm} not fired"; return; }
-   if(!(gTime[${stepIdx}] < gTime[${entryIdx}])) { gLastGate = "BLOCKED: ${nm} not before entry"; return; }
+   if(!(${expr})) { gLastGate = "BLOCKED: ${nm} ${failMsg}"; return; }
    if(gDir[${stepIdx}] != dir) { gLastGate = "BLOCKED: direction mismatch"; return; }`;
 }
 
@@ -328,7 +358,7 @@ function emitGate(
   const andChecks = andDeps
     .map((dep) => {
       const i = steps.findIndex((s) => s.id === dep.stepId);
-      return i >= 0 ? emitDepCheck(i, entryIdx, steps) : "";
+      return i >= 0 ? emitDepCheck(i, entryIdx, steps, dep.relation ?? "after") : "";
     })
     .filter(Boolean)
     .join("\n");
@@ -339,7 +369,8 @@ function emitGate(
         .map((dep) => {
           const i = steps.findIndex((s) => s.id === dep.stepId);
           if (i < 0) return "false";
-          return `(gFired[${i}] && gTime[${i}] < gTime[${entryIdx}] && gDir[${i}] == dir)`;
+          const { expr } = depTimeRelationExpr(i, entryIdx, dep.relation ?? "after");
+          return `(gFired[${i}] && (${expr}) && gDir[${i}] == dir)`;
         })
         .join(" || ");
       return `   if(!(${clauses})) { gLastGate = "BLOCKED: ${group} not satisfied"; return; }`;
@@ -456,10 +487,19 @@ export function generateFlowEA(
   const onTickBody = [...tfGroups.entries()]
     .map(([tfc, idxs]) => {
       const mySlot = slot++;
+      const dirDets = idxs
+        .filter((i) => steps[i]!.role === "direction")
+        .map((i) => `DetectStep_${i}();`)
+        .join(" ");
       const ticks = (smTickByTf.get(tfc) ?? []).join(" ");
-      const dets = idxs.map((i) => `DetectStep_${i}();`).join(" ");
+      const otherDets = idxs
+        .filter((i) => steps[i]!.role !== "direction")
+        .map((i) => `DetectStep_${i}();`)
+        .join(" ");
       const gateCalls = (entryTFs.get(tfc) ?? []).map((i) => `EvaluateEntry_${i}();`).join(" ");
-      return `   { datetime b = iTime(InpSymbol, ${tfc}, 0); if(b != gLastBar[${mySlot}]) { gLastBar[${mySlot}] = b; ${ticks} ${dets} ${gateCalls} } }`;
+      // Direction must register gDir before EMA SM Tick reads external bias (same-bar cross/setup).
+      const body = [dirDets, ticks, otherDets, gateCalls].filter(Boolean).join(" ");
+      return `   { datetime b = iTime(InpSymbol, ${tfc}, 0); if(b != gLastBar[${mySlot}]) { gLastBar[${mySlot}] = b; ${body} } }`;
     })
     .join("\n");
   const tfSlots = Math.max(slot, 1);
