@@ -4,8 +4,6 @@
  */
 
 import type { StrategyBlueprint } from "@/types/blueprint";
-import { buildCompactModuleContractContext } from "@/lib/module-contracts";
-import { buildCompactModuleLibraryContext } from "@/lib/module-library";
 import { buildModuleRepairPlan, MODULE_ADMISSION } from "@/lib/module-admission";
 import { resolveStrategyFlow } from "@/lib/blueprint-generation-gate";
 import { buildExpectedTradePath } from "@/lib/trade-audit";
@@ -68,8 +66,6 @@ export function buildAssistantPlatformContext(blueprint: StrategyBlueprint): str
     "- Traders configure Strategy Flow (ordered module steps) or Simple 4-Brain preset.",
     "- Click **Generate EA / Regen Template** — deterministic compiler picks flow_engine when all modules are verified.",
     "- flow_engine: ordered RegisterEvent timeline + EvaluateEntry gates + embedded state machines.",
-    "- blueprint_assembler (deprecated fallback): legacy 4-Brain wiring when flow cannot cover modules.",
-    "- legacy_heuristic: pin_bar / bb / swing_structure only.",
     "- EA **generation** is template/deterministic. The **AI Assistant** (this chat) helps interpret, debug, and suggest blueprint/code changes — not replace the compiler.",
     "",
     "STRATEGY FLOW (resolved):",
@@ -97,16 +93,11 @@ export function buildAssistantPlatformContext(blueprint: StrategyBlueprint): str
     "",
     compactAdmissionContext(selectedModules),
     "",
-    "=== VERIFIED MODULE CONTRACTS ===",
-    buildCompactModuleContractContext(),
-    "",
-    "=== MODULE VOCABULARY SUMMARY ===",
-    buildCompactModuleLibraryContext(),
-    "",
     "DEBUGGING FLOW EAs:",
     "- [EVENT] lines in tester log = step fired (check order vs expected chain).",
     "- If only direction events appear but no setup/entry events, check EMA bias wiring (external direction e.g. BOS must feed EMASM_Tick).",
     "- gLastGate strings explain why EvaluateEntry blocked a trade.",
     "- Zero trades with many direction events usually means downstream steps never fired or entry gate blocked (direction mismatch, same-bar timestamp, expiry).",
+    "- Full module library/contracts are omitted here to save tokens; selected module contracts are attached separately when relevant.",
   ].join("\n");
 }

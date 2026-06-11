@@ -34,10 +34,15 @@ import {
 import { toast } from "sonner";
 import { applyFix } from "@/lib/api-client";
 import {
+  formatAssistantError,
+  isAssistantProviderUnavailable,
+} from "@/lib/assistant-errors";
+import {
   APPLY_FIX_BLOCKED_MESSAGE,
   canApplyAiSurgicalFix,
   prefersBlueprintRegen,
 } from "@/lib/ea-generation-policy";
+import { answerLocalAssistant } from "@/lib/local-assistant";
 import type { EaChatMessage } from "@/lib/api-client";
 import type { StrategyBlueprint } from "@/types/blueprint";
 
@@ -98,6 +103,72 @@ const ACTION_CONFIG = {
 } satisfies Record<EaAssistantAction, { label: string; icon: typeof Hammer }>;
 
 const ACTION_KEYS = new Set(Object.keys(ACTION_CONFIG));
+
+class AssistantChatError extends Error {
+  constructor(
+    message: string,
+    readonly providerUnavailable: boolean,
+  ) {
+    super(message);
+    this.name = "AssistantChatError";
+  }
+}
+
+function handleChatFailure(
+  raw: string,
+  providerUnavailable: boolean,
+  text: string,
+  textArg: string | undefined,
+  ctx: {
+    blueprint: StrategyBlueprint;
+    prompt?: string;
+    code: string;
+    compileLog?: string | null;
+    testerLog?: string | null;
+    backtestSummary?: unknown;
+    setMessages: React.Dispatch<React.SetStateAction<(EaChatMessage & { images?: string[] })[]>>;
+    setInput: React.Dispatch<React.SetStateAction<string>>;
+  },
+) {
+  const friendly = formatAssistantError(raw);
+  const offline = providerUnavailable || isAssistantProviderUnavailable(raw);
+
+  if (offline) {
+    const offlineReply = answerLocalAssistant({
+      userMessage: text,
+      blueprint: ctx.blueprint,
+      prompt: ctx.prompt,
+      code: ctx.code,
+      compileLog: ctx.compileLog,
+      testerLog: ctx.testerLog,
+      backtestSummary:
+        ctx.backtestSummary && typeof ctx.backtestSummary === "object"
+          ? (ctx.backtestSummary as Record<string, unknown>)
+          : null,
+    });
+    ctx.setMessages((prev) => {
+      const last = prev[prev.length - 1];
+      const body = `${friendly}\n\n${offlineReply}`;
+      if (last?.role === "assistant") {
+        return [...prev.slice(0, -1), { role: "assistant" as const, content: body }];
+      }
+      return [...prev, { role: "assistant" as const, content: body }];
+    });
+    toast.warning(friendly);
+  } else {
+    toast.error(friendly);
+    ctx.setMessages((prev) => {
+      const last = prev[prev.length - 1];
+      if (last?.role === "assistant" && last.content === "") return prev.slice(0, -1);
+      if (last?.role === "assistant") {
+        return [...prev.slice(0, -1), { role: "assistant" as const, content: friendly }];
+      }
+      return prev;
+    });
+  }
+
+  if (!textArg) ctx.setInput(text);
+}
 
 type EaAssistantToolIntent = {
   action: EaAssistantAction;
@@ -313,7 +384,12 @@ export function EaChatDrawer({
       // Server signals whether the AI described a fix
       if (parsed.fixReady === true) setFixReady(true);
     }
-    if (typeof parsed.error === "string") throw new Error(parsed.error);
+    if (typeof parsed.error === "string") {
+      throw new AssistantChatError(
+        formatAssistantError(parsed.error),
+        parsed.providerUnavailable === true || isAssistantProviderUnavailable(parsed.error),
+      );
+    }
   };
 
   // Auto-send autoMessage the moment the drawer opens (only if no conversation exists).
@@ -391,7 +467,8 @@ export function EaChatDrawer({
       });
 
       if (!res.ok || !res.body) {
-        throw new Error(`Server error ${res.status}`);
+        const errText = await res.text().catch(() => "");
+        throw new Error(errText || `Server error ${res.status}`);
       }
 
       const reader = res.body.getReader();
@@ -429,14 +506,31 @@ export function EaChatDrawer({
       }
     } catch (e: unknown) {
       if (e instanceof Error && e.name === "AbortError") return;
-      toast.error(e instanceof Error ? e.message : "Chat failed");
-      setMessages((prev) => {
-        const last = prev[prev.length - 1];
-        if (last?.role === "assistant" && last.content === "") return prev.slice(0, -1);
-        return prev;
-      });
-      // Only restore input when the user typed manually (not during auto-send)
-      if (!textArg) setInput(text);
+
+      if (e instanceof AssistantChatError) {
+        handleChatFailure(e.message, e.providerUnavailable, text, textArg, {
+          blueprint,
+          prompt,
+          code,
+          compileLog,
+          testerLog,
+          backtestSummary,
+          setMessages,
+          setInput,
+        });
+      } else {
+        const raw = e instanceof Error ? e.message : "Chat failed";
+        handleChatFailure(raw, isAssistantProviderUnavailable(raw), text, textArg, {
+          blueprint,
+          prompt,
+          code,
+          compileLog,
+          testerLog,
+          backtestSummary,
+          setMessages,
+          setInput,
+        });
+      }
     } finally {
       setLoading(false);
     }

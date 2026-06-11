@@ -1,5 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { buildAssistantPlatformContext } from "../../src/lib/assistant-platform-context.js";
+import {
+  buildAssistantChatContext,
+  estimateTokens,
+  trimChatMessages,
+} from "../../src/lib/assistant-context-budget.js";
+import { formatAssistantError, isAssistantProviderUnavailable } from "../../src/lib/assistant-errors.js";
 import type { StrategyBlueprint } from "../../src/types/blueprint.js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -238,10 +243,6 @@ Keep responses concise and actionable.`;
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
-}
-
 function asBlueprint(value: unknown): StrategyBlueprint {
   return (value && typeof value === "object" ? value : {}) as StrategyBlueprint;
 }
@@ -278,7 +279,7 @@ export default async (req: Request): Promise<Response> => {
     return Response.json({ error: "Invalid JSON" }, { status: 400, headers: CORS });
   }
 
-  const messages = body.messages as ChatMessage[];
+  const messages = trimChatMessages(body.messages as ChatMessage[]);
   const blueprint = body.blueprint;
   const code = typeof body.code === "string" ? body.code : "";
   const prompt = typeof body.prompt === "string" ? body.prompt : "";
@@ -296,42 +297,20 @@ export default async (req: Request): Promise<Response> => {
     return Response.json({ error: "messages required" }, { status: 400, headers: CORS });
   }
 
-  // Inject full context into the first user message only
-  const contextBlock = [
-    buildAssistantPlatformContext(asBlueprint(blueprint)),
-    "",
-    "=== ORIGINAL STRATEGY PROMPT ===",
-    prompt || "(no original prompt supplied)",
-    "",
-    "=== STRATEGY BLUEPRINT ===",
-    JSON.stringify(blueprint, null, 2),
-    "",
-    "=== BLUEPRINT AUDIT / AI WIRING DIAGNOSTICS ===",
-    JSON.stringify(
-      {
-        blueprintAudit: asRecord(blueprint).blueprintAudit ?? null,
-        intentContract: asRecord(blueprint).intentContract ?? null,
-        aiWiringDiagnostics: asRecord(blueprint).aiWiringDiagnostics ?? null,
-        indicatorRefs: asRecord(blueprint).indicatorRefs ?? null,
-        filterRefs: asRecord(blueprint).filterRefs ?? null,
-      },
-      null,
-      2,
-    ),
-    "",
-    "=== GENERATED MQL5 CODE ===",
-    code || "(no code generated yet)",
-    compileLog ? `\n=== LAST COMPILE ERRORS ===\n${compileLog}` : "",
-    testerLog ? `\n=== LAST TESTER / BACKTEST LOG ===\n${testerLog}` : "",
-    backtestSummary
-      ? `\n=== LAST BACKTEST SUMMARY ===\n${JSON.stringify(backtestSummary, null, 2)}`
-      : "",
-    diagnosticContext
-      ? `\n=== PLATFORM / RUNNER DIAGNOSTIC CONTEXT ===\n${JSON.stringify(diagnosticContext, null, 2)}`
-      : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  // Inject budgeted context into the first user message only
+  const contextBlock = buildAssistantChatContext({
+    blueprint: asBlueprint(blueprint),
+    prompt,
+    code,
+    compileLog,
+    testerLog,
+    backtestSummary,
+    diagnosticContext,
+  });
+
+  console.log(
+    `[ea-chat] context ~${estimateTokens(contextBlock).toLocaleString()} tokens, messages=${messages.length}`,
+  );
 
   // Convert a base64 data URL into an Anthropic image content block.
   const toImageBlock = (dataUrl: string) => {
@@ -354,8 +333,15 @@ export default async (req: Request): Promise<Response> => {
         : "attached_but_unparsed";
 
   const lastIdx = messages.length - 1;
+  const lastUserIdx = messages.reduce(
+    (acc, m, i) => (m.role === "user" ? i : acc),
+    0,
+  );
   const enrichedMessages = messages.map((m, i) => {
-    let text = i === 0 ? `${contextBlock}\n\n=== USER MESSAGE ===\n${m.content}` : m.content;
+    const attachContext = i === lastUserIdx && m.role === "user";
+    let text = attachContext
+      ? `${contextBlock}\n\n=== USER MESSAGE ===\n${m.content}`
+      : m.content;
     if (i === lastIdx && m.role === "user") {
       text = `IMAGE STATUS: ${imageStatus} (${images.length} received, ${imageBlocks.length} parsed)\n${text}`;
     }
@@ -401,9 +387,8 @@ export default async (req: Request): Promise<Response> => {
       } catch (err) {
         const message = err instanceof Error ? err.message : "Stream error";
         send({
-          error: /modelId\.replace is not a function/i.test(message)
-            ? "AI provider/model configuration failed before the assistant could respond. This is a platform AI routing issue, not your strategy rules. Try again once; if it repeats, download the Evidence Pack and check the AI function logs."
-            : message,
+          error: formatAssistantError(message),
+          providerUnavailable: isAssistantProviderUnavailable(message),
         });
       } finally {
         controller.close();
