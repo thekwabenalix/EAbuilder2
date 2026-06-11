@@ -33,3 +33,4 @@ dist-ssr
 
 # Generated MQL5 verification artifacts
 verify/mql5/
+verify/mql5/compile-out/

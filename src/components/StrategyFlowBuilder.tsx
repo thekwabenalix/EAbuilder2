@@ -8,7 +8,7 @@ import type {
 import { ALL_BRAIN_MODULES, TIMEFRAMES as TF_LIST } from "@/lib/brain-modules";
 import { MODULE_UI_PARAMS, type UIParam } from "@/lib/module-library";
 import { eventsForStepRole, firstEventForRole } from "@/lib/strategy-flow-events";
-import { flowSupportsModuleRole } from "@/generators/gen-flow-ea";
+import { flowSupportsModuleRole, isFlowVerifiedModule } from "@/generators/gen-flow-ea";
 import {
   createDefaultStep,
   formatStepDisplayName,
@@ -229,7 +229,7 @@ function StepCard({
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="max-h-64">
-              {ALL_BRAIN_MODULES.map((mod) => (
+              {ALL_BRAIN_MODULES.filter((mod) => isFlowVerifiedModule(mod.id)).map((mod) => (
                 <SelectItem key={mod.id} value={mod.id} className="text-xs">
                   {mod.symbol} {mod.label}
                 </SelectItem>

@@ -22,7 +22,7 @@ import { genDirectionBrain } from "./gen-direction-brain";
 import { genSetupBrain } from "./gen-setup-brain";
 import { genExecutionBrain } from "./gen-execution-brain";
 import type { AiBrainWiring } from "@/lib/api-client";
-import type { BuiltinFilterRef } from "@/lib/builtin-filter-contracts";
+import { buildAssemblerFilterCode } from "./gen-builtin-filters";
 import {
   buildBlueprintWiring,
   configUsesLegacyHeuristics,
@@ -409,110 +409,6 @@ function injectBeforeFinalBrace(code: string, snippet: string): string {
   return `${code.slice(0, idx)}${snippet}\n${code.slice(idx)}`;
 }
 
-function filterNum(params: Record<string, unknown>, key: string, fallback: number): number {
-  const value = params[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-function filterStr(params: Record<string, unknown>, key: string, fallback: string): string {
-  const value = params[key];
-  return typeof value === "string" && value ? value : fallback;
-}
-
-function filterPlacement(filter: BuiltinFilterRef): "setup" | "execution" {
-  return filter.appliesTo === "setup" ? "setup" : "execution";
-}
-
-function templateFilterSnippet(filter: BuiltinFilterRef, index: number): string {
-  const params = filter.params ?? {};
-  const tf = tfConst(filter.timeframe || "M5");
-  const suffix = `${filter.id}_${filter.timeframe}_${index}`.replace(/[^A-Za-z0-9_]/g, "_");
-  const placement = filterPlacement(filter);
-  const target = placement === "setup" ? "gSetupActive" : "gExecSignal";
-  const direction = placement === "setup" ? "gSetupDir" : "gExecDir";
-
-  if (filter.id === "rsi_level_filter") {
-    const period = filterNum(params, "period", 14);
-    const level = filterNum(params, "level", 50);
-    const operator = filterStr(params, "operator", "directional");
-    const condition =
-      operator === "above"
-        ? `rsi_${suffix} > ${level}`
-        : operator === "below"
-          ? `rsi_${suffix} < ${level}`
-          : `(${direction} == 1 && rsi_${suffix} > ${level}) || (${direction} == -1 && rsi_${suffix} < ${level})`;
-    return `
-   // Verified built-in ${placement} filter: RSI level
-   int hRsi_${suffix} = B4_RSI(${tf}, ${period});
-   double rsi_${suffix} = B4_Buf(hRsi_${suffix}, 0, 1);
-   if(${target} && !(${condition})) {
-      PrintFormat("[FILTER] rsi_level_filter blocked: RSI %.2f", rsi_${suffix});
-      ${target} = false;
-   }`;
-  }
-
-  if (filter.id === "atr_volatility_filter") {
-    const period = filterNum(params, "period", 14);
-    const minAtr = filterNum(params, "minAtrPoints", 0);
-    const maxAtr = filterNum(params, "maxAtrPoints", 0);
-    const operator = filterStr(params, "operator", minAtr > 0 ? "above" : "below");
-    const condition =
-      operator === "below"
-        ? maxAtr > 0
-          ? `atrPts_${suffix} <= ${maxAtr}`
-          : "true"
-        : operator === "between"
-          ? `(${minAtr <= 0 ? "true" : `atrPts_${suffix} >= ${minAtr}`}) && (${maxAtr <= 0 ? "true" : `atrPts_${suffix} <= ${maxAtr}`})`
-          : minAtr > 0
-            ? `atrPts_${suffix} >= ${minAtr}`
-            : "true";
-    return `
-   // Verified built-in ${placement} filter: ATR volatility
-   int hAtr_${suffix} = B4_ATR(${tf}, ${period});
-   double atrPts_${suffix} = B4_Buf(hAtr_${suffix}, 0, 1) / SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
-   if(${target} && !(${condition})) {
-      PrintFormat("[FILTER] atr_volatility_filter blocked: ATR %.1f points", atrPts_${suffix});
-      ${target} = false;
-   }`;
-  }
-
-  if (filter.id === "macd_histogram_filter") {
-    const fast = filterNum(params, "fastPeriod", 12);
-    const slow = filterNum(params, "slowPeriod", 26);
-    const signal = filterNum(params, "signalPeriod", 9);
-    const operator = filterStr(params, "operator", "directional");
-    const condition =
-      operator === "above_zero"
-        ? `macdHist_${suffix} > 0.0`
-        : operator === "below_zero"
-          ? `macdHist_${suffix} < 0.0`
-          : `(${direction} == 1 && macdHist_${suffix} > 0.0) || (${direction} == -1 && macdHist_${suffix} < 0.0)`;
-    return `
-   // Verified built-in ${placement} filter: MACD histogram
-   int hMacd_${suffix} = B4_MACD(${tf}, ${fast}, ${slow}, ${signal});
-   double macdMain_${suffix} = B4_Buf(hMacd_${suffix}, 0, 1);
-   double macdSignal_${suffix} = B4_Buf(hMacd_${suffix}, 1, 1);
-   double macdHist_${suffix} = macdMain_${suffix} - macdSignal_${suffix};
-   if(${target} && !(${condition})) {
-      PrintFormat("[FILTER] macd_histogram_filter blocked: histogram %.5f", macdHist_${suffix});
-      ${target} = false;
-   }`;
-  }
-
-  return "";
-}
-
-function buildTemplateBuiltinFilterCode(
-  filterRefs: BuiltinFilterRef[] | undefined,
-  placement: "setup" | "execution",
-): string {
-  return (filterRefs ?? [])
-    .filter((filter) => filterPlacement(filter) === placement)
-    .map(templateFilterSnippet)
-    .filter(Boolean)
-    .join("\n");
-}
-
 export function generateEA(params: MQL5CodeGenParams): string {
   const {
     eaName,
@@ -577,11 +473,11 @@ export function generateEA(params: MQL5CodeGenParams): string {
     if (!aiWiring) {
       setupCode = injectBeforeFinalBrace(
         setupCode,
-        buildTemplateBuiltinFilterCode(filterRefs, "setup"),
+        buildAssemblerFilterCode(filterRefs, "setup"),
       );
       execCode = injectBeforeFinalBrace(
         execCode,
-        buildTemplateBuiltinFilterCode(filterRefs, "execution"),
+        buildAssemblerFilterCode(filterRefs, "execution"),
       );
     }
   } else {
@@ -590,11 +486,11 @@ export function generateEA(params: MQL5CodeGenParams): string {
     execCode = genExecutionBrain(config.execution);
     setupCode = injectBeforeFinalBrace(
       setupCode,
-      buildTemplateBuiltinFilterCode(filterRefs, "setup"),
+      buildAssemblerFilterCode(filterRefs, "setup"),
     );
     execCode = injectBeforeFinalBrace(
       execCode,
-      buildTemplateBuiltinFilterCode(filterRefs, "execution"),
+      buildAssemblerFilterCode(filterRefs, "execution"),
     );
   }
 

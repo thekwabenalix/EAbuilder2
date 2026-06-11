@@ -336,6 +336,14 @@ export function flowSupportsModuleRole(module: string, role: string): boolean {
   return false;
 }
 
+/** Modules without verified inline SMs — simple 4-Brain only (legacy heuristic path). */
+export const LEGACY_HEURISTIC_MODULE_IDS = new Set<string>(["pin_bar", "bb", "swing_structure"]);
+
+export function isFlowVerifiedModule(moduleId: string): boolean {
+  if (LEGACY_HEURISTIC_MODULE_IDS.has(moduleId)) return false;
+  return Boolean(getSmFlowProfile(moduleId));
+}
+
 /** Regex alternation of known SM prefixes (IFVGSM before FVGSM). */
 export const SM_PREFIX_REGEX =
   "RSIHDSM|OBFVGSM|EMASM|IFVGSM|FVGSM|EGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM";

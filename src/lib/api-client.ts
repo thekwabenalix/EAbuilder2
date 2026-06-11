@@ -80,9 +80,7 @@ export interface GenerateCodeResult {
 }
 
 /**
- * Regenerate MQL5 code from a (possibly edited) blueprint.
- * Streams the response via SSE — calls `onChunk(partialCode)` as lines arrive
- * so the editor can show live progress, then resolves with the complete code.
+ * @deprecated Retired — server returns 410. Use `generateMql5FromBlueprintDetailed` locally.
  */
 export async function generateCode(
   blueprint: StrategyBlueprint,
@@ -93,6 +91,17 @@ export async function generateCode(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ blueprint }),
   });
+
+  if (res.status === 410) {
+    let message = "Raw MQL5 streaming generation is retired. Use the verified blueprint router.";
+    try {
+      const body = (await res.json()) as { error?: string };
+      if (body.error) message = body.error;
+    } catch {
+      /* use default */
+    }
+    throw new Error(message);
+  }
 
   if (!res.ok || !res.body) {
     const msg = await res.text().catch(() => `HTTP ${res.status}`);

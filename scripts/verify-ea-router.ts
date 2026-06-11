@@ -1,7 +1,7 @@
 /**
  * Phase 1 — single generate router checks (flow vs blueprint vs legacy).
  */
-import { generateEaFromBlueprint, resolveStrategyFlow } from "../src/lib/generate-ea-router";
+import { generateEaFromBlueprint, previewEaGeneration, resolveStrategyFlow } from "../src/lib/generate-ea-router";
 import { flowEaSupportsAllSteps } from "../src/generators/gen-flow-ea";
 import { configUsesLegacyHeuristics } from "../src/generators/gen-blueprint-wiring";
 import type { StrategyBlueprint } from "../src/types/blueprint";
@@ -70,4 +70,9 @@ const noSetupResult = generateEaFromBlueprint(noSetupBp);
 assertEq(noSetupResult.path, "flow_engine", "BOS + engulfing uses flow without setup brain");
 console.log("[OK  ] router flow without setup brain");
 
-console.log("\n5 ea generation router check(s) passed.\n");
+const preview = previewEaGeneration(flowBp);
+assertEq(preview.path, "flow_engine", "preview matches flow_engine");
+assertEq(preview.validationErrors.length, 0, "preview has no errors");
+console.log("[OK  ] previewEaGeneration without emitting code");
+
+console.log("\n6 ea generation router check(s) passed.\n");

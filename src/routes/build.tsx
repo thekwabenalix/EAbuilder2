@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,8 @@ import { getModuleAdmission, MODULE_ADMISSION_STATUS_META } from "@/lib/module-a
 import { firstBlueprintGenerationError } from "@/lib/blueprint-generation-gate";
 import { EaGenerationError } from "@/lib/generate-ea-router";
 import { StrategyFlowBuilder } from "@/components/StrategyFlowBuilder";
+import { GenerationPathBanner } from "@/components/GenerationPathBanner";
+import { TradeAuditPanel } from "@/components/TradeAuditPanel";
 import { fourBrainToStrategyFlow } from "@/lib/strategy-flow";
 import {
   attachUserFlowToBlueprint,
@@ -46,6 +48,8 @@ import {
   normalizeFlowStepNames,
   type BuilderFlowMode,
 } from "@/lib/strategy-flow-ui";
+import { generateMql5FromBlueprintDetailed } from "@/lib/mql5-template-generator";
+import { toastEaGenerationSuccess } from "@/lib/ea-generation-toast";
 import type { StrategyFlowConfig } from "@/types/blueprint";
 
 export const Route = createFileRoute("/build")({
@@ -806,111 +810,33 @@ function FourBrainBuilderPage() {
   async function onGenerate() {
     if (!user) return;
 
-    if (builderMode === "advanced") {
-      const hasEntry = flowConfig.steps.some(
-        (s) => s.enabled !== false && (s.role === "entry" || s.role === "confirmation"),
-      );
-      if (!hasEntry) {
+    const bp = buildDraftBlueprint();
+    if (!bp) {
+      if (builderMode === "advanced") {
         toast.error("Add at least one Entry step to your Strategy Flow.");
-        return;
+      } else {
+        toast.error("Execution Brain is required — select a module and timeframe.");
       }
+      return;
+    }
+
+    if (builderMode === "advanced") {
       const unsafeModules = unsafeAiModuleLabels(flowConfig.steps.map((s) => s.module));
       if (unsafeModules.length > 0) {
         toast.error(`EA generation is blocked for: ${unsafeModules.join(", ")}`);
         return;
       }
-
-      const entryStep = flowConfig.steps.find(
-        (s) => s.enabled !== false && (s.role === "entry" || s.role === "confirmation"),
-      )!;
-      const fourBrain: FourBrainConfig =
-        buildFourBrainConfig() ?? {
-          execution: {
-            modules: [entryStep.module as BrainModuleType],
-            timeframe: entryStep.timeframe,
-            params: entryStep.params ?? {},
-          },
-          management: buildManagementConfig(),
-        };
-
-      let bp = {
-        ...DEFAULT_BLUEPRINT,
-        name: nameFromFlowSteps(flowConfig.steps),
-        fourBrain,
-        strategyNotes: strategyNotes.trim(),
-        risk: {
-          ...DEFAULT_BLUEPRINT.risk,
-          riskPercent: risk,
-          rewardRisk: rr,
-          breakevenEnabled: be,
-          maxOpenTrades: maxTrades,
-          stopBufferPoints: stopBuffer,
-        },
-      } as StrategyBlueprint;
-
-      bp = attachUserFlowToBlueprint(bp, {
-        ...flowConfig,
-        management: buildManagementConfig(),
-      });
-
-      setSaving(true);
-      try {
-        const generationError = firstBlueprintGenerationError(bp);
-        if (generationError) {
-          toast.error(generationError);
-          return;
-        }
-        const { generateMql5FromBlueprint } = await import("@/lib/mql5-template-generator");
-        const generatedCode = generateMql5FromBlueprint(bp);
-        const row = await createStrategy({
-          userId: user.id,
-          name: bp.name,
-          prompt: summary(),
-          blueprint: bp,
-          generatedCode,
-        });
-        toast.success("Strategy Flow EA created — ready to compile");
-        navigate({ to: "/s/$id", params: { id: row.id } });
-      } catch (e: unknown) {
-        toast.error(
-          e instanceof EaGenerationError ? e.message : e instanceof Error ? e.message : "Failed to create strategy",
-        );
-      } finally {
-        setSaving(false);
+    } else {
+      const blocked = unsafeAiModuleLabels([
+        ...(direction?.modules ?? []),
+        ...(setup?.modules ?? []),
+        ...(execution?.modules ?? []),
+      ]);
+      if (blocked.length > 0) {
+        toast.error(`4-Brain EA generation is blocked for: ${blocked.join(", ")}`);
+        return;
       }
-      return;
     }
-
-    if (!execution?.modules?.[0] || !execution.timeframe) {
-      toast.error("Execution Brain is required — select a module and timeframe.");
-      return;
-    }
-    const unsafeAiModules = unsafeAiModuleLabels([
-      ...(direction?.modules ?? []),
-      ...(setup?.modules ?? []),
-      ...(execution.modules ?? []),
-    ]);
-    if (unsafeAiModules.length > 0) {
-      toast.error(`4-Brain EA generation is blocked for: ${unsafeAiModules.join(", ")}`);
-      return;
-    }
-
-    const fourBrain = buildFourBrainConfig()!;
-
-    const bp = {
-      ...DEFAULT_BLUEPRINT,
-      name: buildName(fourBrain),
-      fourBrain,
-      strategyNotes: strategyNotes.trim(), // cross-brain conditions for AI generation
-      risk: {
-        ...DEFAULT_BLUEPRINT.risk,
-        riskPercent: risk,
-        rewardRisk: rr,
-        breakevenEnabled: be,
-        maxOpenTrades: maxTrades,
-        stopBufferPoints: stopBuffer,
-      },
-    } as StrategyBlueprint;
 
     setSaving(true);
     try {
@@ -919,19 +845,23 @@ function FourBrainBuilderPage() {
         toast.error(generationError);
         return;
       }
-      const { generateMql5FromBlueprint } = await import("@/lib/mql5-template-generator");
-      const generatedCode = generateMql5FromBlueprint(bp);
+      const result = generateMql5FromBlueprintDetailed(bp);
       const row = await createStrategy({
         userId: user.id,
         name: bp.name,
         prompt: summary(),
         blueprint: bp,
-        generatedCode,
+        generatedCode: result.code,
       });
-      toast.success("Strategy created with blueprint EA — ready to compile");
+      toastEaGenerationSuccess(
+        result,
+        builderMode === "advanced" ? "Strategy Flow EA created" : "Strategy created",
+      );
       navigate({ to: "/s/$id", params: { id: row.id } });
     } catch (e: unknown) {
-      toast.error(e instanceof EaGenerationError ? e.message : e instanceof Error ? e.message : "Failed to create strategy");
+      toast.error(
+        e instanceof EaGenerationError ? e.message : e instanceof Error ? e.message : "Failed to create strategy",
+      );
     } finally {
       setSaving(false);
     }
@@ -957,6 +887,86 @@ function FourBrainBuilderPage() {
     parts.push(`${cfg.execution.timeframe} ${execModules}`);
     return parts.join(" → ");
   }
+
+  function buildDraftBlueprint(): StrategyBlueprint | null {
+    if (builderMode === "advanced") {
+      const hasEntry = flowConfig.steps.some(
+        (s) => s.enabled !== false && (s.role === "entry" || s.role === "confirmation"),
+      );
+      if (!hasEntry) return null;
+
+      const entryStep = flowConfig.steps.find(
+        (s) => s.enabled !== false && (s.role === "entry" || s.role === "confirmation"),
+      );
+      if (!entryStep) return null;
+
+      const fourBrain: FourBrainConfig =
+        buildFourBrainConfig() ?? {
+          execution: {
+            modules: [entryStep.module as BrainModuleType],
+            timeframe: entryStep.timeframe,
+            params: entryStep.params ?? {},
+          },
+          management: buildManagementConfig(),
+        };
+
+      let bp = {
+        ...DEFAULT_BLUEPRINT,
+        name: nameFromFlowSteps(flowConfig.steps),
+        fourBrain,
+        strategyNotes: strategyNotes.trim(),
+        risk: {
+          ...DEFAULT_BLUEPRINT.risk,
+          riskPercent: risk,
+          rewardRisk: rr,
+          breakevenEnabled: be,
+          maxOpenTrades: maxTrades,
+          stopBufferPoints: stopBuffer,
+        },
+      } as StrategyBlueprint;
+
+      return attachUserFlowToBlueprint(bp, {
+        ...flowConfig,
+        management: buildManagementConfig(),
+      });
+    }
+
+    if (!execution?.modules?.[0] || !execution.timeframe) return null;
+    const fourBrain = buildFourBrainConfig();
+    if (!fourBrain) return null;
+
+    return {
+      ...DEFAULT_BLUEPRINT,
+      name: buildName(fourBrain),
+      fourBrain,
+      strategyNotes: strategyNotes.trim(),
+      risk: {
+        ...DEFAULT_BLUEPRINT.risk,
+        riskPercent: risk,
+        rewardRisk: rr,
+        breakevenEnabled: be,
+        maxOpenTrades: maxTrades,
+        stopBufferPoints: stopBuffer,
+      },
+    } as StrategyBlueprint;
+  }
+
+  const draftBlueprint = useMemo(
+    () => buildDraftBlueprint(),
+    [
+      builderMode,
+      flowConfig,
+      direction,
+      setup,
+      execution,
+      risk,
+      rr,
+      be,
+      maxTrades,
+      stopBuffer,
+      strategyNotes,
+    ],
+  );
 
   const execConfigured = Boolean(execution?.modules?.[0] && execution.timeframe);
   const flowHasEntry = flowConfig.steps.some(
@@ -1259,6 +1269,14 @@ function FourBrainBuilderPage() {
 • Breakeven at 1.5R, keep original TP active`}
           />
         </div>
+
+        {/* ── Compiler path + trade audit preview ── */}
+        {draftBlueprint && (
+          <div className="space-y-3 max-w-2xl">
+            <GenerationPathBanner blueprint={draftBlueprint} />
+            <TradeAuditPanel blueprint={draftBlueprint} compact />
+          </div>
+        )}
 
         {/* ── Summary + Generate ── */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-xl border border-border bg-card/50 px-5 py-4">

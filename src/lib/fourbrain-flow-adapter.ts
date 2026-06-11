@@ -4,8 +4,8 @@
  * Expands every module in each brain to its own step (not just modules[0]).
  * Single-module brains keep stable step ids (step_direction / step_setup / step_entry).
  * Multi-module execution brains become parallel entry steps (OR semantics).
- * Multi-module direction/setup brains expand in parallel; downstream gates anchor
- * on the primary (first) step until the flow engine supports OR dependency groups.
+ * Multi-module direction/setup brains expand in parallel; downstream steps use
+ * orGroup dependencies so any parallel upstream step can satisfy the gate.
  */
 
 import type {
@@ -67,25 +67,19 @@ function buildDependsOn(
 ): StrategyStepDependency[] | undefined {
   if (priorBrainAnchor.length === 0) return undefined;
 
-  const deps: StrategyStepDependency[] = priorBrainAnchor.map((step) => ({
+  if (priorBrainAnchor.length === 1) {
+    return [{ stepId: priorBrainAnchor[0].id, relation: "after", required: true }];
+  }
+
+  const orGroup =
+    brain === "execution" ? "setup_or" : brain === "setup" ? "direction_or" : "prior_or";
+
+  return priorBrainAnchor.map((step) => ({
     stepId: step.id,
     relation: "after" as const,
     required: true,
+    orGroup,
   }));
-
-  // Sequential AND chain within a single-module brain is expressed via priorBrainAnchor only.
-  // Multi-module execution: parallel entries share the same upstream anchor (OR semantics).
-  if (moduleCount > 1 && brain === "execution") {
-    return deps;
-  }
-
-  // Multi-module direction/setup: parallel steps share the same upstream anchor.
-  if (moduleCount > 1) {
-    return deps;
-  }
-
-  // Single module: one dependency on the upstream anchor step.
-  return [{ stepId: priorBrainAnchor[priorBrainAnchor.length - 1].id, relation: "after", required: true }];
 }
 
 function expandBrainToSteps(
@@ -128,9 +122,9 @@ function expandBrainToSteps(
   });
 }
 
-/** Downstream brains anchor on the primary (first) step when a brain has multiple OR modules. */
+/** Downstream brains depend on all parallel steps from the prior brain (OR group). */
 export function downstreamAnchorSteps(steps: StrategyStepConfig[]): StrategyStepConfig[] {
-  return steps.length > 0 ? [steps[0]] : [];
+  return steps.length > 0 ? [...steps] : [];
 }
 
 function adapterNotes(config: FourBrainConfig): string {
@@ -147,7 +141,7 @@ function adapterNotes(config: FourBrainConfig): string {
     if (brain === "execution") {
       return "execution modules become parallel entry steps (any may fire)";
     }
-    return `${brain} modules expand in parallel; downstream gates anchor on the primary module`;
+    return `${brain} modules expand in parallel; downstream steps accept any via orGroup`;
   });
   return `Generated from 4-Brain config. ${parts.join("; ")}.`;
 }

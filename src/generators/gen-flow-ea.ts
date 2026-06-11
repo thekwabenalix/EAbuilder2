@@ -5,6 +5,13 @@
  */
 
 import type { StrategyFlowConfig, StrategyStepConfig, FourBrainConfig } from "../types/blueprint";
+import type { BuiltinFilterRef } from "@/lib/builtin-filter-contracts";
+import {
+  B4_FILTER_EXTRA_FUNCTIONS,
+  B4_FILTER_INDICATOR_HELPERS,
+  buildFlowEntryFilterChecks,
+  flowNeedsFilterHelpers,
+} from "./gen-builtin-filters";
 import {
   fourBrainToStrategyFlow,
   validateStrategyFlowSchema,
@@ -20,7 +27,7 @@ import {
   tfConst,
 } from "./sm-embed-registry";
 
-export { flowSupportsModuleRole } from "./sm-embed-registry";
+export { flowSupportsModuleRole, isFlowVerifiedModule } from "./sm-embed-registry";
 
 export const FLOW_DEMO_EA_NAME = "FLOW_BOS_FVG_BOS_Demo";
 
@@ -81,6 +88,11 @@ double B4_Buf(int handle, int buffer, int shift)
 double B4_MAval(int handle, int shift) { return B4_Buf(handle, 0, shift); }
 `;
 
+/** EMA state machine calls B4_DebugMark; flow EAs use a no-op unless chart debug is added later. */
+const B4_DEBUG_MARK_STUB = `
+void B4_DebugMark(const string key, ENUM_TIMEFRAMES tf, int shift, double price, color clr, const string text) { }
+`;
+
 function biasIndex(step: StrategyStepConfig, steps: StrategyStepConfig[]): number {
   if (step.directionSource?.mode === "from_step" && step.directionSource.stepId) {
     const i = steps.findIndex((s) => s.id === step.directionSource!.stepId);
@@ -92,13 +104,15 @@ function biasIndex(step: StrategyStepConfig, steps: StrategyStepConfig[]): numbe
   }
   return -1;
 }
-function depIndices(step: StrategyStepConfig, steps: StrategyStepConfig[]): number[] {
-  const out: number[] = [];
-  for (const dep of step.dependsOn ?? []) {
-    const i = steps.findIndex((s) => s.id === dep.stepId);
-    if (i >= 0) out.push(i);
-  }
-  return out;
+
+function emaFlowTickBias(steps: StrategyStepConfig[], tf: string): string {
+  const dirIdx = steps.findIndex(
+    (s) =>
+      s.module === "ema" &&
+      s.role === "direction" &&
+      s.timeframe.toUpperCase() === tf.toUpperCase(),
+  );
+  return dirIdx >= 0 ? `gDir[${dirIdx}]` : "0";
 }
 
 // ── Per-instance detection (registers events from the module's SM queries) ───────
@@ -130,6 +144,20 @@ function emitDetection(step: StrategyStepConfig, i: number, steps: StrategyStepC
 
   // DIRECTION — persistent bias (ema / bias_break only)
   if (role === "direction") {
+    if (prof.family === "ema" && step.event === "EMA_CROSS") {
+      const fast = pInt(step.params, "fastPeriod", 12);
+      const slow = pInt(step.params, "slowPeriod", 48);
+      return wrap(
+        `   int hFast = B4_MA(gTF[${i}], ${fast}, MODE_EMA);
+   int hSlow = B4_MA(gTF[${i}], ${slow}, MODE_EMA);
+   double f1 = B4_MAval(hFast, 1), s1 = B4_MAval(hSlow, 1);
+   double f2 = B4_MAval(hFast, 2), s2 = B4_MAval(hSlow, 2);
+   int _d = 0;
+   if(f2 <= s2 && f1 > s1) _d = 1;
+   else if(f2 >= s2 && f1 < s1) _d = -1;
+   if(_d != 0 && (!gFired[${i}] || gDir[${i}] != _d)) RegisterEvent(${i}, _d, ${T1}, ${C1}, 0.0);`,
+      );
+    }
     const fn = prof.family === "ema" ? `${P}_Bias()` : `${P}_Trend()`;
     return wrap(
       `   int _d = ${fn};
@@ -139,6 +167,35 @@ function emitDetection(step: StrategyStepConfig, i: number, steps: StrategyStepC
 
   // SETUP — arm in the bias direction (fires once per arming)
   if (role === "setup" || role === "filter") {
+    if (prof.family === "ema" && step.event === "EMA_RETEST") {
+      const fast = pInt(step.params, "fastPeriod", 12);
+      const slow = pInt(step.params, "slowPeriod", 48);
+      const retestPoints = pInt(step.params, "retestPoints", 5);
+      const target = String(step.params?.retestTarget ?? "either").toLowerCase();
+      const touchExpr =
+        target === "fast"
+          ? "touchedFast"
+          : target === "slow"
+            ? "touchedSlow"
+            : "(touchedFast || touchedSlow)";
+      const barTime = `iTime(InpSymbol, gTF[${i}], 1)`;
+      return wrap(
+        `${biasGuard}   int hFast = B4_MA(gTF[${i}], ${fast}, MODE_EMA);
+   int hSlow = B4_MA(gTF[${i}], ${slow}, MODE_EMA);
+   double fastMa = B4_MAval(hFast, 1), slowMa = B4_MAval(hSlow, 1);
+   double hi = iHigh(InpSymbol, gTF[${i}], 1), lo = iLow(InpSymbol, gTF[${i}], 1);
+   double retestTol = ${retestPoints} * SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   bool touchedFast = (lo <= fastMa + retestTol && hi >= fastMa - retestTol);
+   bool touchedSlow = (lo <= slowMa + retestTol && hi >= slowMa - retestTol);
+   int _bias = ${biasExpr};
+   if(_bias != 0 && ${biasIdx >= 0 ? `gFired[${biasIdx}] && ${barTime} > gTime[${biasIdx}] &&` : ""} ${touchExpr} && !gPrevA[${i}]) {
+      RegisterEvent(${i}, _bias, ${T1}, ${C1}, 0.0);
+      gPrevA[${i}] = true;
+   } else if(!${touchExpr}) {
+      gPrevA[${i}] = false;
+   }`,
+      );
+    }
     if (prof.family === "ema") {
       return wrap(
         `   bool _sa = ${P}_SetupActive();
@@ -173,6 +230,12 @@ function emitDetection(step: StrategyStepConfig, i: number, steps: StrategyStepC
         `   if(${P}_JustConfirmed()) { int _d = ${P}_ConfirmDir(); RegisterEvent(${i}, _d, ${T1}, ${C1}, ${P}_ConfirmSL()); }`,
       );
     }
+    if (prof.family === "zone" && m === "fvg_inversion" && step.event === "IFVG_FORMED") {
+      return wrap(
+        `   if(${P}_BullJustInverted())      RegisterEvent(${i}, 1, ${T1}, ${C1}, ${P}_BullInversionSL());
+   else if(${P}_BearJustInverted()) RegisterEvent(${i}, -1, ${T1}, ${C1}, ${P}_BearInversionSL());`,
+      );
+    }
     if (prof.family === "bias_break") {
       const lb = pInt(step.params, "lookback", 20);
       return wrap(
@@ -191,33 +254,74 @@ function emitDetection(step: StrategyStepConfig, i: number, steps: StrategyStepC
   return `void DetectStep_${i}() { /* ${m}/${role} not supported */ }`;
 }
 
-function emitGate(entryIdx: number, step: StrategyStepConfig, steps: StrategyStepConfig[]): string {
-  const deps = depIndices(step, steps);
-  const setupDep = deps.find((d) => steps[d].role !== "direction");
-  const checks = deps
-    .map((d) => {
-      const nm = (steps[d].name || `step${d}`).replace(/[^A-Za-z0-9 ]/g, "");
-      return `   if(!gFired[${d}]) { gLastGate = "BLOCKED: ${nm} not fired"; return; }
-   if(!(gTime[${d}] < gTime[${entryIdx}])) { gLastGate = "BLOCKED: ${nm} not before entry"; return; }
-   if(gDir[${d}] != dir) { gLastGate = "BLOCKED: direction mismatch"; return; }`;
+function emitDepCheck(stepIdx: number, entryIdx: number, steps: StrategyStepConfig[]): string {
+  const nm = (steps[stepIdx].name || `step${stepIdx}`).replace(/[^A-Za-z0-9 ]/g, "");
+  return `   if(!gFired[${stepIdx}]) { gLastGate = "BLOCKED: ${nm} not fired"; return; }
+   if(!(gTime[${stepIdx}] < gTime[${entryIdx}])) { gLastGate = "BLOCKED: ${nm} not before entry"; return; }
+   if(gDir[${stepIdx}] != dir) { gLastGate = "BLOCKED: direction mismatch"; return; }`;
+}
+
+function emitGate(
+  entryIdx: number,
+  step: StrategyStepConfig,
+  steps: StrategyStepConfig[],
+  filterRefs?: BuiltinFilterRef[],
+): string {
+  const dependsOn = step.dependsOn ?? [];
+  const andDeps = dependsOn.filter((dep) => !dep.orGroup);
+  const orGroups = new Map<string, typeof dependsOn>();
+  for (const dep of dependsOn) {
+    if (!dep.orGroup) continue;
+    const list = orGroups.get(dep.orGroup) ?? [];
+    list.push(dep);
+    orGroups.set(dep.orGroup, list);
+  }
+
+  const andChecks = andDeps
+    .map((dep) => {
+      const i = steps.findIndex((s) => s.id === dep.stepId);
+      return i >= 0 ? emitDepCheck(i, entryIdx, steps) : "";
+    })
+    .filter(Boolean)
+    .join("\n");
+
+  const orChecks = [...orGroups.entries()]
+    .map(([group, groupDeps]) => {
+      const clauses = groupDeps
+        .map((dep) => {
+          const i = steps.findIndex((s) => s.id === dep.stepId);
+          if (i < 0) return "false";
+          return `(gFired[${i}] && gTime[${i}] < gTime[${entryIdx}] && gDir[${i}] == dir)`;
+        })
+        .join(" || ");
+      return `   if(!(${clauses})) { gLastGate = "BLOCKED: ${group} not satisfied"; return; }`;
     })
     .join("\n");
+
+  const depIndicesLegacy = dependsOn
+    .map((dep) => steps.findIndex((s) => s.id === dep.stepId))
+    .filter((i) => i >= 0);
+  const setupDep = depIndicesLegacy.find((d) => steps[d].role !== "direction");
   const expiry =
     setupDep !== undefined
       ? `   if((int)(gTime[${entryIdx}] - gTime[${setupDep}]) > gExpirySec) { gLastGate = "BLOCKED: setup expired"; return; }`
       : "";
-  const consume = deps
+  const consume = depIndicesLegacy
     .filter((d) => steps[d].role !== "direction")
     .map((d) => `         gFired[${d}] = false; gPrevA[${d}] = false; gPrevB[${d}] = false;`)
     .join("\n");
+  const filterChecks = buildFlowEntryFilterChecks(filterRefs);
+
   return `void EvaluateEntry_${entryIdx}()
 {
    if(!gFired[${entryIdx}]) return;
    if(gTime[${entryIdx}] != iTime(InpSymbol, gTF[${entryIdx}], 1)) return;
    if(gLastTraded[${entryIdx}] == gTime[${entryIdx}]) return;
    int dir = gDir[${entryIdx}];
-${checks}
+${andChecks}
+${orChecks}
 ${expiry}
+${filterChecks}
    if(OpenPositions() >= InpMaxOpenTrades) return;
    if(OpenTrade(${entryIdx}, dir))
    {
@@ -227,7 +331,11 @@ ${consume || "         /* no setup to consume */"}
 }
 
 // ── Main generator ───────────────────────────────────────────────────────────────
-export function generateFlowEA(flow: StrategyFlowConfig, eaName = "FLOW_EA"): string {
+export function generateFlowEA(
+  flow: StrategyFlowConfig,
+  eaName = "FLOW_EA",
+  filterRefs?: BuiltinFilterRef[],
+): string {
   const validation = validateStrategyFlowSchema(flow);
   if (!validation.ok) {
     throw new EaGenerationError(
@@ -266,11 +374,13 @@ export function generateFlowEA(flow: StrategyFlowConfig, eaName = "FLOW_EA"): st
       smReset.push(`   ${prof.prefix}_${tf}_Reset();`);
       const tfc = tfConst(s.timeframe);
       if (!smTickByTf.has(tfc)) smTickByTf.set(tfc, []);
+      const tickArg =
+        meta.type === "ema"
+          ? emaFlowTickBias(steps, tf)
+          : tickArgForSm(meta.type, s.params ?? {}, "flow_bar");
       smTickByTf
         .get(tfc)!
-        .push(
-          `${prof.prefix}_${tf}_Tick(${tickArgForSm(meta.type, s.params ?? {}, "flow_bar")});`,
-        );
+        .push(`${prof.prefix}_${tf}_Tick(${tickArg});`);
     }
   }
 
@@ -279,7 +389,7 @@ export function generateFlowEA(flow: StrategyFlowConfig, eaName = "FLOW_EA"): st
     .map((s, i) => `   gStepName[${i}] = "${(s.name || s.role).replace(/"/g, "")}";`)
     .join("\n");
   const detections = steps.map((s, i) => emitDetection(s, i, steps)).join("\n\n");
-  const gates = entryIdxs.map((i) => emitGate(i, steps[i], steps)).join("\n\n");
+  const gates = entryIdxs.map((i) => emitGate(i, steps[i], steps, filterRefs)).join("\n\n");
 
   // OnTick: per TF bar -> tick SMs on that TF, run detections on that TF, then entry gates
   const tfGroups = new Map<string, number[]>();
@@ -313,6 +423,13 @@ export function generateFlowEA(flow: StrategyFlowConfig, eaName = "FLOW_EA"): st
     )
     .join("\n");
   const entryTF0 = entryIdxs.length ? tfConst(steps[entryIdxs[0]].timeframe) : "PERIOD_M5";
+  const hasEma = steps.some((s) => s.module === "ema");
+  const hasFilters = flowNeedsFilterHelpers(filterRefs);
+  const indicatorHelpers = hasEma
+    ? `${B4_MA_HELPER}${B4_DEBUG_MARK_STUB}${hasFilters ? B4_FILTER_EXTRA_FUNCTIONS : ""}`
+    : hasFilters
+      ? B4_FILTER_INDICATOR_HELPERS
+      : "";
 
   return `//+------------------------------------------------------------------+
 //| ${eaName}.mq5  —  Strategy Flow runtime over verified SMs         |
@@ -419,7 +536,7 @@ bool OpenTrade(int entryIdx, int dir)
    return ok;
 }
 
-${steps.some((s) => s.module === "ema") ? B4_MA_HELPER : ""}
+${indicatorHelpers}
 // ── Embedded verified state machines ──────────────────────────────────────────
 ${[...smEmit.values()].join("\n")}
 

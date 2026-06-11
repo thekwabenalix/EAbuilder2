@@ -21,14 +21,18 @@ import {
 import { EXAMPLE_PROMPT } from "@/types/strategy";
 import type { StrategyBlueprint } from "@/types/blueprint";
 import { parseStrategy } from "@/lib/api-client";
+import { enrichBlueprintWithStrategyFlow } from "@/lib/blueprint-flow-enrich";
 import { createStrategy } from "@/lib/strategies";
 import { toast } from "sonner";
-import { analyzeBuildability, generateMql5FromBlueprint } from "@/lib/mql5-template-generator";
+import { analyzeBuildability, generateMql5FromBlueprintDetailed } from "@/lib/mql5-template-generator";
 import type { BuildabilityResult } from "@/lib/mql5-template-generator";
 import { firstBlueprintGenerationError } from "@/lib/blueprint-generation-gate";
 import { EaGenerationError } from "@/lib/generate-ea-router";
+import { toastEaGenerationSuccess } from "@/lib/ea-generation-toast";
 import { formatBrainChain } from "@/lib/brain-modules";
 import { BlueprintExplanationPanel } from "@/components/BlueprintExplanationPanel";
+import { GenerationPathBanner } from "@/components/GenerationPathBanner";
+import { TradeAuditPanel } from "@/components/TradeAuditPanel";
 
 export const Route = createFileRoute("/new")({
   component: StrategyBuilders,
@@ -59,7 +63,7 @@ function StrategyBuilders() {
     setStageLabel("Interviewing strategy…");
     try {
       const { blueprint: bp } = await parseStrategy(prompt);
-      setBlueprint(bp as StrategyBlueprint);
+      setBlueprint(enrichBlueprintWithStrategyFlow(bp as StrategyBlueprint));
       setStage("reviewed");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to interview strategy. Please try again.");
@@ -81,15 +85,15 @@ function StrategyBuilders() {
     setStage("generating");
     setStageLabel("Saving strategy and generating EA…");
     try {
-      const generatedCode = generateMql5FromBlueprint(blueprint);
+      const result = generateMql5FromBlueprintDetailed(blueprint);
       const row = await createStrategy({
         userId: user.id,
         name: blueprint.name || "Untitled Strategy",
         prompt,
         blueprint,
-        generatedCode,
+        generatedCode: result.code,
       });
-      toast.success("Strategy created with blueprint EA — ready to compile");
+      toastEaGenerationSuccess(result, "Strategy created");
       navigate({ to: "/s/$id", params: { id: row.id } });
     } catch (e: unknown) {
       setError(e instanceof EaGenerationError ? e.message : e instanceof Error ? e.message : "Failed to save strategy. Please try again.");
@@ -127,7 +131,7 @@ function StrategyBuilders() {
     setClarificationAnswers({});
     try {
       const { blueprint: bp } = await parseStrategy(enrichedPrompt);
-      setBlueprint(bp as StrategyBlueprint);
+      setBlueprint(enrichBlueprintWithStrategyFlow(bp as StrategyBlueprint));
       setStage("reviewed");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Refinement failed. Please try again.");
@@ -465,6 +469,13 @@ function InterviewPanel({
       {/* Build status */}
       <BuildStatusCard blueprint={blueprint} />
 
+      {blueprint.fourBrain && (
+        <div className="space-y-3">
+          <GenerationPathBanner blueprint={blueprint} />
+          <TradeAuditPanel blueprint={blueprint} compact />
+        </div>
+      )}
+
       {/* Clarifications */}
       {clarifications.length > 0 && (
         <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
@@ -544,8 +555,8 @@ function BuildStatusCard({ blueprint }: { blueprint: StrategyBlueprint }) {
           <div>
             <p className="text-xs font-medium">4-Brain ready — verified module path</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">
-              Click Save to open the Brains tab, review the mapping, then generate the EA from
-              verified building blocks.
+              Review the compiler path and expected trade chain below, then Save to generate the EA
+              from verified building blocks.
             </p>
           </div>
           <span className="text-xs px-2 py-0.5 rounded-full border font-medium shrink-0 border-emerald-500/40 text-emerald-400 bg-emerald-500/10">

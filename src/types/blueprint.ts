@@ -359,6 +359,8 @@ export interface StrategyStepDependency {
   stepId: string;
   relation: StrategyStepDependencyRelation;
   required?: boolean;
+  /** Dependencies sharing the same orGroup are OR-ed (at least one must pass). */
+  orGroup?: string;
   expiryBars?: number;
   resetOnOppositeDirection?: boolean;
 }
@@ -401,7 +403,7 @@ export interface StrategyStepConfig {
 export interface StrategyFlowConfig {
   version: 1;
   mode: "simple_4brain" | "advanced_instances" | "ai_extracted";
-  source: "user" | "ai" | "fourbrain_adapter" | "local_extractor";
+  source: "user" | "ai" | "fourbrain_adapter" | "blessed_adapter" | "local_extractor";
   steps: StrategyStepConfig[];
   management?: ManagementBrainConfig;
   notes?: string;

@@ -1,6 +1,9 @@
 /**
  * Phase 0 policy checks — assembler detection and apply-fix gate rules.
  */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   canApplyAiSurgicalFix,
   compileLogHasErrors,
@@ -67,4 +70,12 @@ assertOk(compileLogHasErrors("error: 'x' undeclared"), "compile errors detected"
 assertOk(!compileLogHasErrors("result: 0 errors"), "clean compile log");
 console.log("[OK  ] compile log parsing");
 
-console.log("\n7 ea generation policy check(s) passed.\n");
+const generateCodeSrc = readFileSync(
+  resolve(fileURLToPath(new URL(".", import.meta.url)), "../netlify/functions/generate-code.mts"),
+  "utf8",
+);
+assertOk(generateCodeSrc.includes("status: 410"), "generate-code returns 410 Gone");
+assertOk(generateCodeSrc.includes("GENERATE_CODE_RETIRED"), "generate-code retirement code");
+console.log("[OK  ] generate-code API retired");
+
+console.log("\n8 ea generation policy check(s) passed.\n");

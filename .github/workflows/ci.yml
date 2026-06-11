@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Verify generators and contracts
+        run: npm run verify
+
+      - name: Strict MQL5 syntax gate
+        run: npm run verify:mql5-syntax
+
+  compile-golden:
+    name: MetaEditor golden compile (optional)
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Emit golden fixtures
+        run: npm run verify:golden
+
+      - name: Compile golden EAs with MetaEditor
+        env:
+          METAEDITOR_PATH: ${{ vars.METAEDITOR_PATH }}
+          MT5_TERMINAL_PATH: ${{ vars.MT5_TERMINAL_PATH }}
+          MT5_DATA_PATH: ${{ vars.MT5_DATA_PATH }}
+          MQL5_COMPILE_REQUIRED: ${{ vars.MQL5_COMPILE_REQUIRED }}
+        run: npm run compile:golden

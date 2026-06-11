@@ -60,6 +60,7 @@ import {
   strategyEventSupportsRole,
 } from "../src/lib/strategy-events";
 import { fourBrainToStrategyFlow, validateStrategyFlowSchema } from "../src/lib/strategy-flow";
+import { lintMql5 } from "../src/lib/mql5-static-lint";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT = resolve(__dirname, "..", "verify", "mql5");
@@ -219,45 +220,8 @@ const items: Item[] = [
   },
 ];
 
-// ── Static lint ───────────────────────────────────────────────────────────────
 function lint(code: string): string[] {
-  const warn: string[] = [];
-  const lines = code.split("\n");
-
-  // brace / paren balance
-  const count = (re: RegExp) => (code.match(re) ?? []).length;
-  if (count(/\{/g) !== count(/\}/g))
-    warn.push(`brace imbalance: ${count(/\{/g)} { vs ${count(/\}/g)} }`);
-  if (count(/\(/g) !== count(/\)/g))
-    warn.push(`paren imbalance: ${count(/\(/g)} ( vs ${count(/\)/g)} )`);
-
-  // MQL4-isms / forbidden patterns (per CLAUDE.md)
-  const pat: Array<[RegExp, string]> = [
-    [/\b(Close|Open|High|Low|Time)\s*\[/g, "MQL4 series access (use iClose/iOpen/… )"],
-    [/(?<![A-Za-z_.])(Ask|Bid)\b(?!\w)/g, "bare Ask/Bid (use SymbolInfoDouble SYMBOL_ASK/BID)"],
-    [/\bSetMagicNumber\b/g, "SetMagicNumber (use trade.SetExpertMagicNumber)"],
-    [/\bGetPointer\s*\(/g, "GetPointer on struct"],
-  ];
-  for (const [re, msg] of pat) {
-    const hits: number[] = [];
-    lines.forEach((ln, i) => {
-      if (re.test(ln)) hits.push(i + 1);
-      re.lastIndex = 0;
-    });
-    if (hits.length)
-      warn.push(`${msg} @ lines ${hits.slice(0, 6).join(",")}${hits.length > 6 ? "…" : ""}`);
-  }
-
-  // struct defined inside a function (heuristic: 'struct' appearing after a non-zero brace depth)
-  let depth = 0;
-  lines.forEach((ln, i) => {
-    const before = depth;
-    depth += (ln.match(/\{/g) ?? []).length - (ln.match(/\}/g) ?? []).length;
-    if (before > 0 && /^\s*struct\s+\w/.test(ln))
-      warn.push(`struct declared inside a block @ line ${i + 1}`);
-  });
-
-  return warn;
+  return lintMql5(code).warnings;
 }
 
 // ── Integration test: a full 4-brain EA using rsi_hd via the AI path ──────────

@@ -16,6 +16,7 @@ This runs:
 - `npm run verify:intake` - StrategyBlueprint/FourBrain intake contract tests
 - `npm run verify:ai` - raw-text and semantic regression tests for AI wiring
 - `npm run verify:mql5` - MQL5 emit and static lint for generated modules and EAs
+- `npm run verify:mql5-syntax` - strict syntax gate on golden + blessed EA fixtures (fails CI on red flags)
 
 Use this before trusting a build.
 
@@ -76,7 +77,33 @@ IFVG formation entries, and the module contract registry.
 
 A clean report means "no obvious red flags"; it is not a compiler.
 
-## 6. Compile In MetaEditor
+## 5b. Strict Syntax Gate (CI)
+
+```bash
+npm run verify:mql5-syntax
+```
+
+Runs after `verify:mql5` in `npm run verify`. Lints every emitted fixture under
+`verify/mql5/` and **fails** on MQL4-isms, placeholder text, brace imbalance, and
+missing EA structure markers. Also emits blessed-flow compile anchors.
+
+## 6. MetaEditor Compile Smoke (optional)
+
+```bash
+npm run compile:golden
+```
+
+Windows + MetaEditor only. Compiles `verify/mql5/golden/*.mq5` when MT5 is
+installed. Skips cleanly when MetaEditor is missing unless
+`MQL5_COMPILE_REQUIRED=1`.
+
+Set repository variables for self-hosted CI:
+
+- `METAEDITOR_PATH` — path to `metaeditor64.exe`
+- `MT5_DATA_PATH` — terminal data folder containing `MQL5/`
+- `MQL5_COMPILE_REQUIRED=1` — fail the compile job when MetaEditor is absent
+
+## 7. Compile In MetaEditor
 
 Copy the emitted files and press F7:
 

@@ -35,6 +35,7 @@ export {
   EaGenerationError,
   generateEaFromBlueprint,
   generationPathLabel,
+  previewEaGeneration,
   resolveStrategyFlow,
 } from "@/lib/generate-ea-router";
 export {

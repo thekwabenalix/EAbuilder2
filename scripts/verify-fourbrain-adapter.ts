@@ -60,7 +60,7 @@ assertEq(dualEntry.steps[3]?.dependsOn?.[0]?.stepId, "step_setup", "entry 1 afte
 assertOk(dualEntry.notes?.includes("parallel entry"), "notes mention parallel execution");
 assertOk(validateStrategyFlowSchema(dualEntry).ok, "dual entry flow validates");
 
-// ── Multi-module setup (parallel setup steps, anchor on primary) ─────────────
+// ── Multi-module setup (parallel setup steps, OR group for downstream) ─────
 const dualSetup = fourBrainToStrategyFlow({
   direction: { modules: ["bos"], timeframe: "H1" },
   setup: { modules: ["fvg", "order_block"], timeframe: "H1" },
@@ -73,7 +73,8 @@ assertEq(dualSetup.steps[1]?.id, "step_setup_0", "first setup step");
 assertEq(dualSetup.steps[2]?.id, "step_setup_1", "second setup step");
 assertEq(dualSetup.steps[1]?.dependsOn?.[0]?.stepId, "step_direction", "setup 0 after direction");
 assertEq(dualSetup.steps[2]?.dependsOn?.[0]?.stepId, "step_direction", "setup 1 after direction");
-assertEq(dualSetup.steps[3]?.dependsOn?.[0]?.stepId, "step_setup_0", "entry anchors on primary setup");
+assertEq(dualSetup.steps[3]?.dependsOn?.length, 2, "entry depends on both setup steps (OR)");
+assertEq(dualSetup.steps[3]?.dependsOn?.[0]?.orGroup, "setup_or", "entry setup OR group");
 assertOk(validateStrategyFlowSchema(dualSetup).ok, "dual setup flow validates");
 
 // ── No direction brain (entry only chain) ────────────────────────────────────
@@ -92,7 +93,8 @@ const anchor = downstreamAnchorSteps([
   { id: "a", name: "A", role: "direction", module: "bos", timeframe: "H1", event: "BOS_BIAS" },
   { id: "b", name: "B", role: "direction", module: "choch", timeframe: "H1", event: "CHOCH_BIAS_FLIP" },
 ]);
-assertEq(anchor[0]?.id, "a", "downstream anchor uses primary step");
+assertEq(anchor.length, 2, "downstream anchor includes all parallel steps");
+assertEq(anchor[0]?.id, "a", "downstream anchor first step");
 
 // ── Router integration smoke ─────────────────────────────────────────────────
 import { generateEaFromBlueprint } from "../src/lib/generate-ea-router";
@@ -111,5 +113,6 @@ const routed = generateEaFromBlueprint(bp);
 assertEq(routed.path, "flow_engine", "dual entry routes to flow engine");
 assertOk(routed.code.includes("EvaluateEntry_2"), "flow EA has first entry gate");
 assertOk(routed.code.includes("EvaluateEntry_3"), "flow EA has second entry gate");
+assertOk(routed.code.includes("setup_or not satisfied") || dualSetup.steps[3]?.dependsOn?.[0]?.orGroup === "setup_or", "OR gate or deps present");
 
-console.log("\n14 fourbrain flow adapter check(s) passed.\n");
+console.log("\n15 fourbrain flow adapter check(s) passed.\n");

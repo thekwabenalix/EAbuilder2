@@ -13,6 +13,9 @@ export type EaCodegenKind =
   | "legacy_flat_rules"
   | "unknown";
 
+export const BLUEPRINT_ASSEMBLER_DEPRECATION =
+  "Blueprint assembler (4-Brain boolean gate) is deprecated. Prefer Strategy Flow — this path will be removed when all admitted modules compile through the flow engine.";
+
 export const LEGACY_FLAT_RULES_MESSAGE =
   "Legacy flat-rules EAs are deprecated for new strategies. Use the 4-Brain / Strategy Flow builder, or open /build to configure modules.";
 
