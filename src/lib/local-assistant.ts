@@ -24,7 +24,7 @@ export interface LocalAssistantInput {
 }
 
 function wantsNoTradesHelp(msg: string): boolean {
-  return /zero trades|no trades|why no|didn't trade|did not trade|no execution|no trade executed|not trade|please fix|fix it|fix this/i.test(
+  return /zero trades|no trades|why no|didn't trade|did not trade|no execution|no trade|not trade|please fix|fix it|fix this|wasn't trade|was not trade/i.test(
     msg,
   );
 }
@@ -124,6 +124,13 @@ function offlineApplyFixes(
       `[ACTION:open_backtest]`,
       "",
     );
+  } else if (!testerLog?.trim() && flowPeriod) {
+    lines.push(
+      `- **Set tester period to ${flowPeriod}** — default tester is often M5/H1; your flow is **${flowPeriod}**.`,
+      `[APPLY:{"type":"set_backtest_period","period":"${flowPeriod}"}]`,
+      `[ACTION:open_backtest]`,
+      "",
+    );
   }
 
   const expected = buildExpectedTradePath(blueprint);
@@ -139,16 +146,16 @@ function offlineApplyFixes(
     expected.some((s) => s.role === "direction" && byStep.has(s.name)) &&
     expected.filter((s) => !s.isEntry && s.role !== "direction").every((s) => !byStep.has(s.name));
 
-  if (missingEntry || directionOnly || (parsed && parsed.tradesOpened === 0 && parsed.hasAuditMarkers)) {
+  if (missingEntry || directionOnly || (parsed && parsed.tradesOpened === 0 && parsed.hasAuditMarkers) || !testerLog?.trim()) {
     lines.push(
-      "- **Regenerate EA** after any flow changes — wiring may be stale.",
+      "- **Regenerate EA** from current blueprint (ensures latest flow wiring).",
       `[APPLY:{"type":"regen_ea"}]`,
       "",
     );
   }
 
   if (lines.length <= 3) {
-    lines.push("- Re-run backtest with **InpAudit=true** after compile.", `[ACTION:open_backtest]`);
+    lines.push("- Compile, then run backtest with **InpAudit=true**.", `[ACTION:open_backtest]`);
   }
 
   return lines;
@@ -169,10 +176,13 @@ function noTradesSection(
   }
 
   if (!testerLog?.trim()) {
+    const flowPeriod = resolveFlowBacktestPeriod(blueprint);
     lines.push(
-      "No tester log attached yet. Run a report backtest with **InpAudit=true**, then open **Tester log** or ask again.",
+      "No tester log in the assistant yet. **Compile → Run backtest** with **InpAudit=true**, then ask again for log-based diagnosis.",
+      "",
+      `Your flow runs on **${flowPeriod}** — the tester period must match.`,
     );
-    lines.push("[ACTION:open_backtest]");
+    lines.push(...offlineApplyFixes(blueprint, null, testerLog));
     return lines;
   }
 

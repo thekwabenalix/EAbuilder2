@@ -50,9 +50,14 @@ export function formatAssistantError(raw: unknown): string {
     return "The cloud assistant could not respond. See the offline summary below.";
   }
   if (nested && nested.length < 240) return nested;
-  if (text.length > 240) return "The assistant hit an unexpected error. See the offline summary below.";
-  return text || "Chat failed — see the offline summary below.";
+  if (text.length > 240) {
+    return "Cloud AI is unavailable right now — offline diagnosis is shown in the chat below.";
+  }
+  return text || "Chat unavailable — offline diagnosis is shown below.";
 }
+
+export const OFFLINE_ASSISTANT_TOAST =
+  "Cloud AI unavailable — offline diagnosis shown in chat. Use Apply now buttons to fix.";
 
 export function isAssistantProviderUnavailable(raw: unknown): boolean {
   const text =
@@ -75,7 +80,7 @@ export function isAssistantProviderUnavailable(raw: unknown): boolean {
 export function shouldAttachOfflineFallback(raw: unknown): boolean {
   if (isAssistantProviderUnavailable(raw)) return true;
   const friendly = formatAssistantError(raw);
-  return /offline summary below|offline strategy summaries|cloud assistant could not respond/i.test(
+  return /offline (summary|diagnosis|analysis)|offline strategy summaries|cloud assistant could not respond|cloud AI is unavailable right now/i.test(
     friendly,
   );
 }

@@ -37,6 +37,7 @@ import {
   formatAssistantError,
   isAssistantProviderUnavailable,
   shouldAttachOfflineFallback,
+  OFFLINE_ASSISTANT_TOAST,
 } from "@/lib/assistant-errors";
 import {
   APPLY_FIX_BLOCKED_MESSAGE,
@@ -159,29 +160,22 @@ function handleChatFailure(
         : null,
   });
 
+  const body = offline
+    ? `*Cloud AI is offline — use **Apply now** buttons below to fix without waiting for cloud AI.*\n\n${offlineReply}`
+    : `${friendly}\n\n${offlineReply}`;
+
+  ctx.setMessages((prev) => {
+    const last = prev[prev.length - 1];
+    if (last?.role === "assistant") {
+      return [...prev.slice(0, -1), { role: "assistant" as const, content: body }];
+    }
+    return [...prev, { role: "assistant" as const, content: body }];
+  });
+
   if (offline) {
-    ctx.setMessages((prev) => {
-      const last = prev[prev.length - 1];
-      const body = `${friendly}\n\n${offlineReply}`;
-      if (last?.role === "assistant") {
-        return [...prev.slice(0, -1), { role: "assistant" as const, content: body }];
-      }
-      return [...prev, { role: "assistant" as const, content: body }];
-    });
-    toast.warning(friendly);
+    toast.info(OFFLINE_ASSISTANT_TOAST);
   } else {
     toast.error(friendly);
-    ctx.setMessages((prev) => {
-      const last = prev[prev.length - 1];
-      const body = `${friendly}\n\n${offlineReply}`;
-      if (last?.role === "assistant" && last.content === "") {
-        return [...prev.slice(0, -1), { role: "assistant" as const, content: body }];
-      }
-      if (last?.role === "assistant") {
-        return [...prev.slice(0, -1), { role: "assistant" as const, content: body }];
-      }
-      return [...prev, { role: "assistant" as const, content: body }];
-    });
   }
 
   if (!textArg) ctx.setInput(text);
