@@ -132,6 +132,47 @@ function emaFlowTickBias(steps: StrategyStepConfig[], tf: string): string {
   return dirIdx >= 0 ? `gDir[${dirIdx}]` : "0";
 }
 
+function downstreamDependentIndices(fromIdx: number, steps: StrategyStepConfig[]): number[] {
+  const fromId = steps[fromIdx]?.id;
+  if (!fromId) return [];
+  const seenIds = new Set<string>([fromId]);
+  const out: number[] = [];
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let j = 0; j < steps.length; j++) {
+      if (j === fromIdx || out.includes(j)) continue;
+      const deps = steps[j]?.dependsOn ?? [];
+      if (deps.some((d) => seenIds.has(d.stepId))) {
+        out.push(j);
+        seenIds.add(steps[j]!.id);
+        changed = true;
+      }
+    }
+  }
+  return out;
+}
+
+function emitClearDownstream(fromIdx: number, steps: StrategyStepConfig[]): string {
+  const idxs = downstreamDependentIndices(fromIdx, steps);
+  if (!idxs.length) return "";
+  return idxs
+    .map(
+      (j) =>
+        `      gFired[${j}] = false; gTime[${j}] = 0; gDir[${j}] = 0; gSL[${j}] = 0.0; gPrevA[${j}] = false; gPrevB[${j}] = false;`,
+    )
+    .join("\n");
+}
+
+function defaultSetupExpiryBars(step?: StrategyStepConfig): number {
+  if (!step) return 100;
+  if (step.params?.expiryBars !== undefined && step.params?.expiryBars !== null) {
+    return pInt(step.params, "expiryBars", 100);
+  }
+  if (step.module === "ema") return 0;
+  return 100;
+}
+
 function priorConfirmationIndex(i: number, steps: StrategyStepConfig[]): number {
   for (const dep of steps[i].dependsOn ?? []) {
     const j = steps.findIndex((s) => s.id === dep.stepId);
@@ -225,9 +266,22 @@ function emitDetection(step: StrategyStepConfig, i: number, steps: StrategyStepC
       );
     }
     if (prof.family === "ema") {
+      const clearDown = emitClearDownstream(i, steps);
       return wrap(
         `   bool _sa = ${P}_SetupActive();
-   if(_sa && !gPrevA[${i}]) { int _d = ${P}_ActiveDir(); if(_d != 0) RegisterEvent(${i}, _d, ${T1}, ${C1}, 0.0); }
+   bool _rt = ${P}_RetestActive();
+   int _sd = ${P}_ActiveDir();
+   if(_rt && !gPrevB[${i}] && _sd != 0) {
+      RegisterEvent(${i}, _sd, ${T1}, ${C1}, 0.0);
+${clearDown}
+      gPrevB[${i}] = true;
+   } else if(!_rt) {
+      gPrevB[${i}] = false;
+   }
+   if(_sa && !gPrevA[${i}] && _sd != 0) {
+      RegisterEvent(${i}, _sd, ${T1}, ${C1}, 0.0);
+${clearDown}
+   }
    gPrevA[${i}] = _sa;`,
       );
     }
@@ -383,7 +437,7 @@ function emitGate(
   const setupDep = depIndicesLegacy.find((d) => steps[d].role !== "direction");
   const expiry =
     setupDep !== undefined
-      ? `   if((int)(gTime[${entryIdx}] - gTime[${setupDep}]) > gExpirySec) { gLastGate = "BLOCKED: setup expired"; return; }`
+      ? `   if(InpSetupExpiryBars > 0 && (int)(gTime[${entryIdx}] - gTime[${setupDep}]) > gExpirySec) { gLastGate = "BLOCKED: setup expired"; return; }`
       : "";
   const consume = depIndicesLegacy
     .filter((d) => steps[d].role !== "direction")
@@ -432,7 +486,7 @@ export function generateFlowEA(
   const maxOpen = mgmt?.maxOpenTrades ?? 1;
   const entryIdxs = steps.map((s, i) => (isEntry(s.role) ? i : -1)).filter((i) => i >= 0);
   const setupStep = steps.find((s) => s.role === "setup" || s.role === "filter");
-  const expiryBars = pInt(setupStep?.params, "expiryBars", 100);
+  const expiryBars = defaultSetupExpiryBars(setupStep);
 
   // unique SMs by (prefix, tf)
   const smKey = (s: StrategyStepConfig) => {
@@ -652,7 +706,7 @@ ${tfInit}
 ${nameInit}
    for(int i = 0; i < STEP_COUNT; i++) { gFired[i]=false; gDir[i]=0; gTime[i]=0; gLastTraded[i]=0; gPrevA[i]=false; gPrevB[i]=false; }
    for(int b = 0; b < ${tfSlots}; b++) gLastBar[b] = 0;
-   gExpirySec = InpSetupExpiryBars * PeriodSeconds(${entryTF0});
+   gExpirySec = InpSetupExpiryBars > 0 ? InpSetupExpiryBars * PeriodSeconds(${entryTF0}) : 0;
 ${smReset.join("\n")}
    return INIT_SUCCEEDED;
 }

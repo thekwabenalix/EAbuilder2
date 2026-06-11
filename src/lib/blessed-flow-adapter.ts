@@ -107,7 +107,7 @@ function buildEmaCtcFlow(text: string, config?: FourBrainConfig): StrategyFlowCo
       timeframe: tf,
       event: "EMA_CLOSE_CONFIRMED",
       enabled: true,
-      params: { fastPeriod: fast, slowPeriod: slow, retestPoints, requireCross: true, repeatAfterConfirmation: repeat, expiryBars },
+      params: { fastPeriod: fast, slowPeriod: slow, retestPoints, requireCross: true, repeatAfterConfirmation: repeat, expiryBars: 0 },
       dependsOn: [{ stepId: "step_setup", relation: "same_or_after", required: true }],
       directionSource: { mode: "from_step", stepId: "step_direction" },
       slSource: { mode: "event_sl", bufferPoints: 0 },
