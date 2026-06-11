@@ -42,7 +42,7 @@ function strategyOverview(blueprint: StrategyBlueprint, prompt?: string): string
   const chain = buildExpectedTradePath(blueprint);
   const fb = blueprint.fourBrain;
 
-  lines.push(`**Strategy:** ${blueprint.name || "Untitled"}`);
+  lines.push(`## Strategy overview`, "", `**Name:** ${blueprint.name || "Untitled"}`);
 
   if (prompt?.trim()) {
     lines.push("", "**Original description (excerpt):**", prompt.trim().slice(0, 400));
@@ -97,7 +97,7 @@ function noTradesSection(
   testerLog?: string | null,
   backtestSummary?: Record<string, unknown> | null,
 ): string[] {
-  const lines: string[] = ["", "**Why no trades? (offline analysis)**"];
+  const lines: string[] = ["", "## Why no trades?", ""];
   const expected = buildExpectedTradePath(blueprint);
   const parsed = testerLog ? parseTesterLogForTradeAudit(testerLog) : null;
   const summary = summarizeTradeAudit(expected, parsed);
@@ -159,7 +159,7 @@ function generationVsStrategySection(
   testerLog?: string | null,
   backtestSummary?: Record<string, unknown> | null,
 ): string[] {
-  const lines: string[] = ["", "**Generation vs strategy (offline verdict)**"];
+  const lines: string[] = ["", "## Generation vs strategy", ""];
 
   if (!testerLog?.trim()) {
     lines.push(
@@ -178,8 +178,6 @@ function generationVsStrategySection(
   }
 
   const missingNonEntry = expected.filter((s) => !s.isEntry && !byStep.has(s.name));
-  const entryStep = expected.find((s) => s.isEntry);
-  const entryEvents = entryStep ? (byStep.get(entryStep.name) ?? 0) : 0;
   const directionOnly =
     byStep.size === 1 &&
     expected.some((s) => s.role === "direction" && byStep.has(s.name));
@@ -195,9 +193,9 @@ function generationVsStrategySection(
 
   if (missingNonEntry.length > 0 || directionOnly) {
     lines.push(
-      "**Likely generation / wiring issue** — the EA ran but downstream flow steps never fired.",
+      "**Verdict:** Likely **generation / wiring** — downstream flow steps never fired.",
       "",
-      "Evidence:",
+      "### Evidence",
     );
     if (directionOnly) {
       lines.push("- Only direction events appear; setup/confirmation/entry never logged.");

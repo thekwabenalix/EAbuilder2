@@ -43,6 +43,18 @@ import {
   prefersBlueprintRegen,
 } from "@/lib/ea-generation-policy";
 import { answerLocalAssistant } from "@/lib/local-assistant";
+import {
+  collectChatImages,
+  compressChatImage,
+  prepareChatImages,
+} from "@/lib/chat-images";
+import { AssistantMarkdown } from "@/components/AssistantMarkdown";
+import {
+  applyFixLabel,
+  extractApplyMarkers,
+  stripApplyMarkers,
+  type AssistantApplyFix,
+} from "@/lib/assistant-apply";
 import type { EaChatMessage } from "@/lib/api-client";
 import type { StrategyBlueprint } from "@/types/blueprint";
 
@@ -67,8 +79,8 @@ export type EaAssistantAction =
 const QUICK_START_PROMPTS = [
   "Why did my backtest show zero trades?",
   "Explain my strategy flow in plain English.",
-  "What should I change to get more entries?",
-  "Help me read the tester log.",
+  "Compare my prompt to the current blueprint — use a table.",
+  "Analyse my chart screenshot — are entries in the right sequence?",
 ] as const;
 
 const PRIMARY_ACTIONS: EaAssistantAction[] = [
@@ -178,11 +190,12 @@ type EaAssistantToolIntent = {
 
 /** Strip control markers from displayed message content. */
 function stripMarker(text: string): string {
-  return text
-    .replace(/\[FIX_READY\]\s*$/m, "")
-    .replace(/^\s*\[ACTION:[a-z_]+\]\s*$/gm, "")
-    .replace(/^\s*\[TOOL:.+\]\s*$/gm, "")
-    .trimEnd();
+  return stripApplyMarkers(
+    text
+      .replace(/\[FIX_READY\]\s*$/m, "")
+      .replace(/^\s*\[ACTION:[a-z_]+\]\s*$/gm, "")
+      .replace(/^\s*\[TOOL:.+\]\s*$/gm, ""),
+  ).trimEnd();
 }
 
 function extractActionMarkers(text: string): EaAssistantAction[] {
@@ -248,7 +261,7 @@ const DIAGNOSIS_MODES = [
     label: "Why No Trades",
     icon: Search,
     prompt:
-      "Diagnosis mode: Why no trades? Use the original prompt, blueprint, module contracts, generated code, tester log, compile log, and backtest summary. Tell me the exact layer that blocked trades: prompt interpretation, blueprint wiring, module contract, generator/state machine, MT5 tester, or risk filters. If the tester log contains skip reasons, quote the important values in plain language. End with the safest next app action.",
+      "Diagnosis mode: Why no trades? Use the original prompt, blueprint, module contracts, generated code, tester log, compile log, and backtest summary. Tell me the exact layer that blocked trades. If tester period mismatches strategy flow TF, emit [APPLY:{\"type\":\"set_backtest_period\",\"period\":\"<TF>\"}]. If wiring/regen needed, emit [APPLY:{\"type\":\"regen_ea\"}]. End with [TOOL:...] or [ACTION:...].",
   },
   {
     id: "wrong_entry",
@@ -331,6 +344,21 @@ interface EaChatDrawerProps {
    * Pass a callback that calls generateMql5FromBlueprint and updates state.
    */
   onRegenTemplate?: () => void;
+  /** Apply structured fixes the assistant recommends (regen EA, backtest period, save). */
+  onApplyAssistantFix?: (fix: AssistantApplyFix) => void;
+}
+
+const DRAWER_WIDTH_KEY = "ea-assistant-drawer-width";
+const DRAWER_MIN = 380;
+const DRAWER_MAX_RATIO = 0.92;
+const DRAWER_DEFAULT = 540;
+
+function readDrawerWidth(): number {
+  if (typeof window === "undefined") return DRAWER_DEFAULT;
+  const saved = localStorage.getItem(DRAWER_WIDTH_KEY);
+  const n = saved ? parseInt(saved, 10) : DRAWER_DEFAULT;
+  const max = window.innerWidth * DRAWER_MAX_RATIO;
+  return Number.isFinite(n) ? Math.min(Math.max(n, DRAWER_MIN), max) : DRAWER_DEFAULT;
 }
 
 export function EaChatDrawer({
@@ -347,6 +375,7 @@ export function EaChatDrawer({
   onApplyCode,
   onSafeAction,
   onRegenTemplate,
+  onApplyAssistantFix,
 }: EaChatDrawerProps) {
   // Local message type carries attached screenshots so they stay visible in the
   // conversation (and prove they were captured). Stripped before hitting the API.
@@ -363,6 +392,39 @@ export function EaChatDrawer({
   const [applyLoading, setApplyLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const [drawerWidth, setDrawerWidth] = useState(readDrawerWidth);
+  const resizeRef = useRef<{ startX: number; startW: number } | null>(null);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!resizeRef.current) return;
+      const delta = resizeRef.current.startX - e.clientX;
+      const max = window.innerWidth * DRAWER_MAX_RATIO;
+      const next = Math.min(Math.max(resizeRef.current.startW + delta, DRAWER_MIN), max);
+      setDrawerWidth(next);
+    };
+    const onUp = () => {
+      if (resizeRef.current) {
+        localStorage.setItem(DRAWER_WIDTH_KEY, String(drawerWidth));
+      }
+      resizeRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [drawerWidth]);
+
+  const startResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    resizeRef.current = { startX: e.clientX, startW: drawerWidth };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -403,14 +465,18 @@ export function EaChatDrawer({
   /** Read an image File into a base64 data URL and queue it. */
   const addImageFile = (file: File) => {
     if (!file.type.startsWith("image/")) return;
-    if (file.size > 4 * 1024 * 1024) {
-      toast.error("Image too large (max 4 MB)");
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error("Image too large (max 8 MB before compression)");
       return;
     }
     const reader = new FileReader();
     reader.onload = () => {
-      const url = typeof reader.result === "string" ? reader.result : "";
-      if (url) setPendingImages((prev) => (prev.length >= 3 ? prev : [...prev, url]));
+      void (async () => {
+        const url = typeof reader.result === "string" ? reader.result : "";
+        if (!url) return;
+        const compressed = await compressChatImage(url);
+        setPendingImages((prev) => (prev.length >= 3 ? prev : [...prev, compressed]));
+      })();
     };
     reader.readAsDataURL(file);
   };
@@ -430,8 +496,10 @@ export function EaChatDrawer({
   /** Send a message. Pass `textArg` to bypass the input field (used for auto-send). */
   const send = async (textArg?: string) => {
     const text = (textArg ?? input).trim();
-    const imgs = pendingImages;
-    if ((!text && imgs.length === 0) || loading) return;
+    if ((!text && pendingImages.length === 0) || loading) return;
+
+    const rawImages = collectChatImages(pendingImages, messages);
+    const imgs = await prepareChatImages(rawImages);
 
     const userMsg: ChatMsg = {
       role: "user",
@@ -628,6 +696,39 @@ export function EaChatDrawer({
     );
   };
 
+  const handleApplyAssistantFix = (fix: AssistantApplyFix) => {
+    if (fix.type === "regen_ea") {
+      if (onRegenTemplate) {
+        onRegenTemplate();
+        toast.success("EA regenerated from blueprint");
+      } else {
+        toast.error("Regenerate is not available for this strategy");
+      }
+      return;
+    }
+    if (onApplyAssistantFix) {
+      onApplyAssistantFix(fix);
+      return;
+    }
+    toast.error("This fix cannot be applied from the assistant yet");
+  };
+
+  const renderApplyFixCard = (fix: AssistantApplyFix, index: number) => (
+    <div
+      key={`${fix.type}-${index}`}
+      className="mt-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2.5"
+    >
+      <p className="text-[11px] font-medium text-emerald-200 mb-2">{applyFixLabel(fix)}</p>
+      <Button
+        size="sm"
+        onClick={() => handleApplyAssistantFix(fix)}
+        disabled={loading || applyLoading}
+        className="h-7 bg-emerald-600 hover:bg-emerald-500 text-white border-0 text-[11px]"
+      >
+        Apply now
+      </Button>
+    </div>
+  );
   const renderToolIntent = (tool: EaAssistantToolIntent, index: number) => {
     const config = ACTION_CONFIG[tool.action];
     const Icon = config.icon;
@@ -721,8 +822,16 @@ export function EaChatDrawer({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:w-[480px] flex flex-col p-0 gap-0 [&>button]:hidden"
+        style={{ width: drawerWidth, maxWidth: "92vw" }}
+        className="flex flex-col p-0 gap-0 [&>button]:hidden sm:max-w-none"
       >
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize assistant panel"
+          onMouseDown={startResize}
+          className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 z-10 transition-colors"
+        />
         {/* Header */}
         <SheetHeader className="px-4 py-3 border-b border-border shrink-0 space-y-0">
           <SheetTitle className="text-sm flex items-center gap-2">
@@ -844,6 +953,8 @@ export function EaChatDrawer({
               m.role === "assistant" && !isStreaming ? extractActionMarkers(m.content) : [];
             const toolIntents =
               m.role === "assistant" && !isStreaming ? extractToolMarkers(m.content) : [];
+            const applyFixes =
+              m.role === "assistant" && !isStreaming ? extractApplyMarkers(m.content) : [];
 
             return (
               <div
@@ -860,9 +971,9 @@ export function EaChatDrawer({
                   </div>
                 )}
                 <div
-                  className={`max-w-[85%] rounded-lg px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap break-words ${
+                  className={`max-w-[92%] rounded-lg px-3 py-2 text-xs leading-relaxed break-words ${
                     m.role === "user"
-                      ? "bg-primary text-primary-foreground"
+                      ? "bg-primary text-primary-foreground whitespace-pre-wrap"
                       : "bg-muted/50 border border-border text-foreground"
                   } ${isStreaming && m.content === "" ? "min-w-[40px] min-h-[28px]" : ""}`}
                 >
@@ -878,7 +989,11 @@ export function EaChatDrawer({
                       ))}
                     </div>
                   )}
-                  {displayContent}
+                  {m.role === "assistant" ? (
+                    <AssistantMarkdown content={displayContent} />
+                  ) : (
+                    displayContent
+                  )}
                   {actions.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {actions.map((action) => renderActionButton(action, true))}
@@ -886,6 +1001,8 @@ export function EaChatDrawer({
                   )}
                   {toolIntents.length > 0 &&
                     toolIntents.map((tool, toolIndex) => renderToolIntent(tool, toolIndex))}
+                  {applyFixes.length > 0 &&
+                    applyFixes.map((fix, fixIndex) => renderApplyFixCard(fix, fixIndex))}
                   {isStreaming && m.content.length > 0 && (
                     <span className="inline-block w-1.5 h-3 bg-current ml-0.5 animate-pulse align-middle" />
                   )}

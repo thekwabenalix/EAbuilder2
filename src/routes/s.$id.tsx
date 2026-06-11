@@ -60,6 +60,10 @@ import {
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EaChatDrawer, type EaAssistantAction } from "@/components/EaChatDrawer";
+import {
+  resolveFlowBacktestPeriod,
+  type AssistantApplyFix,
+} from "@/lib/assistant-apply";
 import { toast } from "sonner";
 import {
   buildExportFilename,
@@ -291,6 +295,7 @@ function StrategyPage() {
   const [compileLog, setCompileLog] = useState<string | null>(null);
   const [backtestSummary, setBacktestSummary] = useState<ReportSummary | null>(null);
   const [testerLog, setTesterLog] = useState<string | null>(null);
+  const [backtestPeriodPatch, setBacktestPeriodPatch] = useState<string | null>(null);
   const [diagnosticContext, setDiagnosticContext] = useState<unknown>(null);
   const [activeTab, setActiveTab] = useState("brains");
   const autoSavedCodeRef = useRef<string | null>(null);
@@ -457,6 +462,22 @@ function StrategyPage() {
                   : "validation"
                 : activeTab;
     setActiveTab(nextTab);
+  };
+
+  const handleApplyAssistantFix = (fix: AssistantApplyFix) => {
+    if (fix.type === "set_backtest_period") {
+      setBacktestPeriodPatch(fix.period);
+      setActiveTab("backtest");
+      toast.success(`Backtest period set to ${fix.period} — re-run backtest`);
+      return;
+    }
+    if (fix.type === "save_strategy") {
+      saveMut.mutate();
+      return;
+    }
+    if (fix.type === "regen_ea") {
+      regenFromTemplate();
+    }
   };
 
   return (
@@ -645,6 +666,9 @@ function StrategyPage() {
                 setGeneratedCode(fixed);
                 setDirty(true);
               }}
+              periodPatch={backtestPeriodPatch}
+              onPeriodPatchApplied={() => setBacktestPeriodPatch(null)}
+              suggestedPeriod={resolveFlowBacktestPeriod(blueprint)}
             />
           </TabsContent>
 
@@ -727,6 +751,9 @@ function StrategyPage() {
                 setGeneratedCode(fixed);
                 setDirty(true);
               }}
+              periodPatch={backtestPeriodPatch}
+              onPeriodPatchApplied={() => setBacktestPeriodPatch(null)}
+              suggestedPeriod={resolveFlowBacktestPeriod(blueprint)}
             />
           </TabsContent>
 
@@ -762,6 +789,7 @@ function StrategyPage() {
         }}
         onSafeAction={handleAssistantAction}
         onRegenTemplate={regenFromTemplate}
+        onApplyAssistantFix={handleApplyAssistantFix}
       />
     </div>
   );
@@ -1995,6 +2023,9 @@ function BacktestTab({
   onDiagnosticContext,
   onOpenChat,
   onApplyCode,
+  periodPatch,
+  onPeriodPatchApplied,
+  suggestedPeriod,
 }: {
   strategyId: string;
   strategyName: string;
@@ -2006,6 +2037,9 @@ function BacktestTab({
   onDiagnosticContext?: (context: unknown) => void;
   onOpenChat?: (message?: string) => void;
   onApplyCode?: (code: string) => void;
+  periodPatch?: string | null;
+  onPeriodPatchApplied?: () => void;
+  suggestedPeriod?: string;
 }) {
   const companion = useQuery({
     queryKey: ["local-runner-health"],
@@ -2030,7 +2064,7 @@ function BacktestTab({
     Omit<TesterConfig, "expertName" | "reportName" | "visualMode" | "optimization">
   >({
     symbol: mt5TesterSymbol(blueprint.execution.symbol),
-    period: blueprint.execution.entryTimeframe || "H1",
+    period: suggestedPeriod || blueprint.execution.entryTimeframe || "H1",
     model: "open_prices",
     fromDate: oneYearAgoDot(),
     toDate: todayDot(),
@@ -2041,6 +2075,12 @@ function BacktestTab({
     useRemoteAgents: false,
     useCloudAgents: false,
   });
+
+  useEffect(() => {
+    if (!periodPatch) return;
+    setConfig((c) => ({ ...c, period: periodPatch }));
+    onPeriodPatchApplied?.();
+  }, [periodPatch, onPeriodPatchApplied]);
 
   // Compile (async — server returns 202 immediately, job runs in background)
   const [fixingAi, setFixingAi] = useState(false);
@@ -2512,6 +2552,23 @@ function BacktestTab({
             />
           </div>
         </div>
+
+        {suggestedPeriod && config.period !== suggestedPeriod && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+            <span>
+              Strategy flow uses <strong>{suggestedPeriod}</strong> but tester is on{" "}
+              <strong>{config.period}</strong> — this often causes zero trades.
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-[11px] border-amber-500/40"
+              onClick={() => set("period", suggestedPeriod)}
+            >
+              Use {suggestedPeriod}
+            </Button>
+          </div>
+        )}
 
         {/* Approval */}
         <div className="flex items-start gap-2 pt-1">

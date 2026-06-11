@@ -142,6 +142,8 @@ export interface AssistantChatContextInput {
   testerLog: string | null;
   backtestSummary: unknown;
   diagnosticContext: unknown;
+  /** Smaller cap when chart screenshots are attached (vision + context must fit). */
+  maxChars?: number;
 }
 
 /** Budgeted context block injected into ea-chat (avoids 200k token limit). */
@@ -170,7 +172,7 @@ export function buildAssistantChatContext(input: AssistantChatContextInput): str
   ];
 
   let block = parts.filter(Boolean).join("\n");
-  const maxChars = 120_000;
+  const maxChars = input.maxChars ?? 120_000;
   if (block.length > maxChars) {
     block = truncateText(block, maxChars, "total context");
   }

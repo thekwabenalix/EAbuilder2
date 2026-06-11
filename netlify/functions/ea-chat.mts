@@ -4,6 +4,7 @@ import {
   estimateTokens,
   trimChatMessages,
 } from "../../src/lib/assistant-context-budget.js";
+import { parseImageDataUrl } from "../../src/lib/chat-images.js";
 import { formatAssistantError, isAssistantProviderUnavailable } from "../../src/lib/assistant-errors.js";
 import type { StrategyBlueprint } from "../../src/types/blueprint.js";
 
@@ -25,6 +26,65 @@ Your role is to help the user understand, debug, improve, and iterate on their E
 You are the in-app EA Builder copilot. Think in the platform's architecture:
 Trader prompt / visual config → StrategyFlow (ordered steps) → verified module state machines
 → flow_engine EA (preferred) → compile → MT5 backtest → diagnosis via this assistant.
+
+══════════════════════════════════════════════
+RESPONSE FORMAT — ALWAYS USE RICH MARKDOWN
+══════════════════════════════════════════════
+The chat UI renders GitHub-flavored Markdown (tables, bold, bullets). Write for traders, not developers.
+
+ALWAYS format replies with:
+• **## Section headings** for major parts (Verdict, Evidence, Chart, Next steps).
+• **Bold** for key terms, step names, module names, and verdicts.
+• Bullet lists (`- item`) for evidence and recommendations — never dense paragraphs.
+• **Markdown tables** when comparing two or more things (e.g. intended vs current, prompt vs blueprint):
+
+| Aspect | Your strategy | Current EA |
+|--------|---------------|------------|
+| Direction | … | … |
+
+Table rules: header row + separator row with dashes; keep cells short; 2–6 rows typical.
+• Numbered lists for ordered steps (what to do first, second, third).
+• One blank line between sections for readability.
+• Keep paragraphs to 1–3 sentences max.
+
+Do NOT output raw pipe tables without the separator line. Do NOT use HTML.
+For simple answers, a short bold lead sentence + bullets is enough — no wall of text.
+
+When comparing strategy intention vs blueprint vs code, ALWAYS use a comparison table.
+
+══════════════════════════════════════════════
+APPLY FIXES — REAL APP ACTIONS (not just advice)
+══════════════════════════════════════════════
+When your recommended fix can be executed inside the app, emit one APPLY marker per fix
+on its own line (JSON). The UI shows a green **Apply now** button.
+
+Available APPLY types:
+- [APPLY:{"type":"set_backtest_period","period":"M30"}] — sets MT5 tester period (use when
+  backtest ran on wrong TF vs strategy flow, e.g. M5 tester but M30 flow).
+- [APPLY:{"type":"regen_ea"}] — regenerates MQL5 from the current blueprint/flow (wiring fixes).
+- [APPLY:{"type":"save_strategy"}] — saves blueprint + code to the strategy record.
+
+Always pair APPLY with [ACTION:...] or [TOOL:...] for the follow-up step (open_backtest,
+regen_template, open_brains). Example for tester TF mismatch:
+
+[APPLY:{"type":"set_backtest_period","period":"M30"}]
+[TOOL:{"action":"open_backtest","reason":"Period set to M30 — recompile and run backtest."}]
+
+Do not tell the user to manually change settings when APPLY can do it.
+
+══════════════════════════════════════════════
+CHART / SCREENSHOT ANALYSIS
+══════════════════════════════════════════════
+When IMAGE STATUS is attached_and_parsed, you receive the actual chart image. Analyse it like a trader:
+
+1. **Chart overview** — symbol/timeframe if visible, trend direction, session context.
+2. **Indicators & structure** — EMAs, zones, BOS lines, FVG boxes, anything drawn on chart.
+3. **Trade markers** — entry arrows (buy/sell), SL/TP lines, exit points; count them honestly.
+4. **Sequence check** — do entries align with the strategy flow (direction → setup → confirm → entry)?
+5. **Verdict** — wiring bug, gate block, or strategy/market fit issue.
+
+Use this structure with ## headings and bullets. Reference specific candle locations (e.g. "buy arrow
+3 bars after EMA cross"). If journal panel is visible, cite it.
 
 When diagnosing, FIRST decide which layer is responsible:
 - PROMPT / INTERPRETATION: the blueprint or flow does not match the trader's words.
@@ -171,8 +231,9 @@ Keep the summary to 3–8 lines maximum. No code snippets, no code blocks — ev
 IMAGE HONESTY — ABSOLUTE RULE
 ══════════════════════════════════════════════
 Use the IMAGE STATUS line in the latest user message as the source of truth.
-If it says attached_and_parsed, an image is attached and you must not say "I don't
-see an attached image". Describe only what you genuinely see.
+If it says attached_and_parsed, chart screenshot(s) are in the message content blocks
+immediately after the IMAGE STATUS line. You MUST analyse them — never say "I don't
+see an attached image" when status is attached_and_parsed.
 If it says attached_but_unparsed, the user tried to attach an image but the app
 could not parse it; ask them to reattach/paste it and diagnose only from text/logs.
 If it says none, say plainly "I don't see an attached image" before asking for one.
@@ -297,7 +358,8 @@ export default async (req: Request): Promise<Response> => {
     return Response.json({ error: "messages required" }, { status: 400, headers: CORS });
   }
 
-  // Inject budgeted context into the first user message only
+  // Inject budgeted context — smaller when screenshots are attached (vision token budget)
+  const hasImages = images.length > 0;
   const contextBlock = buildAssistantChatContext({
     blueprint: asBlueprint(blueprint),
     prompt,
@@ -306,20 +368,25 @@ export default async (req: Request): Promise<Response> => {
     testerLog,
     backtestSummary,
     diagnosticContext,
+    maxChars: hasImages ? 48_000 : 120_000,
   });
 
   console.log(
-    `[ea-chat] context ~${estimateTokens(contextBlock).toLocaleString()} tokens, messages=${messages.length}`,
+    `[ea-chat] context ~${estimateTokens(contextBlock).toLocaleString()} tokens, messages=${messages.length}, images=${images.length}`,
   );
 
-  // Convert a base64 data URL into an Anthropic image content block.
+  const MAX_IMAGE_BASE64_CHARS = 4_000_000;
   const toImageBlock = (dataUrl: string) => {
-    const m = /^data:(image\/(?:png|jpe?g|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(
-      dataUrl.trim(),
-    );
-    if (!m) return null;
-    const media_type = m[1] === "image/jpg" ? "image/jpeg" : m[1];
-    return { type: "image" as const, source: { type: "base64" as const, media_type, data: m[2] } };
+    const parsed = parseImageDataUrl(dataUrl);
+    if (!parsed) return null;
+    if (parsed.data.length > MAX_IMAGE_BASE64_CHARS) {
+      console.warn(`[ea-chat] image too large (${parsed.data.length} b64 chars) — skipped`);
+      return null;
+    }
+    return {
+      type: "image" as const,
+      source: { type: "base64" as const, media_type: parsed.media_type, data: parsed.data },
+    };
   };
   const imageBlocks = images.map(toImageBlock).filter(Boolean) as Array<{
     type: "image";
@@ -339,16 +406,34 @@ export default async (req: Request): Promise<Response> => {
   );
   const enrichedMessages = messages.map((m, i) => {
     const attachContext = i === lastUserIdx && m.role === "user";
+    const isLatestUser = i === lastIdx && m.role === "user";
+
+    if (isLatestUser && imageBlocks.length > 0) {
+      const lead = [
+        `IMAGE STATUS: attached_and_parsed (${images.length} received, ${imageBlocks.length} sent to vision model)`,
+        `${imageBlocks.length} chart screenshot(s) are attached in the next block(s). Analyse entries, arrows, indicators, and panels.`,
+        "",
+        "=== USER MESSAGE ===",
+        m.content,
+      ].join("\n");
+      const contextText = attachContext
+        ? `\n\n=== STRATEGY / LOG CONTEXT ===\n${contextBlock}`
+        : "";
+      return {
+        role: m.role,
+        content: [
+          { type: "text" as const, text: lead },
+          ...imageBlocks,
+          ...(contextText ? [{ type: "text" as const, text: contextText }] : []),
+        ],
+      };
+    }
+
     let text = attachContext
       ? `${contextBlock}\n\n=== USER MESSAGE ===\n${m.content}`
       : m.content;
-    if (i === lastIdx && m.role === "user") {
+    if (isLatestUser) {
       text = `IMAGE STATUS: ${imageStatus} (${images.length} received, ${imageBlocks.length} parsed)\n${text}`;
-    }
-    // Attach any screenshots to the most recent user message as image blocks.
-    if (i === lastIdx && m.role === "user" && imageBlocks.length > 0) {
-      text = `[${imageBlocks.length} screenshot(s) attached above — analyse them]\n${text}`;
-      return { role: m.role, content: [...imageBlocks, { type: "text" as const, text }] };
     }
     return { role: m.role, content: text };
   });
@@ -368,8 +453,9 @@ export default async (req: Request): Promise<Response> => {
         let fullText = "";
 
         const stream = await client.messages.stream({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 8192,
+          model:
+            imageBlocks.length > 0 ? "claude-sonnet-4-6" : "claude-haiku-4-5-20251001",
+          max_tokens: imageBlocks.length > 0 ? 4096 : 8192,
           system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
           messages: enrichedMessages,
         });
