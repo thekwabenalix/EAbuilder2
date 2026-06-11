@@ -9,14 +9,12 @@ import {
   Settings,
   LogOut,
   TerminalSquare,
-  LayoutGrid,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/new", label: "Strategy Builders", icon: PlusSquare },
-  { to: "/modules", label: "Trading Modules", icon: LayoutGrid },
+  { to: "/new", label: "New strategy", icon: PlusSquare },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
@@ -82,9 +80,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Main */}
       <main className="flex-1 min-w-0 flex flex-col">
-        <div className="md:hidden flex items-center justify-between px-4 h-12 border-b border-border bg-card">
-          <span className="text-xs text-muted-foreground truncate">{user?.email}</span>
-          <Button variant="ghost" size="sm" onClick={() => signOut()}>
+        <div className="md:hidden flex items-center gap-2 px-4 h-12 border-b border-border bg-card">
+          <TerminalSquare className="h-4 w-4 text-primary shrink-0" />
+          <span className="text-sm font-semibold truncate flex-1">MT5 AI Builder</span>
+          <Button variant="ghost" size="sm" onClick={() => signOut()} aria-label="Sign out">
             <LogOut className="h-4 w-4" />
           </Button>
         </div>

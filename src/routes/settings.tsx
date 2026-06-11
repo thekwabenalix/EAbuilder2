@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
@@ -444,6 +444,19 @@ function SettingsPage() {
           </section>
 
           <Phase1ValidationPanel />
+
+          <section className="rounded-md border border-border bg-card p-4">
+            <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Developer</h2>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Module catalog and detector downloads for internal testing — not required for normal
+              EA building.
+            </p>
+            <Link to="/modules" className="inline-block mt-3">
+              <Button variant="outline" size="sm">
+                Open module catalog
+              </Button>
+            </Link>
+          </section>
 
           <section className="rounded-md border border-border bg-card p-4 text-xs text-muted-foreground space-y-2">
             <h2 className="text-xs uppercase tracking-wide">Disclaimer</h2>

@@ -1088,7 +1088,7 @@ function FourBrainBuilderPage() {
           <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">
             Configure each brain
           </p>
-          <div className="flex items-stretch gap-0">
+          <div className="flex items-stretch gap-0 flex-col lg:flex-row">
             <BrainCard
               role="direction"
               icon={Brain}
@@ -1298,7 +1298,7 @@ function FourBrainBuilderPage() {
               </>
             ) : (
               <>
-                <Zap className="h-4 w-4" /> Build EA
+                <Zap className="h-4 w-4" /> Generate EA
               </>
             )}
           </Button>

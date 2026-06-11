@@ -3,6 +3,12 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
   Loader2,
   Send,
   Bot,
@@ -53,9 +59,33 @@ export type EaAssistantAction =
   | "open_modules"
   | "download_tester_log";
 
+const QUICK_START_PROMPTS = [
+  "Why did my backtest show zero trades?",
+  "Explain my strategy flow in plain English.",
+  "What should I change to get more entries?",
+  "Help me read the tester log.",
+] as const;
+
+const PRIMARY_ACTIONS: EaAssistantAction[] = [
+  "regen_template",
+  "open_backtest",
+  "open_brains",
+  "open_code",
+];
+
+const SECONDARY_ACTIONS: EaAssistantAction[] = [
+  "download_evidence",
+  "ai_rebuild",
+  "download_tester_log",
+  "open_export",
+  "rerun_interview",
+  "open_modules",
+  "open_validation",
+];
+
 const ACTION_CONFIG = {
-  regen_template: { label: "Regen Template", icon: Hammer },
-  open_brains: { label: "Open Brains", icon: Brain },
+  regen_template: { label: "Regenerate EA", icon: Hammer },
+  open_brains: { label: "Open Configure", icon: Brain },
   open_code: { label: "Open Code", icon: Code2 },
   open_backtest: { label: "Open Backtest", icon: BarChart3 },
   open_export: { label: "Open Export", icon: Download },
@@ -600,96 +630,114 @@ export function EaChatDrawer({
         className="w-full sm:w-[480px] flex flex-col p-0 gap-0 [&>button]:hidden"
       >
         {/* Header */}
-        <SheetHeader className="px-4 py-3 border-b border-border shrink-0">
+        <SheetHeader className="px-4 py-3 border-b border-border shrink-0 space-y-0">
           <SheetTitle className="text-sm flex items-center gap-2">
             <Bot className="h-4 w-4 text-primary" />
             EA Assistant
           </SheetTitle>
-          <div className="flex flex-wrap gap-1 mt-1.5">
-            {contextTags.map((t) => (
-              <span
-                key={t.label}
-                className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary"
-              >
-                {t.label}
-              </span>
-            ))}
-          </div>
-          <div className="grid grid-cols-2 gap-1.5 mt-3">
-            {DIAGNOSIS_MODES.map((mode) => {
-              const Icon = mode.icon;
-              return (
-                <Button
-                  key={mode.id}
-                  size="sm"
-                  variant="outline"
-                  onClick={() => sendDiagnosisMode(mode.prompt)}
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Debug backtests, adjust your strategy, and explain tester logs.
+          </p>
+
+          {messages.length === 0 && !loading && (
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {QUICK_START_PROMPTS.map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => sendDiagnosisMode(prompt)}
                   disabled={loading || applyLoading}
-                  className="h-8 justify-start px-2 text-[11px]"
-                  title={mode.label}
+                  className="text-left text-[11px] px-2.5 py-1.5 rounded-full border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
                 >
-                  <Icon className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                  <span className="truncate">{mode.label}</span>
-                </Button>
-              );
-            })}
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-1.5 mt-3">
+            {PRIMARY_ACTIONS.map((action) => renderActionButton(action))}
           </div>
-          <div className="mt-3">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1.5">
-              Safe actions
+
+          <Accordion type="multiple" className="mt-2 w-full">
+            <AccordionItem value="diagnose" className="border-border/60">
+              <AccordionTrigger className="py-2 text-[11px] uppercase tracking-wide text-muted-foreground hover:no-underline">
+                Diagnosis modes
+              </AccordionTrigger>
+              <AccordionContent className="pb-2">
+                <div className="grid grid-cols-2 gap-1.5">
+                  {DIAGNOSIS_MODES.map((mode) => {
+                    const Icon = mode.icon;
+                    return (
+                      <Button
+                        key={mode.id}
+                        size="sm"
+                        variant="outline"
+                        onClick={() => sendDiagnosisMode(mode.prompt)}
+                        disabled={loading || applyLoading}
+                        className="h-8 justify-start px-2 text-[11px]"
+                        title={mode.label}
+                      >
+                        <Icon className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                        <span className="truncate">{mode.label}</span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="more" className="border-border/60">
+              <AccordionTrigger className="py-2 text-[11px] uppercase tracking-wide text-muted-foreground hover:no-underline">
+                More actions & repair flows
+              </AccordionTrigger>
+              <AccordionContent className="pb-2 space-y-3">
+                <div className="grid grid-cols-2 gap-1.5">
+                  {SECONDARY_ACTIONS.map((action) => renderActionButton(action))}
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {REPAIR_FLOWS.map((flow) => {
+                    const Icon = flow.icon;
+                    return (
+                      <Button
+                        key={flow.id}
+                        size="sm"
+                        variant="outline"
+                        onClick={() => sendRepairFlow(flow.prompt)}
+                        disabled={loading || applyLoading}
+                        className="h-8 justify-start px-2 text-[11px]"
+                        title={flow.label}
+                      >
+                        <Icon className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                        <span className="truncate">{flow.label}</span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+
+          {contextTags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-border/50">
+              {contextTags.map((t) => (
+                <span
+                  key={t.label}
+                  className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary"
+                >
+                  {t.label}
+                </span>
+              ))}
             </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              {[
-                "regen_template",
-                "open_brains",
-                "open_code",
-                "open_backtest",
-                "download_evidence",
-                "ai_rebuild",
-                "rerun_interview",
-                "open_export",
-                "open_modules",
-                "open_validation",
-                "download_tester_log",
-              ].map((action) => renderActionButton(action as EaAssistantAction))}
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1.5">
-              Guided repair
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              {REPAIR_FLOWS.map((flow) => {
-                const Icon = flow.icon;
-                return (
-                  <Button
-                    key={flow.id}
-                    size="sm"
-                    variant="outline"
-                    onClick={() => sendRepairFlow(flow.prompt)}
-                    disabled={loading || applyLoading}
-                    className="h-8 justify-start px-2 text-[11px]"
-                    title={flow.label}
-                  >
-                    <Icon className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                    <span className="truncate">{flow.label}</span>
-                  </Button>
-                );
-              })}
-            </div>
-          </div>
+          )}
         </SheetHeader>
 
         {/* Message list */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
           {messages.length === 0 && !loading && (
-            <div className="text-xs text-muted-foreground text-center pt-10 space-y-3">
-              <Bot className="h-8 w-8 mx-auto text-muted-foreground/30 mb-3" />
-              <div className="space-y-1">
-                <p className="font-medium text-foreground/60">Ask me anything about your EA</p>
-                <p>Use a diagnosis mode above, attach a chart screenshot,</p>
-                <p>or describe the exact behavior that looks wrong.</p>
-              </div>
+            <div className="text-xs text-muted-foreground text-center pt-6 space-y-2">
+              <Bot className="h-8 w-8 mx-auto text-muted-foreground/30" />
+              <p className="font-medium text-foreground/70">Ask about your strategy or backtest</p>
+              <p className="text-[11px]">Tap a suggestion above, attach a chart screenshot, or type below.</p>
             </div>
           )}
 

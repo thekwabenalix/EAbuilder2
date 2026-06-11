@@ -74,7 +74,7 @@ function Dashboard() {
         actions={
           <Link to="/new">
             <Button size="sm">
-              <Plus className="h-4 w-4 mr-1.5" /> Strategy Builders
+              <Plus className="h-4 w-4 mr-1.5" /> New strategy
             </Button>
           </Link>
         }

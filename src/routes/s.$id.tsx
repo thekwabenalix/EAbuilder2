@@ -5,6 +5,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getStrategy, updateStrategy, deleteStrategy, duplicateStrategy } from "@/lib/strategies";
 import { useAuth } from "@/lib/auth-context";
 import { PageHeader } from "@/components/PageHeader";
+import { WorkflowStepper } from "@/components/WorkflowStepper";
+import { ScrollableTabsList } from "@/components/ScrollableTabsList";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -46,6 +55,8 @@ import {
   Brain,
   Plus,
   X,
+  MoreHorizontal,
+  Settings2,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EaChatDrawer, type EaAssistantAction } from "@/components/EaChatDrawer";
@@ -449,7 +460,7 @@ function StrategyPage() {
   };
 
   return (
-    <div>
+    <div className="pb-8">
       <PageHeader
         title={
           <input
@@ -458,44 +469,75 @@ function StrategyPage() {
               setName(e.target.value);
               setDirty(true);
             }}
-            className="bg-transparent outline-none border-b border-transparent focus:border-border w-full max-w-md"
+            className="bg-transparent outline-none border-b border-transparent focus:border-border w-full max-w-lg text-lg font-semibold"
+            aria-label="Strategy name"
           />
         }
         subtitle={subtitle}
+        below={
+          isFourBrain ? (
+            <WorkflowStepper
+              steps={[
+                { id: "brains", label: "Configure", shortLabel: "Configure", icon: Settings2 },
+                { id: "code", label: "Generated code", shortLabel: "Code", icon: FileCode2 },
+                { id: "backtest", label: "Backtest", shortLabel: "Test", icon: BarChart2 },
+                { id: "export", label: "Export", shortLabel: "Export", icon: Download },
+              ]}
+              currentId={activeTab}
+              onStepClick={setActiveTab}
+            />
+          ) : undefined
+        }
         actions={
           <>
-            <Button size="sm" variant="outline" onClick={() => setChatOpen(true)}>
-              <Bot className="h-4 w-4 mr-1.5" /> AI Chat
+            <Button size="sm" onClick={() => setChatOpen(true)}>
+              <Bot className="h-4 w-4 mr-1.5" /> Assistant
             </Button>
             <Button
               size="sm"
               variant="outline"
-              onClick={() => dupMut.mutate()}
-              disabled={dupMut.isPending}
+              onClick={() => setActiveTab("backtest")}
+              className="hidden sm:inline-flex"
             >
-              <Copy className="h-4 w-4 mr-1.5" /> Duplicate
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                if (confirm(`Delete "${name}"?`)) delMut.mutate();
-              }}
-            >
-              <Trash2 className="h-4 w-4 mr-1.5 text-destructive" /> Delete
+              <Play className="h-4 w-4 mr-1.5" /> Backtest
             </Button>
             <Button
               size="sm"
               onClick={() => saveMut.mutate()}
               disabled={saveMut.isPending || !dirty}
+              variant={dirty ? "default" : "outline"}
             >
               {saveMut.isPending ? (
                 <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-              ) : (
+              ) : dirty ? (
                 <Save className="h-4 w-4 mr-1.5" />
+              ) : (
+                <Check className="h-4 w-4 mr-1.5" />
               )}
-              {dirty ? "Save changes" : "Saved"}
+              {dirty ? "Save" : "Saved"}
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="px-2">
+                  <MoreHorizontal className="h-4 w-4" />
+                  <span className="sr-only">More actions</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => dupMut.mutate()} disabled={dupMut.isPending}>
+                  <Copy className="h-4 w-4 mr-2" /> Duplicate strategy
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => {
+                    if (confirm(`Delete "${name}"?`)) delMut.mutate();
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> Delete strategy
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </>
         }
       />
@@ -513,16 +555,27 @@ function StrategyPage() {
 
       {isFourBrain ? (
         /* ── 4-Brain strategy tabs ─────────────────────────────────────────── */
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="px-6 pt-4">
-          <TabsList>
-            <TabsTrigger value="brains">
-              <Brain className="h-3.5 w-3.5 mr-1.5" />
-              Brains
-            </TabsTrigger>
-            <TabsTrigger value="code">Code</TabsTrigger>
-            <TabsTrigger value="backtest">Backtest</TabsTrigger>
-            <TabsTrigger value="export">Export</TabsTrigger>
-          </TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="px-4 sm:px-6 pt-4">
+          <ScrollableTabsList>
+            <TabsList className="w-max min-w-full sm:min-w-0">
+              <TabsTrigger value="brains">
+                <Brain className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                Configure
+              </TabsTrigger>
+              <TabsTrigger value="code">
+                <FileCode2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                Code
+              </TabsTrigger>
+              <TabsTrigger value="backtest">
+                <BarChart2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                Backtest
+              </TabsTrigger>
+              <TabsTrigger value="export">
+                <Download className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                Export
+              </TabsTrigger>
+            </TabsList>
+          </ScrollableTabsList>
 
           <TabsContent value="brains" className="pt-6 pb-10">
             <FourBrainTab
@@ -601,15 +654,26 @@ function StrategyPage() {
         </Tabs>
       ) : (
         /* ── Rules-based strategy tabs ─────────────────────────────────────── */
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="px-6 pt-4">
-          <TabsList>
-            <TabsTrigger value="spec">Spec</TabsTrigger>
-            <TabsTrigger value="builder">Builder</TabsTrigger>
-            <TabsTrigger value="code">Code</TabsTrigger>
-            <TabsTrigger value="backtest">Backtest</TabsTrigger>
-            <TabsTrigger value="validation">Validation</TabsTrigger>
-            <TabsTrigger value="export">Export</TabsTrigger>
-          </TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="px-4 sm:px-6 pt-4">
+          <ScrollableTabsList>
+            <TabsList className="w-max min-w-full sm:min-w-0">
+              <TabsTrigger value="spec">Spec</TabsTrigger>
+              <TabsTrigger value="builder">Builder</TabsTrigger>
+              <TabsTrigger value="code">
+                <FileCode2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                Code
+              </TabsTrigger>
+              <TabsTrigger value="backtest">
+                <BarChart2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                Backtest
+              </TabsTrigger>
+              <TabsTrigger value="validation">Validation</TabsTrigger>
+              <TabsTrigger value="export">
+                <Download className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                Export
+              </TabsTrigger>
+            </TabsList>
+          </ScrollableTabsList>
 
           <TabsContent value="spec" className="pt-6 pb-10">
             <StrategySpecForm blueprint={blueprint} onChange={onBlueprintChange} />
@@ -1146,7 +1210,7 @@ function FourBrainTab({
   );
 
   return (
-    <div className="max-w-2xl space-y-4">
+    <div className="max-w-3xl space-y-5 pb-24">
       {/* Builder mode — Simple 4-Brain vs Advanced Strategy Flow */}
       <div className="rounded-lg border border-border p-1 flex gap-1 bg-muted/20">
         <button
@@ -1185,6 +1249,8 @@ function FourBrainTab({
           : "Build any number of ordered module steps. Each step must occur before the next — same compiler as AI strategy_flow output."}
       </p>
 
+      <TradeAuditPanel blueprint={buildUpdatedBp()} compact />
+
       {/* Strategy-level notes — cross-brain conditions, filters, invalidation rules */}
       <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
         <div>
@@ -1208,7 +1274,17 @@ function FourBrainTab({
         />
       </div>
 
-      <BlueprintExplanationPanel blueprint={buildUpdatedBp()} />
+      <details className="rounded-lg border border-border bg-card/50 group">
+        <summary className="cursor-pointer list-none px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center justify-between">
+          Strategy summary
+          <span className="text-[10px] font-normal normal-case text-muted-foreground/70 group-open:hidden">
+            Show blueprint details
+          </span>
+        </summary>
+        <div className="px-4 pb-4 border-t border-border/50">
+          <BlueprintExplanationPanel blueprint={buildUpdatedBp()} />
+        </div>
+      </details>
 
       {builderMode === "advanced" ? (
         <>
@@ -1382,35 +1458,34 @@ function FourBrainTab({
 
       <AiWiringInsight wiring={aiWiring} />
 
-      <TradeAuditPanel blueprint={buildUpdatedBp()} compact />
-
-      {/* Generate EA — deterministic Strategy Flow compiler */}
-      <div className="space-y-2">
-        <Button
-          onClick={() => {
-            if (!canRegenerate) {
-              toast.error("Execution Brain needs at least one module and a timeframe.");
-              return;
-            }
-            const bp = buildUpdatedBp();
-            const contractError = firstBlueprintGenerationError(bp);
-            if (contractError) {
-              toast.error(contractError);
-              return;
-            }
-            onChange(bp);
-            onRegenerate(bp);
-          }}
-          className="w-full bg-emerald-600 hover:bg-emerald-600/90 text-white"
-        >
-          <Hammer className="h-4 w-4 mr-1.5" />
-          Generate EA
-        </Button>
-        <p className="text-[11px] text-muted-foreground text-center">
-          Compiles from your Strategy Flow using verified modules (Strategy Flow engine when
-          supported). Use the <strong>AI Assistant</strong> to debug backtests, adjust steps, or
-          explain why trades did not fire.
-        </p>
+      {/* Generate EA — sticky footer */}
+      <div className="fixed bottom-0 left-0 right-0 md:left-56 z-20 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 sm:px-6 py-3">
+        <div className="max-w-3xl mx-auto flex flex-col sm:flex-row sm:items-center gap-3">
+          <p className="text-[11px] text-muted-foreground flex-1 hidden sm:block">
+            Compiles verified modules into a self-contained EA. Use the Assistant to debug backtests.
+          </p>
+          <Button
+            size="lg"
+            className="w-full sm:w-auto sm:min-w-[200px] shrink-0"
+            onClick={() => {
+              if (!canRegenerate) {
+                toast.error("Execution Brain needs at least one module and a timeframe.");
+                return;
+              }
+              const bp = buildUpdatedBp();
+              const contractError = firstBlueprintGenerationError(bp);
+              if (contractError) {
+                toast.error(contractError);
+                return;
+              }
+              onChange(bp);
+              onRegenerate(bp);
+            }}
+          >
+            <Hammer className="h-4 w-4 mr-1.5" />
+            Generate EA
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -1759,7 +1834,7 @@ function CodeTab({
             onClick={generateTemplate}
             disabled={generating || !build.buildable || Boolean(generationError)}
             size="lg"
-            className="w-full bg-emerald-600 hover:bg-emerald-600/90 text-white"
+            className="w-full"
           >
             {generating ? (
               <>
@@ -1837,7 +1912,6 @@ function CodeTab({
             onClick={generateTemplate}
             disabled={generating || Boolean(generationError)}
             title="Regenerate from Strategy Flow blueprint"
-            className="bg-emerald-600 hover:bg-emerald-600/90 text-white"
           >
             {generating ? (
               <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />

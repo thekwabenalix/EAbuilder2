@@ -233,7 +233,7 @@ function StrategyBuilders() {
         </div>
 
         {/* ── AI Builder form ── */}
-        <div className={stage === "reviewed" ? "grid grid-cols-2 gap-6 items-start" : "space-y-4"}>
+        <div className={stage === "reviewed" ? "grid grid-cols-1 lg:grid-cols-2 gap-6 items-start" : "space-y-4"}>
           {/* LEFT: Prompt */}
           <div className="space-y-4">
             {stage !== "reviewed" ? (
