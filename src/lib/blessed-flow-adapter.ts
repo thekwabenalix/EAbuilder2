@@ -38,12 +38,21 @@ function repeatAfterConfirmation(text: string, config?: FourBrainConfig): boolea
   };
   if (typeof params.repeatAfterConfirmation === "boolean") return params.repeatAfterConfirmation;
   const hay = text.toLowerCase();
-  return (
-    /\b(?:multiple|many|more than one|another|new)\b.{0,80}\b(?:trade|entry|opportunit|setup|test|retest)\b/.test(
-      hay,
-    ) ||
-    /\b(?:every time|each time|each new|every new)\b.{0,80}\b(?:test|retest|touch|tap)\b/.test(hay)
-  );
+  if (
+    /\bdo not limit\b.{0,80}\b(?:first|one|single)\b/.test(hay) ||
+    /\bdo not stop\b.{0,80}\b(?:looking|watching|monitoring)\b/.test(hay) ||
+    /\bmultiple\b.{0,80}\b(?:trade|entry|test|retest)\b/.test(hay) ||
+    /\bcontinue\b.{0,80}\b(?:watching|monitoring|looking)\b/.test(hay)
+  ) {
+    return true;
+  }
+  if (
+    /\bonly the first\b.{0,100}\b(?:test|retest|trade|entry|setup)\b/.test(hay) ||
+    /\b(?:one|single)\s+trade\s+per\s+cross\b/.test(hay)
+  ) {
+    return false;
+  }
+  return true;
 }
 
 function resolveBlessedKind(
@@ -99,7 +108,7 @@ function buildEmaCtcFlow(text: string, config?: FourBrainConfig): StrategyFlowCo
       event: "EMA_CLOSE_CONFIRMED",
       enabled: true,
       params: { fastPeriod: fast, slowPeriod: slow, retestPoints, requireCross: true, repeatAfterConfirmation: repeat, expiryBars },
-      dependsOn: [{ stepId: "step_setup", relation: "after", required: true }],
+      dependsOn: [{ stepId: "step_setup", relation: "same_or_after", required: true }],
       directionSource: { mode: "from_step", stepId: "step_direction" },
       slSource: { mode: "event_sl", bufferPoints: 0 },
     },

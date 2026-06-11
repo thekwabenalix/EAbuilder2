@@ -192,6 +192,8 @@ const emaSameTfFlow = {
 };
 const emaSameTfCode = generateFlowEA(emaSameTfFlow, "EmaSameTfTickOrderTest");
 assertOk(emaSameTfCode.includes("EMASM_M15_Tick(gDir[0])"), "same-TF EMA chain uses direction gDir for tick");
+assertOk(emaSameTfCode.includes("repeat=true"), "EMA flow defaults to repeat-after-confirmation");
+assertOk(!emaSameTfCode.includes("cl < s1"), "slow EMA close-through does not invalidate bull setup");
 assertOnTickOrder(emaSameTfCode, 0, 1, "EMASM_M15_Tick");
 console.log("[OK  ] EMA direction detect runs before EMA SM tick on same timeframe");
 

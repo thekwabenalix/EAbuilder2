@@ -217,27 +217,31 @@ export function extractSingleTimeframe(text: string, config?: FourBrainConfig): 
   return "M5";
 }
 
+function mentionsSingleEmaCtcEntryOnly(text: string): boolean {
+  const hay = text.toLowerCase();
+  if (
+    /\bdo not limit\b.{0,80}\b(?:first|one|single)\b/.test(hay) ||
+    /\bdo not stop\b.{0,80}\b(?:looking|watching|monitoring)\b/.test(hay) ||
+    /\bmultiple\b.{0,80}\b(?:trade|entry|test|retest)\b/.test(hay) ||
+    /\bcontinue\b.{0,80}\b(?:watching|monitoring|looking)\b/.test(hay)
+  ) {
+    return false;
+  }
+  return (
+    /\bonly the first\b.{0,100}\b(?:test|retest|trade|entry|setup)\b/.test(hay) ||
+    /\b(?:one|single)\s+trade\s+per\s+cross\b/.test(hay) ||
+    /\bonly one\b.{0,80}\b(?:test|retest|trade|entry)\b/.test(hay)
+  );
+}
+
 function shouldRepeatEmaCtcAfterConfirmation(text: string, config?: FourBrainConfig): boolean {
   const params = {
     ...(config?.setup?.params ?? {}),
     ...(config?.execution?.params ?? {}),
   };
   if (typeof params.repeatAfterConfirmation === "boolean") return params.repeatAfterConfirmation;
-
-  const hay = text.toLowerCase();
-  return (
-    /\b(?:multiple|many|more than one|another|new)\b.{0,80}\b(?:trade|entry|opportunit|setup|test|retest)\b/.test(
-      hay,
-    ) ||
-    /\b(?:every time|each time|each new|every new)\b.{0,80}\b(?:test|retest|touch|tap)\b/.test(
-      hay,
-    ) ||
-    /\bdo not limit\b.{0,80}\b(?:first|one|single)\b/.test(hay) ||
-    /\bdo not stop\b.{0,80}\b(?:looking|watching|monitoring)\b/.test(hay) ||
-    /\bcontinue\b.{0,80}\b(?:watching|monitoring|looking)\b.{0,80}\b(?:same direction|opposite cross|another|new)\b/.test(
-      hay,
-    )
-  );
+  if (mentionsSingleEmaCtcEntryOnly(text)) return false;
+  return true;
 }
 
 export function isEmaTestThenIfvgFormation(text: string, config?: FourBrainConfig): boolean {

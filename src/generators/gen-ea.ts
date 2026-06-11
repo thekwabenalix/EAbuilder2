@@ -145,7 +145,7 @@ function emaCtcParamsForTf(
       repeatAfterConfirmation:
         typeof params.repeatAfterConfirmation === "boolean"
           ? params.repeatAfterConfirmation
-          : false,
+          : true,
     };
   }
   return {
@@ -153,7 +153,7 @@ function emaCtcParamsForTf(
     slowPeriod: 48,
     retestPoints: 0,
     requireCross: true,
-    repeatAfterConfirmation: false,
+    repeatAfterConfirmation: true,
   };
 }
 

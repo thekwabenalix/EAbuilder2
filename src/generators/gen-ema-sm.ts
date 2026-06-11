@@ -12,10 +12,12 @@
  *                   retestPoints). The retest bar only arms — it never fires.
  *     → CONFIRMED : a LATER bar CLOSES outside the fast EMA in the bias
  *                   direction → entry next bar. SL = pullback swing.
- *   After a confirmation, the machine returns to IDLE — a NEW cross is required
- *   for the next trade (prevents repeated entries off one move).
- *   Invalidation: bias flips, an opposite cross, or a bar closes back through
- *   the slow EMA while armed.
+ *   After a confirmation, the machine normally returns to CROSSED (same direction)
+ *   and waits for the next slow-EMA retest + fast-EMA close — no new cross required
+ *   until an opposite cross flips bias (repeatAfterConfirmation=true, default).
+ *   Set repeatAfterConfirmation=false to require a fresh cross after each trade.
+ *   Invalidation: opposite fast/slow cross only — a close through the slow EMA
+ *   during the test does NOT invalidate if price later closes beyond the fast EMA.
  *
  * Direction is supplied externally (the higher-TF gBias) so the lower-TF instance
  * aligns with the trend. Bias() is exposed for the Direction Brain role.
@@ -49,7 +51,7 @@ export function genEmaSM(
   slow = 48,
   retestPoints = 0, // retest tolerance in POINTS; 0 means the candle must touch the slow EMA
   requireCross = true, // require an aligned fast/slow cross before the retest
-  repeatAfterConfirmation = false, // after a confirmation, keep the current direction and wait for a fresh retest
+  repeatAfterConfirmation = true, // after confirm: stay in cross direction, wait for next retest+close
 ): string {
   const P = `EMASM_${id}_`;
   const RC = requireCross ? "true" : "false";
@@ -194,23 +196,33 @@ void ${P}Tick(int bias)
          else if(requireCross && bullCross)         // cross arms the setup
          { ${P}phase = ${P}CROSSED; ${P}activeDir = 1;
            B4_DebugMark("EMA_${tf}_BULL_CROSS", ${TF}, 1, lo, clrDodgerBlue, "BULL CROSS");
-           PrintFormat("[EMASM_${tf}] BULL cross — setup armed (12 over 48)"); }
+           PrintFormat("[EMASM_${tf}] BULL cross — setup armed (12 over 48)");
+           if(bullRetestSlow)
+           { ${P}phase = ${P}ARMED; ${P}swingLow = lo;
+             if(cl > f1)
+             { ${P}justConfirmed = true; ${P}confirmDir = 1; ${P}confirmSL = ${P}swingLow; ${P}consume = true;
+               B4_DebugMark("EMA_${tf}_BULL_CONFIRM", ${TF}, 1, lo, clrLime, "CLOSE CONFIRMED");
+               PrintFormat("[EMASM_${tf}] BULL CONFIRMED same bar after cross close=%.5f > fast=%.5f", cl, f1); } } }
          else if(requireCross && !${P}bootstrapUsed) ${P}BootstrapCross(1, hF, hS);
       }
       else if(${P}phase == ${P}CROSSED)
       {
-         if(bearCross || cl < s1) { ${P}phase = ${P}IDLE; ${P}activeDir = 0; }      // regime flipped / slow EMA failed
-         else if(bullRetestSlow)                    // candle actually touched the slow EMA
+         if(bearCross) { ${P}phase = ${P}IDLE; ${P}activeDir = 0; }      // opposite cross only
+         else if(bullRetestSlow)                    // candle touched the slow EMA
          { ${P}phase = ${P}ARMED; ${P}swingLow = lo;
            B4_DebugMark("EMA_${tf}_BULL_TEST", ${TF}, 1, lo, clrGold, "SLOW EMA TEST");
-           PrintFormat("[EMASM_${tf}] BULL retest of slow=%.5f low=%.5f", s1, lo); }
+           PrintFormat("[EMASM_${tf}] BULL retest of slow=%.5f low=%.5f", s1, lo);
+           if(cl > f1)
+           { ${P}justConfirmed = true; ${P}confirmDir = 1; ${P}confirmSL = ${P}swingLow; ${P}consume = true;
+             B4_DebugMark("EMA_${tf}_BULL_CONFIRM", ${TF}, 1, lo, clrLime, "CLOSE CONFIRMED");
+             PrintFormat("[EMASM_${tf}] BULL CONFIRMED same bar close=%.5f > fast=%.5f SL=%.5f", cl, f1, ${P}swingLow); } }
       }
       else                                          // ARMED
       {
          if(lo < ${P}swingLow) ${P}swingLow = lo;
-         if(bearCross || cl < s1) { ${P}phase = ${P}IDLE; ${P}activeDir = 0;
-            B4_DebugMark("EMA_${tf}_BULL_INVALID", ${TF}, 1, cl, clrTomato, "BULL SETUP INVALID");
-            PrintFormat("[EMASM_${tf}] BULL setup invalidated"); }
+         if(bearCross) { ${P}phase = ${P}IDLE; ${P}activeDir = 0;
+            B4_DebugMark("EMA_${tf}_BULL_INVALID", ${TF}, 1, cl, clrTomato, "BULL OPPOSITE CROSS");
+            PrintFormat("[EMASM_${tf}] BULL setup invalidated by opposite cross"); }
          else if(cl > f1)                           // confirmation: close above fast
          { ${P}justConfirmed = true; ${P}confirmDir = 1; ${P}confirmSL = ${P}swingLow; ${P}consume = true;
            B4_DebugMark("EMA_${tf}_BULL_CONFIRM", ${TF}, 1, lo, clrLime, "CLOSE CONFIRMED");
@@ -225,21 +237,29 @@ void ${P}Tick(int bias)
          { ${P}phase = ${P}ARMED; ${P}activeDir = -1; ${P}swingHigh = hi; }
          else if(requireCross && bearCross)
          { ${P}phase = ${P}CROSSED; ${P}activeDir = -1;
-           PrintFormat("[EMASM_${tf}] BEAR cross — setup armed (12 under 48)"); }
+           PrintFormat("[EMASM_${tf}] BEAR cross — setup armed (12 under 48)");
+           if(bearRetestSlow)
+           { ${P}phase = ${P}ARMED; ${P}swingHigh = hi;
+             if(cl < f1)
+             { ${P}justConfirmed = true; ${P}confirmDir = -1; ${P}confirmSL = ${P}swingHigh; ${P}consume = true;
+               PrintFormat("[EMASM_${tf}] BEAR CONFIRMED same bar after cross close=%.5f < fast=%.5f", cl, f1); } } }
          else if(requireCross && !${P}bootstrapUsed) ${P}BootstrapCross(-1, hF, hS);
       }
       else if(${P}phase == ${P}CROSSED)
       {
-         if(bullCross || cl > s1) { ${P}phase = ${P}IDLE; ${P}activeDir = 0; }
+         if(bullCross) { ${P}phase = ${P}IDLE; ${P}activeDir = 0; }
          else if(bearRetestSlow)
          { ${P}phase = ${P}ARMED; ${P}swingHigh = hi;
-           PrintFormat("[EMASM_${tf}] BEAR retest of slow=%.5f high=%.5f", s1, hi); }
+           PrintFormat("[EMASM_${tf}] BEAR retest of slow=%.5f high=%.5f", s1, hi);
+           if(cl < f1)
+           { ${P}justConfirmed = true; ${P}confirmDir = -1; ${P}confirmSL = ${P}swingHigh; ${P}consume = true;
+             PrintFormat("[EMASM_${tf}] BEAR CONFIRMED same bar close=%.5f < fast=%.5f SL=%.5f", cl, f1, ${P}swingHigh); } }
       }
       else
       {
          if(hi > ${P}swingHigh) ${P}swingHigh = hi;
-         if(bullCross || cl > s1) { ${P}phase = ${P}IDLE; ${P}activeDir = 0;
-            PrintFormat("[EMASM_${tf}] BEAR setup invalidated"); }
+         if(bullCross) { ${P}phase = ${P}IDLE; ${P}activeDir = 0;
+            PrintFormat("[EMASM_${tf}] BEAR setup invalidated by opposite cross"); }
          else if(cl < f1)
          { ${P}justConfirmed = true; ${P}confirmDir = -1; ${P}confirmSL = ${P}swingHigh; ${P}consume = true;
            PrintFormat("[EMASM_${tf}] BEAR CONFIRMED close=%.5f < fast=%.5f SL=%.5f", cl, f1, ${P}swingHigh); }

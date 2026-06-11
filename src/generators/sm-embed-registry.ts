@@ -250,7 +250,7 @@ export function emitStateMachine(
         pInt(params, "slowPeriod", 48),
         pInt(params, "retestPoints", 0),
         (params.requireCross as boolean) ?? true,
-        (params.repeatAfterConfirmation as boolean) ?? false,
+        (params.repeatAfterConfirmation as boolean) ?? true,
       );
     case "engulfing":
       return genEgSM(id, TF, tf, pInt(params, "scanBack", 3), pInt(params, "expiryBars", 100));
