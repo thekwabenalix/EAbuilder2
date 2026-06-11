@@ -11,6 +11,7 @@ import {
 } from "@/lib/trade-audit";
 import { generationPathLabel, previewEaGeneration } from "@/lib/generate-ea-router";
 import { formatBrainChain } from "@/lib/brain-modules";
+import { resolveFlowBacktestPeriod } from "@/lib/assistant-apply";
 
 export interface LocalAssistantInput {
   userMessage: string;
@@ -23,7 +24,9 @@ export interface LocalAssistantInput {
 }
 
 function wantsNoTradesHelp(msg: string): boolean {
-  return /zero trades|no trades|why no|didn't trade|did not trade|no execution/i.test(msg);
+  return /zero trades|no trades|why no|didn't trade|did not trade|no execution|no trade executed|not trade|please fix|fix it|fix this/i.test(
+    msg,
+  );
 }
 
 function wantsCompileHelp(msg: string): boolean {
@@ -92,6 +95,65 @@ function strategyOverview(blueprint: StrategyBlueprint, prompt?: string): string
   return lines;
 }
 
+function detectTesterPeriodMismatch(
+  blueprint: StrategyBlueprint,
+  testerLog?: string | null,
+): string | null {
+  const flowPeriod = resolveFlowBacktestPeriod(blueprint);
+  if (!testerLog?.trim()) return null;
+  const m = testerLog.match(/"period"\s*:\s*"(M\d+|H\d+|D\d+|W\d+)"/i);
+  const ranOn = m?.[1]?.toUpperCase();
+  if (ranOn && ranOn !== flowPeriod) return flowPeriod;
+  if (/tester.*\bM5\b/i.test(testerLog) && flowPeriod === "M30") return "M30";
+  return null;
+}
+
+function offlineApplyFixes(
+  blueprint: StrategyBlueprint,
+  parsed: ReturnType<typeof parseTesterLogForTradeAudit> | null,
+  testerLog?: string | null,
+): string[] {
+  const lines: string[] = ["", "## Suggested fixes (Apply now)", ""];
+  const flowPeriod = resolveFlowBacktestPeriod(blueprint);
+  const periodFix = detectTesterPeriodMismatch(blueprint, testerLog);
+
+  if (periodFix) {
+    lines.push(
+      `- **Tester period mismatch** — flow uses **${flowPeriod}**; backtest may have run on a different TF.`,
+      `[APPLY:{"type":"set_backtest_period","period":"${periodFix}"}]`,
+      `[ACTION:open_backtest]`,
+      "",
+    );
+  }
+
+  const expected = buildExpectedTradePath(blueprint);
+  const byStep = new Map<string, number>();
+  if (parsed) {
+    for (const ev of parsed.flowEvents) {
+      byStep.set(ev.stepName, (byStep.get(ev.stepName) ?? 0) + 1);
+    }
+  }
+  const missingEntry = expected.some((s) => s.isEntry) && !expected.some((s) => s.isEntry && byStep.has(s.name));
+  const directionOnly =
+    byStep.size > 0 &&
+    expected.some((s) => s.role === "direction" && byStep.has(s.name)) &&
+    expected.filter((s) => !s.isEntry && s.role !== "direction").every((s) => !byStep.has(s.name));
+
+  if (missingEntry || directionOnly || (parsed && parsed.tradesOpened === 0 && parsed.hasAuditMarkers)) {
+    lines.push(
+      "- **Regenerate EA** after any flow changes — wiring may be stale.",
+      `[APPLY:{"type":"regen_ea"}]`,
+      "",
+    );
+  }
+
+  if (lines.length <= 3) {
+    lines.push("- Re-run backtest with **InpAudit=true** after compile.", `[ACTION:open_backtest]`);
+  }
+
+  return lines;
+}
+
 function noTradesSection(
   blueprint: StrategyBlueprint,
   testerLog?: string | null,
@@ -150,7 +212,7 @@ function noTradesSection(
     "",
     "Typical fixes: regenerate EA after flow changes, confirm each step fires in order, check direction mismatch and setup expiry.",
   );
-  lines.push("[ACTION:open_backtest]");
+  lines.push(...offlineApplyFixes(blueprint, parsed, testerLog));
   return lines;
 }
 
@@ -272,7 +334,7 @@ function compileSection(compileLog?: string | null): string[] {
 export function answerLocalAssistant(input: LocalAssistantInput): string {
   const msg = input.userMessage.trim();
   const lines = [
-    "*(Offline assistant — cloud AI is unavailable; this summary is built from your saved strategy, code, and logs.)*",
+    "*(Offline assistant — built from your blueprint, code, and tester logs. Cloud AI is temporarily unavailable.)*",
     "",
     ...strategyOverview(input.blueprint, input.prompt),
   ];

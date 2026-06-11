@@ -36,6 +36,7 @@ import { applyFix } from "@/lib/api-client";
 import {
   formatAssistantError,
   isAssistantProviderUnavailable,
+  shouldAttachOfflineFallback,
 } from "@/lib/assistant-errors";
 import {
   APPLY_FIX_BLOCKED_MESSAGE,
@@ -143,21 +144,22 @@ function handleChatFailure(
   },
 ) {
   const friendly = formatAssistantError(raw);
-  const offline = providerUnavailable || isAssistantProviderUnavailable(raw);
+  const offline = shouldAttachOfflineFallback(raw);
+
+  const offlineReply = answerLocalAssistant({
+    userMessage: text,
+    blueprint: ctx.blueprint,
+    prompt: ctx.prompt,
+    code: ctx.code,
+    compileLog: ctx.compileLog,
+    testerLog: ctx.testerLog,
+    backtestSummary:
+      ctx.backtestSummary && typeof ctx.backtestSummary === "object"
+        ? (ctx.backtestSummary as Record<string, unknown>)
+        : null,
+  });
 
   if (offline) {
-    const offlineReply = answerLocalAssistant({
-      userMessage: text,
-      blueprint: ctx.blueprint,
-      prompt: ctx.prompt,
-      code: ctx.code,
-      compileLog: ctx.compileLog,
-      testerLog: ctx.testerLog,
-      backtestSummary:
-        ctx.backtestSummary && typeof ctx.backtestSummary === "object"
-          ? (ctx.backtestSummary as Record<string, unknown>)
-          : null,
-    });
     ctx.setMessages((prev) => {
       const last = prev[prev.length - 1];
       const body = `${friendly}\n\n${offlineReply}`;
@@ -171,11 +173,14 @@ function handleChatFailure(
     toast.error(friendly);
     ctx.setMessages((prev) => {
       const last = prev[prev.length - 1];
-      if (last?.role === "assistant" && last.content === "") return prev.slice(0, -1);
-      if (last?.role === "assistant") {
-        return [...prev.slice(0, -1), { role: "assistant" as const, content: friendly }];
+      const body = `${friendly}\n\n${offlineReply}`;
+      if (last?.role === "assistant" && last.content === "") {
+        return [...prev.slice(0, -1), { role: "assistant" as const, content: body }];
       }
-      return prev;
+      if (last?.role === "assistant") {
+        return [...prev.slice(0, -1), { role: "assistant" as const, content: body }];
+      }
+      return [...prev, { role: "assistant" as const, content: body }];
     });
   }
 
@@ -572,6 +577,23 @@ export function EaChatDrawer({
         }
         processChunk(decoder.decode(value, { stream: true }));
       }
+
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "assistant" && !last.content.trim()) {
+          handleChatFailure("No response from cloud assistant", true, text, textArg, {
+            blueprint,
+            prompt,
+            code,
+            compileLog,
+            testerLog,
+            backtestSummary,
+            setMessages,
+            setInput,
+          });
+        }
+        return prev;
+      });
     } catch (e: unknown) {
       if (e instanceof Error && e.name === "AbortError") return;
 

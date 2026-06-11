@@ -65,6 +65,17 @@ export function isAssistantProviderUnavailable(raw: unknown): boolean {
     /cloud AI is unavailable|offline summary below|assistant is not configured on the server/i.test(
       combined,
     ) ||
-    /ANTHROPIC_API_KEY missing|502|503|504|bad gateway|temporarily busy/i.test(combined)
+    /ANTHROPIC_API_KEY missing|502|503|504|bad gateway|temporarily busy/i.test(combined) ||
+    /^\d{3}\s*\{/.test(text.trim()) ||
+    /"type"\s*:\s*"error"/.test(text)
+  );
+}
+
+/** True when chat failed and we should still show the offline blueprint/log analysis. */
+export function shouldAttachOfflineFallback(raw: unknown): boolean {
+  if (isAssistantProviderUnavailable(raw)) return true;
+  const friendly = formatAssistantError(raw);
+  return /offline summary below|offline strategy summaries|cloud assistant could not respond/i.test(
+    friendly,
   );
 }
