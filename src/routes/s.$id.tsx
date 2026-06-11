@@ -429,6 +429,9 @@ function StrategyPage() {
       return;
     }
     if (action === "rerun_interview") {
+      if (data.prompt?.trim()) {
+        sessionStorage.setItem("ea-reinterview-prompt", data.prompt);
+      }
       navigate({ to: "/new" });
       return;
     }

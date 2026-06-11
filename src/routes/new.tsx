@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,11 @@ import { createStrategy } from "@/lib/strategies";
 import { toast } from "sonner";
 import { analyzeBuildability, generateMql5FromBlueprintDetailed } from "@/lib/mql5-template-generator";
 import type { BuildabilityResult } from "@/lib/mql5-template-generator";
-import { firstBlueprintGenerationError } from "@/lib/blueprint-generation-gate";
+import {
+  firstBlueprintGenerationError,
+  resolveStrategyFlow,
+} from "@/lib/blueprint-generation-gate";
+import { buildExpectedTradePath } from "@/lib/trade-audit";
 import { EaGenerationError } from "@/lib/generate-ea-router";
 import { toastEaGenerationSuccess } from "@/lib/ea-generation-toast";
 import { formatBrainChain } from "@/lib/brain-modules";
@@ -37,6 +41,8 @@ import { TradeAuditPanel } from "@/components/TradeAuditPanel";
 export const Route = createFileRoute("/new")({
   component: StrategyBuilders,
 });
+
+const REINTERVIEW_KEY = "ea-reinterview-prompt";
 
 type Stage = "idle" | "interviewing" | "reviewed" | "generating";
 
@@ -49,6 +55,15 @@ function StrategyBuilders() {
   const [blueprint, setBlueprint] = useState<StrategyBlueprint | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [clarificationAnswers, setClarificationAnswers] = useState<Record<number, string>>({});
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem(REINTERVIEW_KEY);
+    if (saved?.trim()) {
+      setPrompt(saved);
+      sessionStorage.removeItem(REINTERVIEW_KEY);
+      toast.message("Original strategy description restored — click Interview Strategy.");
+    }
+  }, []);
 
   const busy = stage === "interviewing" || stage === "generating";
 
@@ -360,6 +375,9 @@ function InterviewPanel({
   const clarifications = blueprint.pendingClarifications ?? [];
   const confidence = blueprint.confidence ?? 0;
   const isFourBrain = Boolean(blueprint.fourBrain);
+  const generationError = firstBlueprintGenerationError(blueprint);
+  const flow = resolveStrategyFlow(blueprint);
+  const tradeChain = buildExpectedTradePath(blueprint);
 
   const confidenceColor =
     confidence >= 75
@@ -426,6 +444,34 @@ function InterviewPanel({
             <p className="text-xs font-mono text-primary/90">
               {formatBrainChain(blueprint.fourBrain)}
             </p>
+          </div>
+        )}
+        {flow?.steps?.length ? (
+          <div className="rounded border border-border bg-muted/20 p-3 space-y-1.5">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+              Strategy Flow (compiler gate)
+            </p>
+            {flow.steps.map((step, i) =>
+              step.enabled === false ? null : (
+                <p key={step.id} className="text-[11px] font-mono text-foreground/90">
+                  {i + 1}. {step.name || step.id} — {step.role} · {step.module} @ {step.timeframe}{" "}
+                  · {step.event}
+                </p>
+              ),
+            )}
+          </div>
+        ) : null}
+        {tradeChain.length > 0 && (
+          <div className="rounded border border-border/60 bg-background/40 p-3 space-y-1">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+              Expected trade chain
+            </p>
+            {tradeChain.map((step) => (
+              <p key={step.id} className="text-[11px] text-muted-foreground">
+                {step.order}. {step.name} → {step.event}
+                {step.isEntry ? " **entry**" : ""}
+              </p>
+            ))}
           </div>
         )}
         <BlueprintExplanationPanel blueprint={blueprint} />
@@ -525,7 +571,22 @@ function InterviewPanel({
       )}
 
       {/* Save button */}
-      <Button onClick={onCreateDraft} disabled={busy} className="w-full" size="lg">
+      {generationError && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-[11px] text-destructive">
+          <p className="font-medium">Cannot generate EA yet</p>
+          <p className="mt-1 opacity-90">{generationError}</p>
+          <p className="mt-2 text-muted-foreground">
+            Refine the interview, answer clarifications, or use the 4-Brain Visual Builder for full
+            control.
+          </p>
+        </div>
+      )}
+      <Button
+        onClick={onCreateDraft}
+        disabled={busy || Boolean(generationError)}
+        className="w-full"
+        size="lg"
+      >
         {busy ? (
           <>
             <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
@@ -548,7 +609,23 @@ function InterviewPanel({
 // ─── Build Status Card ────────────────────────────────────────────────────────
 
 function BuildStatusCard({ blueprint }: { blueprint: StrategyBlueprint }) {
+  const generationError = firstBlueprintGenerationError(blueprint);
+
   if (blueprint.fourBrain) {
+    if (generationError) {
+      return (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-destructive">Interview mapped 4-Brain — generation blocked</p>
+            <span className="text-xs px-2 py-0.5 rounded-full border font-medium shrink-0 border-destructive/40 text-destructive bg-destructive/10">
+              blocked
+            </span>
+          </div>
+          <p className="text-[11px] text-destructive/90">{generationError}</p>
+          <p className="text-xs font-mono text-primary/80">{formatBrainChain(blueprint.fourBrain)}</p>
+        </div>
+      );
+    }
     return (
       <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-2">
         <div className="flex items-center justify-between gap-2">
