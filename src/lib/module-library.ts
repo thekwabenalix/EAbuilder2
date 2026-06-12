@@ -1392,6 +1392,123 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     combinesWith: ["snr", "gap_snr", "bos", "ema"],
   },
 
+  // ─── Zone Liquidity Setup (FVG + OB + BB) ───────────────────────────────────
+  {
+    id: "zone_liq",
+    label: "Zone Liquidity Setup",
+    aliases: [
+      { phrase: "zone liquidity" },
+      { phrase: "liquidity setup" },
+      { phrase: "fvg liquidity setup" },
+      { phrase: "ob liquidity setup" },
+      { phrase: "tap and reject" },
+      { phrase: "liquidity tap reject" },
+      { phrase: "liquidity build tap reject" },
+    ],
+    concept:
+      "Unified FVG, Order Block, or Breaker Block setup — liquidity builds near the zone " +
+      "(bars close near without touching), price taps into the zone, rejects with a close " +
+      "back outside, and entry fires at the next bar open with SL beyond the zone.",
+    detectionLogic:
+      "Detects FVG gaps, displacement OBs, and OB→BB flips. Liquidity = bar closes within " +
+      "InpNearATR × ATR of the zone edge without wick entering. Tap = wick enters zone after " +
+      "liquidity. Reject = close back outside (bull: close > top, bear: close < bottom). " +
+      "Signal on next bar open; SL below/above zone + buffer.",
+    roles: [
+      {
+        role: "setup",
+        fit: "primary",
+        usage: "Armed zone (liquidity built) validates the level; confirmed signal = tap+reject complete.",
+      },
+      {
+        role: "execution",
+        fit: "primary",
+        usage: "BullJustConfirmed/BearJustConfirmed fires on the entry bar (next open after rejection).",
+      },
+    ],
+    lifecycle: "ACTIVE → LIQ → TAPPED → DONE (signal) | EXPIRED",
+    params: [
+      {
+        name: "lookback",
+        type: "int",
+        default: 200,
+        range: [50, 500],
+        description: "Bars scanned for zone detection",
+        traderPhrases: [],
+      },
+      {
+        name: "minLiqBars",
+        type: "int",
+        default: 1,
+        range: [1, 5],
+        description: "Minimum liquidity bars before tap counts",
+        traderPhrases: ["one bar liquidity", "2 bars near the zone"],
+      },
+      {
+        name: "nearATR",
+        type: "double",
+        default: 0.2,
+        range: [0.05, 1.0],
+        description: "Proximity to zone edge as ATR fraction",
+        traderPhrases: ["close near the fvg", "within 20% ATR"],
+      },
+      {
+        name: "expiryBars",
+        type: "int",
+        default: 200,
+        range: [20, 600],
+        description: "Bars before an unconfirmed zone expires",
+        traderPhrases: [],
+      },
+      {
+        name: "dispMult",
+        type: "double",
+        default: 1.5,
+        range: [0.5, 3.0],
+        description: "OB displacement body >= N × ATR",
+        traderPhrases: ["1.5 ATR displacement"],
+      },
+    ],
+    outputStates: [
+      {
+        name: "HasActiveBull()",
+        meaning: "Bull zone armed — liquidity built, awaiting tap/reject",
+        tradingImplication: "SETUP LONG context active",
+      },
+      {
+        name: "BullJustConfirmed()",
+        meaning: "Tap+reject complete — entry bar",
+        tradingImplication: "ENTRY LONG at next open",
+      },
+      {
+        name: "BullConfirmSL()",
+        meaning: "SL below zone + buffer",
+        tradingImplication: "Stop below FVG/OB/BB",
+      },
+    ],
+    inlineApi: {
+      tick: "ZLSM_{id}_Tick(lookback)",
+      signals: [
+        { fn: "ZLSM_{id}_HasActiveBull()", returns: "bool", meaning: "Armed bull zone" },
+        { fn: "ZLSM_{id}_HasActiveBear()", returns: "bool", meaning: "Armed bear zone" },
+        { fn: "ZLSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Bull entry signal" },
+        { fn: "ZLSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "Bear entry signal" },
+        { fn: "ZLSM_{id}_BullConfirmSL()", returns: "double", meaning: "Bull SL" },
+        { fn: "ZLSM_{id}_BearConfirmSL()", returns: "double", meaning: "Bear SL" },
+        { fn: "ZLSM_{id}_ActiveBullSL()", returns: "double", meaning: "Armed bull SL hint" },
+        { fn: "ZLSM_{id}_ActiveBearSL()", returns: "double", meaning: "Armed bear SL hint" },
+      ],
+      reset: "ZLSM_{id}_Reset()",
+    },
+    examplePhrases: [
+      "Wait for liquidity to build near the FVG then tap and reject",
+      "OB liquidity setup on H4 — enter next candle after rejection",
+      "FVG or OB zone with tap and reject entry",
+    ],
+    notSuitedFor: ["Pure direction bias without a zone"],
+    combinesWith: ["bos", "choch", "ema", "engulfing", "rejection"],
+  },
+
   // ─── RSI Hidden Divergence ───────────────────────────────────────────────────
   {
     id: "rsi_hd",
@@ -2318,6 +2435,48 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
       max: 300,
       step: 5,
       hint: "How close (points) the pivot must be to the level to count as a miss",
+    },
+  ],
+  zone_liq: [
+    {
+      key: "lookback",
+      label: "Lookback (bars)",
+      type: "number",
+      default: 200,
+      min: 50,
+      max: 500,
+      step: 10,
+      hint: "Historical bars scanned for FVG/OB/BB zones",
+    },
+    {
+      key: "minLiqBars",
+      label: "Min Liquidity Bars",
+      type: "number",
+      default: 1,
+      min: 1,
+      max: 5,
+      step: 1,
+      hint: "Bars that must close near the zone before tap counts",
+    },
+    {
+      key: "nearATR",
+      label: "Near Zone (ATR ×)",
+      type: "number",
+      default: 0.2,
+      min: 0.05,
+      max: 1.0,
+      step: 0.05,
+      hint: "How close a close must be to the zone edge",
+    },
+    {
+      key: "expiryBars",
+      label: "Zone Expiry (bars)",
+      type: "number",
+      default: 200,
+      min: 20,
+      max: 600,
+      step: 10,
+      hint: "Bars before an unconfirmed zone expires",
     },
   ],
   bb: [

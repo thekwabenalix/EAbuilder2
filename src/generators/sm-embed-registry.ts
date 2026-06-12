@@ -18,6 +18,7 @@ import { genGapSnrSM } from "./gen-gap-snr-sm";
 import { genFvgInversionSM } from "./gen-ifvg-state-machine";
 import { genLiqSweepSM } from "./gen-liqsweep-sm";
 import { genMissSM } from "./gen-miss-sm";
+import { genZoneLiqSM } from "./gen-zone-liq-sm";
 import { genObFvgSM } from "./gen-obfvg-sm";
 import { genObSM } from "./gen-ob-sm";
 import { genRejectionSM } from "./gen-rejection-sm";
@@ -60,6 +61,7 @@ export const SM_MODULE_META: Record<string, { prefix: string; type: string; bosM
     breakout: { prefix: "BRKSM", type: "breakout" },
     rejection: { prefix: "REJSM", type: "rejection" },
     miss: { prefix: "MISSSM", type: "miss" },
+    zone_liq: { prefix: "ZLSM", type: "zone_liq" },
     rsi_hd: { prefix: "RSIHDSM", type: "rsi_hd" },
     engulfing: { prefix: "EGSM", type: "engulfing" },
     ema: { prefix: "EMASM", type: "ema" },
@@ -78,6 +80,7 @@ export const SM_PREFIX_TYPE: Record<string, string> = {
   BRKSM: "breakout",
   REJSM: "rejection",
   MISSSM: "miss",
+  ZLSM: "zone_liq",
   RSIHDSM: "rsi_hd",
   OBFVGSM: "ob_fvg",
   EMASM: "ema",
@@ -105,6 +108,7 @@ const FLOW_PROFILES: Record<string, SmFlowProfile> = {
   breakout: { prefix: "BRKSM", family: "zone", hasActive: true },
   rejection: { prefix: "REJSM", family: "zone", hasActive: true },
   miss: { prefix: "MISSSM", family: "zone", hasActive: true },
+  zone_liq: { prefix: "ZLSM", family: "zone", hasActive: true },
   rsi_hd: { prefix: "RSIHDSM", family: "zone", hasActive: true },
   liqsweep: { prefix: "LSSM", family: "zone", hasActive: false },
 };
@@ -129,6 +133,8 @@ export function smPrefixForType(type: string): string {
       return "REJSM";
     case "miss":
       return "MISSSM";
+    case "zone_liq":
+      return "ZLSM";
     case "rsi_hd":
       return "RSIHDSM";
     case "ob_fvg":
@@ -219,6 +225,24 @@ export function emitStateMachine(
         pInt(params, "swingLen", 3),
         pInt(params, "nearPoints", 50),
         pInt(params, "expiryBars", 200),
+      );
+    case "zone_liq":
+      return genZoneLiqSM(
+        id,
+        TF,
+        tf,
+        pInt(params, "lookback", 200),
+        pInt(params, "expiryBars", 200),
+        pInt(params, "minLiqBars", 1),
+        typeof params.nearATR === "number" ? params.nearATR : 0.2,
+        pInt(params, "atrPeriod", 14),
+        pInt(params, "nearPoints", 0),
+        typeof params.dispMult === "number" ? params.dispMult : 1.5,
+        pInt(params, "obScanBack", 5),
+        pInt(params, "slBufferPts", 20),
+        params.useFVG !== false,
+        params.useOB !== false,
+        params.useBB !== false,
       );
     case "rsi_hd":
       return genRsiHdSM(
@@ -342,4 +366,4 @@ export function isFlowVerifiedModule(moduleId: string): boolean {
 
 /** Regex alternation of known SM prefixes (IFVGSM before FVGSM). */
 export const SM_PREFIX_REGEX =
-  "RSIHDSM|OBFVGSM|EMASM|IFVGSM|FVGSM|EGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM";
+  "RSIHDSM|OBFVGSM|EMASM|IFVGSM|FVGSM|EGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM|ZLSM";

@@ -41,6 +41,8 @@ export type StrategyEventType =
   | "GAP_SNR_TOUCH"
   | "REJECTION_CONFIRMED"
   | "MISSED_LEVEL"
+  | "ZONE_LIQ_ARMED"
+  | "ZONE_LIQ_CONFIRMED"
   | "BREAKOUT_CONFIRMED"
   | "RSI_HD_ACTIVE"
   | "RSI_HD_CONFIRMED"
@@ -384,6 +386,28 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
     carriesZone: false,
     carriesSlHint: true,
   },
+  ZONE_LIQ_ARMED: {
+    id: "ZONE_LIQ_ARMED",
+    label: "Zone Liquidity Armed",
+    category: "zone",
+    roles: ["setup"],
+    description: "FVG/OB/BB zone has liquidity built — awaiting tap and rejection.",
+    carriesDirection: true,
+    carriesPrice: false,
+    carriesZone: true,
+    carriesSlHint: true,
+  },
+  ZONE_LIQ_CONFIRMED: {
+    id: "ZONE_LIQ_CONFIRMED",
+    label: "Zone Liquidity Confirmed",
+    category: "entry",
+    roles: ["setup", "execution"],
+    description: "Tap into zone and rejection close — entry at next bar open.",
+    carriesDirection: true,
+    carriesPrice: true,
+    carriesZone: true,
+    carriesSlHint: true,
+  },
   BREAKOUT_CONFIRMED: {
     id: "BREAKOUT_CONFIRMED",
     label: "Breakout Confirmed",
@@ -544,6 +568,10 @@ export const MODULE_SEMANTIC_EVENT_TYPES: Record<string, Record<string, Strategy
   },
   miss: {
     miss: "MISSED_LEVEL",
+  },
+  zone_liq: {
+    zone_armed: "ZONE_LIQ_ARMED",
+    zone_confirmed: "ZONE_LIQ_CONFIRMED",
   },
   breakout: {
     breakout: "BREAKOUT_CONFIRMED",

@@ -251,6 +251,14 @@ export const MODULE_ADMISSION: Record<string, ModuleAdmissionRecord> = {
     contractRequired: true,
     notes: "Verified reactive S/R missed-level state machine.",
   },
+  zone_liq: {
+    id: "zone_liq",
+    label: "Zone Liquidity Setup",
+    status: "verified_state_machine",
+    aiVocabulary: true,
+    contractRequired: true,
+    notes: "Verified FVG/OB/BB liquidity → tap → reject inline state machine.",
+  },
   breakout: {
     id: "breakout",
     label: "Breakout",

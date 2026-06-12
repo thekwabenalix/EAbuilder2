@@ -89,6 +89,7 @@ export const MODULE_TAXONOMY: Record<BrainModuleType, ModuleTaxonomy> = {
   mef: "other",
   qm_mef: "other",
   snrc2: "entry_zone",
+  zone_liq: "entry_zone",
 };
 
 export function taxonomyForModule(moduleId: string): ModuleTaxonomy {

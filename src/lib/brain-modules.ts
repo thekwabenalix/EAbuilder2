@@ -217,6 +217,14 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     color: "text-sky-300",
     category: "EntryZone",
   },
+  {
+    id: "zone_liq",
+    label: "Zone Liq Setup",
+    desc: "FVG/OB/BB liquidity build → tap → reject → entry",
+    symbol: "ZL",
+    color: "text-violet-300",
+    category: "EntryZone",
+  },
 ];
 
 export const MODULE_BY_ID = Object.fromEntries(ALL_BRAIN_MODULES.map((m) => [m.id, m])) as Record<

@@ -38,6 +38,7 @@ import { generateFvgLiquidityDetector } from "@/lib/smc-modules/fvg-liquidity-de
 import { generateObLiquidityDetector } from "@/lib/smc-modules/ob-liquidity-detector";
 import { generateBbLiquidityDetector } from "@/lib/smc-modules/bb-liquidity-detector";
 import { generateZoneLiquiditySetupIndicator } from "@/lib/smc-modules/zone-liquidity-setup-indicator";
+import { generateZoneLiqStateModule } from "@/lib/smc-modules/zone-liq-state-module";
 import { generateObFvgDetector } from "@/lib/smc-modules/ob-fvg-detector";
 import { generateUnicornDetector } from "@/lib/smc-modules/unicorn-detector";
 import { generateRsiHiddenDivergenceDetector } from "@/lib/indicator-modules/rsi-hidden-divergence-detector";
@@ -423,7 +424,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         status: "ready",
         generate: generateZoneLiquiditySetupIndicator,
-        catalogKind: "standalone_indicator",
+        catalogKind: "brain_composable",
       },
       {
         id: "fvg-liquidity",
@@ -922,6 +923,32 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         status: "ready",
         generate: generateMissStateModule,
+      },
+      {
+        id: "zone-liq-state",
+        filename: "Zone_Liq_State_Module.mq5",
+        name: "Zone Liquidity Setup State Module",
+        description:
+          "Phase 2 state module for unified FVG + OB + BB liquidity setups. Tracks the " +
+          "full lifecycle: zone detect → liquidity build → tap → reject → entry signal. " +
+          "Same 4-buffer contract as FVG/OB state modules for Phase 3 EAs.",
+        rules: [
+          "Zone types: FVG (3-candle gap), OB (displacement), BB (OB closed through → polarity flip)",
+          "Liquidity: bar closes within proximity without wick entering the zone",
+          "Tap: wick enters zone after min liquidity bars",
+          "Reject: close back outside zone — bull close > top, bear close < bottom",
+          "Signal buffers fire on the entry bar (next open after rejection)",
+        ],
+        output: [
+          "Buffer 0: BullConfirmBuf — buy entry bar arrow price",
+          "Buffer 1: BearConfirmBuf — sell entry bar",
+          "Buffer 2/3: BullSLBuf / BearSLBuf — SL beyond zone + buffer",
+          "Filled zone rectangles + gold SL line on rejection",
+          "Journal: ZLS BUY/SELL | kind | tap+reject | SL | entry next open",
+        ],
+        status: "ready",
+        generate: generateZoneLiqStateModule,
+        catalogKind: "state_module",
       },
       {
         id: "rss-srr-state",

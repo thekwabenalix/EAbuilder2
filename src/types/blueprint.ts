@@ -327,7 +327,8 @@ export type BrainModuleType =
   | "rbr_dbd" // rally-base-rally / drop-base-drop detector
   | "mef" // multi-timeframe engulfing confluence detector
   | "qm_mef" // Quasimodo born from MEF detector
-  | "snrc2"; // support/resistance continuation detector
+  | "snrc2" // support/resistance continuation detector
+  | "zone_liq"; // FVG/OB/BB liquidity → tap → reject setup
 
 export interface BrainConfig {
   /**

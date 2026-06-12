@@ -610,6 +610,68 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
     aliases: ["miss", "missed level", "failed to reach level"],
     notes: "Reactive S/R liquidity behavior.",
   },
+  zone_liq: {
+    id: "zone_liq",
+    label: "Zone Liquidity Setup",
+    implementation: "state_machine",
+    smType: "zone_liq",
+    smPrefix: "ZLSM",
+    tickArgPolicy: "lookback",
+    supportedRoles: ["setup", "execution"],
+    semanticEvents: [
+      {
+        id: "zone_armed",
+        roles: ["setup"],
+        queryFunctions: [
+          "ZLSM_{id}_HasActiveBull()",
+          "ZLSM_{id}_HasActiveBear()",
+          "ZLSM_{id}_ActiveBullSL()",
+          "ZLSM_{id}_ActiveBearSL()",
+        ],
+        meaning: "Liquidity built near FVG/OB/BB — zone armed for tap and rejection.",
+      },
+      {
+        id: "zone_confirmed",
+        roles: ["setup", "execution"],
+        queryFunctions: [
+          "ZLSM_{id}_BullJustConfirmed()",
+          "ZLSM_{id}_BearJustConfirmed()",
+          "ZLSM_{id}_BullConfirmSL()",
+          "ZLSM_{id}_BearConfirmSL()",
+        ],
+        meaning: "Tap into zone and rejection close — entry at next bar open.",
+      },
+    ],
+    params: [
+      {
+        name: "lookback",
+        type: "int",
+        default: 200,
+        description: "Bars scanned for zone detection.",
+      },
+      {
+        name: "minLiqBars",
+        type: "int",
+        default: 1,
+        description: "Minimum liquidity bars before tap counts.",
+      },
+      {
+        name: "nearATR",
+        type: "double",
+        default: 0.2,
+        description: "Proximity to zone edge as ATR fraction.",
+      },
+    ],
+    aliases: [
+      "zone liquidity",
+      "liquidity setup",
+      "fvg liquidity setup",
+      "ob liquidity setup",
+      "tap and reject",
+      "liquidity tap reject",
+    ],
+    notes: "Unified FVG + OB + BB liquidity build → tap → reject setup pattern.",
+  },
   breakout: {
     id: "breakout",
     label: "Breakout",

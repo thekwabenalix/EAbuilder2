@@ -23,6 +23,7 @@ import { generateFvgLiquidityDetector } from "../src/lib/smc-modules/fvg-liquidi
 import { generateObLiquidityDetector } from "../src/lib/smc-modules/ob-liquidity-detector";
 import { generateBbLiquidityDetector } from "../src/lib/smc-modules/bb-liquidity-detector";
 import { generateZoneLiquiditySetupIndicator } from "../src/lib/smc-modules/zone-liquidity-setup-indicator";
+import { generateZoneLiqStateModule } from "../src/lib/smc-modules/zone-liq-state-module";
 import { generateObFvgDetector } from "../src/lib/smc-modules/ob-fvg-detector";
 import { generateUnicornDetector } from "../src/lib/smc-modules/unicorn-detector";
 import { generateRsiHiddenDivergenceDetector } from "../src/lib/indicator-modules/rsi-hidden-divergence-detector";
@@ -107,6 +108,7 @@ const items: Item[] = [
   { file: "OB_Liquidity_Detector.mq5", code: generateObLiquidityDetector() },
   { file: "BB_Liquidity_Detector.mq5", code: generateBbLiquidityDetector() },
   { file: "Zone_Liquidity_Setup.mq5", code: generateZoneLiquiditySetupIndicator() },
+  { file: "Zone_Liq_State_Module.mq5", code: generateZoneLiqStateModule() },
   { file: "OB_FVG_Detector.mq5", code: generateObFvgDetector() },
   { file: "Unicorn_Detector.mq5", code: generateUnicornDetector() },
   { file: "RSI_Hidden_Divergence_Detector.mq5", code: generateRsiHiddenDivergenceDetector() },
@@ -495,6 +497,49 @@ const phase3CoverageCases: Array<{
       "void REJSM_M5_Tick",
       "MISSSM_H1_HasActiveBull()",
       "REJSM_M5_BullJustConfirmed()",
+    ],
+  },
+  {
+    title: "Zone liquidity setup → engulfing execution",
+    file: "Phase3_ZoneLiq_Engulfing_Test.mq5",
+    config: {
+      direction: { modules: ["bos"], timeframe: "H4" },
+      setup: { modules: ["zone_liq"], timeframe: "H1" },
+      execution: { modules: ["engulfing"], timeframe: "M15" },
+      management: { riskPercent: 1, rewardRisk: 2, stopBuffer: 20, maxOpenTrades: 1 },
+    },
+    aiWiring: {
+      direction_brain: `void Direction_Brain_Execute() {
+  if(BOSSM_H4_IsBull()) gBias = 1;
+  else if(BOSSM_H4_IsBear()) gBias = -1;
+}`,
+      setup_brain: `void Setup_Brain_Execute() {
+  if(ZLSM_H1_HasActiveBull() && (gBias == 0 || gBias == 1)) {
+    gSetupActive = true; gSetupDir = 1; gSetupSLHint = ZLSM_H1_ActiveBullSL();
+  } else if(ZLSM_H1_HasActiveBear() && (gBias == 0 || gBias == -1)) {
+    gSetupActive = true; gSetupDir = -1; gSetupSLHint = ZLSM_H1_ActiveBearSL();
+  }
+}`,
+      execution_brain: `void Execution_Brain_Execute() {
+  if(!gSetupActive) return;
+  if(gSetupDir == 1 && ZLSM_H1_BullJustConfirmed() && EGSM_M15_BullJustConfirmed()) {
+    gExecSignal = true; gExecDir = 1; gExecSL = ZLSM_H1_BullConfirmSL();
+  } else if(gSetupDir == -1 && ZLSM_H1_BearJustConfirmed() && EGSM_M15_BearJustConfirmed()) {
+    gExecSignal = true; gExecDir = -1; gExecSL = ZLSM_H1_BearConfirmSL();
+  }
+}`,
+      required_sms: ["BOSSM_H4", "ZLSM_H1", "EGSM_M15"],
+      sm_configs: {
+        bos_H4: sm("bos", "H4", { lookback: 20 }),
+        zone_liq_H1: sm("zone_liq", "H1", { lookback: 200, minLiqBars: 1, nearATR: 0.2 }),
+        engulfing_M15: sm("engulfing", "M15", { scanBack: 3 }),
+      },
+    },
+    requiredSnippets: [
+      "void ZLSM_H1_Tick",
+      "ZLSM_H1_HasActiveBull()",
+      "ZLSM_H1_BullJustConfirmed()",
+      "ZLSM_H1_ActiveBullSL()",
     ],
   },
   {
