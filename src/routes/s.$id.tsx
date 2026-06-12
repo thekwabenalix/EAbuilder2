@@ -31,6 +31,7 @@ import { StrategySpecForm } from "@/components/StrategySpecForm";
 import { BuilderProgress, BUILDER_STEPS, type BuilderStep } from "@/components/BuilderProgress";
 import { BlueprintExplanationPanel } from "@/components/BlueprintExplanationPanel";
 import { StrategyFlowBuilder } from "@/components/StrategyFlowBuilder";
+import { EmaPeriodEditor } from "@/components/EmaPeriodEditor";
 import { TradeAuditPanel } from "@/components/TradeAuditPanel";
 import {
   BuiltinIndicatorPicker,
@@ -1001,9 +1002,11 @@ function ModuleParamEditor({
   // Collect the union of all UI params across all selected modules (deduped by key)
   const seen = new Set<string>();
   const allParams: UIParam[] = [];
+  const hasEma = modules.includes("ema");
   for (const mod of modules) {
     const uiParams = MODULE_UI_PARAMS[mod] ?? [];
     for (const p of uiParams) {
+      if (hasEma && (p.key === "fastPeriod" || p.key === "slowPeriod")) continue;
       if (!seen.has(p.key)) {
         seen.add(p.key);
         allParams.push(p);
@@ -1011,13 +1014,15 @@ function ModuleParamEditor({
     }
   }
 
-  if (allParams.length === 0) return null;
+  if (allParams.length === 0 && !hasEma) return null;
 
   return (
     <div className="space-y-2 pt-1">
       <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">
         Parameters
       </Label>
+      {hasEma && <EmaPeriodEditor params={params} onChange={onChange} />}
+      {allParams.length > 0 && (
       <div className="grid grid-cols-2 gap-x-4 gap-y-2">
         {allParams.map((p) => {
           const current = typeof params[p.key] === "number" ? (params[p.key] as number) : p.default;
@@ -1044,6 +1049,7 @@ function ModuleParamEditor({
           );
         })}
       </div>
+      )}
     </div>
   );
 }

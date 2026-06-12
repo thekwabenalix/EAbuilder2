@@ -40,6 +40,7 @@ import { EaGenerationError } from "@/lib/generate-ea-router";
 import { StrategyFlowBuilder } from "@/components/StrategyFlowBuilder";
 import { GenerationPathBanner } from "@/components/GenerationPathBanner";
 import { TradeAuditPanel } from "@/components/TradeAuditPanel";
+import { EmaPeriodEditor } from "@/components/EmaPeriodEditor";
 import {
   BuiltinIndicatorPicker,
   type IndicatorPickerResult,
@@ -642,20 +643,33 @@ function BrainCard({
             (() => {
               const seen = new Set<string>();
               const allUiParams: UIParam[] = [];
+              const hasEma = state.modules.includes("ema");
               for (const mod of state.modules) {
                 for (const p of MODULE_UI_PARAMS[mod] ?? []) {
+                  if (hasEma && (p.key === "fastPeriod" || p.key === "slowPeriod")) continue;
                   if (!seen.has(p.key)) {
                     seen.add(p.key);
                     allUiParams.push(p);
                   }
                 }
               }
-              if (allUiParams.length === 0) return null;
+              if (allUiParams.length === 0 && !hasEma) return null;
               return (
                 <div>
                   <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
                     Parameters
                   </p>
+                  {hasEma && (
+                    <div className="mb-3">
+                      <EmaPeriodEditor
+                        params={(state?.params as Record<string, unknown>) ?? {}}
+                        onChange={(p) =>
+                          onChange({ ...(state as BrainState), params: p })
+                        }
+                      />
+                    </div>
+                  )}
+                  {allUiParams.length > 0 && (
                   <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                     {allUiParams.map((p) => {
                       const current =
@@ -687,6 +701,7 @@ function BrainCard({
                       );
                     })}
                   </div>
+                  )}
                 </div>
               );
             })()}

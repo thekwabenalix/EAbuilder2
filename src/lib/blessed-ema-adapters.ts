@@ -6,6 +6,7 @@
 import type { AiBrainWiring } from "@/lib/api-client";
 import type { FourBrainConfig } from "@/types/blueprint";
 import { collectBuiltinFilterRefs } from "@/lib/builtin-filter-contracts";
+import { extractEmaPeriodsFromConfig } from "@/lib/ema-params";
 import { periodConst } from "@/generators/sm-embed-registry";
 
 type StrategySemantics = NonNullable<AiBrainWiring["semantics"]>;
@@ -19,23 +20,14 @@ function numFrom(value: unknown, fallback: number): number {
 export function extractEmaPeriods(
   text: string,
   config?: FourBrainConfig,
-): { fast: number; slow: number } {
-  const params = {
-    ...(config?.direction?.params ?? {}),
-    ...(config?.setup?.params ?? {}),
-    ...(config?.execution?.params ?? {}),
+): { fast: number; slow: number; periods: number[]; mode: "single" | "dual" | "multi" } {
+  const normalized = extractEmaPeriodsFromConfig(text, config);
+  return {
+    fast: normalized.fast,
+    slow: normalized.slow,
+    periods: normalized.periods,
+    mode: normalized.mode,
   };
-  const fastFromParams = numFrom(params.fastPeriod, NaN);
-  const slowFromParams = numFrom(params.slowPeriod, NaN);
-  if (Number.isFinite(fastFromParams) && Number.isFinite(slowFromParams)) {
-    return { fast: fastFromParams, slow: slowFromParams };
-  }
-
-  const matches = [...text.matchAll(/(\d{1,3})\s*(?:period\s*)?ema/gi)]
-    .map((m) => Number(m[1]))
-    .filter((n) => Number.isFinite(n));
-  if (matches.length >= 2) return { fast: matches[0], slow: matches[1] };
-  return { fast: 12, slow: 48 };
 }
 
 export function extractEmaRetestTarget(

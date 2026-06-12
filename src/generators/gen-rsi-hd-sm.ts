@@ -135,6 +135,28 @@ double ${P}LowestBetween(int sNew, int sOld)
    return mn;
 }
 
+void ${P}DrawDiv(int dir, int objId, datetime t1, double p1, datetime t2, double p2)
+{
+   string ln = StringFormat("4B_RSIHD_${tf}_%d_ln", objId);
+   string lb = StringFormat("4B_RSIHD_${tf}_%d_lb", objId);
+   color c = (dir > 0) ? clrMediumSeaGreen : clrTomato;
+   if(ObjectFind(0, ln) < 0 && ObjectCreate(0, ln, OBJ_TREND, 0, t1, p1, t2, p2))
+   {
+      ObjectSetInteger(0, ln, OBJPROP_COLOR,      c);
+      ObjectSetInteger(0, ln, OBJPROP_WIDTH,      2);
+      ObjectSetInteger(0, ln, OBJPROP_RAY_RIGHT,  false);
+      ObjectSetInteger(0, ln, OBJPROP_SELECTABLE, false);
+   }
+   if(ObjectFind(0, lb) < 0 && ObjectCreate(0, lb, OBJ_TEXT, 0, t2, p2))
+   {
+      ObjectSetString (0, lb, OBJPROP_TEXT,       dir > 0 ? "Bull HD" : "Bear HD");
+      ObjectSetInteger(0, lb, OBJPROP_COLOR,      c);
+      ObjectSetInteger(0, lb, OBJPROP_FONTSIZE,   8);
+      ObjectSetInteger(0, lb, OBJPROP_ANCHOR,     dir > 0 ? ANCHOR_UPPER : ANCHOR_LOWER);
+      ObjectSetInteger(0, lb, OBJPROP_SELECTABLE, false);
+   }
+}
+
 void ${P}AddRec(int dir, double s1, double s2, double mid, datetime t1, datetime t2, datetime confT)
 {
    int idx = -1;
@@ -152,6 +174,7 @@ void ${P}AddRec(int dir, double s1, double s2, double mid, datetime t1, datetime
    ${P}rec[idx].confirmTime = confT;
    ${P}rec[idx].dead        = false;
    ${P}rec[idx].ageCounter  = 0;
+   ${P}DrawDiv(dir, ${P}rec[idx].id, t1, s1, t2, s2);
    if(dir > 0) ${P}_bullDiverged = true; else ${P}_bearDiverged = true;
    PrintFormat("[RSIHDSM_${tf}] %s ACTIVE | s1=%.5f s2=%.5f mid=%.5f",
                dir > 0 ? "BULL HD" : "BEAR HD", s1, s2, mid);

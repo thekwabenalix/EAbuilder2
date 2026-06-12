@@ -1682,7 +1682,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "fast and slow EMA" },
     ],
     concept:
-      "Two moving averages (fast and slow) whose relative position defines the trend direction. When fast > slow = BULL. When fast < slow = BEAR.",
+      "One or more EMA periods. Single EMA: price above/below the line for bias, retest that line. Dual EMA: fast/slow cross → retest slower → confirm beyond faster. Multi EMA (3+): all lines must stack in order; cross-retest uses shortest vs longest.",
     detectionLogic:
       "Real iMA handles (drawn on the chart via B4_MA). TWO usage modes: (1) SIMPLE CROSS for Direction — fast vs slow alignment checked inline every bar, persistent (no state machine). (2) CROSS→RETEST SEQUENCE for Setup+Execution — the verified EMASM state machine persists IDLE → CROSSED (fast/slow CROSS in the bias direction arms the setup) → ARMED (price retests the slow EMA within tolerance; the retest bar only arms) → CONFIRMED (a LATER bar closes outside the fast EMA → entry next bar, SL = swing). After a confirmation a NEW cross is required. Use EMASM for any multi-bar 'cross then retest then close outside' rule — never hand-write it inline (the phases collapse onto one bar).",
     roles: [

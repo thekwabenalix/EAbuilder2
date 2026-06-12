@@ -52,15 +52,70 @@ export function genEmaSM(
   retestPoints = 0, // retest tolerance in POINTS; 0 means the candle must touch the slow EMA
   requireCross = true, // require an aligned fast/slow cross before the retest
   repeatAfterConfirmation = true, // after confirm: stay in cross direction, wait for next retest+close
+  allPeriods?: number[],
 ): string {
+  const periods =
+    allPeriods && allPeriods.length > 0
+      ? [...new Set(allPeriods)].sort((a, b) => a - b)
+      : [Math.min(fast, slow), Math.max(fast, slow)];
+  const singleMode = periods.length === 1;
+  const multiMode = periods.length > 2;
+  const effFast = periods[0];
+  const effSlow = periods[periods.length - 1];
   const P = `EMASM_${id}_`;
-  const RC = requireCross ? "true" : "false";
+  const RC = singleMode ? "false" : requireCross ? "true" : "false";
   const REPEAT = repeatAfterConfirmation ? "true" : "false";
+  const periodList = periods.join(", ");
+  const modeNote = singleMode
+    ? "single EMA"
+    : multiMode
+      ? `stack [${periodList}] cross ${effFast}/${effSlow}`
+      : `dual ${effFast}/${effSlow}`;
+
+  const biasFn = singleMode
+    ? `
+int ${P}Bias()
+{
+   double e, c = iClose(InpSymbol, ${TF}, 1);
+   int h = B4_MA(${TF}, ${effFast}, MODE_EMA);
+   if(!${P}Val(h, 1, e)) return 0;
+   return (c > e) ? 1 : (c < e ? -1 : 0);
+}`
+    : multiMode
+      ? `
+int ${P}Bias()
+{
+   int _ps[] = {${periodList}};
+   double _v[];
+   ArrayResize(_v, ArraySize(_ps));
+   for(int _i = 0; _i < ArraySize(_ps); _i++)
+   {
+      if(!${P}Val(B4_MA(${TF}, _ps[_i], MODE_EMA), 1, _v[_i])) return 0;
+   }
+   bool _bull = true, _bear = true;
+   for(int _i = 0; _i < ArraySize(_ps) - 1; _i++)
+   {
+      if(_v[_i] <= _v[_i + 1]) _bull = false;
+      if(_v[_i] >= _v[_i + 1]) _bear = false;
+   }
+   if(_bull) return 1;
+   if(_bear) return -1;
+   return 0;
+}`
+      : `
+int ${P}Bias()
+{
+   double f, s;
+   int hF = B4_MA(${TF}, ${effFast}, MODE_EMA);
+   int hS = B4_MA(${TF}, ${effSlow}, MODE_EMA);
+   if(!${P}Val(hF, 1, f) || !${P}Val(hS, 1, s)) return 0;
+   return (f > s) ? 1 : (f < s ? -1 : 0);
+}`;
 
   return `
 //+------------------------------------------------------------------+
 //| EMA Cross→Retest State Machine — ${tf} (${id})                  |
-//| fast=${fast} slow=${slow} retest=${retestPoints}pts requireCross=${RC} repeat=${REPEAT} |
+//| ${modeNote} retest=${retestPoints}pts requireCross=${RC} repeat=${REPEAT} |
 //| IDLE → CROSSED → ARMED (retest) → CONFIRMED (close outside fast) |
 //+------------------------------------------------------------------+
 #define ${P}IDLE    0
@@ -100,18 +155,12 @@ bool ${P}Val(int handle, int shift, double &out)
    return true;
 }
 
-// Own fast/slow alignment (Direction Brain role). Draws the EMAs via B4_MA.
-int ${P}Bias()
-{
-   double f, s;
-   int hF = B4_MA(${TF}, ${fast}, MODE_EMA);
-   int hS = B4_MA(${TF}, ${slow}, MODE_EMA);
-   if(!${P}Val(hF, 1, f) || !${P}Val(hS, 1, s)) return 0;
-   return (f > s) ? 1 : (f < s ? -1 : 0);
-}
+// Own alignment (Direction Brain role). Draws the EMAs via B4_MA.
+${biasFn}
 
 bool ${P}BootstrapCross(int bias, int hF, int hS)
 {
+   if(${singleMode ? "true" : "false"}) return false;
    if(bias == 0) return false;
 
    double fNow, sNow;
@@ -167,8 +216,8 @@ void ${P}Tick(int bias)
    }
 
    double f1, s1, f2, s2;
-   int hF = B4_MA(${TF}, ${fast}, MODE_EMA);
-   int hS = B4_MA(${TF}, ${slow}, MODE_EMA);
+   int hF = B4_MA(${TF}, ${effFast}, MODE_EMA);
+   int hS = B4_MA(${TF}, ${effSlow}, MODE_EMA);
    if(!${P}Val(hF, 1, f1) || !${P}Val(hS, 1, s1)) return;   // buffers not ready
    if(!${P}Val(hF, 2, f2) || !${P}Val(hS, 2, s2)) return;
 

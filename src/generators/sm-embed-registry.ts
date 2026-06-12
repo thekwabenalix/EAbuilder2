@@ -11,6 +11,7 @@ import type { BosSmMode } from "./gen-bos-sm";
 import { genBosSM } from "./gen-bos-sm";
 import { genBreakoutSM } from "./gen-breakout-sm";
 import { genEmaSM } from "./gen-ema-sm";
+import { normalizeEmaParams } from "@/lib/ema-params";
 import { genEgSM } from "./gen-eg-sm";
 import { genFvgSM } from "./gen-fvg-sm";
 import { genGapSnrSM } from "./gen-gap-snr-sm";
@@ -233,17 +234,20 @@ export function emitStateMachine(
       );
     case "ob_fvg":
       return genObFvgSM(id, TF, tf, pInt(params, "expiryBars", 250));
-    case "ema":
+    case "ema": {
+      const ema = normalizeEmaParams(params);
       return genEmaSM(
         id,
         TF,
         tf,
-        pInt(params, "fastPeriod", 12),
-        pInt(params, "slowPeriod", 48),
-        pInt(params, "retestPoints", 0),
-        (params.requireCross as boolean) ?? true,
-        (params.repeatAfterConfirmation as boolean) ?? true,
+        ema.fast,
+        ema.slow,
+        ema.retestPoints,
+        ema.requireCross,
+        ema.repeatAfterConfirmation,
+        ema.periods,
       );
+    }
     case "engulfing":
       return genEgSM(id, TF, tf, pInt(params, "scanBack", 3), pInt(params, "expiryBars", 100));
     default:
