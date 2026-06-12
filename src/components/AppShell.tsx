@@ -3,12 +3,20 @@ import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { getLocalRunnerHealth } from "@/lib/local-runner";
-import { LayoutDashboard, PlusSquare, Settings, LogOut, TerminalSquare } from "lucide-react";
+import {
+  LayoutDashboard,
+  LayoutGrid,
+  PlusSquare,
+  Settings,
+  LogOut,
+  TerminalSquare,
+} from "lucide-react";
 import type { ReactNode } from "react";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/new", label: "New strategy", icon: PlusSquare },
+  { to: "/modules", label: "Trading Modules", icon: LayoutGrid },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
