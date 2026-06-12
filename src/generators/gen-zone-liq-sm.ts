@@ -48,7 +48,7 @@ export function genZoneLiqSM(
 #define ${P}ST_DONE     3
 #define ${P}PHASE_OB    0
 #define ${P}PHASE_BB    1
-#define ${P}ZONE_MAX    200
+#define ${P}ZONE_MAX    400
 
 struct ${P}ZoneRec
 {
@@ -58,8 +58,11 @@ struct ${P}ZoneRec
    int      liqBars;
    double   zoneTop;
    double   zoneBot;
+   double   nearEdge;
+   double   bestLiqDist;
    datetime zoneLeft;
    datetime bornTime;
+   datetime validAfter;
    double   obHi;
    double   obLo;
    double   obOpen;
@@ -115,21 +118,12 @@ double ${P}NearDist(int sh)
    return ${nearATR} * ${P}CalcATR(sh);
 }
 
-bool ${P}WickTapped(int dir, double hi, double lo, double top, double bot)
+bool ${P}TouchKills(int i, double hi, double lo)
 {
-   if(dir == ${P}DIR_BULL) return lo <= top;
-   return hi >= bot;
-}
-
-bool ${P}WickInside(double hi, double lo, double top, double bot)
-{
-   return lo <= top && hi >= bot;
-}
-
-bool ${P}ZoneTested(double hi, double lo, double top, double bot)
-{
-   if(hi < bot || lo > top) return false;
-   return true;
+   if(${P}zones[i].kind == ${P}KIND_BB && ${P}zones[i].bbPhase != ${P}PHASE_BB) return false;
+   double edge = ${P}zones[i].nearEdge;
+   if(${P}zones[i].dir == ${P}DIR_BULL) return lo <= edge;
+   return hi >= edge;
 }
 
 bool ${P}Rejected(int dir, double cl, double top, double bot)
@@ -177,6 +171,9 @@ int ${P}AddZone(int kind, int dir, double top, double bot, datetime leftT, datet
    ${P}zones[idx].zoneBot = bot;
    ${P}zones[idx].zoneLeft = leftT;
    ${P}zones[idx].bornTime = bornT;
+   ${P}zones[idx].validAfter = bornT;
+   ${P}zones[idx].nearEdge = top;
+   ${P}zones[idx].bestLiqDist = DBL_MAX;
    ${P}zones[idx].bbPhase = ${P}PHASE_OB;
    ${P}zones[idx].age = 0;
    ${P}zones[idx].dead = false;
@@ -197,14 +194,24 @@ void ${P}DetectFVG(int sh)
    double c3l = iLow (InpSymbol, ${TF}, sh);
    double c3h = iHigh(InpSymbol, ${TF}, sh);
    datetime t1 = iTime(InpSymbol, ${TF}, sh + 2);
-   if(c1h < c3l) ${P}AddZone(${P}KIND_FVG, ${P}DIR_BULL, c3l, c1h, t1, iTime(InpSymbol, ${TF}, sh));
-   if(c1l > c3h) ${P}AddZone(${P}KIND_FVG, ${P}DIR_BEAR, c1l, c3h, t1, iTime(InpSymbol, ${TF}, sh));
+   datetime t3 = iTime(InpSymbol, ${TF}, sh);
+   if(c1h < c3l)
+   {
+      int idx = ${P}AddZone(${P}KIND_FVG, ${P}DIR_BULL, c3l, c1h, t1, t3);
+      if(idx >= 0) { ${P}zones[idx].nearEdge = c3l; ${P}zones[idx].validAfter = t3; }
+   }
+   if(c1l > c3h)
+   {
+      int idx = ${P}AddZone(${P}KIND_FVG, ${P}DIR_BEAR, c1l, c3h, t1, t3);
+      if(idx >= 0) { ${P}zones[idx].nearEdge = c3h; ${P}zones[idx].validAfter = t3; }
+   }
 }
 
-void ${P}DetectOB(int dispShift)
+void ${P}DetectDisplacementOB(int dispShift, int kind)
 {
-   if(!${useOB} && !${useBB}) return;
    if(dispShift < 1) return;
+   if(kind == ${P}KIND_OB && !${useOB}) return;
+   if(kind == ${P}KIND_BB && !${useBB}) return;
    double atr = ${P}CalcATR(dispShift);
    if(atr <= 0) return;
    double dOpn = iOpen(InpSymbol, ${TF}, dispShift);
@@ -214,34 +221,39 @@ void ${P}DetectOB(int dispShift)
    int scanEnd = dispShift + ${obScanBack};
    int avail = iBars(InpSymbol, ${TF});
    if(scanEnd >= avail - 1) scanEnd = avail - 2;
-   int kind = ${useBB} ? ${P}KIND_BB : ${P}KIND_OB;
+   datetime confT = iTime(InpSymbol, ${TF}, dispShift);
    for(int j = dispShift + 1; j <= scanEnd; j++)
    {
       double jOpn = iOpen(InpSymbol, ${TF}, j);
       double jCls = iClose(InpSymbol, ${TF}, j);
+      datetime obT = iTime(InpSymbol, ${TF}, j);
       if(dispDir == ${P}DIR_BULL && jCls < jOpn)
       {
-         int idx = ${P}AddZone(kind, ${P}DIR_BULL, MathMax(jOpn, jCls), MathMin(jOpn, jCls),
-                               iTime(InpSymbol, ${TF}, j), iTime(InpSymbol, ${TF}, dispShift));
+         int idx = ${P}AddZone(kind, ${P}DIR_BULL, MathMax(jOpn, jCls), MathMin(jOpn, jCls), obT, confT);
          if(idx >= 0)
          {
             ${P}zones[idx].obHi = iHigh(InpSymbol, ${TF}, j);
             ${P}zones[idx].obLo = iLow(InpSymbol, ${TF}, j);
             ${P}zones[idx].obOpen = jOpn;
             ${P}zones[idx].obClose = jCls;
+            ${P}zones[idx].nearEdge = jOpn;
+            ${P}zones[idx].validAfter = confT;
+            ${P}zones[idx].bbPhase = ${P}PHASE_OB;
          }
          break;
       }
       if(dispDir == ${P}DIR_BEAR && jCls > jOpn)
       {
-         int idx = ${P}AddZone(kind, ${P}DIR_BEAR, MathMax(jOpn, jCls), MathMin(jOpn, jCls),
-                               iTime(InpSymbol, ${TF}, j), iTime(InpSymbol, ${TF}, dispShift));
+         int idx = ${P}AddZone(kind, ${P}DIR_BEAR, MathMax(jOpn, jCls), MathMin(jOpn, jCls), obT, confT);
          if(idx >= 0)
          {
             ${P}zones[idx].obHi = iHigh(InpSymbol, ${TF}, j);
             ${P}zones[idx].obLo = iLow(InpSymbol, ${TF}, j);
             ${P}zones[idx].obOpen = jOpn;
             ${P}zones[idx].obClose = jCls;
+            ${P}zones[idx].nearEdge = jOpn;
+            ${P}zones[idx].validAfter = confT;
+            ${P}zones[idx].bbPhase = ${P}PHASE_OB;
          }
          break;
       }
@@ -265,59 +277,70 @@ void ${P}CheckBBBreaks(int sh)
       ${P}zones[i].dir = newDir;
       ${P}zones[i].zoneTop = MathMax(${P}zones[i].obOpen, ${P}zones[i].obClose);
       ${P}zones[i].zoneBot = MathMin(${P}zones[i].obOpen, ${P}zones[i].obClose);
+      ${P}zones[i].nearEdge = ${P}zones[i].obClose;
       ${P}zones[i].bbPhase = ${P}PHASE_BB;
       ${P}zones[i].state = ${P}ST_ACTIVE;
       ${P}zones[i].liqBars = 0;
       ${P}zones[i].age = 0;
+      ${P}zones[i].bestLiqDist = DBL_MAX;
       ${P}DrawZone(i);
    }
 }
 
-bool ${P}LiqBarClose(int dir, double hi, double lo, double cl, double top, double bot, double near)
+void ${P}CheckLiquidity(int sh)
 {
-   if(near <= 0) return false;
-   if(${P}WickTapped(dir, hi, lo, top, bot) || ${P}WickInside(hi, lo, top, bot)) return false;
-   if(dir == ${P}DIR_BULL) { if(cl < top) return false; return (cl - top) <= near; }
-   if(cl > bot) return false;
-   return (bot - cl) <= near;
-}
-
-void ${P}ProcessZoneBar(int i, int sh)
-{
-   if(${P}zones[i].dead || ${P}zones[i].state == ${P}ST_DONE) return;
-   if(${P}zones[i].bornTime >= iTime(InpSymbol, ${TF}, sh)) return;
-
    double hi = iHigh(InpSymbol, ${TF}, sh);
    double lo = iLow(InpSymbol, ${TF}, sh);
    double cl = iClose(InpSymbol, ${TF}, sh);
-   double top = ${P}zones[i].zoneTop;
-   double bot = ${P}zones[i].zoneBot;
-   int dir = ${P}zones[i].dir;
+   datetime t = iTime(InpSymbol, ${TF}, sh);
    double near = ${P}NearDist(sh);
 
-   if(${P}ZoneTested(hi, lo, top, bot))
+   for(int i = 0; i < ${P}zoneCount; i++)
    {
-      bool hadLiq = (${P}zones[i].state >= ${P}ST_LIQ);
-      bool reject = hadLiq && ${P}Rejected(dir, cl, top, bot);
-      if(reject)
+      if(${P}zones[i].dead) continue;
+      if(${P}zones[i].validAfter >= t) continue;
+      if(${P}zones[i].kind == ${P}KIND_BB && ${P}zones[i].bbPhase != ${P}PHASE_BB) continue;
+      if(near <= 0) continue;
+
+      double edge = ${P}zones[i].nearEdge;
+      int dir = ${P}zones[i].dir;
+      double top = ${P}zones[i].zoneTop;
+      double bot = ${P}zones[i].zoneBot;
+
+      if(${P}TouchKills(i, hi, lo))
       {
-         double sl = ${P}SlForZone(dir, top, bot);
-         if(dir == ${P}DIR_BULL) { ${P}zones[i].pendingBuy = true; ${P}zones[i].pendingSL = sl; }
-         else { ${P}zones[i].pendingSell = true; ${P}zones[i].pendingSL = sl; }
-         PrintFormat("[ZLSM_${tf}] %s test+reject | SL=%.5f", dir == ${P}DIR_BULL ? "BULL" : "BEAR", sl);
+         bool hadLiq = (${P}zones[i].bestLiqDist < DBL_MAX);
+         bool reject = hadLiq && ${P}Rejected(dir, cl, top, bot);
+         if(reject)
+         {
+            double sl = ${P}SlForZone(dir, top, bot);
+            if(dir == ${P}DIR_BULL) { ${P}zones[i].pendingBuy = true; ${P}zones[i].pendingSL = sl; }
+            else { ${P}zones[i].pendingSell = true; ${P}zones[i].pendingSL = sl; }
+            PrintFormat("[ZLSM_${tf}] %s edge touch+reject | SL=%.5f", dir == ${P}DIR_BULL ? "BULL" : "BEAR", sl);
+         }
+         ${P}KillZone(i);
+         continue;
       }
-      ${P}KillZone(i);
-      return;
-   }
 
-   ${P}DrawZone(i);
-
-   if(${P}zones[i].state == ${P}ST_ACTIVE || ${P}zones[i].state == ${P}ST_LIQ)
-   {
-      if(${P}LiqBarClose(dir, hi, lo, cl, top, bot, near))
+      if(dir == ${P}DIR_BULL)
       {
-         ${P}zones[i].liqBars++;
-         if(${P}zones[i].liqBars >= ${minLiqBars}) ${P}zones[i].state = ${P}ST_LIQ;
+         double dist = lo - edge;
+         if(dist <= near && dist < ${P}zones[i].bestLiqDist)
+         {
+            ${P}zones[i].bestLiqDist = dist;
+            ${P}zones[i].liqBars++;
+            if(${P}zones[i].liqBars >= ${minLiqBars}) ${P}zones[i].state = ${P}ST_LIQ;
+         }
+      }
+      else
+      {
+         double dist = edge - hi;
+         if(dist <= near && dist < ${P}zones[i].bestLiqDist)
+         {
+            ${P}zones[i].bestLiqDist = dist;
+            ${P}zones[i].liqBars++;
+            if(${P}zones[i].liqBars >= ${minLiqBars}) ${P}zones[i].state = ${P}ST_LIQ;
+         }
       }
    }
 }
@@ -354,10 +377,11 @@ void ${P}AgeZones()
 
 void ${P}ProcessBar(int sh)
 {
-   ${P}DetectOB(sh);
-   ${P}CheckBBBreaks(sh);
    ${P}DetectFVG(sh);
-   for(int i = 0; i < ${P}zoneCount; i++) ${P}ProcessZoneBar(i, sh);
+   ${P}DetectDisplacementOB(sh, ${P}KIND_OB);
+   ${P}DetectDisplacementOB(sh, ${P}KIND_BB);
+   ${P}CheckBBBreaks(sh);
+   ${P}CheckLiquidity(sh);
    ${P}AgeZones();
 }
 
@@ -384,6 +408,7 @@ double ${P}BearConfirmSL()     { return ${P}_bearSL; }
 bool ${P}IsArmed(int i)
 {
    if(${P}zones[i].dead) return false;
+   if(${P}zones[i].kind == ${P}KIND_BB && ${P}zones[i].bbPhase != ${P}PHASE_BB) return false;
    if(${P}zones[i].state != ${P}ST_ACTIVE && ${P}zones[i].state != ${P}ST_LIQ) return false;
    return true;
 }

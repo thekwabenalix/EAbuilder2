@@ -1,14 +1,11 @@
 /**
  * Unified Zone Liquidity Setup — FVG + OB + Breaker Block
  *
- * Setup lifecycle (per zone):
- *   1. Zone detected (FVG / OB / BB)
- *   2. Liquidity: one+ bars close near without touching (optional tracking)
- *   3. Fresh-only: zone marking removed the moment price touches/tests the zone
- *   4. Tap+reject entry signals still fire on the test bar when rejection confirms
+ * Unified FVG + OB + BB liquidity — same semantics as the three liquidity detectors.
+ * Fresh zones: removed when the near edge is touched (not full-box overlap).
  */
 
-export const ZONE_LIQ_SETUP_VERSION = "1.1.0";
+export const ZONE_LIQ_SETUP_VERSION = "1.2.0";
 export const ZONE_LIQ_SETUP_MODULE = "Zone_Liquidity_Setup";
 
 export function generateZoneLiquiditySetupIndicator(): string {
@@ -51,7 +48,7 @@ double BearSLBuf[];
 #define ST_DONE     3
 #define PHASE_OB    0
 #define PHASE_BB    1
-#define ZONE_MAX    300
+#define ZONE_MAX    400
 #define OBJ_PREFIX  "ZLS_"
 
 input ENUM_TIMEFRAMES InpTF           = PERIOD_CURRENT;
@@ -68,6 +65,11 @@ input int             InpMinLiqBars   = 1;
 input int             InpSlBufferPts  = 20;
 input int             InpExpiryBars   = 200;
 input bool            InpDrawZones    = true;
+input bool            InpDrawLabels   = true;
+input string          InpLabelFVG     = "FLq";
+input string          InpLabelOB      = "OLq";
+input string          InpLabelBB      = "BLq";
+input int             InpFontSize     = 8;
 input bool            InpDrawSL       = true;
 input bool            InpShowLog      = true;
 
@@ -80,8 +82,11 @@ struct ZoneRec
    int      liqBars;
    double   zoneTop;
    double   zoneBot;
+   double   nearEdge;
+   double   bestLiqDist;
    datetime zoneLeft;
    datetime bornTime;
+   datetime validAfter;
    datetime breakTime;
    double   obHi;
    double   obLo;
@@ -124,22 +129,36 @@ double NearDist(int sh)
    return InpNearATR * CalcATR(sh);
 }
 
-bool WickTapped(int dir, double hi, double lo, double top, double bot)
+// Touch at the near edge (same as FVG/OB/BB liquidity detectors) — not full-box overlap.
+bool TouchKills(int i, double hi, double lo)
 {
-   if(dir == DIR_BULL) return lo <= top;
-   return hi >= bot;
+   if(gZones[i].kind == KIND_BB && gZones[i].bbPhase != PHASE_BB) return false;
+   double edge = gZones[i].nearEdge;
+   if(gZones[i].dir == DIR_BULL) return lo <= edge;
+   return hi >= edge;
 }
 
-bool WickInside(double hi, double lo, double top, double bot)
+string LiqLabelText(int kind)
 {
-   return lo <= top && hi >= bot;
+   if(kind == KIND_FVG) return InpLabelFVG;
+   if(kind == KIND_OB)  return InpLabelOB;
+   return InpLabelBB;
 }
 
-// Any candle overlap with the zone = touched / tested → zone is no longer fresh.
-bool ZoneTested(double hi, double lo, double top, double bot)
+void UpdateLiqLabel(int i, double wickExtreme, datetime t)
 {
-   if(hi < bot || lo > top) return false;
-   return true;
+   if(!InpDrawLabels) return;
+   string nm = Lb(gZones[i].id);
+   ObjectDelete(0, nm);
+   color c = (gZones[i].dir == DIR_BULL) ? clrMediumSeaGreen : clrTomato;
+   if(ObjectCreate(0, nm, OBJ_TEXT, 0, t, wickExtreme))
+   {
+      ObjectSetString (0, nm, OBJPROP_TEXT, LiqLabelText(gZones[i].kind));
+      ObjectSetInteger(0, nm, OBJPROP_COLOR, c);
+      ObjectSetInteger(0, nm, OBJPROP_FONTSIZE, InpFontSize);
+      ObjectSetInteger(0, nm, OBJPROP_ANCHOR, gZones[i].dir == DIR_BULL ? ANCHOR_UPPER : ANCHOR_LOWER);
+      ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
+   }
 }
 
 bool Rejected(int dir, double cl, double top, double bot)
@@ -165,24 +184,30 @@ void KillZone(int i)
 void DrawZone(int i)
 {
    if(!InpDrawZones) return;
+   if(gZones[i].kind == KIND_BB && gZones[i].bbPhase == PHASE_OB) return;
    string nm = Zn(gZones[i].id);
    color c = (gZones[i].dir == DIR_BULL) ? clrMediumSeaGreen : clrTomato;
-   datetime rt = iTime(_Symbol, InpTF, 0);
-   if(ObjectCreate(0, nm, OBJ_RECTANGLE, 0, gZones[i].zoneLeft, gZones[i].zoneTop, rt, gZones[i].zoneBot))
+   datetime rt = (gZones[i].breakTime > 0) ? gZones[i].breakTime : gZones[i].bornTime;
+   if(gZones[i].kind != KIND_FVG) rt = gZones[i].bornTime;
+   datetime rEnd = gZones[i].bornTime;
+   if(ObjectCreate(0, nm, OBJ_RECTANGLE, 0, gZones[i].zoneLeft, gZones[i].zoneTop, rEnd, gZones[i].zoneBot))
    {
       ObjectSetInteger(0, nm, OBJPROP_COLOR, c);
       ObjectSetInteger(0, nm, OBJPROP_FILL, true);
       ObjectSetInteger(0, nm, OBJPROP_BACK, true);
       ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
+      if(gZones[i].kind == KIND_BB && gZones[i].bbPhase == PHASE_BB)
+         ObjectSetInteger(0, nm, OBJPROP_STYLE, STYLE_DASH);
    }
 }
 
-void ExtendZone(int i)
+void ExtendZone(int i, datetime t)
 {
    if(!InpDrawZones) return;
+   if(gZones[i].kind == KIND_BB && gZones[i].bbPhase == PHASE_OB) return;
    string nm = Zn(gZones[i].id);
    if(ObjectFind(0, nm) >= 0)
-      ObjectSetInteger(0, nm, OBJPROP_TIME, 1, iTime(_Symbol, InpTF, 0));
+      ObjectSetInteger(0, nm, OBJPROP_TIME, 1, t);
 }
 
 void DrawSL(int i, double sl)
@@ -217,6 +242,9 @@ int AddZone(int kind, int dir, double top, double bot, datetime leftT, datetime 
    gZones[idx].zoneBot = bot;
    gZones[idx].zoneLeft = leftT;
    gZones[idx].bornTime = bornT;
+   gZones[idx].validAfter = bornT;
+   gZones[idx].nearEdge = top;
+   gZones[idx].bestLiqDist = DBL_MAX;
    gZones[idx].breakTime = 0;
    gZones[idx].bbPhase = PHASE_OB;
    gZones[idx].age = 0;
@@ -239,14 +267,23 @@ void DetectFVG(int sh)
    double c3h = iHigh(_Symbol, InpTF, sh);
    datetime t1 = iTime(_Symbol, InpTF, sh + 2);
    datetime t3 = iTime(_Symbol, InpTF, sh);
-   if(c1h < c3l) AddZone(KIND_FVG, DIR_BULL, c3l, c1h, t1, t3);
-   if(c1l > c3h) AddZone(KIND_FVG, DIR_BEAR, c1l, c3h, t1, t3);
+   if(c1h < c3l)
+   {
+      int idx = AddZone(KIND_FVG, DIR_BULL, c3l, c1h, t1, t3);
+      if(idx >= 0) { gZones[idx].nearEdge = c3l; gZones[idx].validAfter = t3; }
+   }
+   if(c1l > c3h)
+   {
+      int idx = AddZone(KIND_FVG, DIR_BEAR, c1l, c3h, t1, t3);
+      if(idx >= 0) { gZones[idx].nearEdge = c3h; gZones[idx].validAfter = t3; }
+   }
 }
 
-void DetectOB(int dispShift)
+void DetectDisplacementOB(int dispShift, int kind)
 {
-   if(!InpUseOB && !InpUseBB) return;
    if(dispShift < 1) return;
+   if(kind == KIND_OB && !InpUseOB) return;
+   if(kind == KIND_BB && !InpUseBB) return;
    double atr = CalcATR(dispShift);
    if(atr <= 0) return;
    double dOpn = iOpen(_Symbol, InpTF, dispShift);
@@ -256,37 +293,41 @@ void DetectOB(int dispShift)
    int scanEnd = dispShift + InpObScanBack;
    int avail = iBars(_Symbol, InpTF);
    if(scanEnd >= avail - 1) scanEnd = avail - 2;
+   datetime confT = iTime(_Symbol, InpTF, dispShift);
    for(int j = dispShift + 1; j <= scanEnd; j++)
    {
       double jOpn = iOpen(_Symbol, InpTF, j);
       double jCls = iClose(_Symbol, InpTF, j);
+      datetime obT = iTime(_Symbol, InpTF, j);
       if(dispDir == DIR_BULL && jCls < jOpn)
       {
-         int idx = AddZone(InpUseBB ? KIND_BB : KIND_OB, DIR_BULL,
-                           MathMax(jOpn, jCls), MathMin(jOpn, jCls),
-                           iTime(_Symbol, InpTF, j), iTime(_Symbol, InpTF, dispShift));
+         int idx = AddZone(kind, DIR_BULL, MathMax(jOpn, jCls), MathMin(jOpn, jCls), obT, confT);
          if(idx >= 0)
          {
             gZones[idx].obHi = iHigh(_Symbol, InpTF, j);
             gZones[idx].obLo = iLow(_Symbol, InpTF, j);
             gZones[idx].obOpen = jOpn;
             gZones[idx].obClose = jCls;
+            gZones[idx].nearEdge = jOpn;
+            gZones[idx].validAfter = confT;
             gZones[idx].bbPhase = PHASE_OB;
+            if(kind == KIND_BB) ObjectDelete(0, Zn(gZones[idx].id));
          }
          break;
       }
       if(dispDir == DIR_BEAR && jCls > jOpn)
       {
-         int idx = AddZone(InpUseBB ? KIND_BB : KIND_OB, DIR_BEAR,
-                           MathMax(jOpn, jCls), MathMin(jOpn, jCls),
-                           iTime(_Symbol, InpTF, j), iTime(_Symbol, InpTF, dispShift));
+         int idx = AddZone(kind, DIR_BEAR, MathMax(jOpn, jCls), MathMin(jOpn, jCls), obT, confT);
          if(idx >= 0)
          {
             gZones[idx].obHi = iHigh(_Symbol, InpTF, j);
             gZones[idx].obLo = iLow(_Symbol, InpTF, j);
             gZones[idx].obOpen = jOpn;
             gZones[idx].obClose = jCls;
+            gZones[idx].nearEdge = jOpn;
+            gZones[idx].validAfter = confT;
             gZones[idx].bbPhase = PHASE_OB;
+            if(kind == KIND_BB) ObjectDelete(0, Zn(gZones[idx].id));
          }
          break;
       }
@@ -310,11 +351,13 @@ void CheckBBBreaks(int sh)
       gZones[i].dir = newDir;
       gZones[i].zoneTop = MathMax(gZones[i].obOpen, gZones[i].obClose);
       gZones[i].zoneBot = MathMin(gZones[i].obOpen, gZones[i].obClose);
+      gZones[i].nearEdge = gZones[i].obClose;
       gZones[i].bbPhase = PHASE_BB;
       gZones[i].breakTime = t;
       gZones[i].state = ST_ACTIVE;
       gZones[i].liqBars = 0;
       gZones[i].age = 0;
+      gZones[i].bestLiqDist = DBL_MAX;
       ObjectDelete(0, Zn(gZones[i].id));
       DrawZone(i);
       if(InpShowLog)
@@ -322,62 +365,65 @@ void CheckBBBreaks(int sh)
    }
 }
 
-bool LiqBarClose(int dir, double hi, double lo, double cl, double top, double bot, double near)
+void CheckLiquidity(int sh)
 {
-   if(near <= 0) return false;
-   if(WickTapped(dir, hi, lo, top, bot) || WickInside(hi, lo, top, bot)) return false;
-   if(dir == DIR_BULL)
-   {
-      if(cl < top) return false;
-      return (cl - top) <= near;
-   }
-   if(cl > bot) return false;
-   return (bot - cl) <= near;
-}
-
-void ProcessZoneBar(int i, int sh)
-{
-   if(gZones[i].dead || gZones[i].state == ST_DONE) return;
-   if(gZones[i].bornTime >= iTime(_Symbol, InpTF, sh)) return;
-
    double hi = iHigh(_Symbol, InpTF, sh);
    double lo = iLow(_Symbol, InpTF, sh);
    double cl = iClose(_Symbol, InpTF, sh);
-   double top = gZones[i].zoneTop;
-   double bot = gZones[i].zoneBot;
-   int dir = gZones[i].dir;
+   datetime t = iTime(_Symbol, InpTF, sh);
    double near = NearDist(sh);
 
-   // Fresh zones only — remove marking as soon as price touches/tests the zone.
-   if(ZoneTested(hi, lo, top, bot))
+   for(int i = 0; i < gZoneTotal; i++)
    {
-      bool hadLiq = (gZones[i].state >= ST_LIQ);
-      bool reject = hadLiq && Rejected(dir, cl, top, bot);
-      if(reject)
+      if(gZones[i].dead) continue;
+      if(gZones[i].validAfter >= t) continue;
+      if(gZones[i].kind == KIND_BB && gZones[i].bbPhase != PHASE_BB) continue;
+
+      ExtendZone(i, t);
+      if(near <= 0) continue;
+      double edge = gZones[i].nearEdge;
+      int dir = gZones[i].dir;
+      double top = gZones[i].zoneTop;
+      double bot = gZones[i].zoneBot;
+
+      if(TouchKills(i, hi, lo))
       {
-         double sl = SlForZone(dir, top, bot);
-         if(dir == DIR_BULL) { gZones[i].pendingBuy = true; gZones[i].pendingSL = sl; }
-         else { gZones[i].pendingSell = true; gZones[i].pendingSL = sl; }
-         if(InpShowLog)
-            PrintFormat("ZLS %s | kind=%d | test+reject | SL=%.5f | entry next open | %s",
-               dir == DIR_BULL ? "BUY" : "SELL", gZones[i].kind, sl,
-               TimeToString(iTime(_Symbol,InpTF,sh),TIME_DATE|TIME_MINUTES));
+         bool hadLiq = (gZones[i].bestLiqDist < DBL_MAX);
+         bool reject = hadLiq && Rejected(dir, cl, top, bot);
+         if(reject)
+         {
+            double sl = SlForZone(dir, top, bot);
+            if(dir == DIR_BULL) { gZones[i].pendingBuy = true; gZones[i].pendingSL = sl; }
+            else { gZones[i].pendingSell = true; gZones[i].pendingSL = sl; }
+            if(InpShowLog)
+               PrintFormat("ZLS %s | kind=%d | edge touch+reject | SL=%.5f | %s",
+                  dir == DIR_BULL ? "BUY" : "SELL", gZones[i].kind, sl, TimeToString(t, TIME_DATE|TIME_MINUTES));
+         }
+         KillZone(i);
+         continue;
       }
-      else if(InpShowLog)
-         PrintFormat("ZLS zone consumed | kind=%d | tested | %s",
-            gZones[i].kind, TimeToString(iTime(_Symbol,InpTF,sh),TIME_DATE|TIME_MINUTES));
-      KillZone(i);
-      return;
-   }
 
-   ExtendZone(i);
-
-   if(gZones[i].state == ST_ACTIVE || gZones[i].state == ST_LIQ)
-   {
-      if(LiqBarClose(dir, hi, lo, cl, top, bot, near))
+      if(dir == DIR_BULL)
       {
-         gZones[i].liqBars++;
-         if(gZones[i].liqBars >= InpMinLiqBars) gZones[i].state = ST_LIQ;
+         double dist = lo - edge;
+         if(dist <= near && dist < gZones[i].bestLiqDist)
+         {
+            gZones[i].bestLiqDist = dist;
+            gZones[i].liqBars++;
+            if(gZones[i].liqBars >= InpMinLiqBars) gZones[i].state = ST_LIQ;
+            UpdateLiqLabel(i, lo, t);
+         }
+      }
+      else
+      {
+         double dist = edge - hi;
+         if(dist <= near && dist < gZones[i].bestLiqDist)
+         {
+            gZones[i].bestLiqDist = dist;
+            gZones[i].liqBars++;
+            if(gZones[i].liqBars >= InpMinLiqBars) gZones[i].state = ST_LIQ;
+            UpdateLiqLabel(i, hi, t);
+         }
       }
    }
 }
@@ -415,10 +461,11 @@ void AgeZones()
 
 void ProcessBar(int sh)
 {
-   DetectOB(sh);
-   CheckBBBreaks(sh);
    DetectFVG(sh);
-   for(int i = 0; i < gZoneTotal; i++) ProcessZoneBar(i, sh);
+   DetectDisplacementOB(sh, KIND_OB);
+   DetectDisplacementOB(sh, KIND_BB);
+   CheckBBBreaks(sh);
+   CheckLiquidity(sh);
    AgeZones();
 }
 

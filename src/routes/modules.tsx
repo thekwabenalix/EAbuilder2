@@ -411,12 +411,13 @@ const TRADING_MODULES: ModuleCategory[] = [
         rules: [
           "Zone: FVG (3-candle gap), OB (displacement + opposite candle), or BB (OB closed through → polarity flip)",
           "Liquidity: bar closes within proximity of the zone edge without wick entering the zone",
-          "Fresh-only: zone rectangle removed the instant price touches/tests the zone (wick overlap)",
-          "Setup signal: if liquidity was built, test bar closes back outside → entry next open",
-          "Toggle InpUseFVG / InpUseOB / InpUseBB to enable each zone type",
+          "Fresh-only: zone removed when the near edge is touched (same as FLq/OLq/BLq detectors)",
+          "Setup signal: if liquidity was built (wick near edge), edge touch + rejection close → entry next open",
+          "Toggle InpUseFVG / InpUseOB / InpUseBB — OB and BB run as separate level pools when both enabled",
         ],
         output: [
-          "Filled zone rectangles (green bull / red bear)",
+          "Filled zone rectangles (green bull / red bear; BB dashed after flip)",
+          "FLq / OLq / BLq labels on closest liquidity approach (InpDrawLabels)",
           "Blue up-arrow = buy setup; red down-arrow = sell setup (next-bar entry)",
           "Gold dotted SL line on rejection bar",
           "Journal: ZLS BUY/SELL | kind | tap+reject | SL | entry next open",
