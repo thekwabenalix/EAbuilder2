@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -37,6 +37,7 @@ import { generateBbDetector } from "@/lib/smc-modules/bb-detector";
 import { generateFvgLiquidityDetector } from "@/lib/smc-modules/fvg-liquidity-detector";
 import { generateObLiquidityDetector } from "@/lib/smc-modules/ob-liquidity-detector";
 import { generateBbLiquidityDetector } from "@/lib/smc-modules/bb-liquidity-detector";
+import { generateZoneLiquiditySetupIndicator } from "@/lib/smc-modules/zone-liquidity-setup-indicator";
 import { generateObFvgDetector } from "@/lib/smc-modules/ob-fvg-detector";
 import { generateUnicornDetector } from "@/lib/smc-modules/unicorn-detector";
 import { generateRsiHiddenDivergenceDetector } from "@/lib/indicator-modules/rsi-hidden-divergence-detector";
@@ -133,6 +134,13 @@ function downloadMql5(filename: string, content: string) {
 
 type ModuleStatus = "ready" | "pending" | "planned" | "builtin";
 
+/** How this file is meant to be used — not the same as Strategy Builder brain slots. */
+type ModuleCatalogKind =
+  | "standalone_indicator"
+  | "state_module"
+  | "full_ea"
+  | "brain_composable";
+
 interface ModuleEntry {
   id: string;
   filename: string;
@@ -142,6 +150,7 @@ interface ModuleEntry {
   output?: string[];
   status: ModuleStatus;
   generate?: () => string;
+  catalogKind?: ModuleCatalogKind;
 }
 
 interface ModuleCategory {
@@ -390,6 +399,33 @@ const TRADING_MODULES: ModuleCategory[] = [
         status: "pending",
       },
       {
+        id: "zone-liquidity-setup",
+        filename: "Zone_Liquidity_Setup.mq5",
+        name: "Zone Liquidity Setup (FVG + OB + BB)",
+        description:
+          "Unified setup indicator — detects FVG, Order Block, or Breaker Block zones, " +
+          "waits for liquidity (one+ bars close near the zone without touching), then " +
+          "requires a tap into the zone and a rejection close back outside. " +
+          "Buy/sell arrows mark entry at the next bar open; gold dotted line = suggested SL beyond the zone.",
+        rules: [
+          "Zone: FVG (3-candle gap), OB (displacement + opposite candle), or BB (OB closed through → polarity flip)",
+          "Liquidity: bar closes within proximity of the zone edge without wick entering the zone",
+          "Tap: wick enters the zone after liquidity is built",
+          "Reject: close back outside the zone (bull = close above top, bear = close below bottom)",
+          "Signal: entry at next bar open; SL below zone (buy) or above zone (sell) + buffer points",
+          "Toggle InpUseFVG / InpUseOB / InpUseBB to enable each zone type",
+        ],
+        output: [
+          "Filled zone rectangles (green bull / red bear)",
+          "Blue up-arrow = buy setup; red down-arrow = sell setup (next-bar entry)",
+          "Gold dotted SL line on rejection bar",
+          "Journal: ZLS BUY/SELL | kind | tap+reject | SL | entry next open",
+        ],
+        status: "ready",
+        generate: generateZoneLiquiditySetupIndicator,
+        catalogKind: "standalone_indicator",
+      },
+      {
         id: "fvg-liquidity",
         filename: "FVG_Liquidity_Detector.mq5",
         name: "FVG Liquidity Detector",
@@ -414,6 +450,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         status: "ready",
         generate: generateFvgLiquidityDetector,
+        catalogKind: "standalone_indicator",
       },
       {
         id: "ob-liquidity",
@@ -440,6 +477,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         status: "ready",
         generate: generateObLiquidityDetector,
+        catalogKind: "standalone_indicator",
       },
       {
         id: "bb-liquidity",
@@ -466,6 +504,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         status: "ready",
         generate: generateBbLiquidityDetector,
+        catalogKind: "standalone_indicator",
       },
       {
         id: "ob-fvg",
@@ -2184,6 +2223,40 @@ function oneYearAgo() {
   return d.toISOString().slice(0, 10).replace(/-/g, ".");
 }
 
+function CatalogKindBadge({ kind }: { kind: ModuleCatalogKind }) {
+  const meta: Record<ModuleCatalogKind, { label: string; tone: string; hint: string }> = {
+    standalone_indicator: {
+      label: "Standalone indicator",
+      tone: "bg-violet-500/10 text-violet-300 border-violet-500/25",
+      hint: "Download, compile, attach to chart — not a Strategy Builder brain slot",
+    },
+    state_module: {
+      label: "State module",
+      tone: "bg-amber-500/10 text-amber-300 border-amber-500/25",
+      hint: "iCustom state machine for Phase 3 EAs — not in 4-Brain picker yet",
+    },
+    full_ea: {
+      label: "Full EA",
+      tone: "bg-emerald-500/10 text-emerald-300 border-emerald-500/25",
+      hint: "Complete Expert Advisor — run on its own in MT5",
+    },
+    brain_composable: {
+      label: "Brain composable",
+      tone: "bg-sky-500/10 text-sky-300 border-sky-500/25",
+      hint: "Also available in Strategy Builder as a verified brain module",
+    },
+  };
+  const m = meta[kind];
+  return (
+    <span
+      className={`text-[10px] px-1.5 py-0.5 rounded border font-medium whitespace-nowrap ${m.tone}`}
+      title={m.hint}
+    >
+      {m.label}
+    </span>
+  );
+}
+
 function StatusBadge({ status }: { status: ModuleStatus }) {
   if (status === "ready") {
     return (
@@ -2372,6 +2445,7 @@ function ModuleCard({ mod }: { mod: ModuleEntry }) {
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <h3 className="font-semibold text-sm">{mod.name}</h3>
             <StatusBadge status={mod.status} />
+            {mod.catalogKind && <CatalogKindBadge kind={mod.catalogKind} />}
           </div>
           <p className="text-xs text-muted-foreground">{mod.description}</p>
         </div>
@@ -2493,17 +2567,30 @@ function ModulesPage() {
         {/* Architecture banner */}
         <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 flex items-start gap-3">
           <FlaskConical className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-          <div className="text-xs text-primary/80 space-y-1">
+          <div className="text-xs text-primary/80 space-y-2">
             <p className="font-semibold text-primary">
-              Phase 1: Detection only — {totalReady} of {totalModules} modules ready
+              Two catalogs — do not confuse them
             </p>
             <p>
-              Each module is a standalone MQL5 indicator. Download → compile in MetaEditor → attach
-              to a chart → verify visually before any execution logic is added.
+              <span className="font-medium text-foreground/90">Strategy Builder</span> (
+              <Link to="/build" className="underline hover:text-primary">
+                New strategy
+              </Link>
+              ) composes <span className="font-medium">verified brain modules</span> (FVG, OB, EMA,
+              BOS, etc.) into one self-contained EA. That picker only lists modules with embedded
+              state machines the compiler can wire.
             </p>
             <p>
-              <span className="font-medium">Architecture:</span> Phase 1 Detection → Phase 2 State →
-              Phase 3 Execution. Modules are independently testable and composable.
+              <span className="font-medium text-foreground/90">Trading Modules</span> (this page) is
+              a download library of standalone MT5 files — detectors, liquidity visualisers, state
+              modules, and full EAs. Items like{" "}
+              <span className="font-medium">FVG / OB / BB Liquidity Detector</span> are{" "}
+              <span className="font-medium">not</span> brain slots: download → compile → attach to a
+              chart on their own.
+            </p>
+            <p>
+              Phase 1: {totalReady} of {totalModules} files ready · Detection → State → Execution
+              pipeline for promoting a concept into Strategy Builder later.
             </p>
           </div>
         </div>

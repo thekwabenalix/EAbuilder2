@@ -22,6 +22,7 @@ import { generateRssSrrStateModule } from "../src/lib/smc-modules/rss-srr-state-
 import { generateFvgLiquidityDetector } from "../src/lib/smc-modules/fvg-liquidity-detector";
 import { generateObLiquidityDetector } from "../src/lib/smc-modules/ob-liquidity-detector";
 import { generateBbLiquidityDetector } from "../src/lib/smc-modules/bb-liquidity-detector";
+import { generateZoneLiquiditySetupIndicator } from "../src/lib/smc-modules/zone-liquidity-setup-indicator";
 import { generateObFvgDetector } from "../src/lib/smc-modules/ob-fvg-detector";
 import { generateUnicornDetector } from "../src/lib/smc-modules/unicorn-detector";
 import { generateRsiHiddenDivergenceDetector } from "../src/lib/indicator-modules/rsi-hidden-divergence-detector";
@@ -105,6 +106,7 @@ const items: Item[] = [
   { file: "FVG_Liquidity_Detector.mq5", code: generateFvgLiquidityDetector() },
   { file: "OB_Liquidity_Detector.mq5", code: generateObLiquidityDetector() },
   { file: "BB_Liquidity_Detector.mq5", code: generateBbLiquidityDetector() },
+  { file: "Zone_Liquidity_Setup.mq5", code: generateZoneLiquiditySetupIndicator() },
   { file: "OB_FVG_Detector.mq5", code: generateObFvgDetector() },
   { file: "Unicorn_Detector.mq5", code: generateUnicornDetector() },
   { file: "RSI_Hidden_Divergence_Detector.mq5", code: generateRsiHiddenDivergenceDetector() },
