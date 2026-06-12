@@ -1462,7 +1462,11 @@ function auditBlueprintIntent(
 
   const mentionsIfvg = mentionsIfvgConcept(corpus);
   const executionModule = moduleOfBrain(execution);
-  if (mentionsIfvg && executionModule && !["fvg", "fvg_inversion", "ob_fvg"].includes(executionModule)) {
+  if (
+    mentionsIfvg &&
+    executionModule &&
+    !["fvg", "fvg_inversion", "ob_fvg"].includes(executionModule)
+  ) {
     audit.push({
       code: "ifvg_execution_module_mismatch",
       severity: "error",

@@ -139,7 +139,9 @@ export function BuiltinIndicatorPicker({
                 >
                   <Icon className="h-4 w-4 text-primary mb-1.5" />
                   <p className="text-sm font-medium">{cat.label}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">{cat.hint}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">
+                    {cat.hint}
+                  </p>
                   <p className="text-[10px] text-muted-foreground/70 mt-1">{count} option(s)</p>
                 </button>
               );
@@ -172,7 +174,9 @@ export function BuiltinIndicatorPicker({
                       {opt.wiringLabel}
                     </span>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-1 leading-snug">{opt.description}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1 leading-snug">
+                    {opt.description}
+                  </p>
                 </button>
               ))}
             </div>

@@ -7,7 +7,11 @@ import type {
 } from "@/types/blueprint";
 import { ALL_BRAIN_MODULES, TIMEFRAMES as TF_LIST } from "@/lib/brain-modules";
 import { MODULE_UI_PARAMS, type UIParam } from "@/lib/module-library";
-import { eventsForStepRole, eventsForStepRoleGrouped, firstEventForRole } from "@/lib/strategy-flow-events";
+import {
+  eventsForStepRole,
+  eventsForStepRoleGrouped,
+  firstEventForRole,
+} from "@/lib/strategy-flow-events";
 import { flowSupportsModuleRole } from "@/generators/gen-flow-ea";
 import {
   flowModulesByTaxonomy,

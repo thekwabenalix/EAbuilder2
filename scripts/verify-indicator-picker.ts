@@ -14,8 +14,14 @@ function assertOk(condition: unknown, message: string): asserts condition {
 
 console.log("\nBuilt-in indicator picker tests\n");
 
-assertOk(pickerOptionsForCategory("oscillator").some((o) => o.id === "macd_filter"), "MACD in oscillator");
-assertOk(pickerOptionsForCategory("trend").some((o) => o.id === "ema_module"), "EMA in trend");
+assertOk(
+  pickerOptionsForCategory("oscillator").some((o) => o.id === "macd_filter"),
+  "MACD in oscillator",
+);
+assertOk(
+  pickerOptionsForCategory("trend").some((o) => o.id === "ema_module"),
+  "EMA in trend",
+);
 
 const macdOpt = INDICATOR_PICKER_OPTIONS.find((o) => o.id === "macd_filter")!;
 const ref = createFilterRefFromPicker(macdOpt, "H1", "execution");

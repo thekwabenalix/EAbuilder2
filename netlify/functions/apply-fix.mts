@@ -151,10 +151,13 @@ export default async (req: Request): Promise<Response> => {
   if (blueprint) {
     const gate = canApplyAiSurgicalFix(code, blueprint, compileLog);
     if (!gate.allowed) {
-      return Response.json({ error: gate.reason ?? APPLY_FIX_BLOCKED_MESSAGE }, {
-        status: 400,
-        headers: CORS,
-      });
+      return Response.json(
+        { error: gate.reason ?? APPLY_FIX_BLOCKED_MESSAGE },
+        {
+          status: 400,
+          headers: CORS,
+        },
+      );
     }
   }
 

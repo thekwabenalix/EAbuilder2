@@ -238,79 +238,79 @@ function ModuleMultiSelect({
       <BuiltinIndicatorEntryButton onClick={() => setIndicatorOpen(true)} />
 
       <div className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-border hover:border-primary/40 hover:bg-muted/20 transition-all text-left"
-      >
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          {selectedDefs.length === 0 ? (
-            <span className="text-xs text-muted-foreground">Select modules…</span>
-          ) : (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {selectedDefs.map((def) => (
-                <span
-                  key={def.id}
-                  className="flex items-center gap-1 px-2 py-0.5 bg-primary/10 border border-primary/30 rounded text-[11px] font-medium text-primary"
-                >
-                  <span>{def.symbol}</span>
-                  <span>{def.label}</span>
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-        <ChevronDown
-          className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${
-            open ? "rotate-180" : ""
-          }`}
-        />
-      </button>
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-border hover:border-primary/40 hover:bg-muted/20 transition-all text-left"
+        >
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            {selectedDefs.length === 0 ? (
+              <span className="text-xs text-muted-foreground">Select modules…</span>
+            ) : (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {selectedDefs.map((def) => (
+                  <span
+                    key={def.id}
+                    className="flex items-center gap-1 px-2 py-0.5 bg-primary/10 border border-primary/30 rounded text-[11px] font-medium text-primary"
+                  >
+                    <span>{def.symbol}</span>
+                    <span>{def.label}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+          <ChevronDown
+            className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${
+              open ? "rotate-180" : ""
+            }`}
+          />
+        </button>
 
-      {open && (
-        <div className="absolute top-full left-0 right-0 mt-2 z-10 rounded-lg border border-border bg-card shadow-xl">
-          <div className="max-h-64 overflow-y-auto p-2 space-y-1">
-            {modules.map((def) => {
-              const admission = getModuleAdmission(def.id);
-              const admissionMeta = admission
-                ? MODULE_ADMISSION_STATUS_META[admission.status]
-                : null;
-              return (
-                <label
-                  key={def.id}
-                  className="flex items-start gap-3 p-2.5 rounded hover:bg-muted/30 cursor-pointer transition-colors"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(def.id)}
-                    onChange={() => toggleModule(def.id)}
-                    className="mt-0.5"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className={`text-lg leading-none ${def.color}`}>{def.symbol}</span>
-                      <span className="text-xs font-semibold">{def.label}</span>
-                      {admissionMeta && (
-                        <span
-                          className={`text-[9px] px-1.5 py-0.5 rounded border font-medium ${admissionMeta.tone}`}
-                          title={admissionMeta.description}
-                        >
-                          {admissionMeta.shortLabel}
-                        </span>
+        {open && (
+          <div className="absolute top-full left-0 right-0 mt-2 z-10 rounded-lg border border-border bg-card shadow-xl">
+            <div className="max-h-64 overflow-y-auto p-2 space-y-1">
+              {modules.map((def) => {
+                const admission = getModuleAdmission(def.id);
+                const admissionMeta = admission
+                  ? MODULE_ADMISSION_STATUS_META[admission.status]
+                  : null;
+                return (
+                  <label
+                    key={def.id}
+                    className="flex items-start gap-3 p-2.5 rounded hover:bg-muted/30 cursor-pointer transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(def.id)}
+                      onChange={() => toggleModule(def.id)}
+                      className="mt-0.5"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`text-lg leading-none ${def.color}`}>{def.symbol}</span>
+                        <span className="text-xs font-semibold">{def.label}</span>
+                        {admissionMeta && (
+                          <span
+                            className={`text-[9px] px-1.5 py-0.5 rounded border font-medium ${admissionMeta.tone}`}
+                            title={admissionMeta.description}
+                          >
+                            {admissionMeta.shortLabel}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{def.desc}</p>
+                      {admission && (
+                        <p className="text-[9px] text-muted-foreground/60 mt-0.5 leading-tight">
+                          {admission.notes}
+                        </p>
                       )}
                     </div>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{def.desc}</p>
-                    {admission && (
-                      <p className="text-[9px] text-muted-foreground/60 mt-0.5 leading-tight">
-                        {admission.notes}
-                      </p>
-                    )}
-                  </div>
-                </label>
-              );
-            })}
+                  </label>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
       </div>
 
       <BuiltinIndicatorPicker
@@ -783,7 +783,9 @@ function FourBrainBuilderPage() {
 
   function removeFilter(id: string, appliesTo?: "setup" | "execution") {
     setFilterRefs((prev) =>
-      prev.filter((f) => !(f.id === id && (f.appliesTo ?? "execution") === (appliesTo ?? "execution"))),
+      prev.filter(
+        (f) => !(f.id === id && (f.appliesTo ?? "execution") === (appliesTo ?? "execution")),
+      ),
     );
   }
 

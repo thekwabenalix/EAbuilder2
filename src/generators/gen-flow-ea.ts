@@ -333,7 +333,11 @@ ${clearDown}
     if (prof.family === "zone" && prof.hasActive && isZoneRetestEvent(step.event)) {
       return emitZoneRetestDetect(wrap, biasGuard, biasExpr, i, P, T1, C1);
     }
-    if (prof.family === "zone" && isZoneRejectionEvent(step.event) && !isZoneRetestEvent(step.event)) {
+    if (
+      prof.family === "zone" &&
+      isZoneRejectionEvent(step.event) &&
+      !isZoneRetestEvent(step.event)
+    ) {
       return emitZoneRejectionDetect(wrap, biasGuard, i, P, T1, C1);
     }
     if (prof.family === "zone" && prof.hasActive) {

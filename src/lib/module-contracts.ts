@@ -136,10 +136,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       {
         id: "retest",
         roles: ["setup", "execution"],
-        queryFunctions: [
-          "IFVGSM_{id}_BullJustRetested()",
-          "IFVGSM_{id}_BearJustRetested()",
-        ],
+        queryFunctions: ["IFVGSM_{id}_BullJustRetested()", "IFVGSM_{id}_BearJustRetested()"],
         meaning: "Price wicks back into the IFVG zone after inversion.",
       },
       {

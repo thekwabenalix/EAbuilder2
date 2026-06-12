@@ -37,10 +37,7 @@ import {
   type IndicatorPickerResult,
 } from "@/components/BuiltinIndicatorPicker";
 import { BuiltinIndicatorEntryButton } from "@/components/BuiltinIndicatorEntryButton";
-import {
-  mergeFilterRef,
-  mergeIndicatorRef,
-} from "@/lib/builtin-indicator-ui";
+import { mergeFilterRef, mergeIndicatorRef } from "@/lib/builtin-indicator-ui";
 import {
   Save,
   Check,
@@ -871,35 +868,37 @@ function BrainModuleChips({
       {open && (
         <div className="rounded-lg border border-border bg-card p-3 max-h-72 overflow-y-auto">
           <div className="grid grid-cols-2 gap-1">
-          {ALL_BRAIN_MODULES.map((m) => {
-            const active = selected.includes(m.id);
-            const admission = getModuleAdmission(m.id);
-            const admissionMeta = admission ? MODULE_ADMISSION_STATUS_META[admission.status] : null;
-            return (
-              <button
-                key={m.id}
-                onClick={() => toggle(m.id)}
-                className={[
-                  "flex items-center gap-2 px-2.5 py-1.5 rounded text-xs text-left transition-all border",
-                  active
-                    ? "bg-primary/15 border-primary/40 text-primary"
-                    : "border-transparent text-muted-foreground hover:bg-muted/40 hover:text-foreground",
-                ].join(" ")}
-              >
-                <span className={`${m.color} text-sm`}>{m.symbol}</span>
-                <span className="min-w-0 flex-1">{m.label}</span>
-                {admissionMeta && (
-                  <span
-                    className={`text-[9px] px-1.5 py-0.5 rounded border font-medium ${admissionMeta.tone}`}
-                    title={admission?.notes ?? admissionMeta.description}
-                  >
-                    {admissionMeta.shortLabel}
-                  </span>
-                )}
-                {active && <CheckCircle2 className="h-3 w-3 ml-auto text-primary" />}
-              </button>
-            );
-          })}
+            {ALL_BRAIN_MODULES.map((m) => {
+              const active = selected.includes(m.id);
+              const admission = getModuleAdmission(m.id);
+              const admissionMeta = admission
+                ? MODULE_ADMISSION_STATUS_META[admission.status]
+                : null;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => toggle(m.id)}
+                  className={[
+                    "flex items-center gap-2 px-2.5 py-1.5 rounded text-xs text-left transition-all border",
+                    active
+                      ? "bg-primary/15 border-primary/40 text-primary"
+                      : "border-transparent text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+                  ].join(" ")}
+                >
+                  <span className={`${m.color} text-sm`}>{m.symbol}</span>
+                  <span className="min-w-0 flex-1">{m.label}</span>
+                  {admissionMeta && (
+                    <span
+                      className={`text-[9px] px-1.5 py-0.5 rounded border font-medium ${admissionMeta.tone}`}
+                      title={admission?.notes ?? admissionMeta.description}
+                    >
+                      {admissionMeta.shortLabel}
+                    </span>
+                  )}
+                  {active && <CheckCircle2 className="h-3 w-3 ml-auto text-primary" />}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1232,7 +1231,9 @@ function FourBrainTab({
 
   function removeFilter(id: string, appliesTo?: "setup" | "execution") {
     setFilterRefs((prev) =>
-      prev.filter((f) => !(f.id === id && (f.appliesTo ?? "execution") === (appliesTo ?? "execution"))),
+      prev.filter(
+        (f) => !(f.id === id && (f.appliesTo ?? "execution") === (appliesTo ?? "execution")),
+      ),
     );
   }
 

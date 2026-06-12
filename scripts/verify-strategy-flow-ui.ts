@@ -100,9 +100,17 @@ assertOk(
 );
 
 const grouped = flowModulesByTaxonomy();
-assertOk(grouped.some((g) => g.group.id === "structure" && g.modules.length > 0), "structure group");
-assertOk(grouped.some((g) => g.group.id === "entry_zone" && g.modules.length > 0), "entry zone group");
-const snrInEntry = grouped.find((g) => g.group.id === "entry_zone")?.modules.some((m) => m.id === "snr");
+assertOk(
+  grouped.some((g) => g.group.id === "structure" && g.modules.length > 0),
+  "structure group",
+);
+assertOk(
+  grouped.some((g) => g.group.id === "entry_zone" && g.modules.length > 0),
+  "entry zone group",
+);
+const snrInEntry = grouped
+  .find((g) => g.group.id === "entry_zone")
+  ?.modules.some((m) => m.id === "snr");
 assertOk(snrInEntry, "Classic S/R grouped under entry zones");
 
 const validation = validateFlowForBuilder(fourBrainToStrategyFlow(fourBrain));

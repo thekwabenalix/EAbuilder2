@@ -5,7 +5,10 @@ import {
   trimChatMessages,
 } from "../../src/lib/assistant-context-budget.js";
 import { parseImageDataUrl } from "../../src/lib/chat-images.js";
-import { formatAssistantError, isAssistantProviderUnavailable } from "../../src/lib/assistant-errors.js";
+import {
+  formatAssistantError,
+  isAssistantProviderUnavailable,
+} from "../../src/lib/assistant-errors.js";
 import type { StrategyBlueprint } from "../../src/types/blueprint.js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -400,10 +403,7 @@ export default async (req: Request): Promise<Response> => {
         : "attached_but_unparsed";
 
   const lastIdx = messages.length - 1;
-  const lastUserIdx = messages.reduce(
-    (acc, m, i) => (m.role === "user" ? i : acc),
-    0,
-  );
+  const lastUserIdx = messages.reduce((acc, m, i) => (m.role === "user" ? i : acc), 0);
   const enrichedMessages = messages.map((m, i) => {
     const attachContext = i === lastUserIdx && m.role === "user";
     const isLatestUser = i === lastIdx && m.role === "user";
@@ -429,9 +429,7 @@ export default async (req: Request): Promise<Response> => {
       };
     }
 
-    let text = attachContext
-      ? `${contextBlock}\n\n=== USER MESSAGE ===\n${m.content}`
-      : m.content;
+    let text = attachContext ? `${contextBlock}\n\n=== USER MESSAGE ===\n${m.content}` : m.content;
     if (isLatestUser) {
       text = `IMAGE STATUS: ${imageStatus} (${images.length} received, ${imageBlocks.length} parsed)\n${text}`;
     }
@@ -453,8 +451,7 @@ export default async (req: Request): Promise<Response> => {
         let fullText = "";
 
         const stream = await client.messages.stream({
-          model:
-            imageBlocks.length > 0 ? "claude-sonnet-4-6" : "claude-haiku-4-5-20251001",
+          model: imageBlocks.length > 0 ? "claude-sonnet-4-6" : "claude-haiku-4-5-20251001",
           max_tokens: imageBlocks.length > 0 ? 4096 : 8192,
           system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
           messages: enrichedMessages,

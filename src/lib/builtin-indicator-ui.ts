@@ -5,10 +5,7 @@
  */
 
 import type { BrainModuleType } from "@/types/blueprint";
-import {
-  BUILTIN_FILTER_CONTRACTS,
-  type BuiltinFilterRef,
-} from "@/lib/builtin-filter-contracts";
+import { BUILTIN_FILTER_CONTRACTS, type BuiltinFilterRef } from "@/lib/builtin-filter-contracts";
 import type { StrategyBlueprint } from "@/types/blueprint";
 import type { BuiltinIndicatorRef } from "@/lib/indicator-boundary";
 import { explainBuiltinIndicator } from "@/lib/indicator-boundary";
@@ -134,7 +131,8 @@ export const INDICATOR_PICKER_OPTIONS: IndicatorPickerOption[] = [
     wiring: "catalog",
     wiringLabel: "Reference only",
     catalogIndicatorId: "stochastic",
-    description: "Recognized in your blueprint — full wiring not available yet. Use RSI/MACD filters or describe in notes.",
+    description:
+      "Recognized in your blueprint — full wiring not available yet. Use RSI/MACD filters or describe in notes.",
   },
   {
     id: "ichimoku_catalog",
@@ -147,7 +145,9 @@ export const INDICATOR_PICKER_OPTIONS: IndicatorPickerOption[] = [
   },
 ];
 
-export function pickerOptionsForCategory(category: IndicatorPickerCategory): IndicatorPickerOption[] {
+export function pickerOptionsForCategory(
+  category: IndicatorPickerCategory,
+): IndicatorPickerOption[] {
   return INDICATOR_PICKER_OPTIONS.filter((o) => o.category === category);
 }
 
@@ -177,7 +177,9 @@ export function createFilterRefFromPicker(
   };
 }
 
-export function createCatalogRefFromPicker(option: IndicatorPickerOption): BuiltinIndicatorRef | null {
+export function createCatalogRefFromPicker(
+  option: IndicatorPickerOption,
+): BuiltinIndicatorRef | null {
   if (!option.catalogIndicatorId) return null;
   return explainBuiltinIndicator(option.catalogIndicatorId) ?? null;
 }
