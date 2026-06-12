@@ -8,7 +8,7 @@
  *   3: BearSLBuf
  */
 
-import { generateZoneLiquiditySetupIndicator } from "./zone-liquidity-setup-indicator";
+import { generateZoneLiquiditySetupIndicator, ZONE_LIQ_SETUP_VERSION } from "./zone-liquidity-setup-indicator";
 
 export const ZONE_LIQ_STATE_MODULE_VERSION = "1.0.0";
 export const ZONE_LIQ_STATE_MODULE = "Zone_Liq_State_Module";
@@ -20,7 +20,7 @@ export function generateZoneLiqStateModule(): string {
       "//| Zone_Liq_State_Module.mq5",
     )
     .replace(
-      "//| Unified FVG + OB + BB liquidity setup v1.0.0",
+      `//| FVG + OB + BB liquidity detectors v${ZONE_LIQ_SETUP_VERSION}`,
       `//| Phase 2 State Module v${ZONE_LIQ_STATE_MODULE_VERSION} — Zone Liq Setup`,
     )
     .replace(

@@ -404,23 +404,21 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "Zone_Liquidity_Setup.mq5",
         name: "Zone Liquidity Setup (FVG + OB + BB)",
         description:
-          "Unified setup indicator — detects FVG, Order Block, or Breaker Block zones, " +
-          "waits for liquidity (one+ bars close near the zone without touching), then " +
-          "requires a tap into the zone and a rejection close back outside. " +
-          "Buy/sell arrows mark entry at the next bar open; gold dotted line = suggested SL beyond the zone.",
+          "Composite liquidity indicator — runs FVG, OB, and Breaker Block detectors as three " +
+          "independent level pools (same logic as FLq / OLq / BLq). Elimination: edge touch " +
+          "consumes the level; optional InpHideUntilLiq shows zones only after liquidity builds " +
+          "on the correct side (below bull zones / above bear zones).",
         rules: [
-          "Zone: FVG (3-candle gap), OB (displacement + opposite candle), or BB (OB closed through → polarity flip)",
-          "Liquidity: bar closes within proximity of the zone edge without wick entering the zone",
-          "Fresh-only: zone removed when the near edge is touched (same as FLq/OLq/BLq detectors)",
-          "Setup signal: if liquidity was built (wick near edge), edge touch + rejection close → entry next open",
-          "Toggle InpUseFVG / InpUseOB / InpUseBB — OB and BB run as separate level pools when both enabled",
+          "Three pools: FVG (3-candle gap), OB (displacement + opposite candle body), BB (OB broken → polarity flip)",
+          "Liquidity elimination: wick within proximity of the near edge WITHOUT entering → FLq/OLq/BLq label",
+          "Touch elimination: bull wick low ≤ edge / bear wick high ≥ edge removes zone + label",
+          "InpHideUntilLiq=false (default): draw all fresh zones like the three separate indicators",
+          "Toggle InpUseFVG / InpUseOB / InpUseBB to enable each detector pool",
         ],
         output: [
-          "Filled zone rectangles (green bull / red bear; BB dashed after flip)",
-          "FLq / OLq / BLq labels on closest liquidity approach (InpDrawLabels)",
-          "Blue up-arrow = buy setup; red down-arrow = sell setup (next-bar entry)",
-          "Gold dotted SL line on rejection bar",
-          "Journal: ZLS BUY/SELL | kind | tap+reject | SL | entry next open",
+          "Filled rectangles per pool (green bull / red bear; BB dashed after flip)",
+          "FLq / OLq / BLq labels on closest liquidity approach",
+          "Journal: ZLS FVG/OB/BB BULL|BEAR when InpShowLog=true",
         ],
         status: "ready",
         generate: generateZoneLiquiditySetupIndicator,

@@ -1,55 +1,31 @@
 /**
- * Unified Zone Liquidity Setup — FVG + OB + Breaker Block
+ * Zone Liquidity Setup — composite of FVG + OB + BB liquidity detectors.
  *
- * Unified FVG + OB + BB liquidity — same semantics as the three liquidity detectors.
- * Fresh zones: removed when the near edge is touched (not full-box overlap).
+ * Three independent level pools (same semantics as FLq / OLq / BLq indicators).
+ * Elimination: edge touch consumes the level; optional hide until liquidity builds
+ * on the correct side (above bear zones / below bull zones).
  */
 
-export const ZONE_LIQ_SETUP_VERSION = "1.2.0";
+export const ZONE_LIQ_SETUP_VERSION = "2.0.0";
 export const ZONE_LIQ_SETUP_MODULE = "Zone_Liquidity_Setup";
 
 export function generateZoneLiquiditySetupIndicator(): string {
   return `//+------------------------------------------------------------------+
 //| Zone_Liquidity_Setup.mq5                                       |
-//| Unified FVG + OB + BB liquidity setup v${ZONE_LIQ_SETUP_VERSION}          |
-//|                                                                  |
-//| Liquidity build → tap zone → reject close → entry next open   |
+//| FVG + OB + BB liquidity detectors v${ZONE_LIQ_SETUP_VERSION}              |
+//| Three independent pools — same logic as FLq/OLq/BLq indicators  |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SMC Setup"
-#property version   "1.00"
+#property copyright "EA Builder — SMC Liquidity"
+#property version   "2.00"
 #property strict
 #property indicator_chart_window
-#property indicator_buffers 4
-#property indicator_plots   2
-
-#property indicator_label1  "Buy setup"
-#property indicator_type1   DRAW_ARROW
-#property indicator_color1  clrDodgerBlue
-#property indicator_width1  2
-
-#property indicator_label2  "Sell setup"
-#property indicator_type2   DRAW_ARROW
-#property indicator_color2  clrOrangeRed
-#property indicator_width2  2
-
-double BullSetupBuf[];
-double BearSetupBuf[];
-double BullSLBuf[];
-double BearSLBuf[];
+#property indicator_plots 0
 
 #define DIR_BULL    1
 #define DIR_BEAR   -1
-#define KIND_FVG    0
-#define KIND_OB     1
-#define KIND_BB     2
-#define ST_ACTIVE   0
-#define ST_LIQ      1
-#define ST_TAPPED   2
-#define ST_DONE     3
 #define PHASE_OB    0
 #define PHASE_BB    1
-#define ZONE_MAX    400
-#define OBJ_PREFIX  "ZLS_"
+#define LVL_MAX    400
 
 input ENUM_TIMEFRAMES InpTF           = PERIOD_CURRENT;
 input int             InpLookback     = 500;
@@ -57,208 +33,128 @@ input bool            InpUseFVG       = true;
 input bool            InpUseOB        = true;
 input bool            InpUseBB        = true;
 input double          InpDispMult     = 1.5;
+input int             InpDispAtrPer   = 14;
 input int             InpObScanBack   = 5;
 input double          InpNearATR      = 0.20;
-input int             InpATRPeriod    = 14;
+input int             InpNearAtrPer   = 14;
 input int             InpNearPoints   = 0;
-input int             InpMinLiqBars   = 1;
-input int             InpSlBufferPts  = 20;
 input int             InpExpiryBars   = 200;
+input int             InpObExpiry     = 300;
+input int             InpBBExpiry     = 200;
 input bool            InpDrawZones    = true;
 input bool            InpDrawLabels   = true;
+input bool            InpHideUntilLiq = false;
 input string          InpLabelFVG     = "FLq";
 input string          InpLabelOB      = "OLq";
 input string          InpLabelBB      = "BLq";
 input int             InpFontSize     = 8;
-input bool            InpDrawSL       = true;
-input bool            InpShowLog      = true;
+input color           InpBullColor    = clrMediumSeaGreen;
+input color           InpBearColor    = clrTomato;
+input bool            InpShowLog      = false;
 
-struct ZoneRec
+datetime gLastBar = 0;
+
+//+------------------------------------------------------------------+
+//| FVG pool (FVG_Liquidity_Detector)                                |
+//+------------------------------------------------------------------+
+#define FVG_PREFIX "ZLS_FVG_"
+
+struct FvgRec
 {
    int      id;
-   int      kind;
    int      dir;
-   int      state;
-   int      liqBars;
+   double   nearEdge;
+   double   farEdge;
    double   zoneTop;
    double   zoneBot;
-   double   nearEdge;
-   double   bestLiqDist;
-   datetime zoneLeft;
-   datetime bornTime;
-   datetime validAfter;
-   datetime breakTime;
-   double   obHi;
-   double   obLo;
-   double   obOpen;
-   double   obClose;
-   int      bbPhase;
-   int      age;
+   datetime zoneStart;
+   datetime levelTime;
    bool     dead;
-   bool     pendingBuy;
-   bool     pendingSell;
-   double   pendingSL;
+   int      ageCounter;
+   double   bestLiqDist;
 };
 
-ZoneRec gZones[ZONE_MAX];
-int     gZoneTotal = 0;
-int     gNextId    = 0;
-datetime gLastBar   = 0;
+FvgRec gFvg[LVL_MAX];
+int    gFvgTotal = 0;
+int    gFvgNextId = 0;
 
-string Zn(int id)   { return OBJ_PREFIX + IntegerToString(id) + "_zn"; }
-string Sl(int id)   { return OBJ_PREFIX + IntegerToString(id) + "_sl"; }
-string Lb(int id)   { return OBJ_PREFIX + IntegerToString(id) + "_lb"; }
+string FvgLb(int id)  { return FVG_PREFIX + IntegerToString(id) + "_lb"; }
+string FvgZn(int id)  { return FVG_PREFIX + IntegerToString(id) + "_zn"; }
 
-double CalcATR(int sh)
+double FvgCalcATR(int sh)
 {
    int avail = iBars(_Symbol, InpTF);
-   if(avail < sh + InpATRPeriod + 2) return 0.0;
+   if(avail < sh + InpNearAtrPer + 2) return 0.0;
    double sum = 0.0;
-   for(int k = sh + 1; k <= sh + InpATRPeriod; k++)
+   for(int k = sh + 1; k <= sh + InpNearAtrPer; k++)
    {
       double h = iHigh(_Symbol, InpTF, k), l = iLow(_Symbol, InpTF, k);
       double pc = iClose(_Symbol, InpTF, k + 1);
       sum += MathMax(h - l, MathMax(MathAbs(h - pc), MathAbs(l - pc)));
    }
-   return sum / (double)InpATRPeriod;
+   return sum / (double)InpNearAtrPer;
 }
 
-double NearDist(int sh)
-{
-   if(InpNearPoints > 0) return InpNearPoints * _Point;
-   return InpNearATR * CalcATR(sh);
-}
-
-// Touch at the near edge (same as FVG/OB/BB liquidity detectors) — not full-box overlap.
-bool TouchKills(int i, double hi, double lo)
-{
-   if(gZones[i].kind == KIND_BB && gZones[i].bbPhase != PHASE_BB) return false;
-   double edge = gZones[i].nearEdge;
-   if(gZones[i].dir == DIR_BULL) return lo <= edge;
-   return hi >= edge;
-}
-
-string LiqLabelText(int kind)
-{
-   if(kind == KIND_FVG) return InpLabelFVG;
-   if(kind == KIND_OB)  return InpLabelOB;
-   return InpLabelBB;
-}
-
-void UpdateLiqLabel(int i, double wickExtreme, datetime t)
-{
-   if(!InpDrawLabels) return;
-   string nm = Lb(gZones[i].id);
-   ObjectDelete(0, nm);
-   color c = (gZones[i].dir == DIR_BULL) ? clrMediumSeaGreen : clrTomato;
-   if(ObjectCreate(0, nm, OBJ_TEXT, 0, t, wickExtreme))
-   {
-      ObjectSetString (0, nm, OBJPROP_TEXT, LiqLabelText(gZones[i].kind));
-      ObjectSetInteger(0, nm, OBJPROP_COLOR, c);
-      ObjectSetInteger(0, nm, OBJPROP_FONTSIZE, InpFontSize);
-      ObjectSetInteger(0, nm, OBJPROP_ANCHOR, gZones[i].dir == DIR_BULL ? ANCHOR_UPPER : ANCHOR_LOWER);
-      ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
-   }
-}
-
-bool Rejected(int dir, double cl, double top, double bot)
-{
-   if(dir == DIR_BULL) return cl > top;
-   return cl < bot;
-}
-
-double SlForZone(int dir, double top, double bot)
-{
-   double buf = InpSlBufferPts * _Point;
-   return (dir == DIR_BULL) ? bot - buf : top + buf;
-}
-
-void KillZone(int i)
-{
-   ObjectDelete(0, Zn(gZones[i].id));
-   ObjectDelete(0, Sl(gZones[i].id));
-   ObjectDelete(0, Lb(gZones[i].id));
-   gZones[i].dead = true;
-}
-
-void DrawZone(int i)
+void FvgDrawZone(int i)
 {
    if(!InpDrawZones) return;
-   if(gZones[i].kind == KIND_BB && gZones[i].bbPhase == PHASE_OB) return;
-   string nm = Zn(gZones[i].id);
-   color c = (gZones[i].dir == DIR_BULL) ? clrMediumSeaGreen : clrTomato;
-   datetime rt = (gZones[i].breakTime > 0) ? gZones[i].breakTime : gZones[i].bornTime;
-   if(gZones[i].kind != KIND_FVG) rt = gZones[i].bornTime;
-   datetime rEnd = gZones[i].bornTime;
-   if(ObjectCreate(0, nm, OBJ_RECTANGLE, 0, gZones[i].zoneLeft, gZones[i].zoneTop, rEnd, gZones[i].zoneBot))
+   if(InpHideUntilLiq && gFvg[i].bestLiqDist >= DBL_MAX) return;
+   string nm = FvgZn(gFvg[i].id);
+   color  c  = (gFvg[i].dir == DIR_BULL) ? InpBullColor : InpBearColor;
+   if(ObjectFind(0, nm) < 0)
    {
-      ObjectSetInteger(0, nm, OBJPROP_COLOR, c);
-      ObjectSetInteger(0, nm, OBJPROP_FILL, true);
-      ObjectSetInteger(0, nm, OBJPROP_BACK, true);
-      ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
-      if(gZones[i].kind == KIND_BB && gZones[i].bbPhase == PHASE_BB)
-         ObjectSetInteger(0, nm, OBJPROP_STYLE, STYLE_DASH);
+      if(ObjectCreate(0, nm, OBJ_RECTANGLE, 0,
+                      gFvg[i].zoneStart, gFvg[i].zoneTop,
+                      gFvg[i].levelTime, gFvg[i].zoneBot))
+      {
+         ObjectSetInteger(0, nm, OBJPROP_COLOR, c);
+         ObjectSetInteger(0, nm, OBJPROP_FILL, true);
+         ObjectSetInteger(0, nm, OBJPROP_BACK, true);
+         ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
+         ObjectSetInteger(0, nm, OBJPROP_HIDDEN, true);
+      }
    }
 }
 
-void ExtendZone(int i, datetime t)
+void FvgExtendZone(int i, datetime t)
 {
    if(!InpDrawZones) return;
-   if(gZones[i].kind == KIND_BB && gZones[i].bbPhase == PHASE_OB) return;
-   string nm = Zn(gZones[i].id);
-   if(ObjectFind(0, nm) >= 0)
-      ObjectSetInteger(0, nm, OBJPROP_TIME, 1, t);
+   if(InpHideUntilLiq && gFvg[i].bestLiqDist >= DBL_MAX) return;
+   string nm = FvgZn(gFvg[i].id);
+   if(ObjectFind(0, nm) >= 0) ObjectSetInteger(0, nm, OBJPROP_TIME, 1, t);
 }
 
-void DrawSL(int i, double sl)
+void FvgKill(int i)
 {
-   if(!InpDrawSL) return;
-   string nm = Sl(gZones[i].id);
-   datetime t1 = iTime(_Symbol, InpTF, 1);
-   datetime t2 = iTime(_Symbol, InpTF, 0) + PeriodSeconds(InpTF) * 8;
-   if(ObjectCreate(0, nm, OBJ_TREND, 0, t1, sl, t2, sl))
-   {
-      ObjectSetInteger(0, nm, OBJPROP_COLOR, clrGold);
-      ObjectSetInteger(0, nm, OBJPROP_STYLE, STYLE_DOT);
-      ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
-   }
+   ObjectDelete(0, FvgLb(gFvg[i].id));
+   ObjectDelete(0, FvgZn(gFvg[i].id));
+   gFvg[i].dead = true;
 }
 
-int AddZone(int kind, int dir, double top, double bot, datetime leftT, datetime bornT)
+void FvgAdd(int dir, double nearEdge, double farEdge, datetime zoneStart, datetime t)
 {
-   for(int i = 0; i < gZoneTotal; i++)
-      if(!gZones[i].dead && gZones[i].kind == kind && gZones[i].zoneLeft == leftT && gZones[i].dir == dir)
-         return i;
+   for(int i = 0; i < gFvgTotal; i++)
+      if(!gFvg[i].dead && MathAbs(gFvg[i].nearEdge - nearEdge) < _Point && gFvg[i].dir == dir) return;
    int idx = -1;
-   for(int i = 0; i < gZoneTotal; i++) if(gZones[i].dead) { idx = i; break; }
-   if(idx < 0 && gZoneTotal < ZONE_MAX) idx = gZoneTotal++;
-   if(idx < 0) return -1;
-   gZones[idx].id = gNextId++;
-   gZones[idx].kind = kind;
-   gZones[idx].dir = dir;
-   gZones[idx].state = ST_ACTIVE;
-   gZones[idx].liqBars = 0;
-   gZones[idx].zoneTop = top;
-   gZones[idx].zoneBot = bot;
-   gZones[idx].zoneLeft = leftT;
-   gZones[idx].bornTime = bornT;
-   gZones[idx].validAfter = bornT;
-   gZones[idx].nearEdge = top;
-   gZones[idx].bestLiqDist = DBL_MAX;
-   gZones[idx].breakTime = 0;
-   gZones[idx].bbPhase = PHASE_OB;
-   gZones[idx].age = 0;
-   gZones[idx].dead = false;
-   gZones[idx].pendingBuy = false;
-   gZones[idx].pendingSell = false;
-   gZones[idx].pendingSL = 0;
-   DrawZone(idx);
-   return idx;
+   for(int i = 0; i < gFvgTotal; i++) if(gFvg[i].dead) { idx = i; break; }
+   if(idx < 0 && gFvgTotal < LVL_MAX) idx = gFvgTotal++;
+   if(idx < 0) return;
+   gFvg[idx].id = gFvgNextId++;
+   gFvg[idx].dir = dir;
+   gFvg[idx].nearEdge = nearEdge;
+   gFvg[idx].farEdge = farEdge;
+   gFvg[idx].zoneTop = MathMax(nearEdge, farEdge);
+   gFvg[idx].zoneBot = MathMin(nearEdge, farEdge);
+   gFvg[idx].zoneStart = zoneStart;
+   gFvg[idx].levelTime = t;
+   gFvg[idx].dead = false;
+   gFvg[idx].ageCounter = 0;
+   gFvg[idx].bestLiqDist = DBL_MAX;
+   FvgDrawZone(idx);
 }
 
-void DetectFVG(int sh)
+void FvgDetect(int sh)
 {
-   if(!InpUseFVG) return;
    int avail = iBars(_Symbol, InpTF);
    if(sh + 2 >= avail) return;
    double c1h = iHigh(_Symbol, InpTF, sh + 2);
@@ -267,247 +163,547 @@ void DetectFVG(int sh)
    double c3h = iHigh(_Symbol, InpTF, sh);
    datetime t1 = iTime(_Symbol, InpTF, sh + 2);
    datetime t3 = iTime(_Symbol, InpTF, sh);
-   if(c1h < c3l)
-   {
-      int idx = AddZone(KIND_FVG, DIR_BULL, c3l, c1h, t1, t3);
-      if(idx >= 0) { gZones[idx].nearEdge = c3l; gZones[idx].validAfter = t3; }
-   }
-   if(c1l > c3h)
-   {
-      int idx = AddZone(KIND_FVG, DIR_BEAR, c1l, c3h, t1, t3);
-      if(idx >= 0) { gZones[idx].nearEdge = c3h; gZones[idx].validAfter = t3; }
-   }
+   if(c1h < c3l) FvgAdd(DIR_BULL, c3l, c1h, t1, t3);
+   if(c1l > c3h) FvgAdd(DIR_BEAR, c3h, c1l, t1, t3);
 }
 
-void DetectDisplacementOB(int dispShift, int kind)
+void FvgUpdateLabel(int i, int dir, double wickExtreme, datetime t)
 {
-   if(dispShift < 1) return;
-   if(kind == KIND_OB && !InpUseOB) return;
-   if(kind == KIND_BB && !InpUseBB) return;
-   double atr = CalcATR(dispShift);
-   if(atr <= 0) return;
-   double dOpn = iOpen(_Symbol, InpTF, dispShift);
-   double dCls = iClose(_Symbol, InpTF, dispShift);
-   if(MathAbs(dCls - dOpn) < InpDispMult * atr) return;
-   int dispDir = (dCls > dOpn) ? DIR_BULL : DIR_BEAR;
-   int scanEnd = dispShift + InpObScanBack;
-   int avail = iBars(_Symbol, InpTF);
-   if(scanEnd >= avail - 1) scanEnd = avail - 2;
-   datetime confT = iTime(_Symbol, InpTF, dispShift);
-   for(int j = dispShift + 1; j <= scanEnd; j++)
+   if(!InpDrawLabels) return;
+   string nm = FvgLb(gFvg[i].id);
+   ObjectDelete(0, nm);
+   color c = (dir == DIR_BULL) ? InpBullColor : InpBearColor;
+   if(ObjectCreate(0, nm, OBJ_TEXT, 0, t, wickExtreme))
    {
-      double jOpn = iOpen(_Symbol, InpTF, j);
-      double jCls = iClose(_Symbol, InpTF, j);
-      datetime obT = iTime(_Symbol, InpTF, j);
-      if(dispDir == DIR_BULL && jCls < jOpn)
-      {
-         int idx = AddZone(kind, DIR_BULL, MathMax(jOpn, jCls), MathMin(jOpn, jCls), obT, confT);
-         if(idx >= 0)
-         {
-            gZones[idx].obHi = iHigh(_Symbol, InpTF, j);
-            gZones[idx].obLo = iLow(_Symbol, InpTF, j);
-            gZones[idx].obOpen = jOpn;
-            gZones[idx].obClose = jCls;
-            gZones[idx].nearEdge = jOpn;
-            gZones[idx].validAfter = confT;
-            gZones[idx].bbPhase = PHASE_OB;
-            if(kind == KIND_BB) ObjectDelete(0, Zn(gZones[idx].id));
-         }
-         break;
-      }
-      if(dispDir == DIR_BEAR && jCls > jOpn)
-      {
-         int idx = AddZone(kind, DIR_BEAR, MathMax(jOpn, jCls), MathMin(jOpn, jCls), obT, confT);
-         if(idx >= 0)
-         {
-            gZones[idx].obHi = iHigh(_Symbol, InpTF, j);
-            gZones[idx].obLo = iLow(_Symbol, InpTF, j);
-            gZones[idx].obOpen = jOpn;
-            gZones[idx].obClose = jCls;
-            gZones[idx].nearEdge = jOpn;
-            gZones[idx].validAfter = confT;
-            gZones[idx].bbPhase = PHASE_OB;
-            if(kind == KIND_BB) ObjectDelete(0, Zn(gZones[idx].id));
-         }
-         break;
-      }
+      ObjectSetString (0, nm, OBJPROP_TEXT, InpLabelFVG);
+      ObjectSetInteger(0, nm, OBJPROP_COLOR, c);
+      ObjectSetInteger(0, nm, OBJPROP_FONTSIZE, InpFontSize);
+      ObjectSetInteger(0, nm, OBJPROP_ANCHOR, dir == DIR_BULL ? ANCHOR_UPPER : ANCHOR_LOWER);
+      ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
    }
 }
 
-void CheckBBBreaks(int sh)
-{
-   if(!InpUseBB) return;
-   double cl = iClose(_Symbol, InpTF, sh);
-   datetime t = iTime(_Symbol, InpTF, sh);
-   for(int i = 0; i < gZoneTotal; i++)
-   {
-      if(gZones[i].dead || gZones[i].kind != KIND_BB || gZones[i].bbPhase != PHASE_OB) continue;
-      if(gZones[i].bornTime >= t) continue;
-      bool broke = false;
-      int newDir = gZones[i].dir;
-      if(gZones[i].dir == DIR_BULL && cl < gZones[i].obLo) { broke = true; newDir = DIR_BEAR; }
-      else if(gZones[i].dir == DIR_BEAR && cl > gZones[i].obHi) { broke = true; newDir = DIR_BULL; }
-      if(!broke) continue;
-      gZones[i].dir = newDir;
-      gZones[i].zoneTop = MathMax(gZones[i].obOpen, gZones[i].obClose);
-      gZones[i].zoneBot = MathMin(gZones[i].obOpen, gZones[i].obClose);
-      gZones[i].nearEdge = gZones[i].obClose;
-      gZones[i].bbPhase = PHASE_BB;
-      gZones[i].breakTime = t;
-      gZones[i].state = ST_ACTIVE;
-      gZones[i].liqBars = 0;
-      gZones[i].age = 0;
-      gZones[i].bestLiqDist = DBL_MAX;
-      ObjectDelete(0, Zn(gZones[i].id));
-      DrawZone(i);
-      if(InpShowLog)
-         PrintFormat("ZLS BB formed | tradeDir=%d | %s", newDir, TimeToString(t, TIME_DATE|TIME_MINUTES));
-   }
-}
-
-void CheckLiquidity(int sh)
+void FvgCheckLiquidity(int sh)
 {
    double hi = iHigh(_Symbol, InpTF, sh);
-   double lo = iLow(_Symbol, InpTF, sh);
-   double cl = iClose(_Symbol, InpTF, sh);
+   double lo = iLow (_Symbol, InpTF, sh);
    datetime t = iTime(_Symbol, InpTF, sh);
-   double near = NearDist(sh);
+   double near = (InpNearPoints > 0) ? InpNearPoints * _Point : InpNearATR * FvgCalcATR(sh);
 
-   for(int i = 0; i < gZoneTotal; i++)
+   for(int i = 0; i < gFvgTotal; i++)
    {
-      if(gZones[i].dead) continue;
-      if(gZones[i].validAfter >= t) continue;
-      if(gZones[i].kind == KIND_BB && gZones[i].bbPhase != PHASE_BB) continue;
-
-      ExtendZone(i, t);
+      if(gFvg[i].dead) continue;
+      if(gFvg[i].levelTime >= t) continue;
+      FvgExtendZone(i, t);
+      double edge = gFvg[i].nearEdge;
       if(near <= 0) continue;
-      double edge = gZones[i].nearEdge;
-      int dir = gZones[i].dir;
-      double top = gZones[i].zoneTop;
-      double bot = gZones[i].zoneBot;
 
-      if(TouchKills(i, hi, lo))
+      if(gFvg[i].dir == DIR_BULL)
       {
-         bool hadLiq = (gZones[i].bestLiqDist < DBL_MAX);
-         bool reject = hadLiq && Rejected(dir, cl, top, bot);
-         if(reject)
-         {
-            double sl = SlForZone(dir, top, bot);
-            if(dir == DIR_BULL) { gZones[i].pendingBuy = true; gZones[i].pendingSL = sl; }
-            else { gZones[i].pendingSell = true; gZones[i].pendingSL = sl; }
-            if(InpShowLog)
-               PrintFormat("ZLS %s | kind=%d | edge touch+reject | SL=%.5f | %s",
-                  dir == DIR_BULL ? "BUY" : "SELL", gZones[i].kind, sl, TimeToString(t, TIME_DATE|TIME_MINUTES));
-         }
-         KillZone(i);
-         continue;
-      }
-
-      if(dir == DIR_BULL)
-      {
+         if(lo <= edge) { FvgKill(i); continue; }
          double dist = lo - edge;
-         if(dist <= near && dist < gZones[i].bestLiqDist)
+         if(dist <= near && dist < gFvg[i].bestLiqDist)
          {
-            gZones[i].bestLiqDist = dist;
-            gZones[i].liqBars++;
-            if(gZones[i].liqBars >= InpMinLiqBars) gZones[i].state = ST_LIQ;
-            UpdateLiqLabel(i, lo, t);
+            gFvg[i].bestLiqDist = dist;
+            FvgUpdateLabel(i, DIR_BULL, lo, t);
+            if(InpHideUntilLiq) FvgDrawZone(i);
+            if(InpShowLog) PrintFormat("ZLS FVG BULL | edge=%.5f | low=%.5f | %s", edge, lo, TimeToString(t, TIME_DATE|TIME_MINUTES));
          }
       }
       else
       {
+         if(hi >= edge) { FvgKill(i); continue; }
          double dist = edge - hi;
-         if(dist <= near && dist < gZones[i].bestLiqDist)
+         if(dist <= near && dist < gFvg[i].bestLiqDist)
          {
-            gZones[i].bestLiqDist = dist;
-            gZones[i].liqBars++;
-            if(gZones[i].liqBars >= InpMinLiqBars) gZones[i].state = ST_LIQ;
-            UpdateLiqLabel(i, hi, t);
+            gFvg[i].bestLiqDist = dist;
+            FvgUpdateLabel(i, DIR_BEAR, hi, t);
+            if(InpHideUntilLiq) FvgDrawZone(i);
+            if(InpShowLog) PrintFormat("ZLS FVG BEAR | edge=%.5f | high=%.5f | %s", edge, hi, TimeToString(t, TIME_DATE|TIME_MINUTES));
          }
       }
    }
 }
 
-void EmitPendingSignals(int sh)
-{
-   datetime t = iTime(_Symbol, InpTF, sh);
-   for(int i = 0; i < gZoneTotal; i++)
-   {
-      if(gZones[i].pendingBuy)
-      {
-         BullSetupBuf[sh] = iLow(_Symbol, InpTF, sh) - 5 * _Point;
-         BullSLBuf[sh] = gZones[i].pendingSL;
-         gZones[i].pendingBuy = false;
-      }
-      if(gZones[i].pendingSell)
-      {
-         BearSetupBuf[sh] = iHigh(_Symbol, InpTF, sh) + 5 * _Point;
-         BearSLBuf[sh] = gZones[i].pendingSL;
-         gZones[i].pendingSell = false;
-      }
-   }
-}
-
-void AgeZones()
+void FvgAge()
 {
    if(InpExpiryBars <= 0) return;
-   for(int i = 0; i < gZoneTotal; i++)
+   for(int i = 0; i < gFvgTotal; i++)
    {
-      if(gZones[i].dead || gZones[i].state == ST_DONE) continue;
-      gZones[i].age++;
-      if(gZones[i].age >= InpExpiryBars) KillZone(i);
+      if(gFvg[i].dead) continue;
+      gFvg[i].ageCounter++;
+      if(gFvg[i].ageCounter >= InpExpiryBars) FvgKill(i);
    }
 }
 
+//+------------------------------------------------------------------+
+//| OB pool (OB_Liquidity_Detector)                                  |
+//+------------------------------------------------------------------+
+#define OB_PREFIX "ZLS_OB_"
+
+struct ObRec
+{
+   int      id;
+   int      dir;
+   double   bodyEdge;
+   double   bodyFar;
+   double   zoneTop;
+   double   zoneBot;
+   datetime obTime;
+   datetime confirmTime;
+   bool     dead;
+   int      ageCounter;
+   double   bestLiqDist;
+};
+
+ObRec gOb[LVL_MAX];
+int   gObTotal = 0;
+int   gObNextId = 0;
+
+string ObLb(int id)  { return OB_PREFIX + IntegerToString(id) + "_lb"; }
+string ObZn(int id)  { return OB_PREFIX + IntegerToString(id) + "_zn"; }
+
+double ObCalcATR(int sh, int period)
+{
+   int avail = iBars(_Symbol, InpTF);
+   if(avail < sh + period + 2) return 0.0;
+   double sum = 0.0;
+   for(int k = sh + 1; k <= sh + period; k++)
+   {
+      double h = iHigh(_Symbol, InpTF, k), l = iLow(_Symbol, InpTF, k);
+      double pc = iClose(_Symbol, InpTF, k + 1);
+      sum += MathMax(h - l, MathMax(MathAbs(h - pc), MathAbs(l - pc)));
+   }
+   return sum / (double)period;
+}
+
+void ObDrawZone(int i)
+{
+   if(!InpDrawZones) return;
+   if(InpHideUntilLiq && gOb[i].bestLiqDist >= DBL_MAX) return;
+   string nm = ObZn(gOb[i].id);
+   color  c  = (gOb[i].dir == DIR_BULL) ? InpBullColor : InpBearColor;
+   if(ObjectFind(0, nm) < 0)
+   {
+      if(ObjectCreate(0, nm, OBJ_RECTANGLE, 0,
+                      gOb[i].obTime, gOb[i].zoneTop,
+                      gOb[i].confirmTime, gOb[i].zoneBot))
+      {
+         ObjectSetInteger(0, nm, OBJPROP_COLOR, c);
+         ObjectSetInteger(0, nm, OBJPROP_FILL, true);
+         ObjectSetInteger(0, nm, OBJPROP_BACK, true);
+         ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
+         ObjectSetInteger(0, nm, OBJPROP_HIDDEN, true);
+      }
+   }
+}
+
+void ObExtendZone(int i, datetime t)
+{
+   if(!InpDrawZones) return;
+   if(InpHideUntilLiq && gOb[i].bestLiqDist >= DBL_MAX) return;
+   string nm = ObZn(gOb[i].id);
+   if(ObjectFind(0, nm) >= 0) ObjectSetInteger(0, nm, OBJPROP_TIME, 1, t);
+}
+
+void ObKill(int i)
+{
+   ObjectDelete(0, ObLb(gOb[i].id));
+   ObjectDelete(0, ObZn(gOb[i].id));
+   gOb[i].dead = true;
+}
+
+void ObAdd(int dir, double bodyEdge, double bodyFar, datetime obT, datetime confT)
+{
+   for(int i = 0; i < gObTotal; i++)
+      if(!gOb[i].dead && gOb[i].obTime == obT && gOb[i].dir == dir) return;
+   int idx = -1;
+   for(int i = 0; i < gObTotal; i++) if(gOb[i].dead) { idx = i; break; }
+   if(idx < 0 && gObTotal < LVL_MAX) idx = gObTotal++;
+   if(idx < 0) return;
+   gOb[idx].id = gObNextId++;
+   gOb[idx].dir = dir;
+   gOb[idx].bodyEdge = bodyEdge;
+   gOb[idx].bodyFar = bodyFar;
+   gOb[idx].zoneTop = MathMax(bodyEdge, bodyFar);
+   gOb[idx].zoneBot = MathMin(bodyEdge, bodyFar);
+   gOb[idx].obTime = obT;
+   gOb[idx].confirmTime = confT;
+   gOb[idx].dead = false;
+   gOb[idx].ageCounter = 0;
+   gOb[idx].bestLiqDist = DBL_MAX;
+   ObDrawZone(idx);
+}
+
+void ObDetect(int dispShift)
+{
+   if(dispShift < 1) return;
+   double atr = ObCalcATR(dispShift, InpDispAtrPer);
+   if(atr <= 0.0) return;
+   double dOpn = iOpen (_Symbol, InpTF, dispShift);
+   double dCls = iClose(_Symbol, InpTF, dispShift);
+   if(MathAbs(dCls - dOpn) < InpDispMult * atr) return;
+   int dispDir = (dCls > dOpn) ? DIR_BULL : DIR_BEAR;
+   int available = iBars(_Symbol, InpTF);
+   int scanEnd = dispShift + InpObScanBack;
+   if(scanEnd >= available - 1) scanEnd = available - 2;
+   for(int j = dispShift + 1; j <= scanEnd; j++)
+   {
+      double jOpn = iOpen (_Symbol, InpTF, j);
+      double jCls = iClose(_Symbol, InpTF, j);
+      if(dispDir == DIR_BULL && jCls < jOpn)
+      {
+         ObAdd(DIR_BULL, jOpn, jCls, iTime(_Symbol, InpTF, j), iTime(_Symbol, InpTF, dispShift));
+         break;
+      }
+      if(dispDir == DIR_BEAR && jCls > jOpn)
+      {
+         ObAdd(DIR_BEAR, jOpn, jCls, iTime(_Symbol, InpTF, j), iTime(_Symbol, InpTF, dispShift));
+         break;
+      }
+   }
+}
+
+void ObUpdateLabel(int i, int dir, double wickExtreme, datetime t)
+{
+   if(!InpDrawLabels) return;
+   string nm = ObLb(gOb[i].id);
+   ObjectDelete(0, nm);
+   color c = (dir == DIR_BULL) ? InpBullColor : InpBearColor;
+   if(ObjectCreate(0, nm, OBJ_TEXT, 0, t, wickExtreme))
+   {
+      ObjectSetString (0, nm, OBJPROP_TEXT, InpLabelOB);
+      ObjectSetInteger(0, nm, OBJPROP_COLOR, c);
+      ObjectSetInteger(0, nm, OBJPROP_FONTSIZE, InpFontSize);
+      ObjectSetInteger(0, nm, OBJPROP_ANCHOR, dir == DIR_BULL ? ANCHOR_UPPER : ANCHOR_LOWER);
+      ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
+   }
+}
+
+void ObCheckLiquidity(int sh)
+{
+   double hi = iHigh(_Symbol, InpTF, sh);
+   double lo = iLow (_Symbol, InpTF, sh);
+   datetime t = iTime(_Symbol, InpTF, sh);
+   double near = (InpNearPoints > 0) ? InpNearPoints * _Point : InpNearATR * ObCalcATR(sh, InpNearAtrPer);
+
+   for(int i = 0; i < gObTotal; i++)
+   {
+      if(gOb[i].dead) continue;
+      if(gOb[i].confirmTime >= t) continue;
+      ObExtendZone(i, t);
+      double edge = gOb[i].bodyEdge;
+      if(near <= 0) continue;
+
+      if(gOb[i].dir == DIR_BULL)
+      {
+         if(lo <= edge) { ObKill(i); continue; }
+         double dist = lo - edge;
+         if(dist <= near && dist < gOb[i].bestLiqDist)
+         {
+            gOb[i].bestLiqDist = dist;
+            ObUpdateLabel(i, DIR_BULL, lo, t);
+            if(InpHideUntilLiq) ObDrawZone(i);
+            if(InpShowLog) PrintFormat("ZLS OB BULL | body=%.5f | low=%.5f | %s", edge, lo, TimeToString(t, TIME_DATE|TIME_MINUTES));
+         }
+      }
+      else
+      {
+         if(hi >= edge) { ObKill(i); continue; }
+         double dist = edge - hi;
+         if(dist <= near && dist < gOb[i].bestLiqDist)
+         {
+            gOb[i].bestLiqDist = dist;
+            ObUpdateLabel(i, DIR_BEAR, hi, t);
+            if(InpHideUntilLiq) ObDrawZone(i);
+            if(InpShowLog) PrintFormat("ZLS OB BEAR | body=%.5f | high=%.5f | %s", edge, hi, TimeToString(t, TIME_DATE|TIME_MINUTES));
+         }
+      }
+   }
+}
+
+void ObAge()
+{
+   if(InpExpiryBars <= 0) return;
+   for(int i = 0; i < gObTotal; i++)
+   {
+      if(gOb[i].dead) continue;
+      gOb[i].ageCounter++;
+      if(gOb[i].ageCounter >= InpExpiryBars) ObKill(i);
+   }
+}
+
+//+------------------------------------------------------------------+
+//| BB pool (BB_Liquidity_Detector)                                  |
+//+------------------------------------------------------------------+
+#define BB_PREFIX "ZLS_BB_"
+
+struct BbRec
+{
+   int      id;
+   int      phase;
+   int      dir;
+   double   obHi;
+   double   obLo;
+   double   obOpen;
+   double   obClose;
+   double   bodyEdge;
+   double   zoneTop;
+   double   zoneBot;
+   datetime obTime;
+   datetime confirmTime;
+   datetime breakTime;
+   bool     dead;
+   int      obAge;
+   int      bbAge;
+   double   bestLiqDist;
+};
+
+BbRec gBb[LVL_MAX];
+int   gBbTotal = 0;
+int   gBbNextId = 0;
+
+string BbLb(int id)  { return BB_PREFIX + IntegerToString(id) + "_lb"; }
+string BbZn(int id)  { return BB_PREFIX + IntegerToString(id) + "_zn"; }
+
+void BbDrawZone(int i)
+{
+   if(!InpDrawZones) return;
+   if(gBb[i].phase != PHASE_BB) return;
+   if(InpHideUntilLiq && gBb[i].bestLiqDist >= DBL_MAX) return;
+   string nm = BbZn(gBb[i].id);
+   color  c  = (gBb[i].dir == DIR_BULL) ? InpBullColor : InpBearColor;
+   if(ObjectFind(0, nm) < 0)
+   {
+      if(ObjectCreate(0, nm, OBJ_RECTANGLE, 0,
+                      gBb[i].obTime, gBb[i].zoneTop,
+                      gBb[i].breakTime, gBb[i].zoneBot))
+      {
+         ObjectSetInteger(0, nm, OBJPROP_COLOR, c);
+         ObjectSetInteger(0, nm, OBJPROP_STYLE, STYLE_DASH);
+         ObjectSetInteger(0, nm, OBJPROP_FILL, true);
+         ObjectSetInteger(0, nm, OBJPROP_BACK, true);
+         ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
+         ObjectSetInteger(0, nm, OBJPROP_HIDDEN, true);
+      }
+   }
+}
+
+void BbExtendZone(int i, datetime t)
+{
+   if(!InpDrawZones) return;
+   if(gBb[i].phase != PHASE_BB) return;
+   if(InpHideUntilLiq && gBb[i].bestLiqDist >= DBL_MAX) return;
+   string nm = BbZn(gBb[i].id);
+   if(ObjectFind(0, nm) >= 0) ObjectSetInteger(0, nm, OBJPROP_TIME, 1, t);
+}
+
+void BbKill(int i)
+{
+   ObjectDelete(0, BbLb(gBb[i].id));
+   ObjectDelete(0, BbZn(gBb[i].id));
+   gBb[i].dead = true;
+}
+
+void BbAddOB(int dir, double hi, double lo, double opn, double cls, datetime obT, datetime confT)
+{
+   for(int i = 0; i < gBbTotal; i++)
+      if(!gBb[i].dead && gBb[i].obTime == obT) return;
+   int idx = -1;
+   for(int i = 0; i < gBbTotal; i++) if(gBb[i].dead) { idx = i; break; }
+   if(idx < 0 && gBbTotal < LVL_MAX) idx = gBbTotal++;
+   if(idx < 0) return;
+   gBb[idx].id = gBbNextId++;
+   gBb[idx].phase = PHASE_OB;
+   gBb[idx].dir = dir;
+   gBb[idx].obHi = hi;
+   gBb[idx].obLo = lo;
+   gBb[idx].obOpen = opn;
+   gBb[idx].obClose = cls;
+   gBb[idx].bodyEdge = 0.0;
+   gBb[idx].zoneTop = 0.0;
+   gBb[idx].zoneBot = 0.0;
+   gBb[idx].obTime = obT;
+   gBb[idx].confirmTime = confT;
+   gBb[idx].breakTime = 0;
+   gBb[idx].dead = false;
+   gBb[idx].obAge = 0;
+   gBb[idx].bbAge = 0;
+   gBb[idx].bestLiqDist = DBL_MAX;
+}
+
+void BbDetectOB(int dispShift)
+{
+   if(dispShift < 1) return;
+   double atr = ObCalcATR(dispShift, InpDispAtrPer);
+   if(atr <= 0.0) return;
+   double dOpn = iOpen (_Symbol, InpTF, dispShift);
+   double dCls = iClose(_Symbol, InpTF, dispShift);
+   if(MathAbs(dCls - dOpn) < InpDispMult * atr) return;
+   int dispDir = (dCls > dOpn) ? DIR_BULL : DIR_BEAR;
+   int available = iBars(_Symbol, InpTF);
+   int scanEnd = dispShift + InpObScanBack;
+   if(scanEnd >= available - 1) scanEnd = available - 2;
+   for(int j = dispShift + 1; j <= scanEnd; j++)
+   {
+      double jOpn = iOpen (_Symbol, InpTF, j);
+      double jCls = iClose(_Symbol, InpTF, j);
+      if(dispDir == DIR_BULL && jCls < jOpn)
+      {
+         BbAddOB(DIR_BULL, iHigh(_Symbol, InpTF, j), iLow(_Symbol, InpTF, j), jOpn, jCls,
+                 iTime(_Symbol, InpTF, j), iTime(_Symbol, InpTF, dispShift));
+         break;
+      }
+      if(dispDir == DIR_BEAR && jCls > jOpn)
+      {
+         BbAddOB(DIR_BEAR, iHigh(_Symbol, InpTF, j), iLow(_Symbol, InpTF, j), jOpn, jCls,
+                 iTime(_Symbol, InpTF, j), iTime(_Symbol, InpTF, dispShift));
+         break;
+      }
+   }
+}
+
+void BbCheckBreaks(int sh)
+{
+   double barClose = iClose(_Symbol, InpTF, sh);
+   datetime t = iTime(_Symbol, InpTF, sh);
+   for(int i = 0; i < gBbTotal; i++)
+   {
+      if(gBb[i].dead || gBb[i].phase != PHASE_OB) continue;
+      if(gBb[i].confirmTime >= t) continue;
+      bool broke = false;
+      int newDir = 0;
+      if(gBb[i].dir == DIR_BULL && barClose < gBb[i].obLo) { broke = true; newDir = DIR_BEAR; }
+      else if(gBb[i].dir == DIR_BEAR && barClose > gBb[i].obHi) { broke = true; newDir = DIR_BULL; }
+      if(!broke) continue;
+      gBb[i].phase = PHASE_BB;
+      gBb[i].dir = newDir;
+      gBb[i].bodyEdge = gBb[i].obClose;
+      gBb[i].zoneTop = MathMax(gBb[i].obOpen, gBb[i].obClose);
+      gBb[i].zoneBot = MathMin(gBb[i].obOpen, gBb[i].obClose);
+      gBb[i].breakTime = t;
+      gBb[i].bbAge = 0;
+      gBb[i].bestLiqDist = DBL_MAX;
+      BbDrawZone(i);
+      if(InpShowLog)
+         PrintFormat("ZLS BB formed | dir=%d | edge=%.5f | %s", newDir, gBb[i].bodyEdge, TimeToString(t, TIME_DATE|TIME_MINUTES));
+   }
+}
+
+void BbUpdateLabel(int i, int dir, double wickExtreme, datetime t)
+{
+   if(!InpDrawLabels) return;
+   string nm = BbLb(gBb[i].id);
+   ObjectDelete(0, nm);
+   color c = (dir == DIR_BULL) ? InpBullColor : InpBearColor;
+   if(ObjectCreate(0, nm, OBJ_TEXT, 0, t, wickExtreme))
+   {
+      ObjectSetString (0, nm, OBJPROP_TEXT, InpLabelBB);
+      ObjectSetInteger(0, nm, OBJPROP_COLOR, c);
+      ObjectSetInteger(0, nm, OBJPROP_FONTSIZE, InpFontSize);
+      ObjectSetInteger(0, nm, OBJPROP_ANCHOR, dir == DIR_BULL ? ANCHOR_UPPER : ANCHOR_LOWER);
+      ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
+   }
+}
+
+void BbCheckLiquidity(int sh)
+{
+   double hi = iHigh(_Symbol, InpTF, sh);
+   double lo = iLow (_Symbol, InpTF, sh);
+   datetime t = iTime(_Symbol, InpTF, sh);
+   double near = (InpNearPoints > 0) ? InpNearPoints * _Point : InpNearATR * ObCalcATR(sh, InpNearAtrPer);
+
+   for(int i = 0; i < gBbTotal; i++)
+   {
+      if(gBb[i].dead || gBb[i].phase != PHASE_BB) continue;
+      BbExtendZone(i, t);
+      double edge = gBb[i].bodyEdge;
+      if(near <= 0) continue;
+
+      if(gBb[i].dir == DIR_BULL)
+      {
+         if(lo <= edge) { BbKill(i); continue; }
+         double dist = lo - edge;
+         if(dist <= near && dist < gBb[i].bestLiqDist)
+         {
+            gBb[i].bestLiqDist = dist;
+            BbUpdateLabel(i, DIR_BULL, lo, t);
+            if(InpHideUntilLiq) BbDrawZone(i);
+            if(InpShowLog) PrintFormat("ZLS BB BULL | body=%.5f | low=%.5f | %s", edge, lo, TimeToString(t, TIME_DATE|TIME_MINUTES));
+         }
+      }
+      else
+      {
+         if(hi >= edge) { BbKill(i); continue; }
+         double dist = edge - hi;
+         if(dist <= near && dist < gBb[i].bestLiqDist)
+         {
+            gBb[i].bestLiqDist = dist;
+            BbUpdateLabel(i, DIR_BEAR, hi, t);
+            if(InpHideUntilLiq) BbDrawZone(i);
+            if(InpShowLog) PrintFormat("ZLS BB BEAR | body=%.5f | high=%.5f | %s", edge, hi, TimeToString(t, TIME_DATE|TIME_MINUTES));
+         }
+      }
+   }
+}
+
+void BbAge()
+{
+   for(int i = 0; i < gBbTotal; i++)
+   {
+      if(gBb[i].dead) continue;
+      if(gBb[i].phase == PHASE_OB)
+      {
+         if(InpObExpiry <= 0) continue;
+         gBb[i].obAge++;
+         if(gBb[i].obAge >= InpObExpiry) gBb[i].dead = true;
+      }
+      else
+      {
+         if(InpBBExpiry <= 0) continue;
+         gBb[i].bbAge++;
+         if(gBb[i].bbAge >= InpBBExpiry) BbKill(i);
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
 void ProcessBar(int sh)
 {
-   DetectFVG(sh);
-   DetectDisplacementOB(sh, KIND_OB);
-   DetectDisplacementOB(sh, KIND_BB);
-   CheckBBBreaks(sh);
-   CheckLiquidity(sh);
-   AgeZones();
+   if(InpUseFVG) { FvgDetect(sh); FvgCheckLiquidity(sh); FvgAge(); }
+   if(InpUseOB)  { ObDetect(sh); ObCheckLiquidity(sh); ObAge(); }
+   if(InpUseBB)  { BbDetectOB(sh); BbCheckBreaks(sh); BbCheckLiquidity(sh); BbAge(); }
 }
 
 void Rebuild()
 {
-   ObjectsDeleteAll(0, OBJ_PREFIX);
-   gZoneTotal = 0;
-   gNextId = 0;
-   ArrayInitialize(BullSetupBuf, EMPTY_VALUE);
-   ArrayInitialize(BearSetupBuf, EMPTY_VALUE);
-   ArrayInitialize(BullSLBuf, EMPTY_VALUE);
-   ArrayInitialize(BearSLBuf, EMPTY_VALUE);
-   int scan = MathMin(InpLookback, iBars(_Symbol, InpTF) - InpObScanBack - 3);
+   ObjectsDeleteAll(0, FVG_PREFIX);
+   ObjectsDeleteAll(0, OB_PREFIX);
+   ObjectsDeleteAll(0, BB_PREFIX);
+   gFvgTotal = 0; gFvgNextId = 0;
+   gObTotal = 0; gObNextId = 0;
+   gBbTotal = 0; gBbNextId = 0;
+   int scanFvg = MathMin(InpLookback, iBars(_Symbol, InpTF) - 3);
+   int scanOb  = MathMin(InpLookback, iBars(_Symbol, InpTF) - InpObScanBack - 2);
+   int scan = MathMax(scanFvg, scanOb);
    if(scan < 2) return;
-   for(int sh = scan; sh >= 1; sh--)
-   {
-      ProcessBar(sh);
-      if(sh > 1) EmitPendingSignals(sh - 1);
-   }
+   for(int sh = scan; sh >= 1; sh--) ProcessBar(sh);
 }
 
 int OnInit()
 {
-   SetIndexBuffer(0, BullSetupBuf, INDICATOR_DATA);
-   SetIndexBuffer(1, BearSetupBuf, INDICATOR_DATA);
-   SetIndexBuffer(2, BullSLBuf, INDICATOR_CALCULATIONS);
-   SetIndexBuffer(3, BearSLBuf, INDICATOR_CALCULATIONS);
-   PlotIndexSetInteger(0, PLOT_ARROW, 233);
-   PlotIndexSetInteger(1, PLOT_ARROW, 234);
-   PlotIndexSetDouble(0, PLOT_EMPTY_VALUE, EMPTY_VALUE);
-   PlotIndexSetDouble(1, PLOT_EMPTY_VALUE, EMPTY_VALUE);
-   ArraySetAsSeries(BullSetupBuf, true);
-   ArraySetAsSeries(BearSetupBuf, true);
-   ArraySetAsSeries(BullSLBuf, true);
-   ArraySetAsSeries(BearSLBuf, true);
-   IndicatorSetString(INDICATOR_SHORTNAME, "Zone Liq Setup");
+   IndicatorSetString(INDICATOR_SHORTNAME, "Zone Liq (FVG+OB+BB)");
    gLastBar = 0;
    Rebuild();
    return INIT_SUCCEEDED;
 }
 
-void OnDeinit(const int reason) { ObjectsDeleteAll(0, OBJ_PREFIX); }
+void OnDeinit(const int reason)
+{
+   ObjectsDeleteAll(0, FVG_PREFIX);
+   ObjectsDeleteAll(0, OB_PREFIX);
+   ObjectsDeleteAll(0, BB_PREFIX);
+}
 
 int OnCalculate(const int rates_total, const int prev_calculated,
                 const datetime &time[], const double &open[],
@@ -520,7 +716,6 @@ int OnCalculate(const int rates_total, const int prev_calculated,
    {
       gLastBar = cur;
       ProcessBar(1);
-      EmitPendingSignals(0);
    }
    return rates_total;
 }
