@@ -179,7 +179,7 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
     id: "IFVG_RETESTED",
     label: "IFVG Retested",
     category: "zone_retest",
-    roles: ["execution"],
+    roles: ["setup", "execution"],
     description: "Price returned to an inversion FVG zone.",
     carriesDirection: true,
     carriesPrice: true,
