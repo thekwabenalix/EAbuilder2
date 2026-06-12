@@ -107,7 +107,7 @@ const items: Item[] = [
   { file: "FVG_Liquidity_Detector.mq5", code: generateFvgLiquidityDetector() },
   { file: "OB_Liquidity_Detector.mq5", code: generateObLiquidityDetector() },
   { file: "BB_Liquidity_Detector.mq5", code: generateBbLiquidityDetector() },
-  { file: "Zone_Liquidity_Setup.mq5", code: generateZoneLiquiditySetupIndicator() },
+  { file: "Liquidity_Buildup.mq5", code: generateZoneLiquiditySetupIndicator() },
   { file: "Zone_Liq_State_Module.mq5", code: generateZoneLiqStateModule() },
   { file: "OB_FVG_Detector.mq5", code: generateObFvgDetector() },
   { file: "Unicorn_Detector.mq5", code: generateUnicornDetector() },

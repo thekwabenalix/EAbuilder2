@@ -401,24 +401,26 @@ const TRADING_MODULES: ModuleCategory[] = [
       },
       {
         id: "zone-liquidity-setup",
-        filename: "Zone_Liquidity_Setup.mq5",
-        name: "Zone Liquidity Setup (FVG + OB + BB)",
+        filename: "Liquidity_Buildup.mq5",
+        name: "Liquidity Buildup (OB + BB + FVG)",
         description:
-          "Composite liquidity indicator — runs FVG, OB, and Breaker Block detectors as three " +
-          "independent level pools (same logic as FLq / OLq / BLq). Elimination: edge touch " +
-          "consumes the level; optional InpHideUntilLiq shows zones only after liquidity builds " +
-          "on the correct side (below bull zones / above bear zones).",
+          "Combined liquidity detector — runs Order Block, Breaker Block, and FVG detectors " +
+          "in a single unified level pool. Each zone is drawn as a filled rectangle; the " +
+          "closest wick that approaches the zone edge without entering is marked with a " +
+          "horizontal line showing exactly where stops are accumulating.",
         rules: [
-          "Three pools: FVG (3-candle gap), OB (displacement + opposite candle body), BB (OB broken → polarity flip)",
-          "Liquidity elimination: wick within proximity of the near edge WITHOUT entering → FLq/OLq/BLq label",
-          "Touch elimination: bull wick low ≤ edge / bear wick high ≥ edge removes zone + label",
-          "InpHideUntilLiq=false (default): draw all fresh zones like the three separate indicators",
-          "Toggle InpUseFVG / InpUseOB / InpUseBB to enable each detector pool",
+          "OB: last opposing candle before a displacement move — solid rectangle",
+          "BB: OB that is closed through (polarity flip) — dashed rectangle",
+          "FVG: 3-candle gap (C1 high < C3 low or C1 low > C3 high) — dotted rectangle",
+          "Liquidity line: flat horizontal line from zone origin to the closest-wick bar",
+          "Zone consumed (rect + line deleted) when price closes through the body edge",
+          "Toggle InpEnableOB / InpEnableBB / InpEnableFVG to enable each detector",
         ],
         output: [
-          "Filled rectangles per pool (green bull / red bear; BB dashed after flip)",
-          "FLq / OLq / BLq labels on closest liquidity approach",
-          "Journal: ZLS FVG/OB/BB BULL|BEAR when InpShowLog=true",
+          "Filled rectangles: OB solid | BB dashed | FVG dotted",
+          "Separate bull/bear colors per type (OB green/red, BB blue/orange, FVG lime/orangeRed)",
+          "Horizontal liquidity line at the nearest wick price per active zone",
+          "Journal: LBU_OB/BB/FVG_BULL|BEAR when InpShowLog=true",
         ],
         status: "ready",
         generate: generateZoneLiquiditySetupIndicator,

@@ -1,34 +1,31 @@
 /**
- * Phase 2 — Zone Liquidity Setup State Module
+ * Liquidity Buildup State Module — derived from the Liquidity_Buildup indicator.
  *
- * Same lifecycle as Zone_Liquidity_Setup indicator with Phase 3 buffer contract:
- *   0: BullConfirmBuf — buy entry bar (next open after tap+reject)
- *   1: BearConfirmBuf
- *   2: BullSLBuf
- *   3: BearSLBuf
+ * Renames the file header so MetaEditor distinguishes it from the standalone
+ * indicator. The same detection logic applies; a Phase 3 EA can attach this
+ * as an iCustom source for zone + liquidity state.
  */
 
-import { generateZoneLiquiditySetupIndicator, ZONE_LIQ_SETUP_VERSION } from "./zone-liquidity-setup-indicator";
+import {
+  generateLiquidityBuildup,
+  LIQUIDITY_BUILDUP_VERSION,
+} from "./zone-liquidity-setup-indicator";
 
 export const ZONE_LIQ_STATE_MODULE_VERSION = "1.0.0";
 export const ZONE_LIQ_STATE_MODULE = "Zone_Liq_State_Module";
 
 export function generateZoneLiqStateModule(): string {
-  return generateZoneLiquiditySetupIndicator()
+  return generateLiquidityBuildup()
     .replace(
-      "//| Zone_Liquidity_Setup.mq5",
+      "//| Liquidity_Buildup.mq5",
       "//| Zone_Liq_State_Module.mq5",
     )
     .replace(
-      `//| FVG + OB + BB liquidity detectors v${ZONE_LIQ_SETUP_VERSION}`,
-      `//| Phase 2 State Module v${ZONE_LIQ_STATE_MODULE_VERSION} — Zone Liq Setup`,
+      `//| SMC Liquidity v${LIQUIDITY_BUILDUP_VERSION} — Combined OB + BB + FVG`,
+      `//| Zone Liq State Module v${ZONE_LIQ_STATE_MODULE_VERSION} — Liquidity Buildup`,
     )
     .replace(
-      '#property copyright "EA Builder — SMC Setup"',
-      '#property copyright "EA Builder — SMC State"',
-    )
-    .replace(
-      'IndicatorSetString(INDICATOR_SHORTNAME, "Zone Liq Setup");',
-      'IndicatorSetString(INDICATOR_SHORTNAME, "Zone Liq State");',
+      'IndicatorSetString(INDICATOR_SHORTNAME, "Liquidity Buildup (OB+BB+FVG)");',
+      'IndicatorSetString(INDICATOR_SHORTNAME, "Zone Liq State (OB+BB+FVG)");',
     );
 }
