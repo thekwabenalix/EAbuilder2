@@ -13,11 +13,7 @@ import { SM_MODULE_META } from "./sm-embed-registry";
 export { SM_MODULE_META } from "./sm-embed-registry";
 
 /** Modules that still use legacy heuristic brain generators (no verified SM). */
-const LEGACY_HEURISTIC_MODULES = new Set<BrainModuleType>([
-  "pin_bar",
-  "bb",
-  "swing_structure",
-]);
+const LEGACY_HEURISTIC_MODULES = new Set<BrainModuleType>(["pin_bar", "bb", "swing_structure"]);
 
 function period(tf: string): string {
   const u = tf.toUpperCase();
@@ -77,11 +73,7 @@ function smConfigEntry(
 
 function collectSmConfigs(config: FourBrainConfig): AiBrainWiring["sm_configs"] {
   const smConfigs: AiBrainWiring["sm_configs"] = {};
-  const brains: Array<BrainConfig | undefined> = [
-    config.direction,
-    config.setup,
-    config.execution,
-  ];
+  const brains: Array<BrainConfig | undefined> = [config.direction, config.setup, config.execution];
 
   for (const brain of brains) {
     if (!brain?.modules?.length || !brain.timeframe) continue;

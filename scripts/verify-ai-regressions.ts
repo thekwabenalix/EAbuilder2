@@ -457,8 +457,16 @@ const cases: RegressionCase[] = [
       assertOk(Boolean(wiring.sm_configs.ema_M30), "EMASM config missing");
       assertEq(
         (wiring.sm_configs.ema_M30.params as Record<string, unknown>).repeatAfterConfirmation,
+        true,
+        "default CTC repeat mode keeps cross active until opposite cross",
+      );
+      const singleShot = buildEmaCrossTestCloseWiring(`
+        Cross-Test-Close on M30. Only the first valid 48 EMA test after the cross counts.
+      `);
+      assertEq(
+        (singleShot.sm_configs.ema_M30.params as Record<string, unknown>).repeatAfterConfirmation,
         false,
-        "default CTC repeat mode",
+        "single-test CTC disables repeat mode",
       );
     },
   },

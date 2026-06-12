@@ -87,9 +87,17 @@ export function newStepId(steps: StrategyStepConfig[], role: StrategyStepRole): 
   return id;
 }
 
-export { formatStepDisplayName, normalizeFlowStepNames, syncStepNameIfAuto } from "@/lib/strategy-step-label";
+export {
+  formatStepDisplayName,
+  normalizeFlowStepNames,
+  syncStepNameIfAuto,
+} from "@/lib/strategy-step-label";
 
-export function defaultStepName(moduleId: string, timeframe: string, role: StrategyStepRole): string {
+export function defaultStepName(
+  moduleId: string,
+  timeframe: string,
+  role: StrategyStepRole,
+): string {
   return formatStepDisplayName(moduleId, timeframe, role);
 }
 
@@ -103,9 +111,7 @@ export function createDefaultStep(
   const prior = steps[steps.length - 1];
   const id = newStepId(steps, role);
   const event =
-    firstEventForRole(moduleId, role) ??
-    firstEventForRole(moduleId, "entry") ??
-    "BOS_CONFIRMED";
+    firstEventForRole(moduleId, role) ?? firstEventForRole(moduleId, "entry") ?? "BOS_CONFIRMED";
 
   return {
     id,
@@ -116,9 +122,7 @@ export function createDefaultStep(
     event,
     enabled: true,
     params: {},
-    dependsOn: prior
-      ? [{ stepId: prior.id, relation: "after", required: true }]
-      : undefined,
+    dependsOn: prior ? [{ stepId: prior.id, relation: "after", required: true }] : undefined,
     directionSource:
       role === "direction"
         ? { mode: "own_event" }

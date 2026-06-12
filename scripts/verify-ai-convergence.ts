@@ -93,7 +93,11 @@ const flowWiring: AiBrainWiring = {
   notes: "flow priority test",
 };
 
-assertEq(resolveAiWiring({ wiring: flowWiring }).mode, "strategy_flow", "strategy_flow wins over blessed");
+assertEq(
+  resolveAiWiring({ wiring: flowWiring }).mode,
+  "strategy_flow",
+  "strategy_flow wins over blessed",
+);
 
 const legacyWiring: AiBrainWiring = {
   output_mode: "brain_bodies",

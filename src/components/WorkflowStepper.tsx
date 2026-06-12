@@ -65,7 +65,13 @@ export function WorkflowStepper({
                   !active && !done && "bg-muted text-muted-foreground",
                 )}
               >
-                {done ? <Check className="h-3 w-3" /> : Icon ? <Icon className="h-3 w-3" /> : index + 1}
+                {done ? (
+                  <Check className="h-3 w-3" />
+                ) : Icon ? (
+                  <Icon className="h-3 w-3" />
+                ) : (
+                  index + 1
+                )}
               </span>
               <span className="whitespace-nowrap hidden sm:inline">{label}</span>
             </button>

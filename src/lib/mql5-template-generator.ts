@@ -45,7 +45,10 @@ export {
 } from "@/lib/blueprint-generation-gate";
 export type { EaGenerationPath, GenerateEaFromBlueprintResult } from "@/lib/generate-ea-router";
 
-export { isLegacyFlatRulesBlueprint, blueprintReadyForGeneration } from "@/lib/ea-generation-policy";
+export {
+  isLegacyFlatRulesBlueprint,
+  blueprintReadyForGeneration,
+} from "@/lib/ea-generation-policy";
 
 // ─── Primitive registries (single source of truth) ───────────────────────────
 // These are the rule types that have a concrete template implementation.

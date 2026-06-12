@@ -6,7 +6,15 @@
  * Requires Windows + MetaEditor. Skips cleanly when MT5 is not installed unless
  * MQL5_COMPILE_REQUIRED=1 (for self-hosted CI with MT5).
  */
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";

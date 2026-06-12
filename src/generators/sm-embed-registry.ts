@@ -44,27 +44,25 @@ export function tfConst(tf: string): string {
 }
 
 /** Blueprint module id → sm_config metadata (prefix + config type). */
-export const SM_MODULE_META: Record<
-  string,
-  { prefix: string; type: string; bosMode?: BosSmMode }
-> = {
-  bos: { prefix: "BOSSM", type: "bos", bosMode: "bos" },
-  choch: { prefix: "BOSSM", type: "choch", bosMode: "choch" },
-  bos_choch: { prefix: "BOSSM", type: "bos_choch", bosMode: "both" },
-  fvg: { prefix: "FVGSM", type: "fvg" },
-  fvg_inversion: { prefix: "IFVGSM", type: "fvg_inversion" },
-  order_block: { prefix: "OBSM", type: "ob" },
-  ob_fvg: { prefix: "OBFVGSM", type: "ob_fvg" },
-  liqsweep: { prefix: "LSSM", type: "liqsweep" },
-  snr: { prefix: "SNRSM", type: "snr" },
-  gap_snr: { prefix: "GSNRSM", type: "gap_snr" },
-  breakout: { prefix: "BRKSM", type: "breakout" },
-  rejection: { prefix: "REJSM", type: "rejection" },
-  miss: { prefix: "MISSSM", type: "miss" },
-  rsi_hd: { prefix: "RSIHDSM", type: "rsi_hd" },
-  engulfing: { prefix: "EGSM", type: "engulfing" },
-  ema: { prefix: "EMASM", type: "ema" },
-};
+export const SM_MODULE_META: Record<string, { prefix: string; type: string; bosMode?: BosSmMode }> =
+  {
+    bos: { prefix: "BOSSM", type: "bos", bosMode: "bos" },
+    choch: { prefix: "BOSSM", type: "choch", bosMode: "choch" },
+    bos_choch: { prefix: "BOSSM", type: "bos_choch", bosMode: "both" },
+    fvg: { prefix: "FVGSM", type: "fvg" },
+    fvg_inversion: { prefix: "IFVGSM", type: "fvg_inversion" },
+    order_block: { prefix: "OBSM", type: "ob" },
+    ob_fvg: { prefix: "OBFVGSM", type: "ob_fvg" },
+    liqsweep: { prefix: "LSSM", type: "liqsweep" },
+    snr: { prefix: "SNRSM", type: "snr" },
+    gap_snr: { prefix: "GSNRSM", type: "gap_snr" },
+    breakout: { prefix: "BRKSM", type: "breakout" },
+    rejection: { prefix: "REJSM", type: "rejection" },
+    miss: { prefix: "MISSSM", type: "miss" },
+    rsi_hd: { prefix: "RSIHDSM", type: "rsi_hd" },
+    engulfing: { prefix: "EGSM", type: "engulfing" },
+    ema: { prefix: "EMASM", type: "ema" },
+  };
 
 /** Map SM function-name prefix back to generator type (reconcile guard). */
 export const SM_PREFIX_TYPE: Record<string, string> = {
@@ -193,13 +191,7 @@ export function emitStateMachine(
     case "snr":
       return genSnrSM(id, TF, tf, pInt(params, "lookback", 20), pInt(params, "expiryBars", 100));
     case "gap_snr":
-      return genGapSnrSM(
-        id,
-        TF,
-        tf,
-        pInt(params, "lookback", 20),
-        pInt(params, "expiryBars", 100),
-      );
+      return genGapSnrSM(id, TF, tf, pInt(params, "lookback", 20), pInt(params, "expiryBars", 100));
     case "breakout":
       return genBreakoutSM(
         id,

@@ -84,7 +84,13 @@ function buildEmaCtcFlow(text: string, config?: FourBrainConfig): StrategyFlowCo
       timeframe: tf,
       event: "EMA_BIAS",
       enabled: true,
-      params: { fastPeriod: fast, slowPeriod: slow, retestPoints, requireCross: true, repeatAfterConfirmation: repeat },
+      params: {
+        fastPeriod: fast,
+        slowPeriod: slow,
+        retestPoints,
+        requireCross: true,
+        repeatAfterConfirmation: repeat,
+      },
       directionSource: { mode: "own_event" },
     },
     {
@@ -95,7 +101,13 @@ function buildEmaCtcFlow(text: string, config?: FourBrainConfig): StrategyFlowCo
       timeframe: tf,
       event: "EMA_CROSS",
       enabled: true,
-      params: { fastPeriod: fast, slowPeriod: slow, retestPoints, requireCross: true, repeatAfterConfirmation: repeat },
+      params: {
+        fastPeriod: fast,
+        slowPeriod: slow,
+        retestPoints,
+        requireCross: true,
+        repeatAfterConfirmation: repeat,
+      },
       dependsOn: [{ stepId: "step_direction", relation: "after", required: true }],
       directionSource: { mode: "from_step", stepId: "step_direction" },
     },
@@ -107,7 +119,14 @@ function buildEmaCtcFlow(text: string, config?: FourBrainConfig): StrategyFlowCo
       timeframe: tf,
       event: "EMA_CLOSE_CONFIRMED",
       enabled: true,
-      params: { fastPeriod: fast, slowPeriod: slow, retestPoints, requireCross: true, repeatAfterConfirmation: repeat, expiryBars: 0 },
+      params: {
+        fastPeriod: fast,
+        slowPeriod: slow,
+        retestPoints,
+        requireCross: true,
+        repeatAfterConfirmation: repeat,
+        expiryBars: 0,
+      },
       dependsOn: [{ stepId: "step_setup", relation: "same_or_after", required: true }],
       directionSource: { mode: "from_step", stepId: "step_direction" },
       slSource: { mode: "event_sl", bufferPoints: 0 },
@@ -120,8 +139,7 @@ function buildEmaCtcFlow(text: string, config?: FourBrainConfig): StrategyFlowCo
     source: "blessed_adapter",
     steps,
     management: config?.management,
-    notes:
-      "Blessed EMA Cross-Test-Close sequence compiled as ordered Strategy Flow (Phase 4).",
+    notes: "Blessed EMA Cross-Test-Close sequence compiled as ordered Strategy Flow (Phase 4).",
   };
 }
 
@@ -130,7 +148,10 @@ function buildEmaIfvgFlow(text: string, config?: FourBrainConfig): StrategyFlowC
   const { fast, slow } = extractEmaPeriods(text, config);
   const retestTarget = extractEmaRetestTarget(text, fast, slow, config);
   const retestPoints = retestPointsFrom(text, config);
-  const expiryBars = numFrom(config?.setup?.params?.expiryBars ?? config?.execution?.params?.expiryBars, 100);
+  const expiryBars = numFrom(
+    config?.setup?.params?.expiryBars ?? config?.execution?.params?.expiryBars,
+    100,
+  );
 
   const steps: StrategyStepConfig[] = [
     {

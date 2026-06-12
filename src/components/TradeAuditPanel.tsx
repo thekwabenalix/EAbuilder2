@@ -11,7 +11,8 @@ import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardList, Shield } from "
 function roleTone(role: string): string {
   if (role === "direction") return "text-blue-400 border-blue-500/30 bg-blue-500/10";
   if (role === "setup") return "text-violet-400 border-violet-500/30 bg-violet-500/10";
-  if (role === "entry" || role === "confirmation") return "text-emerald-400 border-emerald-500/30 bg-emerald-500/10";
+  if (role === "entry" || role === "confirmation")
+    return "text-emerald-400 border-emerald-500/30 bg-emerald-500/10";
   return "text-muted-foreground border-border bg-muted/20";
 }
 
@@ -69,7 +70,9 @@ export function TradeAuditPanel({
       </div>
 
       <div className="space-y-2">
-        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Expected sequence</p>
+        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+          Expected sequence
+        </p>
         <div className="flex flex-wrap items-center gap-1.5">
           {expected.map((step, index) => (
             <div key={step.id} className="flex items-center gap-1.5">
@@ -125,7 +128,9 @@ export function TradeAuditPanel({
 
           {!compact && parsed.gateBlocks.length > 0 && (
             <div className="space-y-1.5">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Block reasons</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                Block reasons
+              </p>
               <div className="space-y-1">
                 {parsed.gateBlocks.slice(0, 6).map((block) => (
                   <div
@@ -145,28 +150,34 @@ export function TradeAuditPanel({
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
                 Recent trade chains (from log)
               </p>
-              {parsed.tradeChains.slice(-3).reverse().map((chain, idx) => (
-                <div
-                  key={`${chain.line}-${idx}`}
-                  className="rounded border border-emerald-500/20 bg-emerald-500/5 p-2.5 space-y-1"
-                >
-                  <div className="flex items-center gap-1.5 text-[11px] text-emerald-300">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    Trade opened — step chain satisfied
+              {parsed.tradeChains
+                .slice(-3)
+                .reverse()
+                .map((chain, idx) => (
+                  <div
+                    key={`${chain.line}-${idx}`}
+                    className="rounded border border-emerald-500/20 bg-emerald-500/5 p-2.5 space-y-1"
+                  >
+                    <div className="flex items-center gap-1.5 text-[11px] text-emerald-300">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Trade opened — step chain satisfied
+                    </div>
+                    {chain.steps.map((step) => (
+                      <p
+                        key={`${step.name}-${step.time}`}
+                        className="text-[10px] text-muted-foreground pl-5"
+                      >
+                        {step.name}: {step.direction} @ {step.time}
+                      </p>
+                    ))}
+                    {chain.entry && (
+                      <p className="text-[10px] font-mono text-foreground pl-5">
+                        {chain.entry.side} · lots {chain.entry.lots} · SL {chain.entry.sl} · TP{" "}
+                        {chain.entry.tp}
+                      </p>
+                    )}
                   </div>
-                  {chain.steps.map((step) => (
-                    <p key={`${step.name}-${step.time}`} className="text-[10px] text-muted-foreground pl-5">
-                      {step.name}: {step.direction} @ {step.time}
-                    </p>
-                  ))}
-                  {chain.entry && (
-                    <p className="text-[10px] font-mono text-foreground pl-5">
-                      {chain.entry.side} · lots {chain.entry.lots} · SL {chain.entry.sl} · TP{" "}
-                      {chain.entry.tp}
-                    </p>
-                  )}
-                </div>
-              ))}
+                ))}
             </div>
           )}
 

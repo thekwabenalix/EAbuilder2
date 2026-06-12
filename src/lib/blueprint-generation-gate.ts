@@ -5,14 +5,8 @@
  */
 
 import type { StrategyBlueprint, StrategyFlowConfig } from "@/types/blueprint";
-import {
-  blueprintContractErrors,
-  firstBlueprintContractError,
-} from "@/lib/blueprint-explanation";
-import {
-  fourBrainToStrategyFlow,
-  validateStrategyFlowSchema,
-} from "@/lib/strategy-flow";
+import { blueprintContractErrors, firstBlueprintContractError } from "@/lib/blueprint-explanation";
+import { fourBrainToStrategyFlow, validateStrategyFlowSchema } from "@/lib/strategy-flow";
 import { LEGACY_FLAT_RULES_MESSAGE } from "@/lib/ea-generation-policy";
 
 export interface BlueprintGenerationGateResult {

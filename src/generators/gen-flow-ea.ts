@@ -4,7 +4,12 @@
  * State machines are embedded via sm-embed-registry.ts (shared with gen-ea.ts).
  */
 
-import type { StrategyFlowConfig, StrategyStepConfig, FourBrainConfig, StrategyStepDependencyRelation } from "../types/blueprint";
+import type {
+  StrategyFlowConfig,
+  StrategyStepConfig,
+  FourBrainConfig,
+  StrategyStepDependencyRelation,
+} from "../types/blueprint";
 import type { BuiltinFilterRef } from "@/lib/builtin-filter-contracts";
 import {
   B4_FILTER_EXTRA_FUNCTIONS,
@@ -12,10 +17,7 @@ import {
   buildFlowEntryFilterChecks,
   flowNeedsFilterHelpers,
 } from "./gen-builtin-filters";
-import {
-  fourBrainToStrategyFlow,
-  validateStrategyFlowSchema,
-} from "../lib/strategy-flow";
+import { fourBrainToStrategyFlow, validateStrategyFlowSchema } from "../lib/strategy-flow";
 import { EaGenerationError } from "@/lib/blueprint-generation-gate";
 import {
   emitStateMachineForModule,
@@ -511,9 +513,7 @@ export function generateFlowEA(
         meta.type === "ema"
           ? emaFlowTickBias(steps, tf)
           : tickArgForSm(meta.type, s.params ?? {}, "flow_bar");
-      smTickByTf
-        .get(tfc)!
-        .push(`${prof.prefix}_${tf}_Tick(${tickArg});`);
+      smTickByTf.get(tfc)!.push(`${prof.prefix}_${tf}_Tick(${tickArg});`);
     }
   }
 

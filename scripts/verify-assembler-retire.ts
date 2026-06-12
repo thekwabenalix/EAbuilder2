@@ -2,7 +2,10 @@
  * Phase 4 — blessed patterns route through flow engine; assembler is deprecated.
  */
 import { buildBlessedAdapterWiring } from "../src/lib/blessed-ema-adapters";
-import { adaptBlessedWiringToFlow, blessedFlowSupportsAllSteps } from "../src/lib/blessed-flow-adapter";
+import {
+  adaptBlessedWiringToFlow,
+  blessedFlowSupportsAllSteps,
+} from "../src/lib/blessed-flow-adapter";
 import { BLUEPRINT_ASSEMBLER_DEPRECATION } from "../src/lib/ea-generation-policy";
 import { generateEaFromAiWiring } from "../src/lib/generate-ea-from-ai-wiring";
 import { generateEaFromBlueprint } from "../src/lib/generate-ea-router";
@@ -67,7 +70,10 @@ assertOk(blessedFlowSupportsAllSteps(ctcWiring, emaCtcPrompt), "EMA CTC blessed 
 const ctcGen = generateEaFromAiWiring(ctcBp, ctcWiring);
 assertEq(ctcGen.aiMode, "blessed_flow", "EMA CTC AI routes to blessed_flow");
 assertEq(ctcGen.path, "flow_engine", "EMA CTC compiles via flow engine");
-assertOk(ctcGen.code.includes("EMASM_M5_Tick(gDir[0])"), "EMA CTC flow ticks EMA SM with direction bias");
+assertOk(
+  ctcGen.code.includes("EMASM_M5_Tick(gDir[0])"),
+  "EMA CTC flow ticks EMA SM with direction bias",
+);
 
 const bosBp: StrategyBlueprint = {
   ...DEFAULT_BLUEPRINT,
@@ -82,6 +88,9 @@ const bosBp: StrategyBlueprint = {
 const bosResult = generateEaFromBlueprint(bosBp);
 assertEq(bosResult.path, "flow_engine", "standard BOS/FVG/BOS stays on flow engine");
 
-assertOk(BLUEPRINT_ASSEMBLER_DEPRECATION.includes("deprecated"), "assembler deprecation message defined");
+assertOk(
+  BLUEPRINT_ASSEMBLER_DEPRECATION.includes("deprecated"),
+  "assembler deprecation message defined",
+);
 
 console.log("\nAll Phase 4 assembler retire checks passed.\n");

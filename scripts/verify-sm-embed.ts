@@ -35,11 +35,7 @@ assertOk(viaModule.includes("void FVGSM_H1_Tick"), "FVG SM embedded");
 
 assertEq(smPrefixForType("ob"), "OBSM", "order_block type maps to OBSM");
 assertEq(SM_MODULE_META.order_block.type, "ob", "order_block module meta");
-assertEq(
-  tickArgForSm("bos", { lookback: 30 }, "flow_bar"),
-  "30",
-  "flow tick arg uses lookback",
-);
+assertEq(tickArgForSm("bos", { lookback: 30 }, "flow_bar"), "30", "flow tick arg uses lookback");
 assertEq(tickArgForSm("ema", {}, "assembler_brain"), "gBias", "assembler EMA tick uses gBias");
 
 const classicFlow = fourBrainToStrategyFlow({

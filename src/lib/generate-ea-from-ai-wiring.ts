@@ -3,10 +3,7 @@
  */
 
 import type { AiBrainWiring } from "@/lib/api-client";
-import {
-  aiWiringHasStrategyFlow,
-  mergeAiFlowIntoBlueprint,
-} from "@/lib/ai-strategy-flow";
+import { aiWiringHasStrategyFlow, mergeAiFlowIntoBlueprint } from "@/lib/ai-strategy-flow";
 import { adaptBlessedWiringToFlow } from "@/lib/blessed-flow-adapter";
 import { BLUEPRINT_ASSEMBLER_DEPRECATION } from "@/lib/ea-generation-policy";
 import {

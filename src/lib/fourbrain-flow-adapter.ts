@@ -53,9 +53,7 @@ function stepLabel(
 
 function resolveEvent(moduleId: string, role: StrategyStepRole): StrategyEventType {
   return (
-    firstEventForRole(moduleId, role) ??
-    firstEventForRole(moduleId, "entry") ??
-    "BOS_CONFIRMED"
+    firstEventForRole(moduleId, role) ?? firstEventForRole(moduleId, "entry") ?? "BOS_CONFIRMED"
   );
 }
 
@@ -88,8 +86,9 @@ function expandBrainToSteps(
   priorBrainAnchor: StrategyStepConfig[],
   directionAnchor: StrategyStepConfig | undefined,
 ): StrategyStepConfig[] {
-  const modules: Array<BrainModuleType | string> =
-    config.modules?.length ? [...config.modules] : ["custom"];
+  const modules: Array<BrainModuleType | string> = config.modules?.length
+    ? [...config.modules]
+    : ["custom"];
   const role = stepRoleForBrain(brain);
   const total = modules.length;
 
@@ -164,7 +163,12 @@ export function fourBrainToStrategyFlow(config: FourBrainConfig): StrategyFlowCo
     priorAnchor = downstreamAnchorSteps(setupSteps);
   }
 
-  const entrySteps = expandBrainToSteps("execution", config.execution, priorAnchor, directionAnchor);
+  const entrySteps = expandBrainToSteps(
+    "execution",
+    config.execution,
+    priorAnchor,
+    directionAnchor,
+  );
   steps.push(...entrySteps);
 
   return {

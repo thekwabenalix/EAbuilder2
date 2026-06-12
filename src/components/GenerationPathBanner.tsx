@@ -19,10 +19,7 @@ function pathTone(path: EaGenerationPath): string {
 }
 
 export function GenerationPathBanner({ blueprint }: { blueprint: StrategyBlueprint | null }) {
-  const preview = useMemo(
-    () => (blueprint ? previewEaGeneration(blueprint) : null),
-    [blueprint],
-  );
+  const preview = useMemo(() => (blueprint ? previewEaGeneration(blueprint) : null), [blueprint]);
 
   if (!blueprint?.fourBrain) {
     return (

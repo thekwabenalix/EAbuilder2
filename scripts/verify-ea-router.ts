@@ -1,7 +1,11 @@
 /**
  * Phase 1 — single generate router checks (flow vs blueprint vs legacy).
  */
-import { generateEaFromBlueprint, previewEaGeneration, resolveStrategyFlow } from "../src/lib/generate-ea-router";
+import {
+  generateEaFromBlueprint,
+  previewEaGeneration,
+  resolveStrategyFlow,
+} from "../src/lib/generate-ea-router";
 import { flowEaSupportsAllSteps } from "../src/generators/gen-flow-ea";
 import { configUsesLegacyHeuristics } from "../src/generators/gen-blueprint-wiring";
 import type { StrategyBlueprint } from "../src/types/blueprint";

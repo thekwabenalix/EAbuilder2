@@ -180,7 +180,14 @@ function StepCard({
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={onMoveUp} disabled={index === 0}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={onMoveUp}
+            disabled={index === 0}
+          >
             <ArrowUp className="h-3.5 w-3.5" />
           </Button>
           <Button
@@ -223,7 +230,9 @@ function StepCard({
           </Select>
         </div>
         <div className="space-y-1">
-          <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Module</Label>
+          <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">
+            Module
+          </Label>
           <Select value={step.module} onValueChange={(v) => setModule(v as BrainModuleType)}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
@@ -258,7 +267,9 @@ function StepCard({
       </div>
 
       <div className="space-y-1">
-        <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Timeframe</Label>
+        <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">
+          Timeframe
+        </Label>
         <TfPicker
           value={step.timeframe}
           onChange={(tf) => onChange(withSyncedName({ ...step, timeframe: tf }))}
@@ -268,7 +279,10 @@ function StepCard({
       <div className="space-y-1">
         <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Event</Label>
         {eventOptions.length > 0 ? (
-          <Select value={step.event} onValueChange={(v) => onChange({ ...step, event: v as typeof step.event })}>
+          <Select
+            value={step.event}
+            onValueChange={(v) => onChange({ ...step, event: v as typeof step.event })}
+          >
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
@@ -348,7 +362,8 @@ export function StrategyFlowBuilder({
         </div>
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           Each step is a verified module event. Steps run in order — a trade fires only when every
-          step in the chain has occurred (with timestamps). Add as many steps as your strategy needs.
+          step in the chain has occurred (with timestamps). Add as many steps as your strategy
+          needs.
         </p>
       </div>
 

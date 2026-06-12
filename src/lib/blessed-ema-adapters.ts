@@ -16,7 +16,10 @@ function numFrom(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
-export function extractEmaPeriods(text: string, config?: FourBrainConfig): { fast: number; slow: number } {
+export function extractEmaPeriods(
+  text: string,
+  config?: FourBrainConfig,
+): { fast: number; slow: number } {
   const params = {
     ...(config?.direction?.params ?? {}),
     ...(config?.setup?.params ?? {}),
@@ -257,13 +260,16 @@ export function isEmaTestThenIfvgFormation(text: string, config?: FourBrainConfi
     /\bifvg\b/.test(hay) ||
     /inversion\s+fair\s+value\s+gap/.test(hay) ||
     modules.includes("fvg_inversion");
-  const hasEmaTest = /(ema|moving average).{0,120}(?:test|touch|retest|tap)|(?:test|touch|retest|tap).{0,120}(?:ema|moving average)/.test(
-    hay,
-  );
-  const hasAfterGate = /(after|only after|ignore.{0,40}before|must.{0,80}before|once.{0,60}after|following)/.test(hay);
+  const hasEmaTest =
+    /(ema|moving average).{0,120}(?:test|touch|retest|tap)|(?:test|touch|retest|tap).{0,120}(?:ema|moving average)/.test(
+      hay,
+    );
+  const hasAfterGate =
+    /(after|only after|ignore.{0,40}before|must.{0,80}before|once.{0,60}after|following)/.test(hay);
   const hasFormationEntry =
-    /(forms?|formation|becomes?|inverts?|inversion|inverted|closes?\s+(?:above|below).{0,80}(?:boundary|fvg|gap)|ifvg.{0,40}(?:forms?|becomes?|inverts?|inverted))/.
-      test(hay);
+    /(forms?|formation|becomes?|inverts?|inversion|inverted|closes?\s+(?:above|below).{0,80}(?:boundary|fvg|gap)|ifvg.{0,40}(?:forms?|becomes?|inverts?|inverted))/.test(
+      hay,
+    );
 
   return hasEma && hasIfvg && hasEmaTest && hasAfterGate && hasFormationEntry;
 }
@@ -280,8 +286,12 @@ export function isEmaCrossTestClose(text: string, config?: FourBrainConfig): boo
   const hasTest = /\b(?:test|retest|touch|tap|penetrat|retrac)\b/.test(hay);
   const hasClose =
     /\bctc\b|\bcross[-\s]*test[-\s]*close\b/.test(hay) ||
-    /\b(?:close|closes|closed|closing)\b.{0,120}\b(?:ema|trend direction|confirmation|confirms?)\b/.test(hay) ||
-    /\b(?:after|following)\b.{0,80}\b(?:test|retest|touch|tap)\b.{0,120}\b(?:close|closes|closed|closing)\b/.test(hay);
+    /\b(?:close|closes|closed|closing)\b.{0,120}\b(?:ema|trend direction|confirmation|confirms?)\b/.test(
+      hay,
+    ) ||
+    /\b(?:after|following)\b.{0,80}\b(?:test|retest|touch|tap)\b.{0,120}\b(?:close|closes|closed|closing)\b/.test(
+      hay,
+    );
   const hasIfvg = /\bifvg\b|inversion\s+fair\s+value\s+gap/.test(hay);
   return hasEma && hasCross && hasTest && hasClose && !hasIfvg;
 }
@@ -409,7 +419,7 @@ void Direction_Brain_Execute() {
     },
     notes: `Deterministic adapter: ${fast}/${slow} EMA cross on ${tf} sets direction, the EMA test target is ${retestLabel}, and only iFVG formations after that EMA-test timestamp can trigger entries. The EA uses the verified IFVGSM_${tf} state machine and fires on BullJustInverted/BearJustInverted, not on iFVG retest confirmation.`,
   };
-  return response
+  return response;
 }
 
 export function buildEmaCrossTestCloseWiring(
@@ -506,7 +516,7 @@ export function buildEmaCrossTestCloseWiring(
     },
     notes: `Deterministic CTC adapter: ${fast}/${slow} EMA on ${tf} uses the verified EMASM_${tf} state machine. ${repeatNote} The assembler enters on the current new bar, which is the next candle open after confirmation.`,
   };
-  return response
+  return response;
 }
 export type BlessedAdapterId = "ema_ifvg" | "ema_ctc";
 
@@ -519,7 +529,9 @@ export function detectBlessedAdapterId(
   return null;
 }
 
-export function isBlessedAdapterWiring(wiring: Pick<AiBrainWiring, "semantics" | "notes">): boolean {
+export function isBlessedAdapterWiring(
+  wiring: Pick<AiBrainWiring, "semantics" | "notes">,
+): boolean {
   if (wiring.semantics?.source === "deterministic_adapter") return true;
   return Boolean(wiring.notes?.includes("Deterministic adapter:"));
 }

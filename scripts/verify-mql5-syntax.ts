@@ -12,10 +12,7 @@ import { buildBlessedAdapterWiring } from "../src/lib/blessed-ema-adapters";
 import { generateEaFromAiWiring } from "../src/lib/generate-ea-from-ai-wiring";
 import { formatLintFailures, lintExpertAdvisor, lintMql5 } from "../src/lib/mql5-static-lint";
 import { generateEaFromBlueprint } from "../src/lib/generate-ea-router";
-import {
-  GOLDEN_SEQUENCE_CASES,
-  goldenSequenceBlueprint,
-} from "../src/lib/golden-sequences";
+import { GOLDEN_SEQUENCE_CASES, goldenSequenceBlueprint } from "../src/lib/golden-sequences";
 import { DEFAULT_BLUEPRINT } from "../src/types/blueprint";
 import type { StrategyBlueprint } from "../src/types/blueprint";
 
@@ -62,14 +59,22 @@ Only after that EMA test, watch for an iFVG to form. Enter when the iFVG inverts
   const emaCtcPrompt =
     "M5 EMA cross test close: 12/48 EMA cross, slow EMA retest, then close back beyond fast EMA for entry.";
 
-  const cases: Array<{ file: string; bp: StrategyBlueprint; wiring: ReturnType<typeof buildBlessedAdapterWiring> }> = [
+  const cases: Array<{
+    file: string;
+    bp: StrategyBlueprint;
+    wiring: ReturnType<typeof buildBlessedAdapterWiring>;
+  }> = [
     {
       file: "BLESSED_EMA_IFVG_FLOW.mq5",
       bp: {
         ...DEFAULT_BLUEPRINT,
         name: "Blessed EMA IFVG Flow",
         fourBrain: {
-          direction: { modules: ["ema"], timeframe: "M5", params: { fastPeriod: 12, slowPeriod: 48 } },
+          direction: {
+            modules: ["ema"],
+            timeframe: "M5",
+            params: { fastPeriod: 12, slowPeriod: 48 },
+          },
           setup: { modules: ["fvg_inversion"], timeframe: "M5", params: { expiryBars: 100 } },
           execution: { modules: ["fvg_inversion"], timeframe: "M5", params: {} },
           management: { riskPercent: 1, rewardRisk: 2, maxOpenTrades: 1 },
@@ -83,7 +88,11 @@ Only after that EMA test, watch for an iFVG to form. Enter when the iFVG inverts
         ...DEFAULT_BLUEPRINT,
         name: "Blessed EMA CTC Flow",
         fourBrain: {
-          direction: { modules: ["ema"], timeframe: "M5", params: { fastPeriod: 12, slowPeriod: 48 } },
+          direction: {
+            modules: ["ema"],
+            timeframe: "M5",
+            params: { fastPeriod: 12, slowPeriod: 48 },
+          },
           setup: { modules: ["ema"], timeframe: "M5", params: {} },
           execution: { modules: ["ema"], timeframe: "M5", params: {} },
           management: { riskPercent: 1, rewardRisk: 2, maxOpenTrades: 1 },
@@ -113,7 +122,8 @@ assertOk(files.length > 0, `No .mq5 fixtures under ${MQL5_ROOT} — run npm run 
 const results = files.map((filePath) => {
   const rel = filePath.slice(MQL5_ROOT.length + 1).replace(/\\/g, "/");
   const code = readFileSync(filePath, "utf8");
-  const isHarness = rel.includes("_TEST_") || rel.includes("Detector") || rel.includes("State_Module");
+  const isHarness =
+    rel.includes("_TEST_") || rel.includes("Detector") || rel.includes("State_Module");
   const isExpert =
     !isHarness &&
     (rel.startsWith("golden/") ||
@@ -141,4 +151,6 @@ if (failed.length > 0) {
   process.exit(1);
 }
 
-console.log(`\n${results.length} MQL5 fixture(s) passed static syntax gate (${goldenCount} golden).\n`);
+console.log(
+  `\n${results.length} MQL5 fixture(s) passed static syntax gate (${goldenCount} golden).\n`,
+);

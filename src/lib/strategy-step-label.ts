@@ -27,8 +27,7 @@ function roleLabel(role: StrategyStepRole): string {
 }
 
 /** Auto-generated names start with a role label — used to resync stale titles on edit. */
-export const AUTO_STEP_NAME_PREFIX =
-  /^(Context|Direction|Setup|Entry|Confirmation|Filter|Risk)\s/;
+export const AUTO_STEP_NAME_PREFIX = /^(Context|Direction|Setup|Entry|Confirmation|Filter|Risk)\s/;
 
 export function formatStepDisplayName(
   moduleId: string,

@@ -13,10 +13,7 @@ import type { StrategyBlueprint } from "@/types/blueprint";
 import { configUsesLegacyHeuristics } from "@/generators/gen-blueprint-wiring";
 import { generateEA } from "@/generators/gen-ea";
 import type { MQL5CodeGenParams } from "@/types/blueprint";
-import {
-  flowEaSupportsAllSteps,
-  generateFlowEA,
-} from "@/generators/gen-flow-ea";
+import { flowEaSupportsAllSteps, generateFlowEA } from "@/generators/gen-flow-ea";
 import type { StrategyFlowConfig } from "@/types/blueprint";
 import {
   assertBlueprintGeneratable,

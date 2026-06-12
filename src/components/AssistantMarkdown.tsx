@@ -13,9 +13,7 @@ const components: Components = {
       {children}
     </h2>
   ),
-  h3: ({ children }) => (
-    <h3 className="text-xs font-bold mt-3 mb-1.5 text-primary">{children}</h3>
-  ),
+  h3: ({ children }) => <h3 className="text-xs font-bold mt-3 mb-1.5 text-primary">{children}</h3>,
   p: ({ children }) => <p className="my-1.5 leading-relaxed">{children}</p>,
   strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
   em: ({ children }) => <em className="italic text-foreground/90">{children}</em>,

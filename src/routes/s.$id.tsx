@@ -60,10 +60,7 @@ import {
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EaChatDrawer, type EaAssistantAction } from "@/components/EaChatDrawer";
-import {
-  resolveFlowBacktestPeriod,
-  type AssistantApplyFix,
-} from "@/lib/assistant-apply";
+import { resolveFlowBacktestPeriod, type AssistantApplyFix } from "@/lib/assistant-apply";
 import { toast } from "sonner";
 import {
   buildExportFilename,
@@ -1236,9 +1233,7 @@ function FourBrainTab({
           (s) => s.enabled !== false && (s.role === "entry" || s.role === "confirmation"),
         )
       : execution.modules.length > 0 && execution.timeframe;
-  const [aiWiring] = useState<AiWiringInsightData | null>(
-    blueprint.aiWiringDiagnostics ?? null,
-  );
+  const [aiWiring] = useState<AiWiringInsightData | null>(blueprint.aiWiringDiagnostics ?? null);
 
   return (
     <div className="max-w-3xl space-y-5 pb-24">
@@ -1288,8 +1283,8 @@ function FourBrainTab({
           <Label className="text-xs font-semibold text-amber-400">Strategy Rules</Label>
           <p className="text-[11px] text-muted-foreground mt-0.5">
             Describe conditions that apply across the whole strategy — max SL distance, invalidation
-            rules, required sequences (e.g. "must retest EMA before entry"), session filters. The
-            AI assistant reads these when helping you debug or refine the strategy.
+            rules, required sequences (e.g. "must retest EMA before entry"), session filters. The AI
+            assistant reads these when helping you debug or refine the strategy.
           </p>
         </div>
         <textarea
@@ -1339,41 +1334,42 @@ function FourBrainTab({
               Import from 4-Brain preset
             </Button>
           </div>
-          <StrategyFlowBuilder
-            flow={flowConfig}
-            onChange={(next) => setFlowConfig(next)}
-          />
+          <StrategyFlowBuilder flow={flowConfig} onChange={(next) => setFlowConfig(next)} />
         </>
       ) : (
         <>
-      {/* Direction brain */}
-      <BrainCard
-        role="direction"
-        config={direction ?? { modules: [], timeframe: "D1" }}
-        enabled={Boolean(direction)}
-        optional={true}
-        onToggle={(on) => setDirection(on ? { modules: ["choch"], timeframe: "D1" } : undefined)}
-        onChange={setDirection}
-      />
+          {/* Direction brain */}
+          <BrainCard
+            role="direction"
+            config={direction ?? { modules: [], timeframe: "D1" }}
+            enabled={Boolean(direction)}
+            optional={true}
+            onToggle={(on) =>
+              setDirection(on ? { modules: ["choch"], timeframe: "D1" } : undefined)
+            }
+            onChange={setDirection}
+          />
 
-      {/* Setup brain */}
-      <BrainCard
-        role="setup"
-        config={setup ?? { modules: [], timeframe: "H4" }}
-        enabled={Boolean(setup)}
-        optional={true}
-        onToggle={(on) => setSetup(on ? { modules: ["order_block"], timeframe: "H4" } : undefined)}
-        onChange={setSetup}
-      />
+          {/* Setup brain */}
+          <BrainCard
+            role="setup"
+            config={setup ?? { modules: [], timeframe: "H4" }}
+            enabled={Boolean(setup)}
+            optional={true}
+            onToggle={(on) =>
+              setSetup(on ? { modules: ["order_block"], timeframe: "H4" } : undefined)
+            }
+            onChange={setSetup}
+          />
 
-      {/* Execution brain — always on */}
-      <BrainCard
-        role="execution"
-        config={execution}
-        enabled={true}
-        optional={false}
-        onChange={setExecution}
-      />
+          {/* Execution brain — always on */}
+          <BrainCard
+            role="execution"
+            config={execution}
+            enabled={true}
+            optional={false}
+            onChange={setExecution}
+          />
         </>
       )}
 
@@ -1493,7 +1489,8 @@ function FourBrainTab({
       <div className="fixed bottom-0 left-0 right-0 md:left-56 z-20 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 sm:px-6 py-3">
         <div className="max-w-3xl mx-auto flex flex-col sm:flex-row sm:items-center gap-3">
           <p className="text-[11px] text-muted-foreground flex-1 hidden sm:block">
-            Compiles verified modules into a self-contained EA. Use the Assistant to debug backtests.
+            Compiles verified modules into a self-contained EA. Use the Assistant to debug
+            backtests.
           </p>
           <Button
             size="lg"
@@ -1588,9 +1585,7 @@ function CodeTab({
   const [compiling, setCompiling] = useState(false);
   const [copied, setCopied] = useState(false);
   const [compileLog, setCompileLog] = useState<string | null>(null);
-  const [aiWiring] = useState<AiWiringInsightData | null>(
-    blueprint.aiWiringDiagnostics ?? null,
-  );
+  const [aiWiring] = useState<AiWiringInsightData | null>(blueprint.aiWiringDiagnostics ?? null);
   const generationGate = validateBlueprintForGeneration(blueprint);
   const generationError = generationGate.ok ? undefined : generationGate.errors[0];
 

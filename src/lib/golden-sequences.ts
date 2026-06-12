@@ -50,7 +50,13 @@ export const GOLDEN_SEQUENCE_CASES: GoldenSequenceCase[] = [
     },
     expectedPath: "flow_engine",
     steps: [
-      { id: "step_direction", role: "direction", module: "bos", timeframe: "H1", event: "BOS_BIAS" },
+      {
+        id: "step_direction",
+        role: "direction",
+        module: "bos",
+        timeframe: "H1",
+        event: "BOS_BIAS",
+      },
       {
         id: "step_setup",
         role: "setup",
@@ -137,7 +143,13 @@ export const GOLDEN_SEQUENCE_CASES: GoldenSequenceCase[] = [
     },
     expectedPath: "flow_engine",
     steps: [
-      { id: "step_direction", role: "direction", module: "bos", timeframe: "D1", event: "BOS_BIAS" },
+      {
+        id: "step_direction",
+        role: "direction",
+        module: "bos",
+        timeframe: "D1",
+        event: "BOS_BIAS",
+      },
       {
         id: "step_setup",
         role: "setup",
@@ -155,7 +167,12 @@ export const GOLDEN_SEQUENCE_CASES: GoldenSequenceCase[] = [
         dependsOn: ["step_setup"],
       },
     ],
-    codeMarkers: ["void BOSSM_D1_Tick", "void OBSM_H4_Tick", "void EGSM_M5_Tick", "EvaluateEntry_2"],
+    codeMarkers: [
+      "void BOSSM_D1_Tick",
+      "void OBSM_H4_Tick",
+      "void EGSM_M5_Tick",
+      "EvaluateEntry_2",
+    ],
     emitFile: "GOLDEN_BOS_OB_ENG.mq5",
   },
   {
@@ -165,12 +182,22 @@ export const GOLDEN_SEQUENCE_CASES: GoldenSequenceCase[] = [
     fourBrain: {
       direction: { modules: ["ema"], timeframe: "M15", params: { fastPeriod: 12, slowPeriod: 48 } },
       setup: { modules: ["snr"], timeframe: "M15", params: { lookback: 20, expiryBars: 100 } },
-      execution: { modules: ["rsi_hd"], timeframe: "M5", params: { rsiPeriod: 14, expiryBars: 60 } },
+      execution: {
+        modules: ["rsi_hd"],
+        timeframe: "M5",
+        params: { rsiPeriod: 14, expiryBars: 60 },
+      },
       management: { ...mgmt, rewardRisk: 2 },
     },
     expectedPath: "flow_engine",
     steps: [
-      { id: "step_direction", role: "direction", module: "ema", timeframe: "M15", event: "EMA_BIAS" },
+      {
+        id: "step_direction",
+        role: "direction",
+        module: "ema",
+        timeframe: "M15",
+        event: "EMA_BIAS",
+      },
       {
         id: "step_setup",
         role: "setup",
@@ -208,7 +235,13 @@ export const GOLDEN_SEQUENCE_CASES: GoldenSequenceCase[] = [
     },
     expectedPath: "flow_engine",
     steps: [
-      { id: "step_direction", role: "direction", module: "bos", timeframe: "H1", event: "BOS_BIAS" },
+      {
+        id: "step_direction",
+        role: "direction",
+        module: "bos",
+        timeframe: "H1",
+        event: "BOS_BIAS",
+      },
       {
         id: "step_entry",
         role: "entry",
@@ -233,7 +266,13 @@ export const GOLDEN_SEQUENCE_CASES: GoldenSequenceCase[] = [
     },
     expectedPath: "flow_engine",
     steps: [
-      { id: "step_direction", role: "direction", module: "bos", timeframe: "H1", event: "BOS_BIAS" },
+      {
+        id: "step_direction",
+        role: "direction",
+        module: "bos",
+        timeframe: "H1",
+        event: "BOS_BIAS",
+      },
       {
         id: "step_setup",
         role: "setup",
@@ -268,12 +307,22 @@ export const GOLDEN_SEQUENCE_CASES: GoldenSequenceCase[] = [
     description: "Reactive SNR family without direction brain.",
     fourBrain: {
       setup: { modules: ["gap_snr"], timeframe: "H4", params: { lookback: 70, expiryBars: 100 } },
-      execution: { modules: ["rejection"], timeframe: "M5", params: { lookback: 25, expiryBars: 150 } },
+      execution: {
+        modules: ["rejection"],
+        timeframe: "M5",
+        params: { lookback: 25, expiryBars: 150 },
+      },
       management: { ...mgmt, rewardRisk: 2 },
     },
     expectedPath: "flow_engine",
     steps: [
-      { id: "step_setup", role: "setup", module: "gap_snr", timeframe: "H4", event: "GAP_SNR_TOUCH" },
+      {
+        id: "step_setup",
+        role: "setup",
+        module: "gap_snr",
+        timeframe: "H4",
+        event: "GAP_SNR_TOUCH",
+      },
       {
         id: "step_entry",
         role: "entry",
@@ -327,7 +376,13 @@ export const GOLDEN_SEQUENCE_CASES: GoldenSequenceCase[] = [
     },
     expectedPath: "legacy_heuristic",
     steps: [
-      { id: "step_direction", role: "direction", module: "bos", timeframe: "H1", event: "BOS_BIAS" },
+      {
+        id: "step_direction",
+        role: "direction",
+        module: "bos",
+        timeframe: "H1",
+        event: "BOS_BIAS",
+      },
       {
         id: "step_entry",
         role: "entry",

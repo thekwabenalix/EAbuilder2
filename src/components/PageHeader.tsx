@@ -19,14 +19,10 @@ export function PageHeader({
           <h1 className="text-lg font-semibold tracking-tight truncate">{title}</h1>
           {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
         </div>
-        {actions && (
-          <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>
-        )}
+        {actions && <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>}
       </div>
       {below && (
-        <div className="px-4 sm:px-6 pb-3 pt-0 border-t border-border/50 bg-muted/10">
-          {below}
-        </div>
+        <div className="px-4 sm:px-6 pb-3 pt-0 border-t border-border/50 bg-muted/10">{below}</div>
       )}
     </div>
   );

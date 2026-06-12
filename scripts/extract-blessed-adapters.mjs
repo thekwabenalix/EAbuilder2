@@ -61,10 +61,12 @@ function sliceBuilder(name) {
     if (src[i] === "}") {
       depth--;
       if (depth === 0) {
-        return src.slice(start, i + 1).replace(
-          /  applyBuiltinFilters\(response, text(?:, filterRefs)?\);\n  response\.validation = validateWiringAgainstSemantics\(response\);\n  return response;/,
-          "  return response",
-        );
+        return src
+          .slice(start, i + 1)
+          .replace(
+            /  applyBuiltinFilters\(response, text(?:, filterRefs)?\);\n  response\.validation = validateWiringAgainstSemantics\(response\);\n  return response;/,
+            "  return response",
+          );
       }
     }
   }

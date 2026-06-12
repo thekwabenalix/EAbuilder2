@@ -94,9 +94,7 @@ function resolveEvent(moduleId: string, role: StrategyStepRole, raw?: string): S
   const event = (raw ?? "").trim();
   if (event) return event as StrategyEventType;
   return (
-    firstEventForRole(moduleId, role) ??
-    firstEventForRole(moduleId, "entry") ??
-    "BOS_CONFIRMED"
+    firstEventForRole(moduleId, role) ?? firstEventForRole(moduleId, "entry") ?? "BOS_CONFIRMED"
   );
 }
 
@@ -155,9 +153,7 @@ function normalizeAiStep(
 function inferMissingDependencies(steps: StrategyStepConfig[]): void {
   const directionSteps = steps.filter((s) => s.role === "direction");
   const setupSteps = steps.filter((s) => s.role === "setup");
-  const entrySteps = steps.filter(
-    (s) => s.role === "entry" || s.role === "confirmation",
-  );
+  const entrySteps = steps.filter((s) => s.role === "entry" || s.role === "confirmation");
 
   const dep = (stepId: string): StrategyStepDependency => ({
     stepId,
@@ -273,10 +269,7 @@ export function validateAiStrategyFlowWiring(
   warnings.push(...schema.warnings);
 
   const modules = [
-    ...new Set([
-      ...(wiring.semantics?.modules ?? []),
-      ...flow.steps.map((s) => s.module),
-    ]),
+    ...new Set([...(wiring.semantics?.modules ?? []), ...flow.steps.map((s) => s.module)]),
   ];
   const unsafe = findUnsafeAiModules(modules);
   if (unsafe.length) {

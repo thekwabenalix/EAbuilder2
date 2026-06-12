@@ -1,8 +1,5 @@
 import { toast } from "sonner";
-import {
-  generationPathLabel,
-  type GenerateEaFromBlueprintResult,
-} from "@/lib/generate-ea-router";
+import { generationPathLabel, type GenerateEaFromBlueprintResult } from "@/lib/generate-ea-router";
 
 /** Success toast for unified blueprint generation — shows compiler path + warnings. */
 export function toastEaGenerationSuccess(

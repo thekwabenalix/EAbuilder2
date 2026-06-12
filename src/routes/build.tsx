@@ -860,7 +860,11 @@ function FourBrainBuilderPage() {
       navigate({ to: "/s/$id", params: { id: row.id } });
     } catch (e: unknown) {
       toast.error(
-        e instanceof EaGenerationError ? e.message : e instanceof Error ? e.message : "Failed to create strategy",
+        e instanceof EaGenerationError
+          ? e.message
+          : e instanceof Error
+            ? e.message
+            : "Failed to create strategy",
       );
     } finally {
       setSaving(false);
@@ -900,17 +904,16 @@ function FourBrainBuilderPage() {
       );
       if (!entryStep) return null;
 
-      const fourBrain: FourBrainConfig =
-        buildFourBrainConfig() ?? {
-          execution: {
-            modules: [entryStep.module as BrainModuleType],
-            timeframe: entryStep.timeframe,
-            params: entryStep.params ?? {},
-          },
-          management: buildManagementConfig(),
-        };
+      const fourBrain: FourBrainConfig = buildFourBrainConfig() ?? {
+        execution: {
+          modules: [entryStep.module as BrainModuleType],
+          timeframe: entryStep.timeframe,
+          params: entryStep.params ?? {},
+        },
+        management: buildManagementConfig(),
+      };
 
-      let bp = {
+      const bp = {
         ...DEFAULT_BLUEPRINT,
         name: nameFromFlowSteps(flowConfig.steps),
         fourBrain,
@@ -1083,50 +1086,50 @@ function FourBrainBuilderPage() {
           </div>
         ) : (
           <>
-        {/* ── Brain flow ── */}
-        <div>
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">
-            Configure each brain
-          </p>
-          <div className="flex items-stretch gap-0 flex-col lg:flex-row">
-            <BrainCard
-              role="direction"
-              icon={Brain}
-              title="Direction Brain"
-              color="bg-violet-500"
-              state={direction}
-              onChange={setDirection}
-              onClear={() => setDirection(undefined)}
-              optional
-              recommendBelow={setup?.timeframe ?? execution?.timeframe}
-            />
-            <Arrow active={Boolean(direction?.modules?.[0])} />
-            <BrainCard
-              role="setup"
-              icon={Target}
-              title="Setup Brain"
-              color="bg-amber-500"
-              state={setup}
-              onChange={setSetup}
-              onClear={() => setSetup(undefined)}
-              optional
-              recommendAbove={direction?.timeframe}
-              recommendBelow={execution?.timeframe}
-            />
-            <Arrow active={Boolean(setup?.modules?.[0])} />
-            <BrainCard
-              role="execution"
-              icon={Crosshair}
-              title="Execution Brain"
-              color="bg-emerald-500"
-              state={execution}
-              onChange={setExecution}
-              onClear={() => {}}
-              optional={false}
-              recommendAbove={setup?.timeframe ?? direction?.timeframe}
-            />
-          </div>
-        </div>
+            {/* ── Brain flow ── */}
+            <div>
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">
+                Configure each brain
+              </p>
+              <div className="flex items-stretch gap-0 flex-col lg:flex-row">
+                <BrainCard
+                  role="direction"
+                  icon={Brain}
+                  title="Direction Brain"
+                  color="bg-violet-500"
+                  state={direction}
+                  onChange={setDirection}
+                  onClear={() => setDirection(undefined)}
+                  optional
+                  recommendBelow={setup?.timeframe ?? execution?.timeframe}
+                />
+                <Arrow active={Boolean(direction?.modules?.[0])} />
+                <BrainCard
+                  role="setup"
+                  icon={Target}
+                  title="Setup Brain"
+                  color="bg-amber-500"
+                  state={setup}
+                  onChange={setSetup}
+                  onClear={() => setSetup(undefined)}
+                  optional
+                  recommendAbove={direction?.timeframe}
+                  recommendBelow={execution?.timeframe}
+                />
+                <Arrow active={Boolean(setup?.modules?.[0])} />
+                <BrainCard
+                  role="execution"
+                  icon={Crosshair}
+                  title="Execution Brain"
+                  color="bg-emerald-500"
+                  state={execution}
+                  onChange={setExecution}
+                  onClear={() => {}}
+                  optional={false}
+                  recommendAbove={setup?.timeframe ?? direction?.timeframe}
+                />
+              </div>
+            </div>
           </>
         )}
 

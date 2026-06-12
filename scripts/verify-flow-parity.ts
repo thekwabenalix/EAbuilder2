@@ -44,7 +44,10 @@ const filters: StrategyBlueprint["filterRefs"] = [
 
 const withFilters = generateFlowEA(flow, "FilterTest", filters);
 assertOk(withFilters.includes("B4_RSI"), "flow EA embeds RSI helper for filters");
-assertOk(withFilters.includes("rsi_level_filter blocked at entry"), "flow EA runs filter at entry gate");
+assertOk(
+  withFilters.includes("rsi_level_filter blocked at entry"),
+  "flow EA runs filter at entry gate",
+);
 assertOk(withFilters.includes("[FILTER]"), "flow EA emits filter log marker");
 console.log("[OK  ] built-in filters in flow engine");
 
@@ -79,7 +82,12 @@ assertOk(!isFlowVerifiedModule("bb"), "bb excluded from advanced flow picker");
 assertOk(isFlowVerifiedModule("engulfing"), "engulfing is flow verified");
 console.log("[OK  ] legacy heuristic modules gated from flow picker");
 
-function assertOnTickOrder(code: string, directionIdx: number, setupIdx: number, smTickNeedle: string): void {
+function assertOnTickOrder(
+  code: string,
+  directionIdx: number,
+  setupIdx: number,
+  smTickNeedle: string,
+): void {
   const onTickStart = code.indexOf("void OnTick()");
   assertOk(onTickStart >= 0, "OnTick handler present");
   const onTickBody = code.slice(onTickStart);
@@ -191,10 +199,22 @@ const emaSameTfFlow = {
   ],
 };
 const emaSameTfCode = generateFlowEA(emaSameTfFlow, "EmaSameTfTickOrderTest");
-assertOk(emaSameTfCode.includes("EMASM_M15_Tick(gDir[0])"), "same-TF EMA chain uses direction gDir for tick");
-assertOk(emaSameTfCode.includes("InpSetupExpiryBars = 0"), "EMA flow disables setup expiry by default");
-assertOk(emaSameTfCode.includes("InpSetupExpiryBars > 0 &&"), "setup expiry gate skipped when expiry bars is 0");
-assertOk(!emaSameTfCode.includes("cl < s1"), "slow EMA close-through does not invalidate bull setup");
+assertOk(
+  emaSameTfCode.includes("EMASM_M15_Tick(gDir[0])"),
+  "same-TF EMA chain uses direction gDir for tick",
+);
+assertOk(
+  emaSameTfCode.includes("InpSetupExpiryBars = 0"),
+  "EMA flow disables setup expiry by default",
+);
+assertOk(
+  emaSameTfCode.includes("InpSetupExpiryBars > 0 &&"),
+  "setup expiry gate skipped when expiry bars is 0",
+);
+assertOk(
+  !emaSameTfCode.includes("cl < s1"),
+  "slow EMA close-through does not invalidate bull setup",
+);
 assertOnTickOrder(emaSameTfCode, 0, 1, "EMASM_M15_Tick");
 console.log("[OK  ] EMA direction detect runs before EMA SM tick on same timeframe");
 
@@ -244,7 +264,10 @@ const sameBarGateFlow = {
 const sameBarCode = generateFlowEA(sameBarGateFlow, "SameBarGateTest");
 assertOk(sameBarCode.includes("gTime[1] <= gTime[2]"), "same_or_after dependency uses <=");
 assertOk(sameBarCode.includes("gTime[0] < gTime[2]"), "after dependency uses strict <");
-assertOk(sameBarCode.includes("not same bar or before entry"), "same_or_after gate message emitted");
+assertOk(
+  sameBarCode.includes("not same bar or before entry"),
+  "same_or_after gate message emitted",
+);
 console.log("[OK  ] flow entry gate honors after vs same_or_after");
 
 console.log("\n9 flow engine parity check(s) passed.\n");

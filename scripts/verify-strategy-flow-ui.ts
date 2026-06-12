@@ -77,7 +77,10 @@ const flowName = nameFromFlowSteps(chained);
 assertOk(flowName.includes("H1") && flowName.includes("M5"), "name from flow steps");
 
 const bosEvents = eventsForStepRole("bos", "direction");
-assertOk(bosEvents.some((e) => e.eventType === "BOS_BIAS"), "BOS direction events listed");
+assertOk(
+  bosEvents.some((e) => e.eventType === "BOS_BIAS"),
+  "BOS direction events listed",
+);
 
 const validation = validateFlowForBuilder(fourBrainToStrategyFlow(fourBrain));
 assertOk(validation.schemaOk, "classic flow validates in builder");

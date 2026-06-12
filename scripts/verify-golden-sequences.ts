@@ -10,10 +10,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  generateEaFromBlueprint,
-  type EaGenerationPath,
-} from "../src/lib/generate-ea-router";
+import { generateEaFromBlueprint, type EaGenerationPath } from "../src/lib/generate-ea-router";
 import { validateStrategyFlowSchema } from "../src/lib/strategy-flow";
 import {
   GOLDEN_SEQUENCE_CASES,
@@ -40,7 +37,10 @@ function assertIncludes(haystack: string, needle: string, message: string) {
   }
 }
 
-function proveFlowSteps(testCase: GoldenSequenceCase, flowSteps: NonNullable<ReturnType<typeof generateEaFromBlueprint>["flow"]>["steps"]) {
+function proveFlowSteps(
+  testCase: GoldenSequenceCase,
+  flowSteps: NonNullable<ReturnType<typeof generateEaFromBlueprint>["flow"]>["steps"],
+) {
   assertEq(flowSteps.length, testCase.steps.length, `${testCase.id}: step count`);
 
   for (let i = 0; i < testCase.steps.length; i++) {
@@ -70,7 +70,10 @@ function proveFlowSteps(testCase: GoldenSequenceCase, flowSteps: NonNullable<Ret
     const earliestDepIdx = Math.min(
       ...deps.map((d) => ids.indexOf(d.stepId)).filter((idx) => idx >= 0),
     );
-    assertOk(earliestDepIdx < i, `${testCase.id}: step ${flowSteps[i].id} must depend on earlier step`);
+    assertOk(
+      earliestDepIdx < i,
+      `${testCase.id}: step ${flowSteps[i].id} must depend on earlier step`,
+    );
   }
 }
 
@@ -79,7 +82,10 @@ function proveCodeMarkers(testCase: GoldenSequenceCase, code: string) {
     assertIncludes(code, marker, `${testCase.id} code`);
   }
   assertOk(!code.includes("Unknown SM type"), `${testCase.id}: no unknown SM placeholders`);
-  assertOk(!code.includes("undeclared identifier"), `${testCase.id}: no undeclared placeholder text`);
+  assertOk(
+    !code.includes("undeclared identifier"),
+    `${testCase.id}: no undeclared placeholder text`,
+  );
 }
 
 function runCase(testCase: GoldenSequenceCase): EaGenerationPath {
@@ -99,7 +105,9 @@ function runCase(testCase: GoldenSequenceCase): EaGenerationPath {
     mkdirSync(OUT, { recursive: true });
     const path = resolve(OUT, testCase.emitFile);
     writeFileSync(path, result.code, "utf8");
-    console.log(`[emit] ${testCase.emitFile} (${result.code.split("\n").length} lines, ${result.path})`);
+    console.log(
+      `[emit] ${testCase.emitFile} (${result.code.split("\n").length} lines, ${result.path})`,
+    );
   }
 
   console.log(`[OK  ] ${testCase.id} — ${testCase.name}`);

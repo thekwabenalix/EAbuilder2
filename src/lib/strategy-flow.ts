@@ -1,17 +1,14 @@
-import type {
-  StrategyFlowConfig,
-  StrategyStepConfig,
-} from "../types/blueprint";
+import type { StrategyFlowConfig, StrategyStepConfig } from "../types/blueprint";
 import { getModuleContract } from "./module-contracts";
-import {
-  moduleSupportsStrategyEvent,
-} from "./strategy-flow-events";
-import {
-  STRATEGY_EVENT_CONTRACTS,
-} from "./strategy-events";
+import { moduleSupportsStrategyEvent } from "./strategy-flow-events";
+import { STRATEGY_EVENT_CONTRACTS } from "./strategy-events";
 
 export { moduleSupportsStrategyEvent, firstEventForRole } from "./strategy-flow-events";
-export { fourBrainToStrategyFlow, downstreamAnchorSteps, moduleStepId } from "./fourbrain-flow-adapter";
+export {
+  fourBrainToStrategyFlow,
+  downstreamAnchorSteps,
+  moduleStepId,
+} from "./fourbrain-flow-adapter";
 
 export interface StrategyFlowValidationResult {
   ok: boolean;

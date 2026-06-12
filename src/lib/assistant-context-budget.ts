@@ -110,7 +110,9 @@ function contractsForSelectedModules(moduleIds: string[]): string {
     }
     lines.push(`[${c.id}] ${c.label} — roles: ${c.supportedRoles.join(", ")}`);
     for (const ev of c.semanticEvents.slice(0, 6)) {
-      lines.push(`  ${ev.id} (${ev.roles.join("/")}) → ${ev.queryFunctions.slice(0, 3).join(", ")}`);
+      lines.push(
+        `  ${ev.id} (${ev.roles.join("/")}) → ${ev.queryFunctions.slice(0, 3).join(", ")}`,
+      );
     }
     lines.push("");
   }
@@ -161,7 +163,9 @@ export function buildAssistantChatContext(input: AssistantChatContextInput): str
     "",
     "=== GENERATED MQL5 (excerpt) ===",
     input.code ? trimCodeForAssistant(input.code) : "(no code generated yet)",
-    input.compileLog ? `\n=== LAST COMPILE LOG ===\n${truncateText(input.compileLog, 8_000, "compile log")}` : "",
+    input.compileLog
+      ? `\n=== LAST COMPILE LOG ===\n${truncateText(input.compileLog, 8_000, "compile log")}`
+      : "",
     buildTesterSection(input.blueprint, input.testerLog),
     input.backtestSummary
       ? `\n=== LAST BACKTEST SUMMARY ===\n${truncateText(JSON.stringify(input.backtestSummary, null, 2), 4_000, "backtest summary")}`

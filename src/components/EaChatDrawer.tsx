@@ -45,11 +45,7 @@ import {
   prefersBlueprintRegen,
 } from "@/lib/ea-generation-policy";
 import { answerLocalAssistant } from "@/lib/local-assistant";
-import {
-  collectChatImages,
-  compressChatImage,
-  prepareChatImages,
-} from "@/lib/chat-images";
+import { collectChatImages, compressChatImage, prepareChatImages } from "@/lib/chat-images";
 import { AssistantMarkdown } from "@/components/AssistantMarkdown";
 import {
   applyFixLabel,
@@ -161,7 +157,7 @@ function handleChatFailure(
   });
 
   const body = offline
-    ? `*Cloud AI is offline — use **Apply now** buttons below to fix without waiting for cloud AI.*\n\n${offlineReply}`
+    ? `${friendly ? `${friendly}\n\n` : ""}*Cloud AI offline — use **Apply now** below.*\n\n${offlineReply}`
     : `${friendly}\n\n${offlineReply}`;
 
   ctx.setMessages((prev) => {
@@ -260,7 +256,7 @@ const DIAGNOSIS_MODES = [
     label: "Why No Trades",
     icon: Search,
     prompt:
-      "Diagnosis mode: Why no trades? Use the original prompt, blueprint, module contracts, generated code, tester log, compile log, and backtest summary. Tell me the exact layer that blocked trades. If tester period mismatches strategy flow TF, emit [APPLY:{\"type\":\"set_backtest_period\",\"period\":\"<TF>\"}]. If wiring/regen needed, emit [APPLY:{\"type\":\"regen_ea\"}]. End with [TOOL:...] or [ACTION:...].",
+      'Diagnosis mode: Why no trades? Use the original prompt, blueprint, module contracts, generated code, tester log, compile log, and backtest summary. Tell me the exact layer that blocked trades. If tester period mismatches strategy flow TF, emit [APPLY:{"type":"set_backtest_period","period":"<TF>"}]. If wiring/regen needed, emit [APPLY:{"type":"regen_ea"}]. End with [TOOL:...] or [ACTION:...].',
   },
   {
     id: "wrong_entry",
@@ -956,7 +952,9 @@ export function EaChatDrawer({
             <div className="text-xs text-muted-foreground text-center pt-6 space-y-2">
               <Bot className="h-8 w-8 mx-auto text-muted-foreground/30" />
               <p className="font-medium text-foreground/70">Ask about your strategy or backtest</p>
-              <p className="text-[11px]">Tap a suggestion above, attach a chart screenshot, or type below.</p>
+              <p className="text-[11px]">
+                Tap a suggestion above, attach a chart screenshot, or type below.
+              </p>
             </div>
           )}
 

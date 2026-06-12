@@ -1,5 +1,5 @@
 /**
- * Phase 1 — assistant hotfix smoke tests (ea-chat load safety + offline assistant).
+ * Phase 1 + 5 — assistant hotfix and action-first offline UX smoke tests.
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -10,7 +10,7 @@ function assertOk(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
-console.log("\nAssistant hotfix checks (Phase 1)\n");
+console.log("\nAssistant hotfix checks (Phase 1 + 5)\n");
 
 const eaChatPath = resolve("netlify/functions/ea-chat.mts");
 const eaChatSrc = readFileSync(eaChatPath, "utf8");
@@ -27,46 +27,68 @@ const offline = answerLocalAssistant({
   code: "// smoke",
   testerLog: "[EVENT] Direction BOS H1 | dir=1\n",
 });
-assertOk(offline.includes("Why is cloud AI offline?"), "offline assistant answers cloud-offline intent");
-assertOk(!offline.includes("ReferenceError"), "offline assistant reply is clean");
+assertOk(offline.includes("## Verdict"), "cloud-offline leads with verdict");
+assertOk(
+  !offline.includes("Strategy overview"),
+  "cloud-offline skips strategy dump in compact mode",
+);
 console.log("[OK  ] offline assistant cloud-offline section");
+
+const flowBlueprint = {
+  ...DEFAULT_BLUEPRINT,
+  name: "Flow Smoke",
+  strategyFlow: {
+    version: 1 as const,
+    mode: "advanced_instances" as const,
+    source: "user" as const,
+    steps: [
+      {
+        id: "d",
+        name: "Direction BOS",
+        role: "direction" as const,
+        module: "bos",
+        timeframe: "H1",
+        event: "BOS_BIAS",
+        enabled: true,
+      },
+      {
+        id: "e",
+        name: "Entry BOS",
+        role: "entry" as const,
+        module: "bos",
+        timeframe: "M5",
+        event: "BOS_CONFIRMED",
+        dependsOn: [{ stepId: "d", relation: "after" as const }],
+        enabled: true,
+      },
+    ],
+  },
+};
 
 const noTrades = answerLocalAssistant({
   userMessage: "why no trades?",
-  blueprint: {
-    ...DEFAULT_BLUEPRINT,
-    name: "Flow Smoke",
-    strategyFlow: {
-      version: 1,
-      mode: "advanced_instances",
-      source: "user",
-      steps: [
-        {
-          id: "d",
-          name: "Direction BOS",
-          role: "direction",
-          module: "bos",
-          timeframe: "H1",
-          event: "BOS_BIAS",
-          enabled: true,
-        },
-        {
-          id: "e",
-          name: "Entry BOS",
-          role: "entry",
-          module: "bos",
-          timeframe: "M5",
-          event: "BOS_CONFIRMED",
-          dependsOn: [{ stepId: "d", relation: "after" }],
-          enabled: true,
-        },
-      ],
-    },
-  },
-  testerLog: "[EVENT] Direction BOS | dir=1\nFlow events logged: 1 · Trades opened: 0",
+  blueprint: flowBlueprint,
+  code: "// smoke",
+  testerLog:
+    "[EVENT] Direction BOS | dir=1\n[EVENT] Direction BOS | dir=1\n===== TRADE AUDIT =====\nFlow events logged: 2 · Trades opened: 0",
   backtestSummary: { totalTrades: 0 },
 });
-assertOk(noTrades.includes("Why no trades?") || noTrades.includes("Verdict"), "offline no-trades diagnosis");
-console.log("[OK  ] offline assistant no-trades diagnosis");
+const verdictIdx = noTrades.indexOf("## Verdict");
+const applyIdx = noTrades.indexOf("## Apply now");
+const overviewIdx = noTrades.indexOf("Strategy overview");
+assertOk(verdictIdx >= 0, "no-trades leads with verdict");
+assertOk(applyIdx > verdictIdx, "Apply now follows verdict");
+assertOk(overviewIdx < 0, "compact no-trades skips strategy overview");
+assertOk(noTrades.includes("[APPLY:"), "no-trades includes apply marker");
+console.log("[OK  ] action-first no-trades diagnosis");
 
-console.log("\n3 assistant hotfix check(s) passed.\n");
+const withOverview = answerLocalAssistant({
+  userMessage: "show strategy overview",
+  blueprint: flowBlueprint,
+  code: "// smoke",
+  compact: false,
+});
+assertOk(withOverview.includes("Strategy overview"), "detail request shows overview");
+console.log("[OK  ] strategy overview on request");
+
+console.log("\n5 assistant checks passed.\n");

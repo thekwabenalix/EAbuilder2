@@ -147,7 +147,9 @@ export function parseTesterLogForTradeAudit(log: string): TradeAuditReport {
         });
         return;
       }
-      const entryMatch = trimmed.match(/ENTRY\s+(BUY|SELL)\s+lots=([\d.]+)\s+SL=([\d.]+)\s+TP=([\d.]+)/i);
+      const entryMatch = trimmed.match(
+        /ENTRY\s+(BUY|SELL)\s+lots=([\d.]+)\s+SL=([\d.]+)\s+TP=([\d.]+)/i,
+      );
       if (entryMatch) {
         currentChain.entry = {
           side: entryMatch[1]!.toUpperCase() as "BUY" | "SELL",
@@ -159,7 +161,9 @@ export function parseTesterLogForTradeAudit(log: string): TradeAuditReport {
       return;
     }
 
-    const eventMatch = trimmed.match(/\[EVENT\]\s*(.+?)\s*\|\s*dir=(-?\d+)\s*\|\s*(.+?)(?:\s*\|\s*sl=([\d.]+))?/i);
+    const eventMatch = trimmed.match(
+      /\[EVENT\]\s*(.+?)\s*\|\s*dir=(-?\d+)\s*\|\s*(.+?)(?:\s*\|\s*sl=([\d.]+))?/i,
+    );
     if (eventMatch) {
       hasAuditMarkers = true;
       flowEvents.push({

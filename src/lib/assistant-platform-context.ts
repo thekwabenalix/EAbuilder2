@@ -23,13 +23,16 @@ function compactAdmissionContext(selectedModules: string[]): string {
   const lines = [
     "Module admission (verified vs template-only vs detector-only):",
     ...Object.values(MODULE_ADMISSION).map(
-      (m) =>
-        `- ${m.id}: ${m.status}${selectedModules.includes(m.id) ? " (selected)" : ""}`,
+      (m) => `- ${m.id}: ${m.status}${selectedModules.includes(m.id) ? " (selected)" : ""}`,
     ),
   ];
   const repair = buildModuleRepairPlan(selectedModules);
   if (repair.blocked.length) {
-    lines.push("", "Blocked selections:", ...repair.blocked.map((b) => `- ${b.label}: ${b.reason}`));
+    lines.push(
+      "",
+      "Blocked selections:",
+      ...repair.blocked.map((b) => `- ${b.label}: ${b.reason}`),
+    );
   }
   if (repair.summary) {
     lines.push("", `Repair plan: ${repair.summary}`);
@@ -53,9 +56,7 @@ export function buildAssistantPlatformContext(blueprint: StrategyBlueprint): str
     flow?.steps?.map(
       (s, i) =>
         `${i + 1}. ${s.name || s.id} — role=${s.role}, module=${s.module}, TF=${s.timeframe}, event=${s.event}${
-          s.dependsOn?.length
-            ? `, after=[${s.dependsOn.map((d) => d.stepId).join(", ")}]`
-            : ""
+          s.dependsOn?.length ? `, after=[${s.dependsOn.map((d) => d.stepId).join(", ")}]` : ""
         }`,
     ) ?? [];
 

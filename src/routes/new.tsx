@@ -24,7 +24,10 @@ import { parseStrategy } from "@/lib/api-client";
 import { enrichBlueprintWithStrategyFlow } from "@/lib/blueprint-flow-enrich";
 import { createStrategy } from "@/lib/strategies";
 import { toast } from "sonner";
-import { analyzeBuildability, generateMql5FromBlueprintDetailed } from "@/lib/mql5-template-generator";
+import {
+  analyzeBuildability,
+  generateMql5FromBlueprintDetailed,
+} from "@/lib/mql5-template-generator";
 import type { BuildabilityResult } from "@/lib/mql5-template-generator";
 import {
   firstBlueprintGenerationError,
@@ -111,7 +114,13 @@ function StrategyBuilders() {
       toastEaGenerationSuccess(result, "Strategy created");
       navigate({ to: "/s/$id", params: { id: row.id } });
     } catch (e: unknown) {
-      setError(e instanceof EaGenerationError ? e.message : e instanceof Error ? e.message : "Failed to save strategy. Please try again.");
+      setError(
+        e instanceof EaGenerationError
+          ? e.message
+          : e instanceof Error
+            ? e.message
+            : "Failed to save strategy. Please try again.",
+      );
       setStage("reviewed");
     } finally {
       setStageLabel(null);
@@ -248,7 +257,11 @@ function StrategyBuilders() {
         </div>
 
         {/* ── AI Builder form ── */}
-        <div className={stage === "reviewed" ? "grid grid-cols-1 lg:grid-cols-2 gap-6 items-start" : "space-y-4"}>
+        <div
+          className={
+            stage === "reviewed" ? "grid grid-cols-1 lg:grid-cols-2 gap-6 items-start" : "space-y-4"
+          }
+        >
           {/* LEFT: Prompt */}
           <div className="space-y-4">
             {stage !== "reviewed" ? (
@@ -454,8 +467,8 @@ function InterviewPanel({
             {flow.steps.map((step, i) =>
               step.enabled === false ? null : (
                 <p key={step.id} className="text-[11px] font-mono text-foreground/90">
-                  {i + 1}. {step.name || step.id} — {step.role} · {step.module} @ {step.timeframe}{" "}
-                  · {step.event}
+                  {i + 1}. {step.name || step.id} — {step.role} · {step.module} @ {step.timeframe} ·{" "}
+                  {step.event}
                 </p>
               ),
             )}
@@ -616,13 +629,17 @@ function BuildStatusCard({ blueprint }: { blueprint: StrategyBlueprint }) {
       return (
         <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-medium text-destructive">Interview mapped 4-Brain — generation blocked</p>
+            <p className="text-xs font-medium text-destructive">
+              Interview mapped 4-Brain — generation blocked
+            </p>
             <span className="text-xs px-2 py-0.5 rounded-full border font-medium shrink-0 border-destructive/40 text-destructive bg-destructive/10">
               blocked
             </span>
           </div>
           <p className="text-[11px] text-destructive/90">{generationError}</p>
-          <p className="text-xs font-mono text-primary/80">{formatBrainChain(blueprint.fourBrain)}</p>
+          <p className="text-xs font-mono text-primary/80">
+            {formatBrainChain(blueprint.fourBrain)}
+          </p>
         </div>
       );
     }

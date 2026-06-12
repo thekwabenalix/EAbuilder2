@@ -91,7 +91,14 @@ assertEq(moduleStepId("direction", 0, 1), "step_direction", "moduleStepId single
 assertEq(moduleStepId("execution", 1, 2), "step_entry_1", "moduleStepId multi");
 const anchor = downstreamAnchorSteps([
   { id: "a", name: "A", role: "direction", module: "bos", timeframe: "H1", event: "BOS_BIAS" },
-  { id: "b", name: "B", role: "direction", module: "choch", timeframe: "H1", event: "CHOCH_BIAS_FLIP" },
+  {
+    id: "b",
+    name: "B",
+    role: "direction",
+    module: "choch",
+    timeframe: "H1",
+    event: "CHOCH_BIAS_FLIP",
+  },
 ]);
 assertEq(anchor.length, 2, "downstream anchor includes all parallel steps");
 assertEq(anchor[0]?.id, "a", "downstream anchor first step");
@@ -113,6 +120,10 @@ const routed = generateEaFromBlueprint(bp);
 assertEq(routed.path, "flow_engine", "dual entry routes to flow engine");
 assertOk(routed.code.includes("EvaluateEntry_2"), "flow EA has first entry gate");
 assertOk(routed.code.includes("EvaluateEntry_3"), "flow EA has second entry gate");
-assertOk(routed.code.includes("setup_or not satisfied") || dualSetup.steps[3]?.dependsOn?.[0]?.orGroup === "setup_or", "OR gate or deps present");
+assertOk(
+  routed.code.includes("setup_or not satisfied") ||
+    dualSetup.steps[3]?.dependsOn?.[0]?.orGroup === "setup_or",
+  "OR gate or deps present",
+);
 
 console.log("\n15 fourbrain flow adapter check(s) passed.\n");

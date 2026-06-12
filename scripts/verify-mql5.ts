@@ -146,7 +146,11 @@ const items: Item[] = [
     file: "FLOW_EMA_IFVG_Demo.mq5",
     code: tryGenerateFlowEAFromFourBrain(
       {
-        direction: { modules: ["ema"], timeframe: "M5", params: { fastPeriod: 12, slowPeriod: 48 } },
+        direction: {
+          modules: ["ema"],
+          timeframe: "M5",
+          params: { fastPeriod: 12, slowPeriod: 48 },
+        },
         setup: { modules: ["fvg_inversion"], timeframe: "M5", params: { expiryBars: 100 } },
         execution: { modules: ["fvg_inversion"], timeframe: "M5", params: {} },
         management: { riskPercent: 1, rewardRisk: 2, maxOpenTrades: 1 },
@@ -172,7 +176,11 @@ const items: Item[] = [
     file: "FLOW_EMA_SNR_RSI_Demo.mq5",
     code: tryGenerateFlowEAFromFourBrain(
       {
-        direction: { modules: ["ema"], timeframe: "M15", params: { fastPeriod: 12, slowPeriod: 48 } },
+        direction: {
+          modules: ["ema"],
+          timeframe: "M15",
+          params: { fastPeriod: 12, slowPeriod: 48 },
+        },
         setup: { modules: ["snr"], timeframe: "M15", params: {} },
         execution: { modules: ["rsi_hd"], timeframe: "M5", params: {} },
         management: { riskPercent: 1, rewardRisk: 2, maxOpenTrades: 1 },

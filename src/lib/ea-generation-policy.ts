@@ -7,11 +7,7 @@
 
 import type { StrategyBlueprint } from "@/types/blueprint";
 
-export type EaCodegenKind =
-  | "fourbrain_assembler"
-  | "flow_engine"
-  | "legacy_flat_rules"
-  | "unknown";
+export type EaCodegenKind = "fourbrain_assembler" | "flow_engine" | "legacy_flat_rules" | "unknown";
 
 export const BLUEPRINT_ASSEMBLER_DEPRECATION =
   "Blueprint assembler (4-Brain boolean gate) is deprecated. Prefer Strategy Flow — this path will be removed when all admitted modules compile through the flow engine.";
@@ -62,11 +58,7 @@ export function isStructuredAssemblerEa(code: string, blueprint?: StrategyBluepr
 export function compileLogHasErrors(compileLog: string | null | undefined): boolean {
   if (!compileLog?.trim()) return false;
   const lower = compileLog.toLowerCase();
-  return (
-    lower.includes("error") &&
-    !lower.includes("0 error") &&
-    !lower.includes("no error")
-  );
+  return lower.includes("error") && !lower.includes("0 error") && !lower.includes("no error");
 }
 
 export function canApplyAiSurgicalFix(
