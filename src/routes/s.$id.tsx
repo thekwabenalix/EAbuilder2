@@ -36,6 +36,7 @@ import {
   BuiltinIndicatorPicker,
   type IndicatorPickerResult,
 } from "@/components/BuiltinIndicatorPicker";
+import { BuiltinIndicatorEntryButton } from "@/components/BuiltinIndicatorEntryButton";
 import {
   mergeFilterRef,
   mergeIndicatorRef,
@@ -65,7 +66,6 @@ import {
   X,
   MoreHorizontal,
   Settings2,
-  LineChart,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EaChatDrawer, type EaAssistantAction } from "@/components/EaChatDrawer";
@@ -836,7 +836,9 @@ function BrainModuleChips({
   }
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
+      <BuiltinIndicatorEntryButton onClick={() => setIndicatorOpen(true)} compact />
+
       {/* Selected chips */}
       <div className="flex flex-wrap gap-1.5">
         {selected.map((id) => {
@@ -867,23 +869,7 @@ function BrainModuleChips({
 
       {/* Module picker dropdown */}
       {open && (
-        <div className="rounded-lg border border-border bg-card p-3 space-y-2 max-h-72 overflow-y-auto">
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              setIndicatorOpen(true);
-            }}
-            className="w-full flex items-center gap-2 px-2.5 py-2 rounded-md border border-dashed border-sky-500/40 bg-sky-500/5 text-left hover:bg-sky-500/10 transition-colors"
-          >
-            <LineChart className="h-4 w-4 text-sky-400 shrink-0" />
-            <span className="min-w-0 flex-1">
-              <span className="text-xs font-medium text-sky-300 block">Built-in indicator…</span>
-              <span className="text-[10px] text-muted-foreground">
-                Trend or oscillator — MACD, RSI, EMA, Bollinger
-              </span>
-            </span>
-          </button>
+        <div className="rounded-lg border border-border bg-card p-3 max-h-72 overflow-y-auto">
           <div className="grid grid-cols-2 gap-1">
           {ALL_BRAIN_MODULES.map((m) => {
             const active = selected.includes(m.id);

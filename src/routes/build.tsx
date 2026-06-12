@@ -40,6 +40,12 @@ import { EaGenerationError } from "@/lib/generate-ea-router";
 import { StrategyFlowBuilder } from "@/components/StrategyFlowBuilder";
 import { GenerationPathBanner } from "@/components/GenerationPathBanner";
 import { TradeAuditPanel } from "@/components/TradeAuditPanel";
+import {
+  BuiltinIndicatorPicker,
+  type IndicatorPickerResult,
+} from "@/components/BuiltinIndicatorPicker";
+import { BuiltinIndicatorEntryButton } from "@/components/BuiltinIndicatorEntryButton";
+import { mergeFilterRef, mergeIndicatorRef } from "@/lib/builtin-indicator-ui";
 import { fourBrainToStrategyFlow } from "@/lib/strategy-flow";
 import {
   attachUserFlowToBlueprint,
@@ -198,12 +204,17 @@ function ModuleMultiSelect({
   role,
   selected,
   onChange,
+  brainTimeframe,
+  onIndicatorSideEffect,
 }: {
   role: BrainRole;
   selected: BrainModuleType[];
   onChange: (modules: BrainModuleType[]) => void;
+  brainTimeframe: string;
+  onIndicatorSideEffect?: (result: IndicatorPickerResult) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [indicatorOpen, setIndicatorOpen] = useState(false);
   const modules = ALL_MODULES; // Show ALL modules in every brain — role is determined by timeframe, not module type
   const selectedDefs = modules.filter((m) => selected.includes(m.id));
 
@@ -215,8 +226,18 @@ function ModuleMultiSelect({
     }
   };
 
+  function applyIndicator(result: IndicatorPickerResult) {
+    if (result.brainModule && !selected.includes(result.brainModule)) {
+      onChange([...selected, result.brainModule]);
+    }
+    onIndicatorSideEffect?.(result);
+  }
+
   return (
-    <div className="relative">
+    <div className="space-y-2">
+      <BuiltinIndicatorEntryButton onClick={() => setIndicatorOpen(true)} />
+
+      <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-border hover:border-primary/40 hover:bg-muted/20 transition-all text-left"
@@ -290,6 +311,73 @@ function ModuleMultiSelect({
           </div>
         </div>
       )}
+      </div>
+
+      <BuiltinIndicatorPicker
+        open={indicatorOpen}
+        onOpenChange={setIndicatorOpen}
+        timeframe={brainTimeframe || "H1"}
+        brainRole={role}
+        onApply={applyIndicator}
+      />
+    </div>
+  );
+}
+
+function ActiveConfluenceFilters({
+  filterRefs,
+  indicatorRefs,
+  onRemoveFilter,
+  onRemoveIndicator,
+}: {
+  filterRefs: NonNullable<StrategyBlueprint["filterRefs"]>;
+  indicatorRefs: NonNullable<StrategyBlueprint["indicatorRefs"]>;
+  onRemoveFilter: (id: string, appliesTo?: "setup" | "execution") => void;
+  onRemoveIndicator: (id: string) => void;
+}) {
+  if (!filterRefs.length && !indicatorRefs.length) return null;
+
+  return (
+    <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-3 space-y-2">
+      <Label className="text-xs font-semibold text-sky-400">Confluence filters & indicators</Label>
+      <p className="text-[10px] text-muted-foreground -mt-1">
+        Wired into EA compile — add more via Built-in indicator in any brain&apos;s module list.
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {filterRefs.map((f) => (
+          <span
+            key={`${f.id}-${f.appliesTo ?? "any"}`}
+            className="inline-flex items-center gap-1 rounded-md border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[10px] text-sky-200"
+          >
+            {f.label} · {f.appliesTo ?? "entry"} · {f.timeframe}
+            <button
+              type="button"
+              onClick={() => onRemoveFilter(f.id, f.appliesTo)}
+              className="hover:text-white"
+              aria-label={`Remove ${f.label}`}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+        {indicatorRefs.map((r) => (
+          <span
+            key={r.id}
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground"
+            title={r.note}
+          >
+            {r.name} (reference)
+            <button
+              type="button"
+              onClick={() => onRemoveIndicator(r.id)}
+              className="hover:text-foreground"
+              aria-label={`Remove ${r.name}`}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -427,6 +515,7 @@ function BrainCard({
   optional,
   recommendAbove,
   recommendBelow,
+  onIndicatorSideEffect,
 }: {
   role: BrainRole;
   icon: React.ElementType;
@@ -438,6 +527,7 @@ function BrainCard({
   optional: boolean;
   recommendAbove?: string;
   recommendBelow?: string;
+  onIndicatorSideEffect?: (result: IndicatorPickerResult) => void;
 }) {
   const [open, setOpen] = useState(false);
   const modules = ALL_MODULES; // Show ALL modules in every brain
@@ -506,13 +596,19 @@ function BrainCard({
       {open && (
         <div className="border-t border-border px-4 pb-4 pt-3 space-y-4">
           {/* Module multi-select */}
-          <div>
-            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
+          <div className="space-y-2">
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
               Modules (select one or more)
+            </p>
+            <p className="text-[10px] text-muted-foreground -mt-1">
+              Use <span className="text-sky-400">Built-in indicator</span> for MACD, RSI, EMA, and
+              Bollinger — or pick structure modules below.
             </p>
             <ModuleMultiSelect
               role={role}
               selected={state?.modules ?? []}
+              brainTimeframe={state?.timeframe ?? "H1"}
+              onIndicatorSideEffect={onIndicatorSideEffect}
               onChange={(mods) =>
                 onChange({
                   ...(state ?? { modules: mods, timeframe: "H1" }),
@@ -671,6 +767,29 @@ function FourBrainBuilderPage() {
   const [stopBuffer, setStopBuffer] = useState(20);
   const [maxStopPts, setMaxStopPts] = useState(0); // 0 = no limit
   const [strategyNotes, setStrategyNotes] = useState("");
+  const [filterRefs, setFilterRefs] = useState<NonNullable<StrategyBlueprint["filterRefs"]>>([]);
+  const [indicatorRefs, setIndicatorRefs] = useState<
+    NonNullable<StrategyBlueprint["indicatorRefs"]>
+  >([]);
+
+  function handleIndicatorSideEffect(result: IndicatorPickerResult) {
+    if (result.kind === "filter" && result.filterRef) {
+      setFilterRefs((prev) => mergeFilterRef(prev, result.filterRef!));
+    } else if (result.kind === "catalog" && result.indicatorRef) {
+      setIndicatorRefs((prev) => mergeIndicatorRef(prev, result.indicatorRef!));
+    }
+    toast.message(result.message);
+  }
+
+  function removeFilter(id: string, appliesTo?: "setup" | "execution") {
+    setFilterRefs((prev) =>
+      prev.filter((f) => !(f.id === id && (f.appliesTo ?? "execution") === (appliesTo ?? "execution"))),
+    );
+  }
+
+  function removeIndicator(id: string) {
+    setIndicatorRefs((prev) => prev.filter((r) => r.id !== id));
+  }
 
   const [builderMode, setBuilderMode] = useState<BuilderFlowMode>("simple");
   const [flowConfig, setFlowConfig] = useState<StrategyFlowConfig>(() => ({
@@ -918,6 +1037,8 @@ function FourBrainBuilderPage() {
         name: nameFromFlowSteps(flowConfig.steps),
         fourBrain,
         strategyNotes: strategyNotes.trim(),
+        filterRefs: filterRefs.length ? filterRefs : undefined,
+        indicatorRefs: indicatorRefs.length ? indicatorRefs : undefined,
         risk: {
           ...DEFAULT_BLUEPRINT.risk,
           riskPercent: risk,
@@ -943,6 +1064,8 @@ function FourBrainBuilderPage() {
       name: buildName(fourBrain),
       fourBrain,
       strategyNotes: strategyNotes.trim(),
+      filterRefs: filterRefs.length ? filterRefs : undefined,
+      indicatorRefs: indicatorRefs.length ? indicatorRefs : undefined,
       risk: {
         ...DEFAULT_BLUEPRINT.risk,
         riskPercent: risk,
@@ -968,6 +1091,8 @@ function FourBrainBuilderPage() {
       maxTrades,
       stopBuffer,
       strategyNotes,
+      filterRefs,
+      indicatorRefs,
     ],
   );
 
@@ -1086,6 +1211,13 @@ function FourBrainBuilderPage() {
           </div>
         ) : (
           <>
+            <ActiveConfluenceFilters
+              filterRefs={filterRefs}
+              indicatorRefs={indicatorRefs}
+              onRemoveFilter={removeFilter}
+              onRemoveIndicator={removeIndicator}
+            />
+
             {/* ── Brain flow ── */}
             <div>
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">
@@ -1102,6 +1234,7 @@ function FourBrainBuilderPage() {
                   onClear={() => setDirection(undefined)}
                   optional
                   recommendBelow={setup?.timeframe ?? execution?.timeframe}
+                  onIndicatorSideEffect={handleIndicatorSideEffect}
                 />
                 <Arrow active={Boolean(direction?.modules?.[0])} />
                 <BrainCard
@@ -1115,6 +1248,7 @@ function FourBrainBuilderPage() {
                   optional
                   recommendAbove={direction?.timeframe}
                   recommendBelow={execution?.timeframe}
+                  onIndicatorSideEffect={handleIndicatorSideEffect}
                 />
                 <Arrow active={Boolean(setup?.modules?.[0])} />
                 <BrainCard
@@ -1127,6 +1261,7 @@ function FourBrainBuilderPage() {
                   onClear={() => {}}
                   optional={false}
                   recommendAbove={setup?.timeframe ?? direction?.timeframe}
+                  onIndicatorSideEffect={handleIndicatorSideEffect}
                 />
               </div>
             </div>
