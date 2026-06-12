@@ -1,6 +1,6 @@
 //+------------------------------------------------------------------+
 //| Zone_Liquidity_Setup.mq5                                       |
-//| Unified FVG + OB + BB liquidity setup v1.0.0          |
+//| Unified FVG + OB + BB liquidity setup v1.1.0          |
 //|                                                                  |
 //| Liquidity build → tap zone → reject close → entry next open   |
 //+------------------------------------------------------------------+
@@ -119,6 +119,13 @@ bool WickTapped(int dir, double hi, double lo, double top, double bot)
 bool WickInside(double hi, double lo, double top, double bot)
 {
    return lo <= top && hi >= bot;
+}
+
+// Any candle overlap with the zone = touched / tested → zone is no longer fresh.
+bool ZoneTested(double hi, double lo, double top, double bot)
+{
+   if(hi < bot || lo > top) return false;
+   return true;
 }
 
 bool Rejected(int dir, double cl, double top, double bot)
@@ -317,10 +324,8 @@ bool LiqBarClose(int dir, double hi, double lo, double cl, double top, double bo
 void ProcessZoneBar(int i, int sh)
 {
    if(gZones[i].dead || gZones[i].state == ST_DONE) return;
-   if(gZones[i].kind == KIND_BB && gZones[i].bbPhase != PHASE_BB) return;
    if(gZones[i].bornTime >= iTime(_Symbol, InpTF, sh)) return;
 
-   ExtendZone(i);
    double hi = iHigh(_Symbol, InpTF, sh);
    double lo = iLow(_Symbol, InpTF, sh);
    double cl = iClose(_Symbol, InpTF, sh);
@@ -329,6 +334,30 @@ void ProcessZoneBar(int i, int sh)
    int dir = gZones[i].dir;
    double near = NearDist(sh);
 
+   // Fresh zones only — remove marking as soon as price touches/tests the zone.
+   if(ZoneTested(hi, lo, top, bot))
+   {
+      bool hadLiq = (gZones[i].state >= ST_LIQ);
+      bool reject = hadLiq && Rejected(dir, cl, top, bot);
+      if(reject)
+      {
+         double sl = SlForZone(dir, top, bot);
+         if(dir == DIR_BULL) { gZones[i].pendingBuy = true; gZones[i].pendingSL = sl; }
+         else { gZones[i].pendingSell = true; gZones[i].pendingSL = sl; }
+         if(InpShowLog)
+            PrintFormat("ZLS %s | kind=%d | test+reject | SL=%.5f | entry next open | %s",
+               dir == DIR_BULL ? "BUY" : "SELL", gZones[i].kind, sl,
+               TimeToString(iTime(_Symbol,InpTF,sh),TIME_DATE|TIME_MINUTES));
+      }
+      else if(InpShowLog)
+         PrintFormat("ZLS zone consumed | kind=%d | tested | %s",
+            gZones[i].kind, TimeToString(iTime(_Symbol,InpTF,sh),TIME_DATE|TIME_MINUTES));
+      KillZone(i);
+      return;
+   }
+
+   ExtendZone(i);
+
    if(gZones[i].state == ST_ACTIVE || gZones[i].state == ST_LIQ)
    {
       if(LiqBarClose(dir, hi, lo, cl, top, bot, near))
@@ -336,25 +365,6 @@ void ProcessZoneBar(int i, int sh)
          gZones[i].liqBars++;
          if(gZones[i].liqBars >= InpMinLiqBars) gZones[i].state = ST_LIQ;
       }
-   }
-
-   if(gZones[i].state >= ST_LIQ)
-   {
-      if(WickTapped(dir, hi, lo, top, bot))
-         gZones[i].state = ST_TAPPED;
-   }
-
-   if(gZones[i].state == ST_TAPPED && Rejected(dir, cl, top, bot))
-   {
-      double sl = SlForZone(dir, top, bot);
-      if(dir == DIR_BULL) { gZones[i].pendingBuy = true; gZones[i].pendingSL = sl; }
-      else { gZones[i].pendingSell = true; gZones[i].pendingSL = sl; }
-      if(InpShowLog)
-         PrintFormat("ZLS %s | kind=%d | tap+reject bar | SL=%.5f | entry next open | %s",
-            dir == DIR_BULL ? "BUY" : "SELL", gZones[i].kind, sl,
-            TimeToString(iTime(_Symbol,InpTF,sh),TIME_DATE|TIME_MINUTES));
-      DrawSL(i, sl);
-      gZones[i].state = ST_DONE;
    }
 }
 

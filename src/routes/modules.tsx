@@ -411,9 +411,8 @@ const TRADING_MODULES: ModuleCategory[] = [
         rules: [
           "Zone: FVG (3-candle gap), OB (displacement + opposite candle), or BB (OB closed through → polarity flip)",
           "Liquidity: bar closes within proximity of the zone edge without wick entering the zone",
-          "Tap: wick enters the zone after liquidity is built",
-          "Reject: close back outside the zone (bull = close above top, bear = close below bottom)",
-          "Signal: entry at next bar open; SL below zone (buy) or above zone (sell) + buffer points",
+          "Fresh-only: zone rectangle removed the instant price touches/tests the zone (wick overlap)",
+          "Setup signal: if liquidity was built, test bar closes back outside → entry next open",
           "Toggle InpUseFVG / InpUseOB / InpUseBB to enable each zone type",
         ],
         output: [

@@ -126,6 +126,12 @@ bool ${P}WickInside(double hi, double lo, double top, double bot)
    return lo <= top && hi >= bot;
 }
 
+bool ${P}ZoneTested(double hi, double lo, double top, double bot)
+{
+   if(hi < bot || lo > top) return false;
+   return true;
+}
+
 bool ${P}Rejected(int dir, double cl, double top, double bot)
 {
    if(dir == ${P}DIR_BULL) return cl > top;
@@ -279,10 +285,8 @@ bool ${P}LiqBarClose(int dir, double hi, double lo, double cl, double top, doubl
 void ${P}ProcessZoneBar(int i, int sh)
 {
    if(${P}zones[i].dead || ${P}zones[i].state == ${P}ST_DONE) return;
-   if(${P}zones[i].kind == ${P}KIND_BB && ${P}zones[i].bbPhase != ${P}PHASE_BB) return;
    if(${P}zones[i].bornTime >= iTime(InpSymbol, ${TF}, sh)) return;
 
-   ${P}DrawZone(i);
    double hi = iHigh(InpSymbol, ${TF}, sh);
    double lo = iLow(InpSymbol, ${TF}, sh);
    double cl = iClose(InpSymbol, ${TF}, sh);
@@ -291,6 +295,23 @@ void ${P}ProcessZoneBar(int i, int sh)
    int dir = ${P}zones[i].dir;
    double near = ${P}NearDist(sh);
 
+   if(${P}ZoneTested(hi, lo, top, bot))
+   {
+      bool hadLiq = (${P}zones[i].state >= ${P}ST_LIQ);
+      bool reject = hadLiq && ${P}Rejected(dir, cl, top, bot);
+      if(reject)
+      {
+         double sl = ${P}SlForZone(dir, top, bot);
+         if(dir == ${P}DIR_BULL) { ${P}zones[i].pendingBuy = true; ${P}zones[i].pendingSL = sl; }
+         else { ${P}zones[i].pendingSell = true; ${P}zones[i].pendingSL = sl; }
+         PrintFormat("[ZLSM_${tf}] %s test+reject | SL=%.5f", dir == ${P}DIR_BULL ? "BULL" : "BEAR", sl);
+      }
+      ${P}KillZone(i);
+      return;
+   }
+
+   ${P}DrawZone(i);
+
    if(${P}zones[i].state == ${P}ST_ACTIVE || ${P}zones[i].state == ${P}ST_LIQ)
    {
       if(${P}LiqBarClose(dir, hi, lo, cl, top, bot, near))
@@ -298,19 +319,6 @@ void ${P}ProcessZoneBar(int i, int sh)
          ${P}zones[i].liqBars++;
          if(${P}zones[i].liqBars >= ${minLiqBars}) ${P}zones[i].state = ${P}ST_LIQ;
       }
-   }
-   if(${P}zones[i].state >= ${P}ST_LIQ)
-   {
-      if(${P}WickTapped(dir, hi, lo, top, bot))
-         ${P}zones[i].state = ${P}ST_TAPPED;
-   }
-   if(${P}zones[i].state == ${P}ST_TAPPED && ${P}Rejected(dir, cl, top, bot))
-   {
-      double sl = ${P}SlForZone(dir, top, bot);
-      if(dir == ${P}DIR_BULL) { ${P}zones[i].pendingBuy = true; ${P}zones[i].pendingSL = sl; }
-      else { ${P}zones[i].pendingSell = true; ${P}zones[i].pendingSL = sl; }
-      ${P}zones[i].state = ${P}ST_DONE;
-      PrintFormat("[ZLSM_${tf}] %s tap+reject | SL=%.5f", dir == ${P}DIR_BULL ? "BULL" : "BEAR", sl);
    }
 }
 
@@ -376,8 +384,7 @@ double ${P}BearConfirmSL()     { return ${P}_bearSL; }
 bool ${P}IsArmed(int i)
 {
    if(${P}zones[i].dead) return false;
-   if(${P}zones[i].state != ${P}ST_LIQ && ${P}zones[i].state != ${P}ST_TAPPED) return false;
-   if(${P}zones[i].kind == ${P}KIND_BB && ${P}zones[i].bbPhase != ${P}PHASE_BB) return false;
+   if(${P}zones[i].state != ${P}ST_ACTIVE && ${P}zones[i].state != ${P}ST_LIQ) return false;
    return true;
 }
 
