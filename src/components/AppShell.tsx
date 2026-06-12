@@ -16,6 +16,7 @@ import type { ReactNode } from "react";
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/new", label: "New strategy", icon: PlusSquare },
+  // Keep visible during build-out; hide from nav at product launch (route stays for dev/settings).
   { to: "/modules", label: "Trading Modules", icon: LayoutGrid },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
