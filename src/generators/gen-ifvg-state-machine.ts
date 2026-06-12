@@ -65,6 +65,7 @@ struct ${P}IfvgRec
    datetime confirmTime;
    // Output: set when state → CONFIRMED
    bool     justConfirmed;  // true for ONE bar after confirmation
+   bool     justRetested;   // true for ONE bar after first wick into zone
    double   confirmSL;      // retestLow (bull) or retestHigh (bear) at confirmation
 };
 
@@ -180,6 +181,7 @@ void ${P}CheckInversion(int sh)
       ${P}ifvgList[iIdx].retestLow     = 1e10;
       ${P}ifvgList[iIdx].confirmTime   = 0;
       ${P}ifvgList[iIdx].justConfirmed = false;
+      ${P}ifvgList[iIdx].justRetested = false;
       ${P}ifvgList[iIdx].confirmSL     = 0.0;
 
       ${P}fvgList[_k].inverted = true;
@@ -207,6 +209,7 @@ void ${P}UpdateStates(int sh)
 
       ${P}ifvgList[_i].barsAlive++;
       ${P}ifvgList[_i].justConfirmed = false;  // reset per bar
+      ${P}ifvgList[_i].justRetested = false;
 
       bool   isBull = (${P}ifvgList[_i].dir == 1);
       double ul     = ${P}ifvgList[_i].ul;
@@ -247,6 +250,7 @@ void ${P}UpdateStates(int sh)
                ${P}ifvgList[_i].retestTime= barT;
                ${P}ifvgList[_i].retestLow = barLo;
                ${P}ifvgList[_i].retestHigh= barHi;
+               ${P}ifvgList[_i].justRetested = true;
                PrintFormat("[IFVGSM/${tf}] BULL RETESTED | ul=%.5f retestLow=%.5f", ul, barLo);
             }
             else
@@ -283,6 +287,7 @@ void ${P}UpdateStates(int sh)
                ${P}ifvgList[_i].retestTime = barT;
                ${P}ifvgList[_i].retestLow  = barLo;
                ${P}ifvgList[_i].retestHigh = barHi;
+               ${P}ifvgList[_i].justRetested = true;
                PrintFormat("[IFVGSM/${tf}] BEAR RETESTED | ll=%.5f retestHigh=%.5f", ll, barHi);
             }
             else
@@ -400,6 +405,18 @@ bool ${P}BearJustConfirmed()
 {
    for(int _i = 0; _i < ${P}ifvgCount; _i++)
       if(${P}ifvgList[_i].dir == -1 && ${P}ifvgList[_i].justConfirmed) return true;
+   return false;
+}
+bool ${P}BullJustRetested()
+{
+   for(int _i = 0; _i < ${P}ifvgCount; _i++)
+      if(${P}ifvgList[_i].dir == 1 && ${P}ifvgList[_i].justRetested) return true;
+   return false;
+}
+bool ${P}BearJustRetested()
+{
+   for(int _i = 0; _i < ${P}ifvgCount; _i++)
+      if(${P}ifvgList[_i].dir == -1 && ${P}ifvgList[_i].justRetested) return true;
    return false;
 }
 // SL level for the most recently confirmed bull iFVG

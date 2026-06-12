@@ -81,14 +81,14 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     color: "text-lime-400",
     category: "OrderBlock",
   },
-  // S/R
+  // Entry zones — S/R & reactive SNR (same compiler role as OB/FVG: zone → touch → confirm)
   {
     id: "snr",
     label: "Classic S/R",
     desc: "Horizontal support and resistance levels",
     symbol: "─",
     color: "text-sky-400",
-    category: "Level",
+    category: "EntryZone",
   },
   {
     id: "gap_snr",
@@ -96,15 +96,15 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     desc: "Support/resistance at gap edges",
     symbol: "⋮",
     color: "text-slate-400",
-    category: "Level",
+    category: "EntryZone",
   },
   {
     id: "rejection",
     label: "Rejection",
-    desc: "Wick rejects a level, close holds (Reactive SNR)",
+    desc: "Wick rejects a level or zone — close holds (SMC or SNR)",
     symbol: "↩",
     color: "text-sky-300",
-    category: "Level",
+    category: "EntryZone",
   },
   {
     id: "miss",
@@ -112,7 +112,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     desc: "Price turns near a level without touching it",
     symbol: "⊘",
     color: "text-slate-300",
-    category: "Level",
+    category: "EntryZone",
   },
   // Volatility
   {
@@ -191,7 +191,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     desc: "Supply-demand base pattern detector",
     symbol: "R/D",
     color: "text-amber-300",
-    category: "Detector",
+    category: "EntryZone",
   },
   {
     id: "mef",
@@ -215,7 +215,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     desc: "Support/resistance continuation detector",
     symbol: "S2",
     color: "text-sky-300",
-    category: "Detector",
+    category: "EntryZone",
   },
 ];
 

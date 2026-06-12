@@ -135,6 +135,15 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       },
       {
         id: "retest",
+        roles: ["setup", "execution"],
+        queryFunctions: [
+          "IFVGSM_{id}_BullJustRetested()",
+          "IFVGSM_{id}_BearJustRetested()",
+        ],
+        meaning: "Price wicks back into the IFVG zone after inversion.",
+      },
+      {
+        id: "zone_rejection",
         roles: ["execution"],
         queryFunctions: [
           "IFVGSM_{id}_BullJustConfirmed()",
@@ -144,7 +153,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "IFVGSM_{id}_BullConfirmTime()",
           "IFVGSM_{id}_BearConfirmTime()",
         ],
-        meaning: "Price returns to the born IFVG zone and confirms after the inversion.",
+        meaning: "After IFVG retest, close holds outside — SMC rejection confirm.",
       },
       {
         id: "confirmation",
@@ -157,7 +166,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "IFVGSM_{id}_BullConfirmTime()",
           "IFVGSM_{id}_BearConfirmTime()",
         ],
-        meaning: "Alias for explicit IFVG retest confirmation entry.",
+        meaning: "Alias for IFVG rejection / confirm entry.",
       },
       {
         id: "active_zone",
@@ -205,10 +214,21 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         meaning: "An active FVG zone in the bias direction sets or confirms the directional bias.",
       },
       {
-        id: "confirmation",
+        id: "retest",
+        roles: ["setup", "execution"],
+        queryFunctions: ["FVGSM_{id}_BullJustRetested()", "FVGSM_{id}_BearJustRetested()"],
+        meaning: "Price wicks back into the FVG zone (first touch / retest).",
+      },
+      {
+        id: "zone_rejection",
         roles: ["execution"],
-        queryFunctions: ["FVGSM_{id}_BullJustConfirmed()", "FVGSM_{id}_BearJustConfirmed()"],
-        meaning: "FVG entry confirmation has fired.",
+        queryFunctions: [
+          "FVGSM_{id}_BullJustConfirmed()",
+          "FVGSM_{id}_BearJustConfirmed()",
+          "FVGSM_{id}_BullConfirmSL()",
+          "FVGSM_{id}_BearConfirmSL()",
+        ],
+        meaning: "After retest, close holds outside the zone — SMC rejection confirm.",
       },
     ],
     params: [
@@ -243,7 +263,13 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         meaning: "An active order block establishes or confirms directional bias.",
       },
       {
-        id: "mitigation",
+        id: "retest",
+        roles: ["setup", "execution"],
+        queryFunctions: ["OBSM_{id}_BullJustRetested()", "OBSM_{id}_BearJustRetested()"],
+        meaning: "Price wicks into the order block (mitigation / retest).",
+      },
+      {
+        id: "zone_rejection",
         roles: ["execution"],
         queryFunctions: [
           "OBSM_{id}_BullJustConfirmed()",
@@ -251,7 +277,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "OBSM_{id}_BullConfirmSL()",
           "OBSM_{id}_BearConfirmSL()",
         ],
-        meaning: "Price mitigated/touched the order block.",
+        meaning: "After OB retest, close holds outside the block — SMC rejection confirm.",
       },
     ],
     params: [

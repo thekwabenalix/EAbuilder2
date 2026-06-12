@@ -56,6 +56,8 @@ ${P}FvgRec  ${P}zones[${P}MAX_ZONES];
 int         ${P}zoneCount = 0;
 bool        ${P}_bullConfirmed = false;
 bool        ${P}_bearConfirmed = false;
+bool        ${P}_bullJustRetested = false;
+bool        ${P}_bearJustRetested = false;
 double      ${P}_bullSL = 0.0;
 double      ${P}_bearSL = 0.0;
 
@@ -70,6 +72,8 @@ void ${P}Reset()
    ${P}zoneCount      = 0;
    ${P}_bullConfirmed = false;
    ${P}_bearConfirmed = false;
+   ${P}_bullJustRetested = false;
+   ${P}_bearJustRetested = false;
    ${P}_bullSL = 0.0;
    ${P}_bearSL = 0.0;
 }
@@ -118,6 +122,8 @@ void ${P}Advance(int sh)
    double lo = iLow  (InpSymbol, ${TF}, sh);
    double hi = iHigh (InpSymbol, ${TF}, sh);
    double cl = iClose(InpSymbol, ${TF}, sh);
+   ${P}_bullJustRetested = false;
+   ${P}_bearJustRetested = false;
 
    for(int _k = 0; _k < ${P}zoneCount; _k++)
    {
@@ -140,6 +146,7 @@ void ${P}Advance(int sh)
          {
             ${P}zones[_k].state = ${P}RETESTED;
             ${P}zones[_k].retestLow = lo;
+            ${P}_bullJustRetested = true;
          }
          if(${P}zones[_k].state == ${P}RETESTED)
          {
@@ -163,6 +170,7 @@ void ${P}Advance(int sh)
          {
             ${P}zones[_k].state = ${P}RETESTED;
             ${P}zones[_k].retestHigh = hi;
+            ${P}_bearJustRetested = true;
          }
          if(${P}zones[_k].state == ${P}RETESTED)
          {
@@ -220,12 +228,16 @@ void ${P}Tick(int lookback)
 {
    ${P}_bullConfirmed = false;
    ${P}_bearConfirmed = false;
+   ${P}_bullJustRetested = false;
+   ${P}_bearJustRetested = false;
    for(int sh = lookback; sh >= 1; sh--) ${P}Detect(sh);
    ${P}Advance(1);
 }
 
 bool   ${P}BullJustConfirmed() { return ${P}_bullConfirmed; }
 bool   ${P}BearJustConfirmed() { return ${P}_bearConfirmed; }
+bool   ${P}BullJustRetested()  { return ${P}_bullJustRetested; }
+bool   ${P}BearJustRetested()  { return ${P}_bearJustRetested; }
 double ${P}BullConfirmSL()     { return ${P}_bullSL; }
 double ${P}BearConfirmSL()     { return ${P}_bearSL; }
 bool   ${P}HasActiveBull()

@@ -186,6 +186,49 @@ function priorConfirmationIndex(i: number, steps: StrategyStepConfig[]): number 
   return -1;
 }
 
+function isZoneRetestEvent(event: string): boolean {
+  return event.endsWith("_RETESTED") || event === "EMA_RETEST";
+}
+
+function isZoneRejectionEvent(event: string): boolean {
+  return (
+    event.endsWith("_CONFIRMED") ||
+    event === "REJECTION_CONFIRMED" ||
+    event === "ENGULFING_CONFIRMED" ||
+    event === "PIN_BAR_CONFIRMED"
+  );
+}
+
+function emitZoneRetestDetect(
+  wrap: (body: string) => string,
+  biasGuard: string,
+  biasExpr: string,
+  i: number,
+  P: string,
+  T1: string,
+  C1: string,
+): string {
+  return wrap(
+    `${biasGuard}   int _bias = ${biasExpr};
+   if((_bias == 0 || _bias == 1) && ${P}_BullJustRetested()) RegisterEvent(${i}, 1, ${T1}, ${C1}, 0.0);
+   else if((_bias == 0 || _bias == -1) && ${P}_BearJustRetested()) RegisterEvent(${i}, -1, ${T1}, ${C1}, 0.0);`,
+  );
+}
+
+function emitZoneRejectionDetect(
+  wrap: (body: string) => string,
+  biasGuard: string,
+  i: number,
+  P: string,
+  T1: string,
+  C1: string,
+): string {
+  return wrap(
+    `${biasGuard}   if(${P}_BullJustConfirmed())      RegisterEvent(${i}, 1, ${T1}, ${C1}, ${P}_BullConfirmSL());
+   else if(${P}_BearJustConfirmed()) RegisterEvent(${i}, -1, ${T1}, ${C1}, ${P}_BearConfirmSL());`,
+  );
+}
+
 // ── Per-instance detection (registers events from the module's SM queries) ───────
 function emitDetection(step: StrategyStepConfig, i: number, steps: StrategyStepConfig[]): string {
   const m = step.module;
@@ -287,6 +330,12 @@ ${clearDown}
    gPrevA[${i}] = _sa;`,
       );
     }
+    if (prof.family === "zone" && prof.hasActive && isZoneRetestEvent(step.event)) {
+      return emitZoneRetestDetect(wrap, biasGuard, biasExpr, i, P, T1, C1);
+    }
+    if (prof.family === "zone" && isZoneRejectionEvent(step.event) && !isZoneRetestEvent(step.event)) {
+      return emitZoneRejectionDetect(wrap, biasGuard, i, P, T1, C1);
+    }
     if (prof.family === "zone" && prof.hasActive) {
       return wrap(
         `${biasGuard}   int _bias = ${biasExpr};
@@ -309,6 +358,9 @@ ${clearDown}
 
   // ENTRY — discrete confirmation, carries SL
   if (isEntry(role)) {
+    if (prof.family === "zone" && isZoneRetestEvent(step.event)) {
+      return emitZoneRetestDetect(wrap, biasGuard, biasExpr, i, P, T1, C1);
+    }
     if (prof.family === "ema") {
       const confIdx = role === "entry" ? priorConfirmationIndex(i, steps) : -1;
       if (confIdx >= 0) {

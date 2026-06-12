@@ -155,7 +155,7 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
   },
   FVG_CONFIRMED: {
     id: "FVG_CONFIRMED",
-    label: "FVG Confirmed",
+    label: "FVG Rejection (wick touch, close holds)",
     category: "entry",
     roles: ["execution"],
     description: "FVG lifecycle confirmation has fired.",
@@ -188,7 +188,7 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
   },
   IFVG_CONFIRMED: {
     id: "IFVG_CONFIRMED",
-    label: "IFVG Confirmed",
+    label: "IFVG Rejection (wick touch, close holds)",
     category: "entry",
     roles: ["execution"],
     description: "Inversion FVG retest confirmation fired.",
@@ -221,7 +221,7 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
   },
   OB_CONFIRMED: {
     id: "OB_CONFIRMED",
-    label: "Order Block Confirmed",
+    label: "OB Rejection (wick touch, close holds)",
     category: "entry",
     roles: ["execution"],
     description: "Order block lifecycle confirmation fired.",
@@ -495,16 +495,21 @@ export const MODULE_SEMANTIC_EVENT_TYPES: Record<string, Record<string, Strategy
   fvg_inversion: {
     formation: "IFVG_FORMED",
     retest: "IFVG_RETESTED",
+    zone_rejection: "IFVG_CONFIRMED",
     confirmation: "IFVG_CONFIRMED",
     active_zone: "IFVG_FORMED",
   },
   fvg: {
     active_zone: "FVG_CREATED",
+    retest: "FVG_RETESTED",
+    zone_rejection: "FVG_CONFIRMED",
     confirmation: "FVG_CONFIRMED",
   },
   order_block: {
     active_zone: "OB_CREATED",
-    mitigation: "OB_RETESTED",
+    retest: "OB_RETESTED",
+    zone_rejection: "OB_CONFIRMED",
+    mitigation: "OB_CONFIRMED",
   },
   ob_fvg: {
     confluence_zone: "OB_FVG_CONFLUENCE",

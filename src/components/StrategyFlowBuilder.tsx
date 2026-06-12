@@ -7,8 +7,13 @@ import type {
 } from "@/types/blueprint";
 import { ALL_BRAIN_MODULES, TIMEFRAMES as TF_LIST } from "@/lib/brain-modules";
 import { MODULE_UI_PARAMS, type UIParam } from "@/lib/module-library";
-import { eventsForStepRole, firstEventForRole } from "@/lib/strategy-flow-events";
-import { flowSupportsModuleRole, isFlowVerifiedModule } from "@/generators/gen-flow-ea";
+import { eventsForStepRole, eventsForStepRoleGrouped, firstEventForRole } from "@/lib/strategy-flow-events";
+import { flowSupportsModuleRole } from "@/generators/gen-flow-ea";
+import {
+  flowModulesByTaxonomy,
+  MODULE_TAXONOMY_GROUPS,
+  taxonomyForModule,
+} from "@/lib/module-taxonomy";
 import {
   createDefaultStep,
   formatStepDisplayName,
@@ -25,7 +30,9 @@ import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -120,10 +127,13 @@ function StepCard({
   onRemove: () => void;
 }) {
   const moduleDef = ALL_BRAIN_MODULES.find((m) => m.id === step.module);
-  const eventOptions = useMemo(
-    () => eventsForStepRole(step.module, step.role),
+  const moduleGroups = useMemo(() => flowModulesByTaxonomy(), []);
+  const eventGroups = useMemo(
+    () => eventsForStepRoleGrouped(step.module, step.role),
     [step.module, step.role],
   );
+  const eventOptions = useMemo(() => eventGroups.flatMap((g) => g.events), [eventGroups]);
+  const moduleTaxonomy = taxonomyForModule(step.module);
   const flowSupported = flowSupportsModuleRole(step.module, step.role);
   const admission = getModuleAdmission(step.module);
   const admissionMeta = admission ? MODULE_ADMISSION_STATUS_META[admission.status] : null;
@@ -237,11 +247,18 @@ function StepCard({
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="max-h-64">
-              {ALL_BRAIN_MODULES.filter((mod) => isFlowVerifiedModule(mod.id)).map((mod) => (
-                <SelectItem key={mod.id} value={mod.id} className="text-xs">
-                  {mod.symbol} {mod.label}
-                </SelectItem>
+            <SelectContent className="max-h-72">
+              {moduleGroups.map(({ group, modules }) => (
+                <SelectGroup key={group.id}>
+                  <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    {group.label}
+                  </SelectLabel>
+                  {modules.map((mod) => (
+                    <SelectItem key={mod.id} value={mod.id} className="text-xs">
+                      {mod.symbol} {mod.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               ))}
             </SelectContent>
           </Select>
@@ -252,6 +269,10 @@ function StepCard({
         {moduleDef && (
           <span className="text-muted-foreground">
             {moduleDef.symbol} {moduleDef.desc}
+            <span className="text-muted-foreground/60">
+              {" "}
+              · {MODULE_TAXONOMY_GROUPS.find((g) => g.id === moduleTaxonomy)?.label ?? "Other"}
+            </span>
           </span>
         )}
         {admissionMeta && (
@@ -287,10 +308,17 @@ function StepCard({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {eventOptions.map((opt) => (
-                <SelectItem key={opt.eventType} value={opt.eventType} className="text-xs">
-                  {opt.label}
-                </SelectItem>
+              {eventGroups.map((group) => (
+                <SelectGroup key={group.uiGroup}>
+                  <SelectLabel className="text-[10px] text-muted-foreground">
+                    {group.label}
+                  </SelectLabel>
+                  {group.events.map((opt) => (
+                    <SelectItem key={opt.eventType} value={opt.eventType} className="text-xs">
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               ))}
             </SelectContent>
           </Select>
@@ -362,8 +390,10 @@ export function StrategyFlowBuilder({
         </div>
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           Each step is a verified module event. Steps run in order — a trade fires only when every
-          step in the chain has occurred (with timestamps). Add as many steps as your strategy
-          needs.
+          step in the chain has occurred (with timestamps). Use <strong>Setup</strong> + retest
+          events for zone touch, then <strong>Confirmation</strong> or <strong>Entry</strong> for
+          rejection (wick touch, close holds). Roles are pipeline phases — retest/rejection live in
+          the Event picker, not as roles.
         </p>
       </div>
 

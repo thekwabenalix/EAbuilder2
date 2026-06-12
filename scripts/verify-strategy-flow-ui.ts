@@ -15,6 +15,7 @@ import {
   validateFlowForBuilder,
 } from "../src/lib/strategy-flow-ui";
 import { eventsForStepRole } from "../src/lib/strategy-flow-events";
+import { flowModulesByTaxonomy } from "../src/lib/module-taxonomy";
 import { fourBrainToStrategyFlow } from "../src/lib/fourbrain-flow-adapter";
 import { DEFAULT_BLUEPRINT } from "../src/types/blueprint";
 import type { StrategyBlueprint } from "../src/types/blueprint";
@@ -82,6 +83,28 @@ assertOk(
   "BOS direction events listed",
 );
 
+const obSetupEvents = eventsForStepRole("order_block", "setup");
+assertOk(
+  obSetupEvents.some((e) => e.eventType === "OB_RETESTED"),
+  "OB setup lists retest event",
+);
+assertOk(
+  obSetupEvents[0]?.uiGroup === "retest" || obSetupEvents.some((e) => e.uiGroup === "retest"),
+  "retest events sort first for setup role",
+);
+
+const obEntryEvents = eventsForStepRole("order_block", "entry");
+assertOk(
+  obEntryEvents.some((e) => e.eventType === "OB_CONFIRMED"),
+  "OB entry lists zone rejection confirm",
+);
+
+const grouped = flowModulesByTaxonomy();
+assertOk(grouped.some((g) => g.group.id === "structure" && g.modules.length > 0), "structure group");
+assertOk(grouped.some((g) => g.group.id === "entry_zone" && g.modules.length > 0), "entry zone group");
+const snrInEntry = grouped.find((g) => g.group.id === "entry_zone")?.modules.some((m) => m.id === "snr");
+assertOk(snrInEntry, "Classic S/R grouped under entry zones");
+
 const validation = validateFlowForBuilder(fourBrainToStrategyFlow(fourBrain));
 assertOk(validation.schemaOk, "classic flow validates in builder");
 assertOk(validation.flowEngineOk, "classic flow supported by flow engine");
@@ -110,4 +133,4 @@ assertEq(
   "attach normalizes stale auto-generated step names",
 );
 
-console.log("\n14 strategy flow builder UI check(s) passed.\n");
+console.log("\n19 strategy flow builder UI check(s) passed.\n");
