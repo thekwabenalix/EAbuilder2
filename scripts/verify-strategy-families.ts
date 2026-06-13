@@ -12,7 +12,8 @@ import { buildBlueprintWiring } from "../src/generators/gen-blueprint-wiring";
 import { generateEA } from "../src/generators/gen-ea";
 import { smcZoneRejectionEventLabel } from "../src/lib/smc-zone-rejection-display";
 import { STRATEGY_EVENT_CONTRACTS } from "../src/lib/strategy-events";
-import { pickerModulesForBrain } from "../src/lib/strategy-family";
+import { pickerModulesForBrain, crossFamilyWarnings } from "../src/lib/strategy-family";
+import { moduleListHasZoneScopedRejectionTrigger } from "../src/lib/zone-scoped-rejection-repair";
 import type { AiBrainWiring } from "../src/lib/api-client";
 import type { FourBrainConfig, StrategyBlueprint } from "../src/types/blueprint";
 
@@ -200,6 +201,15 @@ try {
   assertOk(
     pickerModulesForBrain("hybrid", "execution", ["unicorn"]).every((m) => m.id !== "rejection"),
     "hybrid hides SNR Rejection when unicorn setup selected",
+  );
+  assertOk(
+    moduleListHasZoneScopedRejectionTrigger(["unicorn", "rejection"]),
+    "detects zone-scoped rejection trigger",
+  );
+  assertEq(
+    crossFamilyWarnings(["unicorn", "rejection", "choch"], "smc_ict").length,
+    0,
+    "SMC unicorn preset does not block on internal rejection id",
   );
   console.log("[OK  ] SMC vs SNR naming and picker filters");
 } catch (error) {

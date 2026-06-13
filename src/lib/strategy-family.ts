@@ -6,7 +6,10 @@
  */
 import type { BrainModuleType } from "@/types/blueprint";
 import { ALL_BRAIN_MODULES, MODULE_BY_ID, type BrainModuleDef } from "@/lib/brain-modules";
-import { ZONE_SCOPED_SETUP_MODULES } from "@/lib/zone-scoped-rejection-repair";
+import {
+  moduleListHasZoneScopedRejectionTrigger,
+  ZONE_SCOPED_SETUP_MODULES,
+} from "@/lib/zone-scoped-rejection-repair";
 
 export type StrategyFamily = "smc_ict" | "snr_snd" | "indicators" | "hybrid";
 
@@ -157,8 +160,12 @@ export function crossFamilyWarnings(
   ];
   const warnings: string[] = [];
 
+  const zoneScopedRejection = moduleListHasZoneScopedRejectionTrigger(ids);
+
   if (selectedFamily !== "hybrid") {
     for (const id of ids) {
+      // Unicorn/FVG+OB presets keep execution id `rejection` for flow remap — not SNR REJSM.
+      if (id === "rejection" && zoneScopedRejection) continue;
       if (!moduleAllowedInFamily(id, selectedFamily)) {
         const label = MODULE_BY_ID[id]?.label ?? id;
         warnings.push(
@@ -181,7 +188,7 @@ export function crossFamilyWarnings(
 
   const hasUnicorn = ids.includes("unicorn");
   const hasSnrRejection = ids.includes("rejection");
-  if (hasUnicorn && hasSnrRejection) {
+  if (hasUnicorn && hasSnrRejection && !zoneScopedRejection) {
     warnings.push(
       "Unicorn + SNR Rejection module id: the compiler remaps this to SMC Zone Rejection on the pocket (not horizontal SNR). Prefer Advanced Flow with UNICORN_CONFIRMED → next bar.",
     );

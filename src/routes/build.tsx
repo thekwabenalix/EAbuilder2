@@ -51,7 +51,10 @@ import {
   smcZoneRejectionEventLabel,
   UNICORN_POCKET_FLOW_CHAIN,
 } from "@/lib/smc-zone-rejection-display";
-import { ZONE_SCOPED_SETUP_MODULES } from "@/lib/zone-scoped-rejection-repair";
+import {
+  moduleListHasZoneScopedRejectionTrigger,
+  ZONE_SCOPED_SETUP_MODULES,
+} from "@/lib/zone-scoped-rejection-repair";
 import { GenerationPathBanner } from "@/components/GenerationPathBanner";
 import { TradeAuditPanel } from "@/components/TradeAuditPanel";
 import { EmaPeriodEditor } from "@/components/EmaPeriodEditor";
@@ -883,6 +886,9 @@ function FourBrainBuilderPage() {
         if (step.enabled !== false) ids.push(step.module as BrainModuleType);
       }
     }
+    if (moduleListHasZoneScopedRejectionTrigger(ids)) {
+      return ids.filter((id) => id !== "rejection");
+    }
     return ids;
   }
 
@@ -1033,6 +1039,10 @@ function FourBrainBuilderPage() {
     if (p.useAdvancedFlow) {
       setBuilderMode("advanced");
       seedFlowFromBrains(fourBrain);
+      const zoneMod = p.setup?.modules[0];
+      if (zoneMod && p.execution.modules[0] === "rejection") {
+        setExecution({ modules: [zoneMod], timeframe: p.execution.timeframe });
+      }
     } else if (builderMode === "advanced") {
       seedFlowFromBrains(fourBrain);
     }
@@ -1673,6 +1683,12 @@ function FourBrainBuilderPage() {
             for planning, but need verified state-machine contracts before they can trade.
           </p>
         )}
+        {!canBuildEa &&
+          strategyFamily &&
+          strategyFamily !== "hybrid" &&
+          familyWarnings.length > 0 && (
+            <p className="text-xs text-amber-400 text-center">{familyWarnings[0]}</p>
+          )}
         </div>
       </div>
     </div>

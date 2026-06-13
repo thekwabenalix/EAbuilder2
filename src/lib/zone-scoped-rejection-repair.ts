@@ -42,6 +42,17 @@ export function resolveZoneModuleFromCorpus(corpus: string): BrainModuleType | u
   return undefined;
 }
 
+/** True when `rejection` is the internal remap trigger paired with an SMC zone module. */
+export function moduleListHasZoneScopedRejectionTrigger(
+  moduleIds: Array<BrainModuleType | string | undefined>,
+): boolean {
+  if (!moduleIds.includes("rejection")) return false;
+  return moduleIds.some(
+    (id): id is BrainModuleType =>
+      typeof id === "string" && ZONE_SCOPED_SETUP_MODULES.has(id as BrainModuleType),
+  );
+}
+
 export function wantsZoneRejectionRemap(corpus: string, executionModule?: string): boolean {
   return (
     /reject|rejection|wick.{0,24}(hold|outside|pocket)|close.{0,40}outside|overlap pocket|zone confirm/i.test(
