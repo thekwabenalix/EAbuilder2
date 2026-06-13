@@ -394,6 +394,9 @@ void TryMatchSnrc1(int snrIdx, int sh)
 
    if(bestBase >= 0)
    {
+      // Consume the base — prevent it pairing with another breakout
+      baseList[bestBase].dead = true;
+
       int idx = snrc1Total++;
       snrc1List[idx].id          = nextC1Id++;
       snrc1List[idx].c1dir       = dir;
@@ -430,6 +433,9 @@ void TryMatchSnrc1(int snrIdx, int sh)
 
    if(bestGap >= 0)
    {
+      // Consume the gap — prevent it pairing with another breakout
+      gapList[bestGap].dead = true;
+
       int idx = snrc1Total++;
       snrc1List[idx].id          = nextC1Id++;
       snrc1List[idx].c1dir       = dir;
@@ -578,40 +584,55 @@ void UpdateGapAtBar(int sh)
 
 //+------------------------------------------------------------------+
 //| Drawing                                                          |
+//|                                                                  |
+//| ObjZone — historical entry zone box (entryLeft → breakTime)     |
+//|           Fixed width. Shows where the RBR/DBD base formed.     |
+//| ObjLine — entry-level extending line (breakTime → right)        |
+//|           Shows the active level to watch for re-entry.         |
+//| ObjLvl  — dashed broken Classic SNR reference (snrOrigin → right)
+//| ObjLbl  — label at breakTime on the entry level                 |
 //+------------------------------------------------------------------+
 void DrawSnrc1(int i)
 {
-   int      st     = snrc1List[i].c1state;
-   bool     isBull = (snrc1List[i].c1dir > 0);
-   datetime tNow   = iTime(_Symbol, InpTF, 0);
+   int      st       = snrc1List[i].c1state;
+   bool     isBull   = (snrc1List[i].c1dir > 0);
+   bool     isGap    = (snrc1List[i].entryType == ENTRY_GAP);
+   datetime tNow     = iTime(_Symbol, InpTF, 0);
+   datetime tLeft    = snrc1List[i].entryLeft;
+   datetime tBreak   = snrc1List[i].breakTime;
+   double   ehi      = snrc1List[i].entryHi;
+   double   elo      = snrc1List[i].entryLo;
+   // Key entry level: zone top for bull (price returns to this to go long),
+   //                  zone bottom for bear (price returns here to go short)
+   double   entryLvl = isBull ? ehi : elo;
 
-   // Always delete and redraw from scratch
+   // Always delete and recreate on any state change
    ObjectDelete(0, ObjZone(snrc1List[i].id));
    ObjectDelete(0, ObjLine(snrc1List[i].id));
    ObjectDelete(0, ObjLvl (snrc1List[i].id));
    ObjectDelete(0, ObjLbl (snrc1List[i].id));
 
-   // Terminal states — remove from chart
+   // Terminal states — remove everything from chart
    if(st == C1_BROKEN || st == C1_EXPIRED)
    {
       snrc1List[i].drawnState = st;
       return;
    }
 
-   // Colour: confirmed → brighter, otherwise base colour
+   // Colour: confirmed → use confirmed colour; otherwise base colour
    color clr = (st == C1_CONFIRMED)
                ? (isBull ? clrMediumSeaGreen : clrOrangeRed)
                : (isBull ? InpBullColor      : InpBearColor);
 
-   bool     isGap  = (snrc1List[i].entryType == ENTRY_GAP);
-   double   ehi    = snrc1List[i].entryHi;
-   double   elo    = snrc1List[i].entryLo;
-   datetime tLeft  = snrc1List[i].entryLeft;
-
-   // ── Entry zone box (RBR/DBD) or gap line ─────────────────────────
+   // ── Entry zone (historical base box or gap anchor) ─────────────────
+   // The box is FIXED: left = base start, right = breakout bar.
+   // It shows where the RBR/DBD was when the breakout happened.
    if(!isGap)
    {
-      if(ObjectCreate(0, ObjZone(snrc1List[i].id), OBJ_RECTANGLE, 0, tLeft, ehi, tNow, elo))
+      // Use breakTime as right edge so the box ends at the breakout candle
+      datetime tBoxRight = (tBreak > tLeft) ? tBreak : tNow;
+      if(ObjectCreate(0, ObjZone(snrc1List[i].id), OBJ_RECTANGLE, 0,
+                      tLeft, ehi, tBoxRight, elo))
       {
          ObjectSetInteger(0, ObjZone(snrc1List[i].id), OBJPROP_COLOR,      clr);
          ObjectSetInteger(0, ObjZone(snrc1List[i].id), OBJPROP_FILL,       true);
@@ -621,25 +642,28 @@ void DrawSnrc1(int i)
          ObjectSetInteger(0, ObjZone(snrc1List[i].id), OBJPROP_HIDDEN,     true);
       }
    }
-   else
+
+   // ── Entry-level line — extends right to show the active level ─────
+   // For base: from breakTime at entryLvl, ray right.
+   // For gap : from entryLeft at gap level, ray right.
+   datetime tLineStart = isGap ? tLeft : tBreak;
+   if(ObjectCreate(0, ObjLine(snrc1List[i].id), OBJ_TREND, 0,
+                   tLineStart, entryLvl, tNow, entryLvl))
    {
-      // Gap SNR: a solid horizontal line at the gap level
-      if(ObjectCreate(0, ObjLine(snrc1List[i].id), OBJ_TREND, 0, tLeft, ehi, tNow, ehi))
-      {
-         ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_COLOR,      clr);
-         ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_WIDTH,      2);
-         ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_STYLE,      STYLE_SOLID);
-         ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_RAY_RIGHT,  true);
-         ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_SELECTABLE, false);
-         ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_HIDDEN,     true);
-         ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_BACK,       true);
-      }
+      ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_COLOR,      clr);
+      ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_WIDTH,      2);
+      ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_STYLE,      STYLE_SOLID);
+      ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_RAY_RIGHT,  true);
+      ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_HIDDEN,     true);
+      ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_BACK,       true);
    }
 
-   // ── Broken Classic SNR reference line (dashed) ────────────────────
+   // ── Broken Classic SNR reference line (dashed, extends right) ─────
    datetime lvlLeft = snrc1List[i].snrOrigin;
    double   lvl     = snrc1List[i].brokenLevel;
-   if(ObjectCreate(0, ObjLvl(snrc1List[i].id), OBJ_TREND, 0, lvlLeft, lvl, tNow, lvl))
+   if(ObjectCreate(0, ObjLvl(snrc1List[i].id), OBJ_TREND, 0,
+                   lvlLeft, lvl, tNow, lvl))
    {
       ObjectSetInteger(0, ObjLvl(snrc1List[i].id), OBJPROP_COLOR,      clr);
       ObjectSetInteger(0, ObjLvl(snrc1List[i].id), OBJPROP_STYLE,      STYLE_DASH);
@@ -650,22 +674,13 @@ void DrawSnrc1(int i)
       ObjectSetInteger(0, ObjLvl(snrc1List[i].id), OBJPROP_BACK,       true);
    }
 
-   // ── Label ─────────────────────────────────────────────────────────
-   string typeStr;
-   if(snrc1List[i].entryType == ENTRY_BASE)
-      typeStr = (isBull ? "RBR" : "DBD");
-   else
-      typeStr = (isBull ? "G-Sup" : "G-Res");
+   // ── Label — at breakTime on the entry level ────────────────────────
+   string typeStr = isGap ? (isBull ? "G-Sup" : "G-Res")
+                          : (isBull ? "RBR"   : "DBD");
+   string suffix  = (st == C1_TOUCHED) ? " ~" : (st == C1_CONFIRMED) ? " ✓" : "";
+   string lbl     = (isBull ? "SNRC1↑ " : "SNRC1↓ ") + typeStr + suffix;
 
-   string suffix = "";
-   if(st == C1_TOUCHED)   suffix = " ~";
-   if(st == C1_CONFIRMED) suffix = " ✓";
-
-   string lbl = (isBull ? "SNRC1↑" : "SNRC1↓") + " " + typeStr + suffix;
-
-   // Anchor label at the zone edge closest to the broken level
-   double lblPrice = isBull ? ehi : elo;  // zone top for bull, zone bottom for bear
-   if(ObjectCreate(0, ObjLbl(snrc1List[i].id), OBJ_TEXT, 0, tLeft, lblPrice))
+   if(ObjectCreate(0, ObjLbl(snrc1List[i].id), OBJ_TEXT, 0, tBreak, entryLvl))
    {
       ObjectSetString (0, ObjLbl(snrc1List[i].id), OBJPROP_TEXT,       lbl);
       ObjectSetInteger(0, ObjLbl(snrc1List[i].id), OBJPROP_COLOR,      clr);
@@ -689,14 +704,13 @@ void DrawAll()
 
 void ExtendZones()
 {
+   // ObjZone (historical base box) is fixed-width — do NOT extend it.
+   // Only the entry-level line and broken-SNR reference line extend right.
    datetime tNow = iTime(_Symbol, InpTF, 0);
    for(int i = 0; i < snrc1Total; i++)
    {
       int st = snrc1List[i].c1state;
       if(st == C1_BROKEN || st == C1_EXPIRED) continue;
-
-      string zn = ObjZone(snrc1List[i].id);
-      if(ObjectFind(0, zn) >= 0) ObjectSetInteger(0, zn, OBJPROP_TIME, 1, tNow);
 
       string ln = ObjLine(snrc1List[i].id);
       if(ObjectFind(0, ln) >= 0) ObjectSetInteger(0, ln, OBJPROP_TIME, 1, tNow);
