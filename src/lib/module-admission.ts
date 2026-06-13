@@ -1,3 +1,5 @@
+import { resolveModuleId } from "./resolve-module-id";
+
 /**
  * Module admission registry.
  *
@@ -73,7 +75,7 @@ export const MODULE_ADMISSION_STATUS_META: Record<
 };
 
 export function getModuleAdmission(moduleId: string): ModuleAdmissionRecord | undefined {
-  return MODULE_ADMISSION[moduleId] ?? MODULE_ADMISSION[moduleId.replace(/^ob$/, "order_block")];
+  return MODULE_ADMISSION[resolveModuleId(moduleId)];
 }
 
 const MODULE_REPAIR_SUGGESTIONS: Record<string, string[]> = {
@@ -253,11 +255,11 @@ export const MODULE_ADMISSION: Record<string, ModuleAdmissionRecord> = {
   },
   zone_liq: {
     id: "zone_liq",
-    label: "Zone Liquidity Setup",
+    label: "Liquidity Buildup",
     status: "verified_state_machine",
     aiVocabulary: true,
     contractRequired: true,
-    notes: "Verified FVG/OB/BB liquidity → tap → reject inline state machine.",
+    notes: "Verified OB/BB/FVG liquidity buildup inline state machine (ZLSM).",
   },
   breakout: {
     id: "breakout",
@@ -336,12 +338,11 @@ export const MODULE_ADMISSION: Record<string, ModuleAdmissionRecord> = {
   },
   snrc2: {
     id: "snrc2",
-    label: "SNRC2 Detector",
-    status: "detector_only",
-    aiVocabulary: false,
-    contractRequired: false,
-    notes:
-      "Standalone Support/Resistance Continuation 2 detector emitted by verifier. Not admitted to AI wiring until a contract and state machine are added.",
+    label: "SNRC2",
+    status: "verified_state_machine",
+    aiVocabulary: true,
+    contractRequired: true,
+    notes: "Verified Support/Resistance Continuation 2 inline state machine (SNRC2SM).",
   },
   seg: {
     id: "seg",

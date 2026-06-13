@@ -1,31 +1,36 @@
 /**
- * Liquidity Buildup State Module — derived from the Liquidity_Buildup indicator.
- *
- * Renames the file header so MetaEditor distinguishes it from the standalone
- * indicator. The same detection logic applies; a Phase 3 EA can attach this
- * as an iCustom source for zone + liquidity state.
+ * Liquidity Buildup State Module — derived from Liquidity_Buildup indicator.
  */
 
 import {
   generateLiquidityBuildup,
   LIQUIDITY_BUILDUP_VERSION,
+  LIQUIDITY_BUILDUP_MODULE,
 } from "./zone-liquidity-setup-indicator";
 
-export const ZONE_LIQ_STATE_MODULE_VERSION = "1.0.0";
-export const ZONE_LIQ_STATE_MODULE = "Zone_Liq_State_Module";
+export const LIQUIDITY_BUILDUP_STATE_MODULE_VERSION = "1.0.0";
+export const LIQUIDITY_BUILDUP_STATE_MODULE = "Liquidity_Buildup_State_Module";
 
-export function generateZoneLiqStateModule(): string {
+/** @deprecated use LIQUIDITY_BUILDUP_STATE_MODULE */
+export const ZONE_LIQ_STATE_MODULE = LIQUIDITY_BUILDUP_STATE_MODULE;
+/** @deprecated use LIQUIDITY_BUILDUP_STATE_MODULE_VERSION */
+export const ZONE_LIQ_STATE_MODULE_VERSION = LIQUIDITY_BUILDUP_STATE_MODULE_VERSION;
+
+export function generateLiquidityBuildupStateModule(): string {
   return generateLiquidityBuildup()
     .replace(
       "//| Liquidity_Buildup.mq5",
-      "//| Zone_Liq_State_Module.mq5",
+      `//| ${LIQUIDITY_BUILDUP_STATE_MODULE}.mq5`,
     )
     .replace(
       `//| SMC Liquidity v${LIQUIDITY_BUILDUP_VERSION} — Combined OB + BB + FVG`,
-      `//| Zone Liq State Module v${ZONE_LIQ_STATE_MODULE_VERSION} — Liquidity Buildup`,
+      `//| Liquidity Buildup State Module v${LIQUIDITY_BUILDUP_STATE_MODULE_VERSION}`,
     )
     .replace(
       'IndicatorSetString(INDICATOR_SHORTNAME, "Liquidity Buildup (OB+BB+FVG)");',
-      'IndicatorSetString(INDICATOR_SHORTNAME, "Zone Liq State (OB+BB+FVG)");',
+      'IndicatorSetString(INDICATOR_SHORTNAME, "Liq Buildup State");',
     );
 }
+
+/** @deprecated use generateLiquidityBuildupStateModule */
+export const generateZoneLiqStateModule = generateLiquidityBuildupStateModule;

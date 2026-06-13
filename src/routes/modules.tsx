@@ -58,6 +58,7 @@ import { generateRbrDbdDetector } from "@/lib/smc-modules/rbr-dbd-detector";
 import { generateMefDetector } from "@/lib/smc-modules/mef-detector";
 import { generateQmMefDetector } from "@/lib/smc-modules/qm-mef-detector";
 import { generateSnrc2Detector } from "@/lib/smc-modules/snrc2-detector";
+import { generateSnrc2StateModule } from "@/lib/smc-modules/snrc2-state-module";
 import { INDICATOR_REGISTRY, INDICATOR_CATEGORY_LABEL } from "@/lib/indicator-registry";
 import { generateFvgStateModule } from "@/lib/smc-modules/fvg-state-module";
 import { generateObStateModule } from "@/lib/smc-modules/ob-state-module";
@@ -400,7 +401,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         status: "pending",
       },
       {
-        id: "zone-liquidity-setup",
+        id: "liquidity-buildup",
         filename: "Liquidity_Buildup.mq5",
         name: "Liquidity Buildup (OB + BB + FVG)",
         description:
@@ -925,26 +926,22 @@ const TRADING_MODULES: ModuleCategory[] = [
         generate: generateMissStateModule,
       },
       {
-        id: "zone-liq-state",
-        filename: "Zone_Liq_State_Module.mq5",
-        name: "Zone Liquidity Setup State Module",
+        id: "liquidity-buildup-state",
+        filename: "Liquidity_Buildup_State_Module.mq5",
+        name: "Liquidity Buildup State Module",
         description:
-          "Phase 2 state module for unified FVG + OB + BB liquidity setups. Tracks the " +
-          "full lifecycle: zone detect → liquidity build → tap → reject → entry signal. " +
-          "Same 4-buffer contract as FVG/OB state modules for Phase 3 EAs.",
+          "Phase 2 state module for combined OB + BB + FVG liquidity buildup. Same detection " +
+          "as the Liquidity_Buildup indicator — zones, liquidity lines, and edge-touch kill.",
         rules: [
-          "Zone types: FVG (3-candle gap), OB (displacement), BB (OB closed through → polarity flip)",
-          "Liquidity: bar closes within proximity without wick entering the zone",
-          "Tap: wick enters zone after min liquidity bars",
-          "Reject: close back outside zone — bull close > top, bear close < bottom",
-          "Signal buffers fire on the entry bar (next open after rejection)",
+          "OB: displacement + opposing candle — solid rectangle",
+          "BB: OB closed through (polarity flip) — dashed rectangle",
+          "FVG: 3-candle gap — dotted rectangle",
+          "Liquidity line: horizontal line at closest wick within proximity of the edge",
+          "Zone consumed (rect + line removed) when wick touches the body/gap edge",
         ],
         output: [
-          "Buffer 0: BullConfirmBuf — buy entry bar arrow price",
-          "Buffer 1: BearConfirmBuf — sell entry bar",
-          "Buffer 2/3: BullSLBuf / BearSLBuf — SL beyond zone + buffer",
-          "Filled zone rectangles + gold SL line on rejection",
-          "Journal: ZLS BUY/SELL | kind | tap+reject | SL | entry next open",
+          "Same visuals as Liquidity_Buildup.mq5 — for iCustom / Phase 3 EA attachment",
+          "Journal: LBU_OB/BB/FVG_BULL|BEAR when InpShowLog=true",
         ],
         status: "ready",
         generate: generateZoneLiqStateModule,
@@ -2010,6 +2007,32 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         status: "ready",
         generate: generateSnrc2Detector,
+      },
+      {
+        id: "snrc2-state",
+        filename: "SNRC2_State_Module.mq5",
+        name: "SNRC2 State Module",
+        description:
+          "Phase 2 state module for Support/Resistance Continuation 2. Same detection and " +
+          "chart visuals as the SNRC2 detector, plus the standard 4-buffer iCustom contract.",
+        rules: [
+          "HTF engulfing must precede the pattern (InpHtfTF / InpHtfLookback)",
+          "Bearish: L1 → L2(<L1) → H2(>L1,<res) → L3(<L2) — entry = Classic SNR of 1st low",
+          "Bullish mirror — entry = Classic SNR of 1st high; SL = manipulation extreme",
+          "Invalidation: price trades beyond SL → buffers cleared and setup removed",
+          "Entry line freezes when price taps the level",
+        ],
+        output: [
+          "Buffer 0: BullConfirmBuf[sh]=1.0 at bullish SNRC2 confirmation bar (Cont HH)",
+          "Buffer 1: BearConfirmBuf[sh]=1.0 at bearish SNRC2 confirmation bar (Cont LL)",
+          "Buffer 2: BullSLBuf[sh]=manipulation low — SL for bull entries",
+          "Buffer 3: BearSLBuf[sh]=manipulation high — SL for bear entries",
+          "Same visuals as SNRC2_Detector — entry line, SL line, structure markers",
+          "Journal: SNRC2_CREATED | SNRC2_ENTRY_TAPPED | SNRC2_SL_HIT | SNRC2_EXPIRED",
+        ],
+        status: "ready",
+        generate: generateSnrc2StateModule,
+        catalogKind: "state_module",
       },
       {
         id: "supply-zone",

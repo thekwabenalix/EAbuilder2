@@ -1,16 +1,17 @@
 /**
- * Inline Zone Liquidity Setup State Machine — FVG + OB + BB
+ * Inline Liquidity Buildup State Machine — OB + BB + FVG
  *
- * Lifecycle: detect zone → liquidity (close near, no touch) → tap → reject → entry next open
+ * Matches Liquidity_Buildup indicator semantics:
+ *   detect zone → wick approaches edge (liquidity built) → edge touch consumes zone
  *
  * Standard API:
  *   ZLSM_{id}_Reset()
  *   ZLSM_{id}_Tick(lookback)
- *   ZLSM_{id}_BullJustConfirmed()  — entry signal (next bar after tap+reject)
+ *   ZLSM_{id}_BullJustConfirmed()  — new liquidity buildup this bar
  *   ZLSM_{id}_BearJustConfirmed()
  *   ZLSM_{id}_BullConfirmSL() / BearConfirmSL()
- *   ZLSM_{id}_HasActiveBull() / HasActiveBear() — liquidity built, awaiting tap/reject
- *   ZLSM_{id}_ActiveBullSL() / ActiveBearSL() — SL hint for armed zones
+ *   ZLSM_{id}_HasActiveBull() / HasActiveBear() — zone with liquidity built
+ *   ZLSM_{id}_ActiveBullSL() / ActiveBearSL()
  */
 
 export function genZoneLiqSM(
@@ -34,8 +35,8 @@ export function genZoneLiqSM(
 
   return `
 //+------------------------------------------------------------------+
-//| Zone Liquidity Setup SM — ${tf} (${id})                         |
-//| FVG/OB/BB → liquidity → tap → reject → entry next open          |
+//| Liquidity Buildup SM — ${tf} (${id})                            |
+//| OB/BB/FVG → wick near edge (liquidity built) → touch kills       |
 //+------------------------------------------------------------------+
 #define ${P}DIR_BULL    1
 #define ${P}DIR_BEAR   -1
@@ -309,15 +310,6 @@ void ${P}CheckLiquidity(int sh)
 
       if(${P}TouchKills(i, hi, lo))
       {
-         bool hadLiq = (${P}zones[i].bestLiqDist < DBL_MAX);
-         bool reject = hadLiq && ${P}Rejected(dir, cl, top, bot);
-         if(reject)
-         {
-            double sl = ${P}SlForZone(dir, top, bot);
-            if(dir == ${P}DIR_BULL) { ${P}zones[i].pendingBuy = true; ${P}zones[i].pendingSL = sl; }
-            else { ${P}zones[i].pendingSell = true; ${P}zones[i].pendingSL = sl; }
-            PrintFormat("[ZLSM_${tf}] %s edge touch+reject | SL=%.5f", dir == ${P}DIR_BULL ? "BULL" : "BEAR", sl);
-         }
          ${P}KillZone(i);
          continue;
       }
@@ -329,7 +321,12 @@ void ${P}CheckLiquidity(int sh)
          {
             ${P}zones[i].bestLiqDist = dist;
             ${P}zones[i].liqBars++;
-            if(${P}zones[i].liqBars >= ${minLiqBars}) ${P}zones[i].state = ${P}ST_LIQ;
+            if(${P}zones[i].liqBars >= ${minLiqBars})
+            {
+               ${P}zones[i].state = ${P}ST_LIQ;
+               ${P}_bullConfirmed = true;
+               ${P}_bullSL = ${P}SlForZone(${P}DIR_BULL, top, bot);
+            }
          }
       }
       else
@@ -339,30 +336,18 @@ void ${P}CheckLiquidity(int sh)
          {
             ${P}zones[i].bestLiqDist = dist;
             ${P}zones[i].liqBars++;
-            if(${P}zones[i].liqBars >= ${minLiqBars}) ${P}zones[i].state = ${P}ST_LIQ;
+            if(${P}zones[i].liqBars >= ${minLiqBars})
+            {
+               ${P}zones[i].state = ${P}ST_LIQ;
+               ${P}_bearConfirmed = true;
+               ${P}_bearSL = ${P}SlForZone(${P}DIR_BEAR, top, bot);
+            }
          }
       }
    }
 }
 
-void ${P}EmitPending()
-{
-   for(int i = 0; i < ${P}zoneCount; i++)
-   {
-      if(${P}zones[i].pendingBuy)
-      {
-         ${P}_bullConfirmed = true;
-         ${P}_bullSL = ${P}zones[i].pendingSL;
-         ${P}zones[i].pendingBuy = false;
-      }
-      if(${P}zones[i].pendingSell)
-      {
-         ${P}_bearConfirmed = true;
-         ${P}_bearSL = ${P}zones[i].pendingSL;
-         ${P}zones[i].pendingSell = false;
-      }
-   }
-}
+void ${P}EmitPending() { /* signals set in CheckLiquidity */ }
 
 void ${P}AgeZones()
 {
@@ -409,8 +394,7 @@ bool ${P}IsArmed(int i)
 {
    if(${P}zones[i].dead) return false;
    if(${P}zones[i].kind == ${P}KIND_BB && ${P}zones[i].bbPhase != ${P}PHASE_BB) return false;
-   if(${P}zones[i].state != ${P}ST_ACTIVE && ${P}zones[i].state != ${P}ST_LIQ) return false;
-   return true;
+   return ${P}zones[i].bestLiqDist < DBL_MAX;
 }
 
 bool ${P}HasActiveBull()

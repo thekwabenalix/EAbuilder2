@@ -43,6 +43,8 @@ export type StrategyEventType =
   | "MISSED_LEVEL"
   | "ZONE_LIQ_ARMED"
   | "ZONE_LIQ_CONFIRMED"
+  | "SNRC2_ACTIVE"
+  | "SNRC2_CONFIRMED"
   | "BREAKOUT_CONFIRMED"
   | "RSI_HD_ACTIVE"
   | "RSI_HD_CONFIRMED"
@@ -388,10 +390,10 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
   },
   ZONE_LIQ_ARMED: {
     id: "ZONE_LIQ_ARMED",
-    label: "Zone Liquidity Armed",
+    label: "Liquidity Buildup Armed",
     category: "zone",
     roles: ["setup"],
-    description: "FVG/OB/BB zone has liquidity built — awaiting tap and rejection.",
+    description: "OB/BB/FVG zone has liquidity built — wick approached the edge without entering.",
     carriesDirection: true,
     carriesPrice: false,
     carriesZone: true,
@@ -399,13 +401,35 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
   },
   ZONE_LIQ_CONFIRMED: {
     id: "ZONE_LIQ_CONFIRMED",
-    label: "Zone Liquidity Confirmed",
+    label: "Liquidity Buildup Confirmed",
     category: "entry",
     roles: ["setup", "execution"],
-    description: "Tap into zone and rejection close — entry at next bar open.",
+    description: "New liquidity buildup on this bar — closest wick within proximity of the zone edge.",
     carriesDirection: true,
     carriesPrice: true,
     carriesZone: true,
+    carriesSlHint: true,
+  },
+  SNRC2_ACTIVE: {
+    id: "SNRC2_ACTIVE",
+    label: "SNRC2 Active",
+    category: "zone",
+    roles: ["setup"],
+    description: "SNRC2 continuation pattern is live — entry level active until tapped or invalidated.",
+    carriesDirection: true,
+    carriesPrice: true,
+    carriesZone: false,
+    carriesSlHint: true,
+  },
+  SNRC2_CONFIRMED: {
+    id: "SNRC2_CONFIRMED",
+    label: "SNRC2 Confirmed",
+    category: "entry",
+    roles: ["setup", "execution"],
+    description: "SNRC2 continuation pattern confirmed this bar (L3/R3 pivot with HTF engulfing filter).",
+    carriesDirection: true,
+    carriesPrice: true,
+    carriesZone: false,
     carriesSlHint: true,
   },
   BREAKOUT_CONFIRMED: {
@@ -572,6 +596,10 @@ export const MODULE_SEMANTIC_EVENT_TYPES: Record<string, Record<string, Strategy
   zone_liq: {
     zone_armed: "ZONE_LIQ_ARMED",
     zone_confirmed: "ZONE_LIQ_CONFIRMED",
+  },
+  snrc2: {
+    pattern_active: "SNRC2_ACTIVE",
+    pattern_confirmed: "SNRC2_CONFIRMED",
   },
   breakout: {
     breakout: "BREAKOUT_CONFIRMED",

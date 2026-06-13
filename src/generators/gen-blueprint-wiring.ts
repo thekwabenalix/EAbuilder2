@@ -179,6 +179,13 @@ function setupModuleBlock(
       gSetupActive = true; gSetupDir = -1; gSetupSLHint = ZLSM_${t}_ActiveBearSL();
    }`;
   }
+  if (mod === "snrc2") {
+    return `if((gBias == 0 || gBias == 1) && SNRC2SM_${t}_HasActiveBull()) {
+      gSetupActive = true; gSetupDir = 1; gSetupSLHint = SNRC2SM_${t}_ActiveBullSL();
+   } else if((gBias == 0 || gBias == -1) && SNRC2SM_${t}_HasActiveBear()) {
+      gSetupActive = true; gSetupDir = -1; gSetupSLHint = SNRC2SM_${t}_ActiveBearSL();
+   }`;
+  }
   if (mod === "liqsweep") {
     return `if((gBias == 0 || gBias == 1) && LSSM_${t}_BullJustConfirmed()) {
       gSetupActive = true; gSetupDir = 1; gSetupSLHint = LSSM_${t}_BullConfirmSL();
@@ -427,6 +434,8 @@ function smPrefixFromType(type: string): string {
       return "MISSSM";
     case "zone_liq":
       return "ZLSM";
+    case "snrc2":
+      return "SNRC2SM";
     case "rsi_hd":
       return "RSIHDSM";
     case "ob_fvg":

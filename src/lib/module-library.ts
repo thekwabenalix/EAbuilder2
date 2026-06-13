@@ -1392,41 +1392,174 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     combinesWith: ["snr", "gap_snr", "bos", "ema"],
   },
 
-  // ─── Zone Liquidity Setup (FVG + OB + BB) ───────────────────────────────────
+  // ─── SNRC2 (Support/Resistance Continuation 2) ───────────────────────────────
   {
-    id: "zone_liq",
-    label: "Zone Liquidity Setup",
+    id: "snrc2",
+    label: "SNRC2",
     aliases: [
-      { phrase: "zone liquidity" },
-      { phrase: "liquidity setup" },
-      { phrase: "fvg liquidity setup" },
-      { phrase: "ob liquidity setup" },
-      { phrase: "tap and reject" },
-      { phrase: "liquidity tap reject" },
-      { phrase: "liquidity build tap reject" },
+      { phrase: "snrc2" },
+      { phrase: "support resistance continuation" },
+      { phrase: "support/resistance continuation 2" },
+      { phrase: "classic snr continuation" },
+      { phrase: "snr continuation pattern" },
     ],
     concept:
-      "Unified FVG, Order Block, or Breaker Block setup — liquidity builds near the zone " +
-      "(bars close near without touching), price taps into the zone, rejects with a close " +
-      "back outside, and entry fires at the next bar open with SL beyond the zone.",
+      "Continuation after a Classic SNR break with a manipulation pullback across the broken level. " +
+      "Requires a qualifying HTF engulfing before the pattern forms.",
     detectionLogic:
-      "Detects FVG gaps, displacement OBs, and OB→BB flips. Liquidity = bar closes within " +
-      "InpNearATR × ATR of the zone edge without wick entering. Tap = wick enters zone after " +
-      "liquidity. Reject = close back outside (bull: close > top, bear: close < bottom). " +
-      "Signal on next bar open; SL below/above zone + buffer.",
+      "Builds alternating swing pivots and scans 6-pivot windows. Bearish: L1→H1→L2(<L1)→H2(>L1,<res)→L3(<L2). " +
+      "Bullish mirror. Entry = first Classic SNR level; SL = manipulation extreme. Invalidates on SL trade-through.",
     roles: [
       {
         role: "setup",
         fit: "primary",
-        usage: "Armed zone (liquidity built) validates the level; confirmed signal = tap+reject complete.",
+        usage: "Active SNRC2 entry level — wait for retest of the first level after confirmation.",
       },
       {
         role: "execution",
-        fit: "primary",
-        usage: "BullJustConfirmed/BearJustConfirmed fires on the entry bar (next open after rejection).",
+        fit: "secondary",
+        usage: "Fire on pattern confirmation bar (L3/R3 pivot) when trader wants immediate entry.",
       },
     ],
-    lifecycle: "ACTIVE → LIQ → TAPPED → DONE (signal) | EXPIRED",
+    lifecycle: "Confirmed at continuation pivot → entry level live until tapped, SL hit, or expiry",
+    params: [
+      {
+        name: "lookback",
+        type: "int",
+        default: 400,
+        range: [100, 800],
+        description: "Bars scanned for pivot structure",
+        traderPhrases: ["400 bars lookback"],
+      },
+      {
+        name: "swingStrength",
+        type: "int",
+        default: 2,
+        range: [1, 5],
+        description: "Fractal strength (bars each side of pivot)",
+        traderPhrases: ["2-bar pivots", "swing strength 3"],
+      },
+      {
+        name: "htfLookback",
+        type: "int",
+        default: 4,
+        range: [1, 20],
+        description: "HTF bars before pattern start to find engulfing (default HTF filter: H4)",
+        traderPhrases: ["H4 engulfing first", "4 HTF bars lookback"],
+      },
+      {
+        name: "expiryBars",
+        type: "int",
+        default: 250,
+        range: [50, 600],
+        description: "Bars until unfilled setup expires",
+        traderPhrases: [],
+      },
+    ],
+    outputStates: [
+      {
+        name: "BullJustConfirmed()",
+        meaning: "Bullish SNRC2 confirmed this bar",
+        tradingImplication: "Continuation higher after manipulation below R1",
+      },
+      {
+        name: "BearJustConfirmed()",
+        meaning: "Bearish SNRC2 confirmed this bar",
+        tradingImplication: "Continuation lower after manipulation above L1",
+      },
+      {
+        name: "HasActiveBull() / HasActiveBear()",
+        meaning: "Live SNRC2 setup awaiting entry tap",
+        tradingImplication: "Setup armed — retest the first level",
+      },
+      {
+        name: "BullConfirmSL() / BearConfirmSL()",
+        meaning: "Manipulation extreme (SL reference)",
+        tradingImplication: "Place SL beyond manipulation pivot",
+      },
+    ],
+    inlineApi: {
+      tick: "SNRC2SM_{id}_Tick(lookback)",
+      signals: [
+        { fn: "SNRC2SM_{id}_HasActiveBull()", returns: "bool", meaning: "Live bullish SNRC2" },
+        { fn: "SNRC2SM_{id}_HasActiveBear()", returns: "bool", meaning: "Live bearish SNRC2" },
+        {
+          fn: "SNRC2SM_{id}_BullJustConfirmed()",
+          returns: "bool",
+          meaning: "Bullish SNRC2 confirmed this bar",
+        },
+        {
+          fn: "SNRC2SM_{id}_BearJustConfirmed()",
+          returns: "bool",
+          meaning: "Bearish SNRC2 confirmed this bar",
+        },
+        {
+          fn: "SNRC2SM_{id}_BullConfirmSL()",
+          returns: "double",
+          meaning: "SL below manipulation low",
+        },
+        {
+          fn: "SNRC2SM_{id}_BearConfirmSL()",
+          returns: "double",
+          meaning: "SL above manipulation high",
+        },
+        {
+          fn: "SNRC2SM_{id}_ActiveBullSL()",
+          returns: "double",
+          meaning: "SL for active bullish setup",
+        },
+        {
+          fn: "SNRC2SM_{id}_ActiveBearSL()",
+          returns: "double",
+          meaning: "SL for active bearish setup",
+        },
+      ],
+      reset: "SNRC2SM_{id}_Reset()",
+    },
+    examplePhrases: [
+      "SNRC2 setup on H1 after H4 engulfing",
+      "Trade support resistance continuation with manipulation pullback",
+      "Enter on SNRC2 retest of the first level",
+      "Classic SNR break then continuation pattern",
+    ],
+    notSuitedFor: ["Simple single-candle triggers without structure context"],
+    combinesWith: ["snr", "gap_snr", "engulfing", "bos", "ema"],
+  },
+
+  // ─── Liquidity Buildup (OB + BB + FVG) ─────────────────────────────────────
+  {
+    id: "zone_liq",
+    label: "Liquidity Buildup",
+    aliases: [
+      { phrase: "liquidity buildup" },
+      { phrase: "liquidity build up" },
+      { phrase: "liquidity build-up" },
+      { phrase: "zone liquidity" },
+      { phrase: "fvg liquidity buildup" },
+      { phrase: "ob liquidity buildup" },
+      { phrase: "bb liquidity buildup" },
+    ],
+    concept:
+      "Combined OB, Breaker Block, and FVG liquidity detector. Each zone is drawn as a " +
+      "rectangle; the closest wick that approaches the zone edge without entering is " +
+      "marked with a horizontal liquidity line.",
+    detectionLogic:
+      "Detects OB (displacement + opposing candle), BB (OB closed through → flip), and " +
+      "FVG (3-candle gap). Liquidity = wick within InpNearATR × ATR of the body/gap edge " +
+      "without crossing the edge. Touch kills the zone (rectangle + line removed).",
+    roles: [
+      {
+        role: "setup",
+        fit: "primary",
+        usage: "HasActive = zone with liquidity built (armed). Use as setup filter before entry.",
+      },
+      {
+        role: "execution",
+        fit: "secondary",
+        usage: "BullJustConfirmed/BearJustConfirmed fires when new buildup is detected this bar.",
+      },
+    ],
+    lifecycle: "DETECTED → LIQUIDITY BUILT → CONSUMED (edge touch) | EXPIRED",
     params: [
       {
         name: "lookback",
@@ -1472,27 +1605,27 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     outputStates: [
       {
         name: "HasActiveBull()",
-        meaning: "Bull zone armed — liquidity built, awaiting tap/reject",
+        meaning: "Bull zone with liquidity built — wick approached edge without entering",
         tradingImplication: "SETUP LONG context active",
       },
       {
         name: "BullJustConfirmed()",
-        meaning: "Tap+reject complete — entry bar",
-        tradingImplication: "ENTRY LONG at next open",
+        meaning: "New liquidity buildup confirmed this bar",
+        tradingImplication: "ENTRY trigger when paired with execution module",
       },
       {
         name: "BullConfirmSL()",
         meaning: "SL below zone + buffer",
-        tradingImplication: "Stop below FVG/OB/BB",
+        tradingImplication: "Stop below OB/BB/FVG zone",
       },
     ],
     inlineApi: {
       tick: "ZLSM_{id}_Tick(lookback)",
       signals: [
-        { fn: "ZLSM_{id}_HasActiveBull()", returns: "bool", meaning: "Armed bull zone" },
-        { fn: "ZLSM_{id}_HasActiveBear()", returns: "bool", meaning: "Armed bear zone" },
-        { fn: "ZLSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Bull entry signal" },
-        { fn: "ZLSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "Bear entry signal" },
+        { fn: "ZLSM_{id}_HasActiveBull()", returns: "bool", meaning: "Zone with liquidity built (bull)" },
+        { fn: "ZLSM_{id}_HasActiveBear()", returns: "bool", meaning: "Zone with liquidity built (bear)" },
+        { fn: "ZLSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "New bull buildup this bar" },
+        { fn: "ZLSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "New bear buildup this bar" },
         { fn: "ZLSM_{id}_BullConfirmSL()", returns: "double", meaning: "Bull SL" },
         { fn: "ZLSM_{id}_BearConfirmSL()", returns: "double", meaning: "Bear SL" },
         { fn: "ZLSM_{id}_ActiveBullSL()", returns: "double", meaning: "Armed bull SL hint" },
@@ -1501,9 +1634,9 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       reset: "ZLSM_{id}_Reset()",
     },
     examplePhrases: [
-      "Wait for liquidity to build near the FVG then tap and reject",
-      "OB liquidity setup on H4 — enter next candle after rejection",
-      "FVG or OB zone with tap and reject entry",
+      "Wait for liquidity to build near the FVG without entering the gap",
+      "OB liquidity buildup on H4 — wick near the block edge",
+      "Combined OB BB FVG liquidity buildup detector",
     ],
     notSuitedFor: ["Pure direction bias without a zone"],
     combinesWith: ["bos", "choch", "ema", "engulfing", "rejection"],
@@ -2437,6 +2570,48 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
       hint: "How close (points) the pivot must be to the level to count as a miss",
     },
   ],
+  snrc2: [
+    {
+      key: "lookback",
+      label: "Lookback (bars)",
+      type: "number",
+      default: 400,
+      min: 100,
+      max: 800,
+      step: 10,
+      hint: "Historical bars scanned for pivot structure",
+    },
+    {
+      key: "swingStrength",
+      label: "Swing Strength (bars)",
+      type: "number",
+      default: 2,
+      min: 1,
+      max: 5,
+      step: 1,
+      hint: "Fractal strength — bars each side of pivot confirmation",
+    },
+    {
+      key: "htfLookback",
+      label: "HTF Lookback (bars)",
+      type: "number",
+      default: 4,
+      min: 1,
+      max: 20,
+      step: 1,
+      hint: "HTF bars before pattern start to find qualifying engulfing",
+    },
+    {
+      key: "expiryBars",
+      label: "Setup Expiry (bars)",
+      type: "number",
+      default: 250,
+      min: 50,
+      max: 600,
+      step: 10,
+      hint: "Bars until an unfilled SNRC2 setup is removed",
+    },
+  ],
   zone_liq: [
     {
       key: "lookback",
@@ -2456,7 +2631,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
       min: 1,
       max: 5,
       step: 1,
-      hint: "Bars that must close near the zone before tap counts",
+      hint: "Wick approach bars within proximity before zone counts as armed",
     },
     {
       key: "nearATR",
@@ -2466,7 +2641,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
       min: 0.05,
       max: 1.0,
       step: 0.05,
-      hint: "How close a close must be to the zone edge",
+      hint: "Wick proximity to zone edge as ATR fraction (same as Liquidity_Buildup indicator)",
     },
     {
       key: "expiryBars",

@@ -32,7 +32,7 @@ const contractIds = Object.keys(MODULE_CONTRACTS);
 const admissionIds = Object.keys(MODULE_ADMISSION);
 const indicatorIds = INDICATOR_REGISTRY.map((indicator) => indicator.id);
 const builtinFilterIds = Object.keys(BUILTIN_FILTER_CONTRACTS);
-const emittedDetectorIds = ["rbr_dbd", "mef", "qm_mef", "snrc2", "seg"];
+const emittedDetectorIds = ["rbr_dbd", "mef", "qm_mef", "seg"];
 
 function unique(values: string[]): string[] {
   return [...new Set(values)].sort();

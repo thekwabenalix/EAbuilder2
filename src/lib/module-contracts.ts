@@ -1,4 +1,5 @@
 import type { BrainModuleType } from "../types/blueprint";
+import { resolveModuleId } from "./resolve-module-id";
 
 export type BrainRole = "direction" | "setup" | "execution";
 export type ModuleImplementation = "state_machine" | "template" | "not_verified";
@@ -612,7 +613,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
   },
   zone_liq: {
     id: "zone_liq",
-    label: "Zone Liquidity Setup",
+    label: "Liquidity Buildup",
     implementation: "state_machine",
     smType: "zone_liq",
     smPrefix: "ZLSM",
@@ -628,7 +629,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "ZLSM_{id}_ActiveBullSL()",
           "ZLSM_{id}_ActiveBearSL()",
         ],
-        meaning: "Liquidity built near FVG/OB/BB — zone armed for tap and rejection.",
+        meaning: "OB/BB/FVG zone with liquidity built — wick approached the edge without entering.",
       },
       {
         id: "zone_confirmed",
@@ -639,7 +640,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "ZLSM_{id}_BullConfirmSL()",
           "ZLSM_{id}_BearConfirmSL()",
         ],
-        meaning: "Tap into zone and rejection close — entry at next bar open.",
+        meaning: "New liquidity buildup confirmed this bar (closest wick within proximity).",
       },
     ],
     params: [
@@ -647,30 +648,103 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         name: "lookback",
         type: "int",
         default: 200,
-        description: "Bars scanned for zone detection.",
+        description: "Bars scanned for OB/BB/FVG zones.",
       },
       {
         name: "minLiqBars",
         type: "int",
         default: 1,
-        description: "Minimum liquidity bars before tap counts.",
+        description: "Minimum approach bars before buildup counts as armed.",
       },
       {
         name: "nearATR",
         type: "double",
         default: 0.2,
-        description: "Proximity to zone edge as ATR fraction.",
+        description: "Wick proximity to zone edge as ATR fraction.",
       },
     ],
     aliases: [
+      "liquidity buildup",
+      "liquidity build up",
+      "liquidity build-up",
       "zone liquidity",
-      "liquidity setup",
-      "fvg liquidity setup",
-      "ob liquidity setup",
-      "tap and reject",
-      "liquidity tap reject",
+      "fvg liquidity buildup",
+      "ob liquidity buildup",
+      "bb liquidity buildup",
     ],
-    notes: "Unified FVG + OB + BB liquidity build → tap → reject setup pattern.",
+    notes: "Combined OB + BB + FVG liquidity buildup — wick near edge without entering.",
+  },
+  snrc2: {
+    id: "snrc2",
+    label: "SNRC2",
+    implementation: "state_machine",
+    smType: "snrc2",
+    smPrefix: "SNRC2SM",
+    tickArgPolicy: "lookback",
+    supportedRoles: ["setup", "execution"],
+    semanticEvents: [
+      {
+        id: "pattern_active",
+        roles: ["setup"],
+        queryFunctions: [
+          "SNRC2SM_{id}_HasActiveBull()",
+          "SNRC2SM_{id}_HasActiveBear()",
+          "SNRC2SM_{id}_ActiveBullSL()",
+          "SNRC2SM_{id}_ActiveBearSL()",
+        ],
+        meaning: "Live SNRC2 continuation — entry level active until tapped or SL invalidation.",
+      },
+      {
+        id: "pattern_confirmed",
+        roles: ["setup", "execution"],
+        queryFunctions: [
+          "SNRC2SM_{id}_BullJustConfirmed()",
+          "SNRC2SM_{id}_BearJustConfirmed()",
+          "SNRC2SM_{id}_BullConfirmSL()",
+          "SNRC2SM_{id}_BearConfirmSL()",
+        ],
+        meaning: "SNRC2 pattern confirmed this bar after manipulation and continuation pivot.",
+      },
+    ],
+    params: [
+      {
+        name: "lookback",
+        type: "int",
+        default: 400,
+        description: "Bars scanned for pivot structure.",
+      },
+      {
+        name: "swingStrength",
+        type: "int",
+        default: 2,
+        description: "Fractal strength (bars each side of pivot).",
+      },
+      {
+        name: "htfTf",
+        type: "string",
+        default: "H4",
+        description: "Higher timeframe that must show engulfing before the pattern.",
+      },
+      {
+        name: "htfLookback",
+        type: "int",
+        default: 4,
+        description: "HTF bars before pattern start to find qualifying engulfing.",
+      },
+      {
+        name: "expiryBars",
+        type: "int",
+        default: 250,
+        description: "Bars until an unfilled SNRC2 setup expires.",
+      },
+    ],
+    aliases: [
+      "snrc2",
+      "support resistance continuation",
+      "support/resistance continuation 2",
+      "classic snr continuation",
+    ],
+    notes: "Continuation after Classic SNR break with manipulation pullback and HTF engulfing filter.",
   },
   breakout: {
     id: "breakout",
@@ -849,7 +923,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
 };
 
 export function getModuleContract(moduleId: string): ModuleContract | undefined {
-  return MODULE_CONTRACTS[moduleId] ?? MODULE_CONTRACTS[moduleId.replace(/^ob$/, "order_block")];
+  return MODULE_CONTRACTS[resolveModuleId(moduleId)];
 }
 
 export function moduleSupportsEvent(moduleId: string, eventId: string, role?: BrainRole): boolean {

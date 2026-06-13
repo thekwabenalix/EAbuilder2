@@ -18,6 +18,7 @@ import { genGapSnrSM } from "./gen-gap-snr-sm";
 import { genFvgInversionSM } from "./gen-ifvg-state-machine";
 import { genLiqSweepSM } from "./gen-liqsweep-sm";
 import { genMissSM } from "./gen-miss-sm";
+import { genSnrc2SM } from "./gen-snrc2-sm";
 import { genZoneLiqSM } from "./gen-zone-liq-sm";
 import { genObFvgSM } from "./gen-obfvg-sm";
 import { genObSM } from "./gen-ob-sm";
@@ -62,6 +63,7 @@ export const SM_MODULE_META: Record<string, { prefix: string; type: string; bosM
     rejection: { prefix: "REJSM", type: "rejection" },
     miss: { prefix: "MISSSM", type: "miss" },
     zone_liq: { prefix: "ZLSM", type: "zone_liq" },
+    snrc2: { prefix: "SNRC2SM", type: "snrc2" },
     rsi_hd: { prefix: "RSIHDSM", type: "rsi_hd" },
     engulfing: { prefix: "EGSM", type: "engulfing" },
     ema: { prefix: "EMASM", type: "ema" },
@@ -81,6 +83,7 @@ export const SM_PREFIX_TYPE: Record<string, string> = {
   REJSM: "rejection",
   MISSSM: "miss",
   ZLSM: "zone_liq",
+  SNRC2SM: "snrc2",
   RSIHDSM: "rsi_hd",
   OBFVGSM: "ob_fvg",
   EMASM: "ema",
@@ -109,6 +112,7 @@ const FLOW_PROFILES: Record<string, SmFlowProfile> = {
   rejection: { prefix: "REJSM", family: "zone", hasActive: true },
   miss: { prefix: "MISSSM", family: "zone", hasActive: true },
   zone_liq: { prefix: "ZLSM", family: "zone", hasActive: true },
+  snrc2: { prefix: "SNRC2SM", family: "zone", hasActive: true },
   rsi_hd: { prefix: "RSIHDSM", family: "zone", hasActive: true },
   liqsweep: { prefix: "LSSM", family: "zone", hasActive: false },
 };
@@ -135,6 +139,8 @@ export function smPrefixForType(type: string): string {
       return "MISSSM";
     case "zone_liq":
       return "ZLSM";
+    case "snrc2":
+      return "SNRC2SM";
     case "rsi_hd":
       return "RSIHDSM";
     case "ob_fvg":
@@ -225,6 +231,17 @@ export function emitStateMachine(
         pInt(params, "swingLen", 3),
         pInt(params, "nearPoints", 50),
         pInt(params, "expiryBars", 200),
+      );
+    case "snrc2":
+      return genSnrc2SM(
+        id,
+        TF,
+        tf,
+        pInt(params, "lookback", 400),
+        pInt(params, "swingStrength", 2),
+        tfConst(String(params.htfTf ?? "H4")),
+        pInt(params, "htfLookback", 4),
+        pInt(params, "expiryBars", 250),
       );
     case "zone_liq":
       return genZoneLiqSM(
