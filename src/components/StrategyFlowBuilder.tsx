@@ -29,6 +29,8 @@ import {
   validateFlowForBuilder,
 } from "@/lib/strategy-flow-ui";
 import { getModuleAdmission, MODULE_ADMISSION_STATUS_META } from "@/lib/module-admission";
+import { EmaPeriodEditor } from "@/components/EmaPeriodEditor";
+import { emaParamsForBlueprint } from "@/lib/ema-params";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,31 +62,46 @@ function StepParamEditor({
   onChange: (params: Record<string, unknown>) => void;
 }) {
   const uiParams: UIParam[] = MODULE_UI_PARAMS[moduleId as BrainModuleType] ?? [];
-  if (!uiParams.length) return null;
+  const hasEma = moduleId === "ema";
+  const scalarParams = hasEma
+    ? uiParams.filter((p) => p.key !== "fastPeriod" && p.key !== "slowPeriod")
+    : uiParams;
+
+  if (!hasEma && !scalarParams.length) return null;
 
   return (
-    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-      {uiParams.map((p) => {
-        const current = typeof params[p.key] === "number" ? (params[p.key] as number) : p.default;
-        return (
-          <div key={p.key} className="space-y-0.5">
-            <Label className="text-[10px] text-muted-foreground">{p.label}</Label>
-            <input
-              type="number"
-              min={p.min}
-              max={p.max}
-              step={p.step}
-              value={current}
-              onChange={(e) => {
-                const v = parseFloat(e.target.value);
-                if (!isNaN(v)) onChange({ ...params, [p.key]: v });
-              }}
-              className="w-full h-7 rounded border border-border bg-background px-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
-              title={p.hint}
-            />
-          </div>
-        );
-      })}
+    <div className="space-y-2">
+      {hasEma && (
+        <EmaPeriodEditor
+          params={params}
+          onChange={(next) => onChange(emaParamsForBlueprint(next))}
+        />
+      )}
+      {scalarParams.length > 0 && (
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+          {scalarParams.map((p) => {
+            const current = typeof params[p.key] === "number" ? (params[p.key] as number) : p.default;
+            return (
+              <div key={p.key} className="space-y-0.5">
+                <Label className="text-[10px] text-muted-foreground">{p.label}</Label>
+                <input
+                  type="number"
+                  min={p.min}
+                  max={p.max}
+                  step={p.step}
+                  value={current}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (!isNaN(v)) onChange({ ...params, [p.key]: v });
+                  }}
+                  className="w-full h-7 rounded border border-border bg-background px-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                  title={p.hint}
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -153,11 +170,14 @@ function StepCard({
       firstEventForRole(moduleId, step.role) ??
       firstEventForRole(moduleId, "entry") ??
       step.event;
+    const nextParams =
+      moduleId === "ema" ? emaParamsForBlueprint(step.params ?? {}) : (step.params ?? {});
     onChange(
       withSyncedName({
         ...step,
         module: moduleId,
         event,
+        params: nextParams,
       }),
     );
   }
