@@ -529,52 +529,63 @@ void DeleteAllObjects()
 }
 
 //+------------------------------------------------------------------+
-//| SNRC1 pairing: scan bases + gap SNRs for a match                |
-//| Called immediately when a Strong SNR's state → BROKEN           |
+//| SNRC1 pairing: scan for a post-break RBR/DBD/Gap SNR match.     |
+//|                                                                  |
+//| KEY RULE: the entry zone (RBR/DBD/Gap SNR) must form AFTER the  |
+//| Strong SNR is broken — the SNR (left) comes before the base     |
+//| (right).  Pairing is attempted every bar by ScanPendingMatches. |
 //+------------------------------------------------------------------+
-void TryCreateSnrc1(int ssnrIdx, int breakSh)
+void TryCreateSnrc1(int ssnrIdx, int currentSh)
 {
    if(ssnrList[ssnrIdx].paired) return;
+   if(ssnrList[ssnrIdx].sstate != SSNR_BROKEN) return;
    if(snrc1Total >= SNRC1_MAX) return;
 
-   double brokenLevel = ssnrList[ssnrIdx].level;
-   int    stype       = ssnrList[ssnrIdx].stype;
-   // dir: +1 = bullish break (resistance broken up), -1 = bearish break (support broken down)
-   int    dir         = (stype == SSNR_RES) ? 1 : -1;
+   datetime breakTime  = ssnrList[ssnrIdx].endTime;   // bar when SSNR was broken
+   double   brokenLvl  = ssnrList[ssnrIdx].level;
+   int      stype      = ssnrList[ssnrIdx].stype;
+   int      dir        = (stype == SSNR_RES) ? 1 : -1;
 
-   double atr = CalcATR(breakSh);
-   if(atr <= 0.0) atr = 10 * _Point;   // fallback if not enough bars
+   double atr = CalcATR(currentSh);
+   if(atr <= 0.0) atr = 10 * _Point;
    double prox = InpProxATR * atr;
 
-   // ── Try RBR/DBD base first ─────────────────────────────────────
+   // ── Helper: distance from brokenLvl to nearest edge of base zone ─
+   // Returns 0 if level is inside [zlo, zhi], else gap to nearest edge.
+
+   // ── Try RBR/DBD base that confirmed AFTER the break ─────────────
    int bestBase = -1; double bestDist = prox + 1.0;
    for(int i = 0; i < baseTotal; i++)
    {
       if(baseList[i].dead) continue;
-      // Direction must match: bullish break needs RBR (demand), bearish break needs DBD (supply)
       if(dir > 0 && baseList[i].bdir != DIR_RBR) continue;
       if(dir < 0 && baseList[i].bdir != DIR_DBD) continue;
-      // The base must be on the PRE-BREAKOUT side of the broken level
-      // For bull: base top ≤ brokenLevel + prox (base is below or near the level)
-      // For bear: base bottom ≥ brokenLevel - prox
-      if(dir > 0 && baseList[i].zhi > brokenLevel + prox) continue;
-      if(dir < 0 && baseList[i].zlo < brokenLevel - prox) continue;
-      // Distance from the closest base edge to the broken level
-      double dist = (dir > 0) ? MathAbs(baseList[i].zhi - brokenLevel)
-                               : MathAbs(baseList[i].zlo - brokenLevel);
+
+      // *** KEY FIX: base leg-out (confirmation) must come AFTER the break ***
+      if(baseList[i].legOutTime <= breakTime) continue;
+
+      // Distance from the broken level to the nearest edge of the base zone
+      // 0 if the level overlaps the zone; positive if there is a gap
+      double dist;
+      if(brokenLvl >= baseList[i].zlo && brokenLvl <= baseList[i].zhi)
+         dist = 0.0;                          // broken level inside the base
+      else if(brokenLvl > baseList[i].zhi)
+         dist = brokenLvl - baseList[i].zhi;  // level above base top
+      else
+         dist = baseList[i].zlo - brokenLvl;  // level below base bottom
+
       if(dist > prox) continue;
       if(dist < bestDist) { bestDist = dist; bestBase = i; }
    }
 
    if(bestBase >= 0)
    {
-      // Create SNRC1 with base entry zone
       int idx = snrc1Total++;
       snrc1List[idx].id           = nextC1Id++;
       snrc1List[idx].c1dir        = dir;
       snrc1List[idx].entryType    = C1_ENTRY_BASE;
-      snrc1List[idx].brokenLevel  = brokenLevel;
-      snrc1List[idx].breakTime    = iTime(_Symbol, InpTF, breakSh);
+      snrc1List[idx].brokenLevel  = brokenLvl;
+      snrc1List[idx].breakTime    = breakTime;
       snrc1List[idx].entryHi      = baseList[bestBase].zhi;
       snrc1List[idx].entryLo      = baseList[bestBase].zlo;
       snrc1List[idx].entryLeft    = baseList[bestBase].baseLeft;
@@ -583,22 +594,26 @@ void TryCreateSnrc1(int ssnrIdx, int breakSh)
       snrc1List[idx].ageCounter   = 0;
       ssnrList[ssnrIdx].paired    = true;
       if(InpShowLog)
-         PrintFormat("SNRC1_FORMED | id=%d | dir=%s | entry=BASE(%s) | ssnr=%.5f | zone=[%.5f,%.5f] | %s",
+         PrintFormat("SNRC1_FORMED | id=%d | dir=%s | entry=BASE(%s) | ssnr=%.5f | zone=[%.5f,%.5f] | break=%s",
             snrc1List[idx].id, dir > 0 ? "BULL" : "BEAR",
             dir > 0 ? "RBR" : "DBD",
-            brokenLevel, snrc1List[idx].entryHi, snrc1List[idx].entryLo,
-            TimeToString(snrc1List[idx].breakTime, TIME_DATE|TIME_MINUTES));
+            brokenLvl, snrc1List[idx].entryHi, snrc1List[idx].entryLo,
+            TimeToString(breakTime, TIME_DATE|TIME_MINUTES));
       return;
    }
 
-   // ── Try Gap SNR ────────────────────────────────────────────────
-   int bestGap = -1; bestDist = prox + 1.0;
+   // ── Try Gap SNR that confirmed AFTER the break ───────────────────
    int reqGapType = (dir > 0) ? GAP_SUP : GAP_RES;
+   int bestGap = -1; bestDist = prox + 1.0;
    for(int i = 0; i < gapTotal; i++)
    {
       if(gapList[i].gstate != SSNR_LIVE) continue;
       if(gapList[i].gtype != reqGapType) continue;
-      double dist = MathAbs(gapList[i].level - brokenLevel);
+
+      // *** KEY FIX: Gap SNR must be confirmed AFTER the break ***
+      if(gapList[i].candleBTime <= breakTime) continue;
+
+      double dist = MathAbs(gapList[i].level - brokenLvl);
       if(dist > prox) continue;
       if(dist < bestDist) { bestDist = dist; bestGap = i; }
    }
@@ -609,29 +624,36 @@ void TryCreateSnrc1(int ssnrIdx, int breakSh)
       snrc1List[idx].id           = nextC1Id++;
       snrc1List[idx].c1dir        = dir;
       snrc1List[idx].entryType    = C1_ENTRY_GAP;
-      snrc1List[idx].brokenLevel  = brokenLevel;
-      snrc1List[idx].breakTime    = iTime(_Symbol, InpTF, breakSh);
+      snrc1List[idx].brokenLevel  = brokenLvl;
+      snrc1List[idx].breakTime    = breakTime;
       snrc1List[idx].entryHi      = gapList[bestGap].level;
-      snrc1List[idx].entryLo      = gapList[bestGap].level;   // line: hi == lo
+      snrc1List[idx].entryLo      = gapList[bestGap].level;
       snrc1List[idx].entryLeft    = gapList[bestGap].candleATime;
       snrc1List[idx].c1state      = C1_ACTIVE;
       snrc1List[idx].drawnState   = C1_UNDRAWN;
       snrc1List[idx].ageCounter   = 0;
       ssnrList[ssnrIdx].paired    = true;
       if(InpShowLog)
-         PrintFormat("SNRC1_FORMED | id=%d | dir=%s | entry=GAP(%s) | ssnr=%.5f | level=%.5f | %s",
+         PrintFormat("SNRC1_FORMED | id=%d | dir=%s | entry=GAP(%s) | ssnr=%.5f | level=%.5f | break=%s",
             snrc1List[idx].id, dir > 0 ? "BULL" : "BEAR",
             dir > 0 ? "G-Sup" : "G-Res",
-            brokenLevel, gapList[bestGap].level,
-            TimeToString(snrc1List[idx].breakTime, TIME_DATE|TIME_MINUTES));
+            brokenLvl, gapList[bestGap].level,
+            TimeToString(breakTime, TIME_DATE|TIME_MINUTES));
    }
+}
+
+// Run on every bar: attempt pairing for all broken, unmatched SSNRs
+void ScanPendingMatches(int sh)
+{
+   for(int i = 0; i < ssnrTotal; i++)
+      TryCreateSnrc1(i, sh);
 }
 
 //+------------------------------------------------------------------+
 //| Lifecycle updates per bar                                       |
 //+------------------------------------------------------------------+
 
-// Update Strong SNR list — detect breaks, call TryCreateSnrc1 on break
+// Update Strong SNR list — detect breaks (pairing is deferred to ScanPendingMatches)
 void UpdateSsnrAtBar(int sh)
 {
    double   cl = iClose(_Symbol, InpTF, sh);
@@ -644,14 +666,14 @@ void UpdateSsnrAtBar(int sh)
       // Expiry (use same InpExpiryBars as SNRC1 for consistency)
       if(InpExpiryBars > 0 && ssnrList[i].ageCounter >= InpExpiryBars)
          { ssnrList[i].sstate = SSNR_EXPIRED; ssnrList[i].endTime = bt; continue; }
-      // Break detection
+      // Break detection — record break time so ScanPendingMatches can filter post-break bases
       bool brokeUp   = (ssnrList[i].stype == SSNR_RES && cl > ssnrList[i].level);
       bool brokeDown = (ssnrList[i].stype == SSNR_SUP && cl < ssnrList[i].level);
       if(brokeUp || brokeDown)
       {
          ssnrList[i].sstate = SSNR_BROKEN;
          ssnrList[i].endTime = bt;
-         TryCreateSnrc1(i, sh);   // attempt pairing immediately on break
+         // Pairing is NOT attempted here — ScanPendingMatches runs after all detectors on this bar
       }
    }
 }
@@ -796,12 +818,15 @@ int OnInit()
       CheckGapPair(sh, sh - 1);     // Gap SNR pair
    }
 
-   // ── Pass 2: Lifecycle replay (oldest → newest), pairing on break ─
+   // ── Pass 2: Lifecycle replay (oldest → newest).  After all detectors ─
+   // have run for the bar, ScanPendingMatches tries to pair every broken   ─
+   // SSNR with any RBR/DBD/Gap SNR that confirmed ON THIS bar or earlier.  ─
    for(int sh = limit - 1; sh >= 1; sh--)
    {
-      UpdateSsnrAtBar(sh);     // ← calls TryCreateSnrc1 on break
+      UpdateSsnrAtBar(sh);
       UpdateBaseAtBar(sh);
       UpdateGapAtBar(sh);
+      ScanPendingMatches(sh);  // pair broken SSNRs with post-break bases/gaps
       UpdateSnrc1AtBar(sh);
    }
 
@@ -839,10 +864,11 @@ int OnCalculate(const int rates_total, const int prev_calculated,
    DetectBase(1);
    CheckGapPair(2, 1);
 
-   // Update lifecycle — TryCreateSnrc1 fires inside UpdateSsnrAtBar on break
+   // Update lifecycle, then pair any newly broken SSNR with post-break bases/gaps
    UpdateSsnrAtBar(1);
    UpdateBaseAtBar(1);
    UpdateGapAtBar(1);
+   ScanPendingMatches(1);   // pair broken SSNRs with post-break RBR/DBD/Gap SNRs
    UpdateSnrc1AtBar(1);
 
    EnforceMaxSnrc1();
