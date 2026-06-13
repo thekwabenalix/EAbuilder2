@@ -34,6 +34,8 @@ const MODULE_ID_ALIASES: Record<string, string> = {
   hammer: "pin_bar",
   "shooting star": "pin_bar",
   "rejection candle": "pin_bar",
+  bollinger: "bb",
+  "bollinger bands": "bb",
 };
 
 export function resolveModuleId(moduleId: string): string {

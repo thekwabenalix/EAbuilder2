@@ -1,6 +1,9 @@
 /**
  * SMC Liquidity Detector — BB (Breaker Block) Liquidity Build-up v1.1.0
  *
+ * @deprecated Standalone visual only — superseded by Liquidity_Buildup.mq5 and
+ * the zone_liq / ZLSM brain module. Kept for compile regression.
+ *
  * Price does not touch the BODY of a Breaker Block but builds up around it.
  * That liquidity makes the breaker a higher-probability reaction level.
  *

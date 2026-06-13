@@ -13,7 +13,7 @@ import { SM_MODULE_META } from "./sm-embed-registry";
 export { SM_MODULE_META } from "./sm-embed-registry";
 
 /** Modules that still use legacy heuristic brain generators (no verified SM). */
-const LEGACY_HEURISTIC_MODULES = new Set<BrainModuleType>(["bb"]);
+const LEGACY_HEURISTIC_MODULES = new Set<BrainModuleType>([]);
 
 function period(tf: string): string {
   const u = tf.toUpperCase();
@@ -118,6 +118,10 @@ function directionModuleSignal(
   if (mod === "swing_structure") {
     return `if(SWINGSM_${t}_IsBull()) ${varName} = 1;
    else if(SWINGSM_${t}_IsBear()) ${varName} = -1;`;
+  }
+  if (mod === "bb") {
+    return `if(BOLLSM_${t}_IsBull()) ${varName} = 1;
+   else if(BOLLSM_${t}_IsBear()) ${varName} = -1;`;
   }
   if (mod === "ema") {
     if (isEmaCtcParams(params)) {
@@ -230,6 +234,13 @@ function setupModuleBlock(
       gSetupActive = true; gSetupDir = 1; gSetupSLHint = SWINGSM_${t}_ActiveBullSL();
    } else if((gBias == 0 || gBias == -1) && SWINGSM_${t}_HasActiveBear()) {
       gSetupActive = true; gSetupDir = -1; gSetupSLHint = SWINGSM_${t}_ActiveBearSL();
+   }`;
+  }
+  if (mod === "bb") {
+    return `if((gBias == 0 || gBias == 1) && BOLLSM_${t}_HasActiveBull()) {
+      gSetupActive = true; gSetupDir = 1; gSetupSLHint = BOLLSM_${t}_ActiveBullSL();
+   } else if((gBias == 0 || gBias == -1) && BOLLSM_${t}_HasActiveBear()) {
+      gSetupActive = true; gSetupDir = -1; gSetupSLHint = BOLLSM_${t}_ActiveBearSL();
    }`;
   }
   if (mod === "liqsweep") {
@@ -506,6 +517,8 @@ function smPrefixFromType(type: string): string {
       return "EGSM";
     case "pin_bar":
       return "PINSM";
+    case "bb":
+      return "BOLLSM";
     case "bos":
     case "choch":
     case "bos_choch":

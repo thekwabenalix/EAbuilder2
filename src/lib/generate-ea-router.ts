@@ -6,7 +6,7 @@
  *   2. Validate step schema (blueprint-generation-gate)
  *   3. Flow engine when all steps are supported (ordered event gate)
  *   4. Blueprint assembler fallback (verified SMs, boolean confluence)
- *   5. Legacy heuristic fallback for bb only
+ *   5. Legacy heuristic fallback (none — all brain modules use verified SMs)
  */
 
 import type { StrategyBlueprint } from "@/types/blueprint";

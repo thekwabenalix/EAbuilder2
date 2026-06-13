@@ -2338,7 +2338,8 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "bb liquidity buildup" },
     ],
     concept:
-      "Combined OB, Breaker Block, and FVG liquidity detector. Each zone is drawn as a " +
+      "Combined OB, Breaker Block, and FVG liquidity detector — supersedes the legacy " +
+      "standalone FVG/OB/BB Liquidity Detector files. Each zone is drawn as a " +
       "rectangle; the closest wick that approaches the zone edge without entering is " +
       "marked with a horizontal liquidity line.",
     detectionLogic:
@@ -3036,6 +3037,59 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     ],
     notSuitedFor: ["Strategies needing FVG-style gap detection — use fvg or fvg_inversion instead"],
     combinesWith: ["bos", "ema", "liqsweep", "snr", "fvg"],
+  },
+
+  // ─── Bollinger Bands ─────────────────────────────────────────────────────────
+  {
+    id: "bb",
+    label: "Bollinger Bands",
+    aliases: [
+      { phrase: "bollinger" },
+      { phrase: "bollinger bands" },
+      { phrase: "upper band" },
+      { phrase: "lower band" },
+      { phrase: "bb touch" },
+      { phrase: "bb breakout" },
+    ],
+    concept:
+      "Volatility envelope: midline SMA ± N standard deviations. Touch mode = band rejection; breakout mode = close outside bands; midline = directional bias.",
+    detectionLogic:
+      "Uses iBands (buffer 0=mid, 1=upper, 2=lower). Touch: lower-band rejection (wick below, close above) for longs; upper-band rejection for shorts. Breakout: close above upper / below lower. Midline bias: close vs mid.",
+    roles: [
+      { role: "direction", fit: "primary", usage: "IsBull/IsBear from close vs midline." },
+      { role: "setup", fit: "primary", usage: "HasActiveBull/Bear when price holds above/below midline." },
+      { role: "execution", fit: "primary", usage: "BullJustConfirmed on lower-band touch rejection (touch mode)." },
+    ],
+    lifecycle: "Point-in-time on the just-closed bar — recalculated each tick",
+    params: [
+      { name: "period", type: "int", default: 20, range: [5, 100], description: "Bollinger period", traderPhrases: [] },
+      { name: "deviation", type: "double", default: 2, range: [1, 4], description: "Std-dev multiplier", traderPhrases: [] },
+    ],
+    outputStates: [
+      { name: "BullJustConfirmed()", meaning: "Lower-band touch rejection or upper breakout", tradingImplication: "ENTRY LONG" },
+      { name: "BearJustConfirmed()", meaning: "Upper-band touch rejection or lower breakout", tradingImplication: "ENTRY SHORT" },
+      { name: "IsBull() / IsBear()", meaning: "Close above/below midline", tradingImplication: "Direction bias" },
+    ],
+    inlineApi: {
+      tick: "BOLLSM_{id}_Tick(1)",
+      signals: [
+        { fn: "BOLLSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Bull band signal this bar" },
+        { fn: "BOLLSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "Bear band signal this bar" },
+        { fn: "BOLLSM_{id}_IsBull()", returns: "bool", meaning: "Close above midline" },
+        { fn: "BOLLSM_{id}_IsBear()", returns: "bool", meaning: "Close below midline" },
+        { fn: "BOLLSM_{id}_BullConfirmSL()", returns: "double", meaning: "Bar low — SL for longs" },
+        { fn: "BOLLSM_{id}_BearConfirmSL()", returns: "double", meaning: "Bar high — SL for shorts" },
+      ],
+      reset: "BOLLSM_{id}_Reset()",
+    },
+    examplePhrases: [
+      "Buy when price touches the lower Bollinger Band and rejects",
+      "Sell at upper band rejection",
+      "Bollinger breakout entry above the upper band",
+      "Trade in direction of the Bollinger midline",
+    ],
+    notSuitedFor: ["SMC Breaker Block strategies — use breaker_block (BBSM) instead"],
+    combinesWith: ["ema", "rsi_hd", "engulfing", "pin_bar", "fvg"],
   },
 
   // ─── Pin Bar ─────────────────────────────────────────────────────────────────
@@ -3767,6 +3821,16 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
       max: 100,
       step: 1,
       hint: "Moving average period for the Bollinger midline",
+    },
+    {
+      key: "deviation",
+      label: "Deviation",
+      type: "number",
+      default: 2,
+      min: 1,
+      max: 4,
+      step: 0.1,
+      hint: "Standard deviation multiplier for upper/lower bands",
     },
   ],
   swing_structure: [

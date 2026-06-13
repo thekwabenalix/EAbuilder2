@@ -100,16 +100,16 @@ function badUnsafeTemplateModule(): AiBrainWiringResponse {
       version: 1,
       source: "ai",
       timeframe: "M5",
-      modules: ["bb"],
+      modules: ["seg"],
       execution: {
-        module: "bb",
-        entryEvent: "band_touch",
+        module: "seg",
+        entryEvent: "eg_confirmed",
       },
       assumptions: [],
     },
     required_sms: [],
     sm_configs: {},
-    notes: "Intentional bad fixture: Bollinger Bands are template-only, not AI SM-safe.",
+    notes: "Intentional bad fixture: SEG is detector-only, not AI SM-safe.",
   };
 }
 
@@ -611,11 +611,11 @@ const cases: RegressionCase[] = [
   {
     name: "module admission blocks template and guarded modules for AI wiring",
     run: () => {
-      const unsafe = findUnsafeAiModules(["ema", "bb", "swing_structure", "rbr_dbd"]);
+      const unsafe = findUnsafeAiModules(["ema", "bb", "swing_structure", "rbr_dbd", "seg"]);
       assertEq(unsafe.length, 1, "unsafe module count");
       assertOk(
-        unsafe.some((item) => item.startsWith("bb:")),
-        "expected bb to be unsafe",
+        unsafe.some((item) => item.startsWith("seg:")),
+        "expected seg to be unsafe",
       );
     },
   },

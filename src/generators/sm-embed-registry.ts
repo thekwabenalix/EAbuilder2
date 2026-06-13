@@ -30,13 +30,14 @@ import { genZoneLiqSM } from "./gen-zone-liq-sm";
 import { genObFvgSM } from "./gen-obfvg-sm";
 import { genUnicornSM } from "./gen-unicorn-sm";
 import { genPinSM } from "./gen-pin-sm";
+import { genBollSm } from "./gen-boll-sm";
 import { genObSM } from "./gen-ob-sm";
 import { genRejectionSM } from "./gen-rejection-sm";
 import { genRsiHdSM } from "./gen-rsi-hd-sm";
 import { genSnrSM } from "./gen-snr-sm";
 import { getModuleContract } from "@/lib/module-contracts";
 
-export type SmFamily = "zone" | "bias_break" | "ema";
+export type SmFamily = "zone" | "bias_break" | "ema" | "bias_filter";
 export type SmTickContext = "flow_bar" | "assembler_brain";
 
 type Params = Record<string, unknown>;
@@ -83,6 +84,7 @@ export const SM_MODULE_META: Record<string, { prefix: string; type: string; bosM
     rsi_hd: { prefix: "RSIHDSM", type: "rsi_hd" },
     engulfing: { prefix: "EGSM", type: "engulfing" },
     pin_bar: { prefix: "PINSM", type: "pin_bar" },
+    bb: { prefix: "BOLLSM", type: "bb" },
     ema: { prefix: "EMASM", type: "ema" },
   };
 
@@ -112,6 +114,7 @@ export const SM_PREFIX_TYPE: Record<string, string> = {
   UNISMSM: "unicorn",
   EMASM: "ema",
   PINSM: "pin_bar",
+  BOLLSM: "bb",
 };
 
 export interface SmFlowProfile {
@@ -133,6 +136,7 @@ const FLOW_PROFILES: Record<string, SmFlowProfile> = {
   unicorn: { prefix: "UNISMSM", family: "zone", hasActive: true },
   engulfing: { prefix: "EGSM", family: "zone", hasActive: true },
   pin_bar: { prefix: "PINSM", family: "zone", hasActive: true },
+  bb: { prefix: "BOLLSM", family: "bias_filter", hasActive: true },
   snr: { prefix: "SNRSM", family: "zone", hasActive: true },
   gap_snr: { prefix: "GSNRSM", family: "zone", hasActive: true },
   breakout: { prefix: "BRKSM", family: "zone", hasActive: true },
@@ -198,6 +202,8 @@ export function smPrefixForType(type: string): string {
       return "EGSM";
     case "pin_bar":
       return "PINSM";
+    case "bb":
+      return "BOLLSM";
     case "bos":
     case "choch":
     case "bos_choch":
@@ -438,6 +444,21 @@ export function emitStateMachine(
         typeof params.wickRatio === "number" ? params.wickRatio : 0.6,
         typeof params.bodyMaxRatio === "number" ? params.bodyMaxRatio : 0.35,
       );
+    case "bb":
+      return genBollSm(
+        id,
+        TF,
+        tf,
+        pInt(params, "period", 20),
+        typeof params.deviation === "number"
+          ? params.deviation
+          : typeof params.stdDev === "number"
+            ? params.stdDev
+            : 2.0,
+        (params.mode === "breakout" || params.mode === "midline"
+          ? params.mode
+          : "touch") as "touch" | "breakout" | "midline",
+      );
     default:
       return `// Unknown SM type: ${type} (id=${id})`;
   }
@@ -502,6 +523,8 @@ export function tickArgForSm(
       return String(pInt(params, "scanBack", pInt(params, "lookback", 3)));
     case "pin_bar":
       return "1";
+    case "bb":
+      return "1";
     default:
       return String(pInt(params, "lookback", 20));
   }
@@ -519,13 +542,14 @@ function isEntryRole(role: string): boolean {
 export function flowSupportsModuleRole(module: string, role: string): boolean {
   const prof = getSmFlowProfile(module);
   if (!prof) return false;
-  if (role === "direction") return prof.family === "ema" || prof.family === "bias_break";
+  if (role === "direction")
+    return prof.family === "ema" || prof.family === "bias_break" || prof.family === "bias_filter";
   if (role === "setup" || role === "filter" || isEntryRole(role)) return true;
   return false;
 }
 
 /** Modules without verified inline SMs — simple 4-Brain only (legacy heuristic path). */
-export const LEGACY_HEURISTIC_MODULE_IDS = new Set<string>(["bb"]);
+export const LEGACY_HEURISTIC_MODULE_IDS = new Set<string>([]);
 
 export function isFlowVerifiedModule(moduleId: string): boolean {
   if (LEGACY_HEURISTIC_MODULE_IDS.has(moduleId)) return false;
@@ -534,4 +558,4 @@ export function isFlowVerifiedModule(moduleId: string): boolean {
 
 /** Regex alternation of known SM prefixes (IFVGSM before FVGSM). */
 export const SM_PREFIX_REGEX =
-  "RSIHDSM|OBFVGSM|EMASM|IFVGSM|FVGSM|EGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM|ZLSM|SNRC2SM|BBSM|RSSSRRSM|MEFSM|QMMEFSM|RBRDBDSM|SWINGSM";
+  "RSIHDSM|OBFVGSM|UNISMSM|EMASM|IFVGSM|FVGSM|EGSM|PINSM|BOLLSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM|ZLSM|SNRC2SM|BBSM|RSSSRRSM|MEFSM|QMMEFSM|RBRDBDSM|SWINGSM";

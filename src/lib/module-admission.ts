@@ -79,8 +79,7 @@ export function getModuleAdmission(moduleId: string): ModuleAdmissionRecord | un
 }
 
 const MODULE_REPAIR_SUGGESTIONS: Record<string, string[]> = {
-  bb: ["snr", "rejection", "breakout"],
-  pin_bar: ["engulfing", "rejection"],
+  seg: ["engulfing"],
   swing_structure: ["bos", "choch", "bos_choch"],
   rbr_dbd: ["order_block", "snr"],
   mef: ["fvg", "fvg_inversion"],
@@ -313,10 +312,11 @@ export const MODULE_ADMISSION: Record<string, ModuleAdmissionRecord> = {
   bb: {
     id: "bb",
     label: "Bollinger Bands",
-    status: "template_only",
+    status: "verified_state_machine",
     aiVocabulary: true,
     contractRequired: true,
-    notes: "Deterministic template primitive; not yet an inline state machine.",
+    notes:
+      "Verified Bollinger Bands inline state machine (BOLLSM). Not SMC Breaker Block (BBSM).",
   },
   pin_bar: {
     id: "pin_bar",
@@ -375,6 +375,6 @@ export const MODULE_ADMISSION: Record<string, ModuleAdmissionRecord> = {
     aiVocabulary: false,
     contractRequired: false,
     notes:
-      "Standalone strong-engulfing detector emitted by verifier. AI wiring uses the verified engulfing/EGSM contract instead.",
+      "Standalone SEG detector for visual regression. Strategy Builder uses verified engulfing/EGSM instead — no separate SEG promotion planned.",
   },
 };

@@ -1,6 +1,9 @@
 /**
  * Strong Engulfing (SEG) Detector
  *
+ * Detector-only reference tooling. Strategy Builder uses engulfing / EGSM for
+ * EA wiring (includes strong 2-candle engulfings plus EF lifecycle).
+ *
  * A STRONG engulfing is a 2-candle engulfing — the decisive case where the
  * SECOND candle alone breaks and closes beyond the wick of the FIRST candle.
  * (Contrast with the general engulfing, which may take several candles to close

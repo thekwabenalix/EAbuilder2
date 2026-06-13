@@ -1,6 +1,9 @@
 /**
  * SMC Liquidity Detector — OB Liquidity Build-up v1.1.0
  *
+ * @deprecated Standalone visual only — superseded by Liquidity_Buildup.mq5 and
+ * the zone_liq / ZLSM brain module. Kept for compile regression.
+ *
  * A candle or series of candles come close to an Order Block (OB) without
  * touching its BODY. That accumulates liquidity (resting stops) around the
  * OB, turning it into a higher-probability reaction level.

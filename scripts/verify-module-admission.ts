@@ -32,6 +32,7 @@ const contractIds = Object.keys(MODULE_CONTRACTS);
 const admissionIds = Object.keys(MODULE_ADMISSION);
 const indicatorIds = INDICATOR_REGISTRY.map((indicator) => indicator.id);
 const builtinFilterIds = Object.keys(BUILTIN_FILTER_CONTRACTS);
+/** Standalone detectors emitted by verify:mql5 — not promoted to brain modules. */
 const emittedDetectorIds = ["seg"];
 
 function unique(values: string[]): string[] {
@@ -187,17 +188,16 @@ add(
   admissionWithoutKnownSurface.join(", "),
 );
 
-const bbRepair = buildModuleRepairPlan(["bb"]);
+const segRepair = buildModuleRepairPlan(["seg"]);
 add(
-  "repair plan explains blocked template modules",
-  bbRepair.hasBlockedModules &&
-    bbRepair.hasTemplateFallback &&
-    bbRepair.blocked[0]?.id === "bb" &&
-    bbRepair.blocked[0].suggestedModules.length > 0,
-  JSON.stringify(bbRepair),
+  "repair plan explains blocked detector-only modules",
+  segRepair.hasBlockedModules &&
+    segRepair.blocked[0]?.id === "seg" &&
+    segRepair.blocked[0]?.status === "detector_only",
+  JSON.stringify(segRepair),
 );
 
-const mixedRepair = buildModuleRepairPlan(["ema", "bb", "swing_structure", "rbr_dbd"]);
+const mixedRepair = buildModuleRepairPlan(["ema", "seg", "swing_structure", "rbr_dbd"]);
 const suggestedUnsafeModules = mixedRepair.blocked.flatMap((item) =>
   item.suggestedModules.filter((suggestion) => {
     const admission = MODULE_ADMISSION[suggestion.id];

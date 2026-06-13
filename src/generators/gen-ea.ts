@@ -9,7 +9,7 @@
  * 2. AI mode (params.aiWiring set): brain functions written by Claude using the
  *    module library. State machines are embedded based on aiWiring.sm_configs.
  *
- * 3. Legacy heuristic mode: only when bb modules are
+ * 3. Legacy heuristic mode: removed — all 4-Brain modules use verified inline SMs.
  *    selected (no verified SM yet). Uses gen-*-brain switch-case fallbacks.
  *
  * Assembles a complete, always-compilable MQL5 EA.

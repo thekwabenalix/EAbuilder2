@@ -1,6 +1,9 @@
 /**
  * SMC Liquidity Detector — FVG Liquidity Build-up v1.1.0
  *
+ * @deprecated Standalone visual only — superseded by Liquidity_Buildup.mq5 and
+ * the zone_liq / ZLSM brain module (unified OB+BB+FVG pool). Kept for compile regression.
+ *
  * A candle or series of candles come close to a Fair Value Gap (FVG)
  * without entering it. That creates liquidity (clustered stops) around
  * the gap, which makes the FVG a higher-probability trade level.

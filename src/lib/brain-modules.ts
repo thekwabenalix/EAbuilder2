@@ -126,7 +126,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
   {
     id: "bb",
     label: "Bollinger Bands",
-    desc: "Volatility envelope at 2 standard deviations",
+    desc: "Volatility envelope — touch, breakout, or midline bias (BOLLSM)",
     symbol: "≈",
     color: "text-orange-400",
     category: "Volatility",
