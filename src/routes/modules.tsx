@@ -49,6 +49,7 @@ import { generateBosDetector } from "@/lib/smc-modules/bos-detector";
 import { generateChochDetector } from "@/lib/smc-modules/choch-detector";
 import { generateClassicSnrDetector } from "@/lib/smc-modules/classic-snr-detector";
 import { generateGapSnrDetector } from "@/lib/smc-modules/gap-snr-detector";
+import { generateStrongSnrDetector } from "@/lib/smc-modules/strong-snr-detector";
 import { generateBreakoutDetector } from "@/lib/smc-modules/breakout-detector";
 import { generateRejectionDetector } from "@/lib/smc-modules/rejection-detector";
 import { generateMissDetector } from "@/lib/smc-modules/miss-detector";
@@ -626,6 +627,37 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         status: "ready",
         generate: generateGapSnrDetector,
+      },
+      {
+        id: "strong-snr",
+        filename: "Strong_SNR_Detector.mq5",
+        name: "Strong SNR Detector",
+        description:
+          "Detects Classic S/R levels that are followed by a strong displacement move. " +
+          "Same candle-pair logic as Classic SNR (direction reversal), but Candle B " +
+          "must deliver a displacement of at least InpDispMult × ATR to qualify. " +
+          "On a line chart: bullish = sharp V-shape, bearish = sharp A-shape. " +
+          "Full ACTIVE → TOUCHED → BROKEN / EXPIRED lifecycle.",
+        rules: [
+          "STRONG RESISTANCE: Bullish Candle A → Bearish Candle B  (A close = resistance)",
+          "STRONG SUPPORT:    Bearish Candle A → Bullish Candle B  (A close = support)",
+          "Displacement qualifier: sum of on-direction bodies across InpDispBars bars (starting at B) ≥ InpDispMult × ATR",
+          "Live detection uses Candle B only (InpDispBars ≥ 1); history scan uses the full window",
+          "Doji filter: InpIgnoreDoji=true skips neutral candles (exact or body threshold)",
+          "Touched: wick reaches level (low ≤ level for support / high ≥ level for resistance)",
+          "Broken:  close through level (close < level for support / close > level for resistance)",
+          "Expiry: InpExpiryBars=100 bars — ageCounter increments each bar after confirmation",
+          "Max visible: InpMaxLevels=100 — oldest active level pruned when exceeded",
+        ],
+        output: [
+          "ACTIVE / TOUCHED: solid OBJ_TREND line (width 2) + 'S-Sup' / 'S-Res' label, RAY_RIGHT=true",
+          "BROKEN / EXPIRED: dashed line stopped at break bar (or deleted if InpRemoveBroken=true)",
+          "Support: clrLimeGreen  |  Resistance: clrCrimson  |  Broken: clrDimGray",
+          "Journal: SSNR_CREATED | SSNR_TOUCHED | SSNR_BROKEN | SSNR_EXPIRED | id | type | level | disp | time",
+          "Inputs: disp_mult · disp_atr_per · disp_bars · show_support · show_resistance · expiry_bars · remove_broken · max_levels · ignore_doji",
+        ],
+        status: "ready",
+        generate: generateStrongSnrDetector,
       },
       {
         id: "breakout",

@@ -26,15 +26,22 @@ import { generateZoneLiquiditySetupIndicator } from "../src/lib/smc-modules/zone
 import { generateZoneLiqStateModule } from "../src/lib/smc-modules/zone-liq-state-module";
 import { generateObFvgDetector } from "../src/lib/smc-modules/ob-fvg-detector";
 import { generateUnicornDetector } from "../src/lib/smc-modules/unicorn-detector";
+import { generateUnicornStateModule } from "../src/lib/smc-modules/unicorn-state-module";
+import { generateSwingStructureDetector } from "../src/lib/smc-modules/swing-structure-detector";
+import { generateSwingStructureStateModule } from "../src/lib/smc-modules/swing-structure-state-module";
 import { generateRsiHiddenDivergenceDetector } from "../src/lib/indicator-modules/rsi-hidden-divergence-detector";
 import { generateRsiHiddenDivergenceStateModule } from "../src/lib/indicator-modules/rsi-hidden-divergence-state-module";
 import { generateEngulfingDetector } from "../src/lib/smc-modules/engulfing-detector";
 import { generateStrongEngulfingDetector } from "../src/lib/smc-modules/strong-engulfing-detector";
 import { generateRbrDbdDetector } from "../src/lib/smc-modules/rbr-dbd-detector";
+import { generateRbrDbdStateModule } from "../src/lib/smc-modules/rbr-dbd-state-module";
 import { generateMefDetector } from "../src/lib/smc-modules/mef-detector";
+import { generateMefStateModule } from "../src/lib/smc-modules/mef-state-module";
 import { generateQmMefDetector } from "../src/lib/smc-modules/qm-mef-detector";
+import { generateQmMefStateModule } from "../src/lib/smc-modules/qm-mef-state-module";
 import { generateSnrc2Detector } from "../src/lib/smc-modules/snrc2-detector";
 import { generateSnrc2StateModule } from "../src/lib/smc-modules/snrc2-state-module";
+import { generateStrongSnrDetector } from "../src/lib/smc-modules/strong-snr-detector";
 
 // Strategy Flow runtime (instance event gate) — proof-of-feasibility EA
 import { generateFlowDemoEA, tryGenerateFlowEAFromFourBrain } from "../src/generators/gen-flow-ea";
@@ -112,6 +119,15 @@ const items: Item[] = [
   { file: "Liquidity_Buildup_State_Module.mq5", code: generateZoneLiqStateModule() },
   { file: "OB_FVG_Detector.mq5", code: generateObFvgDetector() },
   { file: "Unicorn_Detector.mq5", code: generateUnicornDetector() },
+  { file: "Unicorn_State_Module.mq5", code: generateUnicornStateModule() },
+  {
+    file: "Swing_Structure_Detector.mq5",
+    code: generateSwingStructureDetector(),
+  },
+  {
+    file: "Swing_Structure_State_Module.mq5",
+    code: generateSwingStructureStateModule(),
+  },
   { file: "RSI_Hidden_Divergence_Detector.mq5", code: generateRsiHiddenDivergenceDetector() },
   {
     file: "RSI_Hidden_Divergence_State_Module.mq5",
@@ -130,12 +146,24 @@ const items: Item[] = [
     code: generateRbrDbdDetector(),
   },
   {
+    file: "RBR_DBD_State_Module.mq5",
+    code: generateRbrDbdStateModule(),
+  },
+  {
     file: "MEF_Detector.mq5",
     code: generateMefDetector(),
   },
   {
+    file: "MEF_State_Module.mq5",
+    code: generateMefStateModule(),
+  },
+  {
     file: "QM_MEF_Detector.mq5",
     code: generateQmMefDetector(),
+  },
+  {
+    file: "QM_MEF_State_Module.mq5",
+    code: generateQmMefStateModule(),
   },
   {
     file: "SNRC2_Detector.mq5",
@@ -144,6 +172,10 @@ const items: Item[] = [
   {
     file: "SNRC2_State_Module.mq5",
     code: generateSnrc2StateModule(),
+  },
+  {
+    file: "Strong_SNR_Detector.mq5",
+    code: generateStrongSnrDetector(),
   },
   {
     file: "FLOW_BOS_FVG_BOS_Demo.mq5",
@@ -588,6 +620,264 @@ const phase3CoverageCases: Array<{
       "SNRC2SM_H1_HasActiveBull()",
       "SNRC2SM_H1_BullJustConfirmed()",
       "SNRC2SM_H1_ActiveBullSL()",
+    ],
+  },
+  {
+    title: "Breaker block setup → engulfing execution",
+    file: "Phase3_BreakerBlock_Engulfing_Test.mq5",
+    config: {
+      direction: { modules: ["bos"], timeframe: "H4" },
+      setup: { modules: ["breaker_block"], timeframe: "H1" },
+      execution: { modules: ["engulfing"], timeframe: "M15" },
+      management: { riskPercent: 1, rewardRisk: 2, stopBuffer: 20, maxOpenTrades: 1 },
+    },
+    aiWiring: {
+      direction_brain: `void Direction_Brain_Execute() {
+  if(BOSSM_H4_IsBull()) gBias = 1;
+  else if(BOSSM_H4_IsBear()) gBias = -1;
+}`,
+      setup_brain: `void Setup_Brain_Execute() {
+  if(BBSM_H1_HasActiveBull() && (gBias == 0 || gBias == 1)) {
+    gSetupActive = true; gSetupDir = 1; gSetupSLHint = BBSM_H1_ActiveBullSL();
+  } else if(BBSM_H1_HasActiveBear() && (gBias == 0 || gBias == -1)) {
+    gSetupActive = true; gSetupDir = -1; gSetupSLHint = BBSM_H1_ActiveBearSL();
+  }
+}`,
+      execution_brain: `void Execution_Brain_Execute() {
+  if(!gSetupActive) return;
+  if(gSetupDir == 1 && BBSM_H1_BullJustConfirmed() && EGSM_M15_BullJustConfirmed()) {
+    gExecSignal = true; gExecDir = 1; gExecSL = BBSM_H1_BullConfirmSL();
+  } else if(gSetupDir == -1 && BBSM_H1_BearJustConfirmed() && EGSM_M15_BearJustConfirmed()) {
+    gExecSignal = true; gExecDir = -1; gExecSL = BBSM_H1_BearConfirmSL();
+  }
+}`,
+      required_sms: ["BOSSM_H4", "BBSM_H1", "EGSM_M15"],
+      sm_configs: {
+        bos_H4: sm("bos", "H4", { lookback: 20 }),
+        breaker_block_H1: sm("breaker_block", "H1", { lookback: 500, dispMult: 1.5, scanBack: 5 }),
+        engulfing_M15: sm("engulfing", "M15", { scanBack: 3 }),
+      },
+    },
+    requiredSnippets: [
+      "void BBSM_H1_Tick",
+      "BBSM_H1_HasActiveBull()",
+      "BBSM_H1_BullJustConfirmed()",
+      "BBSM_H1_ActiveBullSL()",
+    ],
+  },
+  {
+    title: "RSS/SRR setup → rejection execution",
+    file: "Phase3_RSSSRR_Rejection_Test.mq5",
+    config: {
+      direction: { modules: ["bos"], timeframe: "H4" },
+      setup: { modules: ["rss_srr"], timeframe: "H1" },
+      execution: { modules: ["rejection"], timeframe: "M15" },
+      management: { riskPercent: 1, rewardRisk: 2, stopBuffer: 20, maxOpenTrades: 1 },
+    },
+    aiWiring: {
+      direction_brain: `void Direction_Brain_Execute() {
+  if(BOSSM_H4_IsBull()) gBias = 1;
+  else if(BOSSM_H4_IsBear()) gBias = -1;
+}`,
+      setup_brain: `void Setup_Brain_Execute() {
+  if(RSSSRRSM_H1_HasActiveBull() && (gBias == 0 || gBias == 1)) {
+    gSetupActive = true; gSetupDir = 1; gSetupSLHint = RSSSRRSM_H1_ActiveBullSL();
+  } else if(RSSSRRSM_H1_HasActiveBear() && (gBias == 0 || gBias == -1)) {
+    gSetupActive = true; gSetupDir = -1; gSetupSLHint = RSSSRRSM_H1_ActiveBearSL();
+  }
+}`,
+      execution_brain: `void Execution_Brain_Execute() {
+  if(!gSetupActive) return;
+  if(gSetupDir == 1 && RSSSRRSM_H1_BullJustConfirmed() && REJSM_M15_BullJustConfirmed()) {
+    gExecSignal = true; gExecDir = 1; gExecSL = RSSSRRSM_H1_BullConfirmSL();
+  } else if(gSetupDir == -1 && RSSSRRSM_H1_BearJustConfirmed() && REJSM_M15_BearJustConfirmed()) {
+    gExecSignal = true; gExecDir = -1; gExecSL = RSSSRRSM_H1_BearConfirmSL();
+  }
+}`,
+      required_sms: ["BOSSM_H4", "RSSSRRSM_H1", "REJSM_M15"],
+      sm_configs: {
+        bos_H4: sm("bos", "H4", { lookback: 20 }),
+        rss_srr_H1: sm("rss_srr", "H1", { lookback: 500, minBreaks: 2 }),
+        rejection_M15: sm("rejection", "M15", { lookback: 30 }),
+      },
+    },
+    requiredSnippets: [
+      "void RSSSRRSM_H1_Tick",
+      "RSSSRRSM_H1_HasActiveBull()",
+      "RSSSRRSM_H1_BullJustConfirmed()",
+      "RSSSRRSM_H1_ActiveBullSL()",
+    ],
+  },
+  {
+    title: "MEF setup → engulfing execution",
+    file: "Phase3_MEF_Engulfing_Test.mq5",
+    config: {
+      direction: { modules: ["bos"], timeframe: "H4" },
+      setup: { modules: ["mef"], timeframe: "H4" },
+      execution: { modules: ["engulfing"], timeframe: "M30" },
+      management: { riskPercent: 1, rewardRisk: 2, stopBuffer: 20, maxOpenTrades: 1 },
+    },
+    aiWiring: {
+      direction_brain: `void Direction_Brain_Execute() {
+  if(BOSSM_H4_IsBull()) gBias = 1;
+  else if(BOSSM_H4_IsBear()) gBias = -1;
+}`,
+      setup_brain: `void Setup_Brain_Execute() {
+  if(MEFSM_H4_HasActiveBull() && (gBias == 0 || gBias == 1)) {
+    gSetupActive = true; gSetupDir = 1; gSetupSLHint = MEFSM_H4_ActiveBullSL();
+  } else if(MEFSM_H4_HasActiveBear() && (gBias == 0 || gBias == -1)) {
+    gSetupActive = true; gSetupDir = -1; gSetupSLHint = MEFSM_H4_ActiveBearSL();
+  }
+}`,
+      execution_brain: `void Execution_Brain_Execute() {
+  if(!gSetupActive) return;
+  if(gSetupDir == 1 && MEFSM_H4_BullJustConfirmed() && EGSM_M30_BullJustConfirmed()) {
+    gExecSignal = true; gExecDir = 1; gExecSL = MEFSM_H4_BullConfirmSL();
+  } else if(gSetupDir == -1 && MEFSM_H4_BearJustConfirmed() && EGSM_M30_BearJustConfirmed()) {
+    gExecSignal = true; gExecDir = -1; gExecSL = MEFSM_H4_BearConfirmSL();
+  }
+}`,
+      required_sms: ["BOSSM_H4", "MEFSM_H4", "EGSM_M30"],
+      sm_configs: {
+        bos_H4: sm("bos", "H4", { lookback: 20 }),
+        mef_H4: sm("mef", "H4", { lookback: 300, gapTf: "H1", baseTf: "M30" }),
+        engulfing_M30: sm("engulfing", "M30", { scanBack: 3 }),
+      },
+    },
+    requiredSnippets: [
+      "void MEFSM_H4_Tick",
+      "MEFSM_H4_HasActiveBull()",
+      "MEFSM_H4_BullJustConfirmed()",
+      "MEFSM_H4_ActiveBullSL()",
+    ],
+  },
+  {
+    title: "QM MEF setup → engulfing execution",
+    file: "Phase3_QMMEF_Engulfing_Test.mq5",
+    config: {
+      direction: { modules: ["bos"], timeframe: "H4" },
+      setup: { modules: ["qm_mef"], timeframe: "H4" },
+      execution: { modules: ["engulfing"], timeframe: "M15" },
+      management: { riskPercent: 1, rewardRisk: 2, stopBuffer: 20, maxOpenTrades: 1 },
+    },
+    aiWiring: {
+      direction_brain: `void Direction_Brain_Execute() {
+  if(BOSSM_H4_IsBull()) gBias = 1;
+  else if(BOSSM_H4_IsBear()) gBias = -1;
+}`,
+      setup_brain: `void Setup_Brain_Execute() {
+  if(QMMEFSM_H4_HasActiveBull() && (gBias == 0 || gBias == 1)) {
+    gSetupActive = true; gSetupDir = 1; gSetupSLHint = QMMEFSM_H4_ActiveBullSL();
+  } else if(QMMEFSM_H4_HasActiveBear() && (gBias == 0 || gBias == -1)) {
+    gSetupActive = true; gSetupDir = -1; gSetupSLHint = QMMEFSM_H4_ActiveBearSL();
+  }
+}`,
+      execution_brain: `void Execution_Brain_Execute() {
+  if(!gSetupActive) return;
+  if(gSetupDir == 1 && QMMEFSM_H4_BullJustConfirmed() && EGSM_M15_BullJustConfirmed()) {
+    gExecSignal = true; gExecDir = 1; gExecSL = QMMEFSM_H4_BullConfirmSL();
+  } else if(gSetupDir == -1 && QMMEFSM_H4_BearJustConfirmed() && EGSM_M15_BearJustConfirmed()) {
+    gExecSignal = true; gExecDir = -1; gExecSL = QMMEFSM_H4_BearConfirmSL();
+  }
+}`,
+      required_sms: ["BOSSM_H4", "QMMEFSM_H4", "EGSM_M15"],
+      sm_configs: {
+        bos_H4: sm("bos", "H4", { lookback: 20 }),
+        qm_mef_H4: sm("qm_mef", "H4", { lookback: 300, qmTf: "M15", confTf: "M5" }),
+        engulfing_M15: sm("engulfing", "M15", { scanBack: 3 }),
+      },
+    },
+    requiredSnippets: [
+      "void QMMEFSM_H4_Tick",
+      "QMMEFSM_H4_HasActiveBull()",
+      "QMMEFSM_H4_BullJustConfirmed()",
+      "QMMEFSM_H4_ActiveBullSL()",
+    ],
+  },
+  {
+    title: "RBR/DBD setup → rejection execution",
+    file: "Phase3_RBRDBD_Rejection_Test.mq5",
+    config: {
+      direction: { modules: ["bos"], timeframe: "H4" },
+      setup: { modules: ["rbr_dbd"], timeframe: "H1" },
+      execution: { modules: ["rejection"], timeframe: "M15" },
+      management: { riskPercent: 1, rewardRisk: 2, stopBuffer: 20, maxOpenTrades: 1 },
+    },
+    aiWiring: {
+      direction_brain: `void Direction_Brain_Execute() {
+  if(BOSSM_H4_IsBull()) gBias = 1;
+  else if(BOSSM_H4_IsBear()) gBias = -1;
+}`,
+      setup_brain: `void Setup_Brain_Execute() {
+  if(RBRDBDSM_H1_HasActiveBull() && (gBias == 0 || gBias == 1)) {
+    gSetupActive = true; gSetupDir = 1; gSetupSLHint = RBRDBDSM_H1_ActiveBullSL();
+  } else if(RBRDBDSM_H1_HasActiveBear() && (gBias == 0 || gBias == -1)) {
+    gSetupActive = true; gSetupDir = -1; gSetupSLHint = RBRDBDSM_H1_ActiveBearSL();
+  }
+}`,
+      execution_brain: `void Execution_Brain_Execute() {
+  if(!gSetupActive) return;
+  if(gSetupDir == 1 && RBRDBDSM_H1_BullJustConfirmed() && REJSM_M15_BullJustConfirmed()) {
+    gExecSignal = true; gExecDir = 1; gExecSL = RBRDBDSM_H1_BullConfirmSL();
+  } else if(gSetupDir == -1 && RBRDBDSM_H1_BearJustConfirmed() && REJSM_M15_BearJustConfirmed()) {
+    gExecSignal = true; gExecDir = -1; gExecSL = RBRDBDSM_H1_BearConfirmSL();
+  }
+}`,
+      required_sms: ["BOSSM_H4", "RBRDBDSM_H1", "REJSM_M15"],
+      sm_configs: {
+        bos_H4: sm("bos", "H4", { lookback: 20 }),
+        rbr_dbd_H1: sm("rbr_dbd", "H1", { lookback: 400, expiryBars: 200 }),
+        rejection_M15: sm("rejection", "M15", { lookback: 30 }),
+      },
+    },
+    requiredSnippets: [
+      "void RBRDBDSM_H1_Tick",
+      "RBRDBDSM_H1_HasActiveBull()",
+      "RBRDBDSM_H1_BullJustConfirmed()",
+      "RBRDBDSM_H1_ActiveBullSL()",
+    ],
+  },
+  {
+    title: "Swing structure direction → FVG setup → engulfing execution",
+    file: "Phase3_SwingStructure_FVG_Engulfing_Test.mq5",
+    config: {
+      direction: { modules: ["swing_structure"], timeframe: "D1" },
+      setup: { modules: ["fvg"], timeframe: "H4" },
+      execution: { modules: ["engulfing"], timeframe: "M15" },
+      management: { riskPercent: 1, rewardRisk: 2, stopBuffer: 20, maxOpenTrades: 1 },
+    },
+    aiWiring: {
+      direction_brain: `void Direction_Brain_Execute() {
+  if(SWINGSM_D1_IsBull()) gBias = 1;
+  else if(SWINGSM_D1_IsBear()) gBias = -1;
+}`,
+      setup_brain: `void Setup_Brain_Execute() {
+  if(FVGSM_H4_HasActiveBull() && (gBias == 0 || gBias == 1)) {
+    gSetupActive = true; gSetupDir = 1; gSetupSLHint = FVGSM_H4_ActiveBullSL();
+  } else if(FVGSM_H4_HasActiveBear() && (gBias == 0 || gBias == -1)) {
+    gSetupActive = true; gSetupDir = -1; gSetupSLHint = FVGSM_H4_ActiveBearSL();
+  }
+}`,
+      execution_brain: `void Execution_Brain_Execute() {
+  if(!gSetupActive) return;
+  if(gSetupDir == 1 && EGSM_M15_BullJustConfirmed()) {
+    gExecSignal = true; gExecDir = 1; gExecSL = FVGSM_H4_BullConfirmSL();
+  } else if(gSetupDir == -1 && EGSM_M15_BearJustConfirmed()) {
+    gExecSignal = true; gExecDir = -1; gExecSL = FVGSM_H4_BearConfirmSL();
+  }
+}`,
+      required_sms: ["SWINGSM_D1", "FVGSM_H4", "EGSM_M15"],
+      sm_configs: {
+        swing_D1: sm("swing_structure", "D1", { lookback: 500, swingLeft: 3, swingRight: 3 }),
+        fvg_H4: sm("fvg", "H4", { lookback: 50, expiryBars: 100 }),
+        engulfing_M15: sm("engulfing", "M15", { scanBack: 3 }),
+      },
+    },
+    requiredSnippets: [
+      "void SWINGSM_D1_Tick",
+      "SWINGSM_D1_IsBull()",
+      "void FVGSM_H4_Tick",
+      "FVGSM_H4_HasActiveBull()",
     ],
   },
   {
