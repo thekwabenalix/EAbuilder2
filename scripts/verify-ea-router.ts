@@ -33,9 +33,9 @@ const flowBp: StrategyBlueprint = {
   },
 };
 
-const assemblerBp: StrategyBlueprint = {
+const pinBarBp: StrategyBlueprint = {
   ...DEFAULT_BLUEPRINT,
-  name: "Assembler Fallback",
+  name: "Pin Bar Flow",
   fourBrain: {
     direction: { modules: ["bos"], timeframe: "H1" },
     execution: { modules: ["pin_bar"], timeframe: "M5" },
@@ -55,12 +55,13 @@ assertEq(flowResult.path, "flow_engine", "BOS/FVG/BOS uses flow engine");
 assertOk(flowResult.code.includes("RegisterEvent"), "flow code contains RegisterEvent");
 console.log("[OK  ] router selects flow_engine");
 
-const asmFlow = resolveStrategyFlow(assemblerBp)!;
-assertOk(!flowEaSupportsAllSteps(asmFlow), "pin_bar blocks flow engine");
-assertOk(configUsesLegacyHeuristics(assemblerBp.fourBrain!), "pin_bar uses legacy heuristics");
-const asmResult = generateEaFromBlueprint(assemblerBp);
-assertEq(asmResult.path, "legacy_heuristic", "pin_bar falls back to legacy heuristic");
-console.log("[OK  ] router selects legacy_heuristic for pin_bar");
+const pinFlow = resolveStrategyFlow(pinBarBp)!;
+assertOk(flowEaSupportsAllSteps(pinFlow), "pin_bar supported by flow engine");
+assertOk(!configUsesLegacyHeuristics(pinBarBp.fourBrain!), "pin_bar uses verified SM");
+const pinResult = generateEaFromBlueprint(pinBarBp);
+assertEq(pinResult.path, "flow_engine", "pin_bar uses flow engine");
+assertOk(pinResult.code.includes("PINSM_M5_BullJustConfirmed"), "flow code uses PINSM entry");
+console.log("[OK  ] router selects flow_engine for pin_bar");
 
 const noSetupBp: StrategyBlueprint = {
   ...DEFAULT_BLUEPRINT,

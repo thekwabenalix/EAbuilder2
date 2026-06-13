@@ -77,10 +77,10 @@ assertEq(routed.path, "flow_engine", "filtered BOS/FVG/BOS stays on flow engine"
 assertOk(routed.code.includes("B4_RSI"), "router passes filterRefs to flow engine");
 console.log("[OK  ] router passes filterRefs to flow engine");
 
-assertOk(!isFlowVerifiedModule("pin_bar"), "pin_bar excluded from advanced flow picker");
-assertOk(!isFlowVerifiedModule("bb"), "bb excluded from advanced flow picker");
+assertOk(isFlowVerifiedModule("pin_bar"), "pin_bar is flow verified");
+assertOk(isFlowVerifiedModule("bb"), "bb is flow verified");
 assertOk(isFlowVerifiedModule("engulfing"), "engulfing is flow verified");
-console.log("[OK  ] legacy heuristic modules gated from flow picker");
+console.log("[OK  ] promoted modules available in flow picker");
 
 function assertOnTickOrder(
   code: string,

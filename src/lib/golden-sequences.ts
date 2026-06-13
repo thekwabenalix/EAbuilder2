@@ -366,15 +366,15 @@ export const GOLDEN_SEQUENCE_CASES: GoldenSequenceCase[] = [
     emitFile: "GOLDEN_RSI_OBFVG.mq5",
   },
   {
-    id: "legacy_pin_bar",
-    name: "BOS + Pin Bar (legacy heuristic fallback)",
-    description: "Router must fall back when execution module has no verified SM.",
+    id: "pin_bar_flow",
+    name: "BOS + Pin Bar (verified flow path)",
+    description: "Pin bar execution uses PINSM via the Strategy Flow engine.",
     fourBrain: {
       direction: { modules: ["bos"], timeframe: "H1", params: { lookback: 20 } },
       execution: { modules: ["pin_bar"], timeframe: "M5", params: {} },
       management: { ...mgmt, rewardRisk: 2 },
     },
-    expectedPath: "legacy_heuristic",
+    expectedPath: "flow_engine",
     steps: [
       {
         id: "step_direction",
@@ -392,7 +392,8 @@ export const GOLDEN_SEQUENCE_CASES: GoldenSequenceCase[] = [
         dependsOn: ["step_direction"],
       },
     ],
-    codeMarkers: ["legacy heuristic", "PIN_BAR", "gExecSignal", "4-Brain Architecture"],
+    codeMarkers: ["void PINSM_M5_Tick", "PINSM_M5_BullJustConfirmed", "RegisterEvent"],
+    emitFile: "GOLDEN_BOS_PIN_BAR.mq5",
   },
 ];
 
