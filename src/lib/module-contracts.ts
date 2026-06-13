@@ -486,7 +486,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       },
       {
         id: "swing_level",
-        roles: ["setup", "direction"],
+        roles: ["setup"],
         queryFunctions: [
           "SWINGSM_{id}_BullJustConfirmed()",
           "SWINGSM_{id}_BearJustConfirmed()",

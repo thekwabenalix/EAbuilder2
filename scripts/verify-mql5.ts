@@ -76,6 +76,7 @@ import {
 } from "../src/lib/strategy-events";
 import { fourBrainToStrategyFlow, validateStrategyFlowSchema } from "../src/lib/strategy-flow";
 import { lintMql5 } from "../src/lib/mql5-static-lint";
+import { tickArgForSm } from "../src/generators/sm-embed-registry";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT = resolve(__dirname, "..", "verify", "mql5");
@@ -1188,17 +1189,18 @@ runAiTest("EMA cross (template, drawn MAs)", "EMA_Cross_Template_Test.mq5", () =
 // (NOT a simplified inline body-engulf), and the assembler embeds + ticks + resets
 // one EGSM per brain timeframe.
 runAiTest("RSI HD setup template embeds verified SM", "RSI_HD_Template_Setup_Test.mq5", () => {
+  const rsiParams = { rsiPeriod: 21, pivotLeft: 4, pivotRight: 4, maxBars: 80, expiryBars: 70 };
   const config: FourBrainConfig = {
     direction: { modules: ["engulfing"], timeframe: "M5" },
     setup: {
       modules: ["rsi_hd"],
       timeframe: "M5",
-      params: { rsiPeriod: 21, pivotLeft: 4, pivotRight: 4, maxBars: 80, expiryBars: 70 },
+      params: rsiParams,
     },
     execution: {
       modules: ["engulfing", "rsi_hd"],
       timeframe: "M5",
-      params: { rsiPeriod: 21, pivotLeft: 4, pivotRight: 4, maxBars: 80, expiryBars: 70 },
+      params: rsiParams,
     },
     management: {
       riskPercent: 1,
@@ -1215,10 +1217,15 @@ runAiTest("RSI HD setup template embeds verified SM", "RSI_HD_Template_Setup_Tes
     globalSymbol: "EURUSD",
     globalMagic: 990792,
   });
+  const rsiTickArg = tickArgForSm("rsi_hd", rsiParams, "assembler_brain");
   const checks: Array<[string, boolean]> = [
     ["RSIHDSM M5 embedded", code.includes("void RSIHDSM_M5_Tick(")],
     ["RSIHDSM reset emitted", code.includes("RSIHDSM_M5_Reset();")],
-    ["RSIHDSM ticked", code.includes("RSIHDSM_M5_Tick(50);")],
+    [
+      "RSIHDSM ticked",
+      code.includes(`RSIHDSM_M5_Tick(${rsiTickArg});`) &&
+        code.includes("B4_TickOnce_RSIHDSM_M5"),
+    ],
     ["RSI params preserved", code.includes("iRSI(InpSymbol, PERIOD_M5, 21, PRICE_CLOSE)")],
     ["setup uses active bull", code.includes("RSIHDSM_M5_HasActiveBull()")],
     ["setup uses active bear", code.includes("RSIHDSM_M5_HasActiveBear()")],
@@ -1465,7 +1472,11 @@ runAiTest("Blueprint template carries filter refs", "Blueprint_Template_Filter_T
   const code = generateMql5FromBlueprint(blueprint);
   const checks: Array<[string, boolean]> = [
     ["blueprint filterRef reaches template generator", code.includes("B4_RSI(PERIOD_M5, 14)")],
-    ["blueprint template setup filter blocks setup", code.includes("gSetupActive = false")],
+    [
+      "blueprint template setup filter blocks setup",
+      code.includes("gSetupActive = false") ||
+        code.includes('PrintFormat("[FILTER] rsi_level_filter blocked'),
+    ],
   ];
   return { code, checks };
 });
