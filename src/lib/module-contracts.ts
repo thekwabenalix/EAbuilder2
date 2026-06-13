@@ -1379,20 +1379,42 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
   pin_bar: {
     id: "pin_bar",
     label: "Pin Bar",
-    implementation: "template",
-    tickArgPolicy: "none",
+    implementation: "state_machine",
+    smType: "pin_bar",
+    smPrefix: "PINSM",
+    tickArgPolicy: "just_closed_bar",
     supportedRoles: ["execution"],
     semanticEvents: [
       {
         id: "pin_bar",
         roles: ["execution"],
-        queryFunctions: ["template:pin_bar"],
-        meaning: "Pin bar / hammer / shooting-star rejection candle.",
+        queryFunctions: [
+          "PINSM_{id}_BullJustConfirmed()",
+          "PINSM_{id}_BearJustConfirmed()",
+          "PINSM_{id}_BullConfirmSL()",
+          "PINSM_{id}_BearConfirmSL()",
+          "PINSM_{id}_HasActiveBull()",
+          "PINSM_{id}_HasActiveBear()",
+        ],
+        meaning: "Pin bar / hammer / shooting-star rejection candle on the just-closed bar.",
       },
     ],
-    params: [],
-    aliases: ["pin bar", "hammer", "shooting star", "long wick"],
-    notes: "Template-level candle primitive, not an inline state machine yet.",
+    params: [
+      {
+        name: "wickRatio",
+        type: "double",
+        default: 0.6,
+        description: "Wick must be >= N × candle range.",
+      },
+      {
+        name: "bodyMaxRatio",
+        type: "double",
+        default: 0.35,
+        description: "Body must be <= N × candle range.",
+      },
+    ],
+    aliases: ["pin bar", "hammer", "shooting star", "long wick", "rejection candle"],
+    notes: "Point-in-time execution trigger — fires on the just-closed bar.",
   },
 };
 

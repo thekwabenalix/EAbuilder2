@@ -176,7 +176,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
   {
     id: "pin_bar",
     label: "Pin Bar",
-    desc: "Long wick rejection candle",
+    desc: "Long wick rejection candle (PINSM verified SM)",
     symbol: "⌇",
     color: "text-rose-400",
     category: "Candle",

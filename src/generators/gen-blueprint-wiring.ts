@@ -504,6 +504,8 @@ function smPrefixFromType(type: string): string {
       return "EMASM";
     case "engulfing":
       return "EGSM";
+    case "pin_bar":
+      return "PINSM";
     case "bos":
     case "choch":
     case "bos_choch":

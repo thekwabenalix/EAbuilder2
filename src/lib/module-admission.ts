@@ -321,10 +321,10 @@ export const MODULE_ADMISSION: Record<string, ModuleAdmissionRecord> = {
   pin_bar: {
     id: "pin_bar",
     label: "Pin Bar",
-    status: "template_only",
+    status: "verified_state_machine",
     aiVocabulary: true,
     contractRequired: true,
-    notes: "Template-level candle primitive.",
+    notes: "Verified pin bar inline state machine (PINSM) — long-wick rejection candle.",
   },
   swing_structure: {
     id: "swing_structure",

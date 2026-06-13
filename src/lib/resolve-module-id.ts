@@ -31,6 +31,9 @@ const MODULE_ID_ALIASES: Record<string, string> = {
   "bb fvg": "unicorn",
   "breaker fvg": "unicorn",
   "ict unicorn": "unicorn",
+  hammer: "pin_bar",
+  "shooting star": "pin_bar",
+  "rejection candle": "pin_bar",
 };
 
 export function resolveModuleId(moduleId: string): string {

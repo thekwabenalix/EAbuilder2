@@ -27,6 +27,8 @@ import { generateZoneLiqStateModule } from "../src/lib/smc-modules/zone-liq-stat
 import { generateObFvgDetector } from "../src/lib/smc-modules/ob-fvg-detector";
 import { generateUnicornDetector } from "../src/lib/smc-modules/unicorn-detector";
 import { generateUnicornStateModule } from "../src/lib/smc-modules/unicorn-state-module";
+import { generatePinBarDetector } from "../src/lib/smc-modules/pin-bar-detector";
+import { generatePinBarStateModule } from "../src/lib/smc-modules/pin-bar-state-module";
 import { generateSwingStructureDetector } from "../src/lib/smc-modules/swing-structure-detector";
 import { generateSwingStructureStateModule } from "../src/lib/smc-modules/swing-structure-state-module";
 import { generateRsiHiddenDivergenceDetector } from "../src/lib/indicator-modules/rsi-hidden-divergence-detector";
@@ -120,6 +122,8 @@ const items: Item[] = [
   { file: "OB_FVG_Detector.mq5", code: generateObFvgDetector() },
   { file: "Unicorn_Detector.mq5", code: generateUnicornDetector() },
   { file: "Unicorn_State_Module.mq5", code: generateUnicornStateModule() },
+  { file: "Pin_Bar_Detector.mq5", code: generatePinBarDetector() },
+  { file: "Pin_Bar_State_Module.mq5", code: generatePinBarStateModule() },
   {
     file: "Swing_Structure_Detector.mq5",
     code: generateSwingStructureDetector(),
@@ -921,6 +925,49 @@ const phase3CoverageCases: Array<{
       "UNISMSM_H4_HasActiveBull()",
       "UNISMSM_H4_BullJustConfirmed()",
       "UNISMSM_H4_ActiveBullSL()",
+    ],
+  },
+  {
+    title: "FVG setup → pin bar execution",
+    file: "Phase3_FVG_PinBar_Test.mq5",
+    config: {
+      direction: { modules: ["bos"], timeframe: "D1" },
+      setup: { modules: ["fvg"], timeframe: "H4" },
+      execution: { modules: ["pin_bar"], timeframe: "M15" },
+      management: { riskPercent: 1, rewardRisk: 2, stopBuffer: 20, maxOpenTrades: 1 },
+    },
+    aiWiring: {
+      direction_brain: `void Direction_Brain_Execute() {
+  if(BOSSM_D1_IsBull()) gBias = 1;
+  else if(BOSSM_D1_IsBear()) gBias = -1;
+}`,
+      setup_brain: `void Setup_Brain_Execute() {
+  if(FVGSM_H4_HasActiveBull() && (gBias == 0 || gBias == 1)) {
+    gSetupActive = true; gSetupDir = 1; gSetupSLHint = FVGSM_H4_ActiveBullSL();
+  } else if(FVGSM_H4_HasActiveBear() && (gBias == 0 || gBias == -1)) {
+    gSetupActive = true; gSetupDir = -1; gSetupSLHint = FVGSM_H4_ActiveBearSL();
+  }
+}`,
+      execution_brain: `void Execution_Brain_Execute() {
+  if(!gSetupActive) return;
+  if(gSetupDir == 1 && PINSM_M15_BullJustConfirmed()) {
+    gExecSignal = true; gExecDir = 1; gExecSL = PINSM_M15_BullConfirmSL();
+  } else if(gSetupDir == -1 && PINSM_M15_BearJustConfirmed()) {
+    gExecSignal = true; gExecDir = -1; gExecSL = PINSM_M15_BearConfirmSL();
+  }
+}`,
+      required_sms: ["BOSSM_D1", "FVGSM_H4", "PINSM_M15"],
+      sm_configs: {
+        bos_D1: sm("bos", "D1", { lookback: 50, swingLen: 5 }),
+        fvg_H4: sm("fvg", "H4", { lookback: 50, expiryBars: 100 }),
+        pin_M15: sm("pin_bar", "M15", { wickRatio: 0.6, bodyMaxRatio: 0.35 }),
+      },
+    },
+    requiredSnippets: [
+      "void PINSM_M15_Tick",
+      "PINSM_M15_BullJustConfirmed()",
+      "PINSM_M15_BullConfirmSL()",
+      "void FVGSM_H4_Tick",
     ],
   },
   {
