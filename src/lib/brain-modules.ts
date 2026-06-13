@@ -84,7 +84,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
   {
     id: "unicorn",
     label: "Unicorn",
-    desc: "Breaker block overlapping same-direction FVG — overlap pocket entry",
+    desc: "Breaker block overlapping same-direction FVG — overlap pocket retest → zone rejection",
     symbol: "🦄",
     color: "text-emerald-400",
     category: "OrderBlock",
@@ -108,8 +108,8 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
   },
   {
     id: "rejection",
-    label: "Rejection",
-    desc: "Wick rejects a level or zone — close holds (SMC or SNR)",
+    label: "SNR Rejection",
+    desc: "Wick rejects a classic/gap SNR level — close holds (not zone-scoped SMC rejection)",
     symbol: "↩",
     color: "text-sky-300",
     category: "EntryZone",

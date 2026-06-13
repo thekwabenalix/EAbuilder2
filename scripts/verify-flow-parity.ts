@@ -270,4 +270,51 @@ assertOk(
 );
 console.log("[OK  ] flow entry gate honors after vs same_or_after");
 
-console.log("\n9 flow engine parity check(s) passed.\n");
+const unicornFlow = {
+  version: 1 as const,
+  mode: "advanced_instances" as const,
+  source: "user" as const,
+  management: { riskPercent: 1, rewardRisk: 2, maxOpenTrades: 1 },
+  steps: [
+    {
+      id: "setup_uni",
+      name: "Setup Unicorn H1",
+      role: "setup" as const,
+      module: "unicorn",
+      timeframe: "H1",
+      event: "UNICORN_ACTIVE",
+      params: { lookback: 500, uniExpiry: 250 },
+      enabled: true,
+    },
+    {
+      id: "conf_uni",
+      name: "Confirm Unicorn H1",
+      role: "confirmation" as const,
+      module: "unicorn",
+      timeframe: "H1",
+      event: "UNICORN_CONFIRMED",
+      params: { lookback: 500, uniExpiry: 250 },
+      dependsOn: [{ stepId: "setup_uni", relation: "after" as const }],
+      enabled: true,
+    },
+    {
+      id: "entry_next",
+      name: "Entry Next Bar H1",
+      role: "entry" as const,
+      module: "unicorn",
+      timeframe: "H1",
+      event: "BAR_AFTER_CONFIRM",
+      params: { lookback: 500, uniExpiry: 250 },
+      dependsOn: [{ stepId: "conf_uni", relation: "after" as const }],
+      enabled: true,
+    },
+  ],
+};
+const unicornCode = generateFlowEA(unicornFlow, "Unicorn_ZoneReject_Test");
+assertOk(unicornCode.includes("UNISMSM_H1_BullJustRetested"), "unicorn SM exposes pocket retest");
+assertOk(unicornCode.includes("UNISMSM_H1_BullJustConfirmed"), "unicorn SM exposes zone rejection confirm");
+assertOk(unicornCode.includes("_confT"), "unicorn next-bar entry waits for bar after confirmation");
+assertOk(unicornCode.includes("UNISMSM_H1_HasActiveBull"), "unicorn setup arms on active pocket");
+console.log("[OK  ] unicorn setup → zone rejection → next-bar entry flow");
+
+console.log("\n10 flow engine parity check(s) passed.\n");

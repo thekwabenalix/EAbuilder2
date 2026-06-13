@@ -7,6 +7,8 @@ import {
   downstreamAnchorSteps,
 } from "../src/lib/fourbrain-flow-adapter";
 import { validateStrategyFlowSchema } from "../src/lib/strategy-flow";
+import { flowEaSupportsAllSteps } from "../src/generators/gen-flow-ea";
+import { generateEaFromBlueprint } from "../src/lib/generate-ea-router";
 import { DEFAULT_BLUEPRINT } from "../src/types/blueprint";
 import type { StrategyBlueprint } from "../src/types/blueprint";
 
@@ -86,6 +88,55 @@ assertEq(noDir.steps.length, 1, "execution-only flow");
 assertEq(noDir.steps[0]?.role, "entry", "single entry step");
 assertOk(validateStrategyFlowSchema(noDir).ok, "no-direction flow validates");
 
+// ── Zone-scoped rejection remap (Unicorn / FVG + SNR rejection execution) ───
+const unicornReject = fourBrainToStrategyFlow({
+  setup: { modules: ["unicorn"], timeframe: "H1", params: { lookback: 500, uniExpiry: 250 } },
+  execution: { modules: ["rejection"], timeframe: "H1" },
+  management: { riskPercent: 1, rewardRisk: 2, maxOpenTrades: 1 },
+});
+assertEq(unicornReject.steps.length, 3, "unicorn + rejection expands to three steps");
+assertEq(unicornReject.steps[0]?.event, "UNICORN_ACTIVE", "zone setup arms pocket");
+assertEq(unicornReject.steps[1]?.event, "UNICORN_CONFIRMED", "zone rejection confirm");
+assertEq(unicornReject.steps[2]?.event, "BAR_AFTER_CONFIRM", "next-bar entry");
+assertEq(unicornReject.steps[1]?.role, "confirmation", "middle step is confirmation");
+assertOk(unicornReject.notes?.includes("zone-scoped"), "notes explain remap");
+assertOk(validateStrategyFlowSchema(unicornReject).ok, "unicorn reject flow validates");
+
+assertOk(flowEaSupportsAllSteps(unicornReject), "unicorn reject flow uses flow engine");
+
+const misplacedUnicorn = fourBrainToStrategyFlow({
+  direction: { modules: ["unicorn"], timeframe: "H1" },
+  execution: { modules: ["rejection"], timeframe: "H1" },
+  management: { riskPercent: 1, rewardRisk: 2, maxOpenTrades: 1 },
+});
+assertEq(misplacedUnicorn.steps[0]?.module, "unicorn", "misplaced unicorn becomes setup");
+assertEq(misplacedUnicorn.steps[0]?.role, "setup", "misplaced unicorn uses setup role");
+assertOk(validateStrategyFlowSchema(misplacedUnicorn).ok, "misplaced unicorn flow validates");
+
+const fvgReject = fourBrainToStrategyFlow({
+  direction: { modules: ["bos"], timeframe: "H4" },
+  setup: { modules: ["fvg"], timeframe: "H1", params: { expiryBars: 100 } },
+  execution: { modules: ["rejection"], timeframe: "M15" },
+  management: { riskPercent: 1, rewardRisk: 2, maxOpenTrades: 1 },
+});
+assertEq(fvgReject.steps.length, 4, "BOS + FVG + rejection expands to four steps");
+assertEq(fvgReject.steps[0]?.event, "BOS_BIAS", "direction preserved");
+assertEq(fvgReject.steps[1]?.event, "FVG_CREATED", "FVG zone setup");
+assertEq(fvgReject.steps[2]?.event, "FVG_CONFIRMED", "FVG zone rejection");
+assertEq(fvgReject.steps[3]?.timeframe, "M15", "entry on execution TF");
+
+const routedUnicorn = generateEaFromBlueprint({
+  ...DEFAULT_BLUEPRINT,
+  name: "Unicorn Reject",
+  fourBrain: {
+    setup: { modules: ["unicorn"], timeframe: "H1" },
+    execution: { modules: ["rejection"], timeframe: "H1" },
+    management: { riskPercent: 1, rewardRisk: 2, maxOpenTrades: 1 },
+  },
+});
+assertEq(routedUnicorn.path, "flow_engine", "unicorn+rejection routes to flow engine");
+assertOk(!routedUnicorn.code.includes("REJSM_"), "unicorn reject flow avoids SNR REJSM");
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 assertEq(moduleStepId("direction", 0, 1), "step_direction", "moduleStepId single");
 assertEq(moduleStepId("execution", 1, 2), "step_entry_1", "moduleStepId multi");
@@ -104,8 +155,6 @@ assertEq(anchor.length, 2, "downstream anchor includes all parallel steps");
 assertEq(anchor[0]?.id, "a", "downstream anchor first step");
 
 // ── Router integration smoke ─────────────────────────────────────────────────
-import { generateEaFromBlueprint } from "../src/lib/generate-ea-router";
-
 const bp: StrategyBlueprint = {
   ...DEFAULT_BLUEPRINT,
   name: "Dual Entry Test",
@@ -126,4 +175,4 @@ assertOk(
   "OR gate or deps present",
 );
 
-console.log("\n15 fourbrain flow adapter check(s) passed.\n");
+console.log("\n22 fourbrain flow adapter check(s) passed.\n");

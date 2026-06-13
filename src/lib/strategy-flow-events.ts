@@ -1,6 +1,7 @@
 import type { StrategyStepRole } from "../types/blueprint";
 import { getModuleContract } from "./module-contracts";
 import type { BrainRole } from "./module-contracts";
+import { isFlowVerifiedModule } from "@/generators/sm-embed-registry";
 import {
   MODULE_SEMANTIC_EVENT_TYPES,
   STRATEGY_EVENT_CONTRACTS,
@@ -82,6 +83,7 @@ export function moduleSupportsStrategyEvent(
   moduleId: string,
   eventType: StrategyEventType,
 ): boolean {
+  if (eventType === "BAR_AFTER_CONFIRM") return isFlowVerifiedModule(moduleId);
   return Object.values(MODULE_SEMANTIC_EVENT_TYPES[moduleId] ?? {}).includes(eventType);
 }
 
@@ -104,6 +106,17 @@ export function eventsForStepRole(moduleId: string, role: StrategyStepRole): Ste
       uiGroup: eventUiGroup(contractDef?.category ?? "confirmation", eventType),
       category: contractDef?.category ?? "confirmation",
     });
+  }
+  if (role === "entry") {
+    const barAfter = STRATEGY_EVENT_CONTRACTS.BAR_AFTER_CONFIRM;
+    if (!seen.has("BAR_AFTER_CONFIRM")) {
+      options.push({
+        eventType: "BAR_AFTER_CONFIRM",
+        label: barAfter.label,
+        uiGroup: "entry",
+        category: barAfter.category,
+      });
+    }
   }
   return sortEventOptions(options, role);
 }

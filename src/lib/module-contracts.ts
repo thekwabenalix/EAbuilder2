@@ -357,6 +357,26 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         meaning: "Breaker block and FVG overlap pocket is live — awaiting retest.",
       },
       {
+        id: "retest",
+        roles: ["setup", "execution"],
+        queryFunctions: [
+          "UNISMSM_{id}_BullJustRetested()",
+          "UNISMSM_{id}_BearJustRetested()",
+        ],
+        meaning: "Price wicks into the overlap pocket (first touch / retest).",
+      },
+      {
+        id: "zone_rejection",
+        roles: ["execution"],
+        queryFunctions: [
+          "UNISMSM_{id}_BullJustConfirmed()",
+          "UNISMSM_{id}_BearJustConfirmed()",
+          "UNISMSM_{id}_BullConfirmSL()",
+          "UNISMSM_{id}_BearConfirmSL()",
+        ],
+        meaning: "After retest, close holds outside the pocket — zone-scoped SMC rejection.",
+      },
+      {
         id: "overlap_entry",
         roles: ["execution"],
         queryFunctions: [
@@ -365,7 +385,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "UNISMSM_{id}_BullConfirmSL()",
           "UNISMSM_{id}_BearConfirmSL()",
         ],
-        meaning: "Price tapped the overlap pocket — Unicorn entry confirmed.",
+        meaning: "Alias for zone_rejection — pocket rejection confirm (not SNR rejection).",
       },
     ],
     params: [

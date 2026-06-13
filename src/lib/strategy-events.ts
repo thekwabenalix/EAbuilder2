@@ -69,7 +69,9 @@ export type StrategyEventType =
   | "ENGULFING_FLIP"
   | "PIN_BAR_CONFIRMED"
   | "UNICORN_ACTIVE"
-  | "UNICORN_CONFIRMED";
+  | "UNICORN_RETESTED"
+  | "UNICORN_CONFIRMED"
+  | "BAR_AFTER_CONFIRM";
 
 export interface StrategyEventContract {
   id: StrategyEventType;
@@ -175,10 +177,10 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
   },
   FVG_CONFIRMED: {
     id: "FVG_CONFIRMED",
-    label: "FVG Rejection (wick touch, close holds)",
+    label: "SMC Zone Rejection — FVG",
     category: "entry",
     roles: ["execution"],
-    description: "FVG lifecycle confirmation has fired.",
+    description: "Price wicks into the FVG and closes outside — zone-scoped SMC rejection (not SNR).",
     carriesDirection: true,
     carriesPrice: true,
     carriesZone: true,
@@ -208,10 +210,10 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
   },
   IFVG_CONFIRMED: {
     id: "IFVG_CONFIRMED",
-    label: "IFVG Rejection (wick touch, close holds)",
+    label: "SMC Zone Rejection — IFVG",
     category: "entry",
     roles: ["execution"],
-    description: "Inversion FVG retest confirmation fired.",
+    description: "Price wicks into the IFVG and closes outside — zone-scoped SMC rejection (not SNR).",
     carriesDirection: true,
     carriesPrice: true,
     carriesZone: true,
@@ -241,10 +243,10 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
   },
   OB_CONFIRMED: {
     id: "OB_CONFIRMED",
-    label: "OB Rejection (wick touch, close holds)",
+    label: "SMC Zone Rejection — OB",
     category: "entry",
     roles: ["execution"],
-    description: "Order block lifecycle confirmation fired.",
+    description: "Price wicks into the order block and closes outside — zone-scoped SMC rejection (not SNR).",
     carriesDirection: true,
     carriesPrice: true,
     carriesZone: true,
@@ -283,15 +285,37 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
     carriesZone: true,
     carriesSlHint: true,
   },
-  UNICORN_CONFIRMED: {
-    id: "UNICORN_CONFIRMED",
-    label: "Unicorn Confirmed",
-    category: "entry",
-    roles: ["execution"],
-    description: "Price tapped the Unicorn overlap pocket — entry confirmed.",
+  UNICORN_RETESTED: {
+    id: "UNICORN_RETESTED",
+    label: "Unicorn Pocket Retested",
+    category: "zone_retest",
+    roles: ["setup", "execution"],
+    description: "Price wicks into the Unicorn overlap pocket.",
     carriesDirection: true,
     carriesPrice: true,
     carriesZone: true,
+    carriesSlHint: false,
+  },
+  UNICORN_CONFIRMED: {
+    id: "UNICORN_CONFIRMED",
+    label: "SMC Zone Rejection — Unicorn",
+    category: "entry",
+    roles: ["execution"],
+    description: "After pocket retest, close holds outside the overlap — SMC zone rejection (not SNR).",
+    carriesDirection: true,
+    carriesPrice: true,
+    carriesZone: true,
+    carriesSlHint: true,
+  },
+  BAR_AFTER_CONFIRM: {
+    id: "BAR_AFTER_CONFIRM",
+    label: "Next Bar After Confirm",
+    category: "entry",
+    roles: ["execution"],
+    description: "Enter on the first bar after the prior confirmation step fired.",
+    carriesDirection: true,
+    carriesPrice: true,
+    carriesZone: false,
     carriesSlHint: true,
   },
   BOS_BIAS: {
@@ -406,10 +430,10 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
   },
   REJECTION_CONFIRMED: {
     id: "REJECTION_CONFIRMED",
-    label: "Rejection Confirmed",
+    label: "SNR Rejection Confirmed",
     category: "entry",
     roles: ["execution"],
-    description: "A rejection candle confirms off a reference level.",
+    description: "A wick rejection candle confirms off a classic or gap SNR level.",
     carriesDirection: true,
     carriesPrice: true,
     carriesZone: false,
@@ -483,10 +507,10 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
   },
   BB_CONFIRMED: {
     id: "BB_CONFIRMED",
-    label: "Breaker Block Confirmed",
+    label: "SMC Zone Rejection — Breaker Block",
     category: "entry",
     roles: ["setup", "execution"],
-    description: "Breaker block retested and confirmed this bar.",
+    description: "Price wicks into the breaker block and closes outside — zone-scoped SMC rejection.",
     carriesDirection: true,
     carriesPrice: true,
     carriesZone: true,
@@ -757,7 +781,10 @@ export const MODULE_SEMANTIC_EVENT_TYPES: Record<string, Record<string, Strategy
   },
   unicorn: {
     overlap_active: "UNICORN_ACTIVE",
+    retest: "UNICORN_RETESTED",
+    zone_rejection: "UNICORN_CONFIRMED",
     overlap_entry: "UNICORN_CONFIRMED",
+    confirmation: "UNICORN_CONFIRMED",
   },
   bos: {
     bias: "BOS_BIAS",

@@ -9,6 +9,7 @@ import {
   validateAiStrategyFlowWiring,
 } from "../src/lib/ai-strategy-flow";
 import { generateEaFromAiWiring } from "../src/lib/generate-ea-from-ai-wiring";
+import { buildZoneScopedRejectionStrategyFlowWiring } from "../src/lib/blessed-zone-rejection-adapter";
 import { validateStrategyFlowSchema } from "../src/lib/strategy-flow";
 import { DEFAULT_BLUEPRINT } from "../src/types/blueprint";
 import type { StrategyBlueprint } from "../src/types/blueprint";
@@ -128,4 +129,21 @@ const legacyResult = generateEaFromAiWiring(blueprint, legacyWiring);
 assertEq(legacyResult.aiMode, "brain_bodies", "legacy path uses brain_bodies mode");
 assertOk(legacyResult.code.includes("Direction_Brain_Execute"), "legacy embeds AI brain code");
 
-console.log("\n8 ai strategy flow check(s) passed.\n");
+const unicornWiring = buildZoneScopedRejectionStrategyFlowWiring(
+  "Unicorn pocket zone rejection enter next bar",
+  {
+    setup: { modules: ["unicorn"], timeframe: "H1", params: { lookback: 500 } },
+    execution: { modules: ["rejection"], timeframe: "M5", params: {} },
+  },
+) as AiBrainWiring;
+
+const unicornFlow = strategyFlowFromAiWiring(unicornWiring);
+assertEq(unicornFlow.steps.length, 3, "unicorn zone flow has three steps");
+assertEq(unicornFlow.steps[2]?.event, "BAR_AFTER_CONFIRM", "unicorn next-bar entry");
+assertOk(validateStrategyFlowSchema(unicornFlow).ok, "unicorn AI flow validates");
+
+const unicornGen = generateEaFromAiWiring(blueprint, unicornWiring);
+assertEq(unicornGen.path, "flow_engine", "unicorn zone rejection uses flow engine");
+assertOk(!unicornGen.code.includes("REJSM_"), "unicorn flow avoids SNR REJSM");
+
+console.log("\n12 ai strategy flow check(s) passed.\n");

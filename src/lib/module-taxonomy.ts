@@ -5,9 +5,10 @@
  * Taxonomy describes what the module *is*, not where it sits in the gate.
  */
 
-import type { BrainModuleType } from "@/types/blueprint";
+import type { BrainModuleType, StrategyFamily } from "@/types/blueprint";
 import { ALL_BRAIN_MODULES, type BrainModuleDef } from "@/lib/brain-modules";
 import { isFlowVerifiedModule } from "@/generators/gen-flow-ea";
+import { moduleAllowedInFamily } from "@/lib/strategy-family";
 
 export type ModuleTaxonomy =
   | "structure"
@@ -34,7 +35,7 @@ export const MODULE_TAXONOMY_GROUPS: ModuleTaxonomyGroup[] = [
   {
     id: "entry_zone",
     label: "Entry zones",
-    hint: "OB, FVG, IFVG, Classic/Gap S/R, rejection, miss — create → retest → confirm.",
+    hint: "OB, FVG, IFVG zones → SMC zone rejection confirm · Classic/Gap S/R → SNR Rejection · miss",
     typicalRoles: "Setup → Confirmation / Entry",
   },
   {
@@ -105,13 +106,14 @@ export interface GroupedFlowModules {
 }
 
 /** Flow-verified modules grouped for the Strategy Flow builder picker. */
-export function flowModulesByTaxonomy(): GroupedFlowModules[] {
+export function flowModulesByTaxonomy(family?: StrategyFamily | null): GroupedFlowModules[] {
   const buckets = new Map<ModuleTaxonomy, BrainModuleDef[]>();
   for (const group of MODULE_TAXONOMY_GROUPS) {
     buckets.set(group.id, []);
   }
   for (const mod of ALL_BRAIN_MODULES) {
     if (!isFlowVerifiedModule(mod.id)) continue;
+    if (family && !moduleAllowedInFamily(mod.id, family)) continue;
     const tax = taxonomyForModule(mod.id);
     buckets.get(tax)?.push(mod);
   }

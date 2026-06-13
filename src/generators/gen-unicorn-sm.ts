@@ -8,9 +8,10 @@
  *   UNISMSM_{id}_Reset()
  *   UNISMSM_{id}_Tick(lookback)
  *   UNISMSM_{id}_HasActiveBull() / HasActiveBear()   — live overlap pocket (SETUP)
- *   UNISMSM_{id}_BullJustConfirmed() / BearJustConfirmed() — overlap tapped (ENTRY)
- *   UNISMSM_{id}_BullConfirmSL() / BearConfirmSL()   — breaker invalidation (SL)
- *   UNISMSM_{id}_ActiveBullSL() / ActiveBearSL()     — setup SL hint
+ *   UNISMSM_{id}_BullJustRetested() / BearJustRetested() — wick into pocket (SETUP/CONFIRM)
+ *   UNISMSM_{id}_BullJustConfirmed() / BearJustConfirmed() — close outside after retest (ZONE REJECTION)
+ *   UNISMSM_{id}_BullConfirmSL() / BearConfirmSL()   — wick extreme at rejection (SL)
+ *   UNISMSM_{id}_ActiveBullSL() / ActiveBearSL()     — setup SL hint (breaker invalidation)
  */
 
 export function genUnicornSM(
@@ -69,6 +70,9 @@ struct ${P}UniRec
    double   ovTop;
    double   ovBot;
    datetime matchTime;
+   int      state;
+   double   retestLow;
+   double   retestHigh;
    bool     dead;
    int      barsAlive;
 };
@@ -84,6 +88,8 @@ int       ${P}fvgCount = 0;
 int       ${P}uniCount = 0;
 bool      ${P}_bullConfirmed = false;
 bool      ${P}_bearConfirmed = false;
+bool      ${P}_bullJustRetested = false;
+bool      ${P}_bearJustRetested = false;
 double    ${P}_bullSL = 0.0;
 double    ${P}_bearSL = 0.0;
 
@@ -94,6 +100,8 @@ void ${P}Reset()
    ${P}uniCount = 0;
    ${P}_bullConfirmed = false;
    ${P}_bearConfirmed = false;
+   ${P}_bullJustRetested = false;
+   ${P}_bearJustRetested = false;
    ${P}_bullSL = 0.0;
    ${P}_bearSL = 0.0;
 }
@@ -170,6 +178,9 @@ void ${P}AddUni(int dir, double brkHi, double brkLo, double ovTop, double ovBot,
    ${P}uniList[idx].ovTop     = ovTop;
    ${P}uniList[idx].ovBot     = ovBot;
    ${P}uniList[idx].matchTime = matchT;
+   ${P}uniList[idx].state     = 0;
+   ${P}uniList[idx].retestLow = 0.0;
+   ${P}uniList[idx].retestHigh = 0.0;
    ${P}uniList[idx].dead      = false;
    ${P}uniList[idx].barsAlive = 0;
 }
@@ -304,26 +315,63 @@ void ${P}AgeLevels()
    }
 }
 
-void ${P}CheckTaps()
+void ${P}UpdateUniPocket(int sh)
 {
-   double lo = iLow (InpSymbol, ${TF}, 1);
-   double hi = iHigh(InpSymbol, ${TF}, 1);
-   datetime t = iTime(InpSymbol, ${TF}, 1);
+   double lo = iLow (InpSymbol, ${TF}, sh);
+   double hi = iHigh(InpSymbol, ${TF}, sh);
+   double cl = iClose(InpSymbol, ${TF}, sh);
+   datetime t = iTime(InpSymbol, ${TF}, sh);
+
    for(int i = 0; i < ${P}uniCount; i++)
    {
       if(${P}uniList[i].dead) continue;
-      if(t <= ${P}uniList[i].matchTime) continue;
-      if(${P}uniList[i].dir == 1 && lo <= ${P}uniList[i].ovTop)
+      if(${P}uniList[i].matchTime >= t) continue;
+      if(${P}uniList[i].state >= 2) continue;
+
+      double ovTop = ${P}uniList[i].ovTop;
+      double ovBot = ${P}uniList[i].ovBot;
+
+      if(${P}uniList[i].dir == 1)
       {
-         ${P}_bullConfirmed = true;
-         ${P}_bullSL        = ${P}uniList[i].brkLo;
-         ${P}uniList[i].dead = true;
+         if(cl >= ovBot && cl <= ovTop) { ${P}uniList[i].dead = true; continue; }
+         if(${P}uniList[i].state == 0 && lo <= ovTop)
+         {
+            ${P}uniList[i].state = 1;
+            ${P}uniList[i].retestLow = lo;
+            if(sh == 1) ${P}_bullJustRetested = true;
+         }
+         if(${P}uniList[i].state == 1)
+         {
+            if(lo < ${P}uniList[i].retestLow) ${P}uniList[i].retestLow = lo;
+            if(cl > ovTop)
+            {
+               ${P}uniList[i].state = 2;
+               ${P}uniList[i].dead = true;
+               ${P}_bullSL = ${P}uniList[i].retestLow;
+               if(sh == 1) ${P}_bullConfirmed = true;
+            }
+         }
       }
-      else if(${P}uniList[i].dir == -1 && hi >= ${P}uniList[i].ovBot)
+      else
       {
-         ${P}_bearConfirmed = true;
-         ${P}_bearSL        = ${P}uniList[i].brkHi;
-         ${P}uniList[i].dead = true;
+         if(cl >= ovBot && cl <= ovTop) { ${P}uniList[i].dead = true; continue; }
+         if(${P}uniList[i].state == 0 && hi >= ovBot)
+         {
+            ${P}uniList[i].state = 1;
+            ${P}uniList[i].retestHigh = hi;
+            if(sh == 1) ${P}_bearJustRetested = true;
+         }
+         if(${P}uniList[i].state == 1)
+         {
+            if(hi > ${P}uniList[i].retestHigh) ${P}uniList[i].retestHigh = hi;
+            if(cl < ovBot)
+            {
+               ${P}uniList[i].state = 2;
+               ${P}uniList[i].dead = true;
+               ${P}_bearSL = ${P}uniList[i].retestHigh;
+               if(sh == 1) ${P}_bearConfirmed = true;
+            }
+         }
       }
    }
 }
@@ -342,27 +390,29 @@ void ${P}Tick(int lookback)
       ${P}CheckBreaks(sh);
       ${P}MatchPass(sh);
       ${P}Lifecycle(sh);
+      ${P}UpdateUniPocket(sh);
       ${P}AgeLevels();
    }
-   ${P}CheckTaps();
 }
 
 bool   ${P}BullJustConfirmed() { return ${P}_bullConfirmed; }
 bool   ${P}BearJustConfirmed() { return ${P}_bearConfirmed; }
+bool   ${P}BullJustRetested()  { return ${P}_bullJustRetested; }
+bool   ${P}BearJustRetested()  { return ${P}_bearJustRetested; }
 double ${P}BullConfirmSL()     { return ${P}_bullSL; }
 double ${P}BearConfirmSL()     { return ${P}_bearSL; }
 
 bool ${P}HasActiveBull()
 {
    for(int i = ${P}uniCount - 1; i >= 0; i--)
-      if(!${P}uniList[i].dead && ${P}uniList[i].dir == 1) return true;
+      if(!${P}uniList[i].dead && ${P}uniList[i].dir == 1 && ${P}uniList[i].state < 2) return true;
    return false;
 }
 
 bool ${P}HasActiveBear()
 {
    for(int i = ${P}uniCount - 1; i >= 0; i--)
-      if(!${P}uniList[i].dead && ${P}uniList[i].dir == -1) return true;
+      if(!${P}uniList[i].dead && ${P}uniList[i].dir == -1 && ${P}uniList[i].state < 2) return true;
    return false;
 }
 

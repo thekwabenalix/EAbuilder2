@@ -6,11 +6,14 @@
  * adapter, and semantic validator that guard the AI route.
  */
 import {
+  applyZoneScopedRejectionFlowOverride,
   buildAiWiringRepairPrompt,
   buildEmaCrossTestCloseWiring,
   buildEmaTestThenIfvgFormationWiring,
+  buildZoneScopedRejectionStrategyFlowWiring,
   findUnsafeAiModules,
   inferLocalSemantics,
+  isZoneScopedRejectionStrategy,
   validateWiringAgainstSemantics,
   type AiBrainWiringResponse,
 } from "../netlify/functions/gen-4brain-ai.mts";
@@ -761,6 +764,61 @@ const cases: RegressionCase[] = [
       );
       assertIncludes(prompt, "INVALID JSON TO REPAIR", "invalid JSON section");
       assertIncludes(prompt, "OBSM_H4", "invalid wiring context");
+    },
+  },
+  {
+    name: "detects unicorn + rejection as zone-scoped rejection strategy",
+    run: () => {
+      const config = {
+        setup: { modules: ["unicorn"], timeframe: "H1", params: { lookback: 500 } },
+        execution: { modules: ["rejection"], timeframe: "M5", params: {} },
+      };
+      assertOk(
+        isZoneScopedRejectionStrategy("Unicorn pocket reject and enter next bar", config),
+        "unicorn+rejection detected",
+      );
+    },
+  },
+  {
+    name: "deterministic adapter builds unicorn zone-scoped strategy_flow",
+    run: () => {
+      const wiring = buildZoneScopedRejectionStrategyFlowWiring(
+        "ICT unicorn overlap pocket on H1, reject wick into pocket, enter next candle on M5",
+        {
+          setup: { modules: ["unicorn"], timeframe: "H1", params: { lookback: 500, uniExpiry: 250 } },
+          execution: { modules: ["rejection"], timeframe: "M5", params: {} },
+        },
+      );
+      assertEq(wiring.output_mode, "strategy_flow", "uses strategy_flow mode");
+      assertEq(wiring.strategy_flow?.steps?.length, 3, "three flow steps");
+      assertEq(wiring.strategy_flow?.steps?.[0]?.event, "UNICORN_ACTIVE", "setup event");
+      assertEq(wiring.strategy_flow?.steps?.[1]?.event, "UNICORN_CONFIRMED", "confirm event");
+      assertEq(wiring.strategy_flow?.steps?.[2]?.event, "BAR_AFTER_CONFIRM", "entry event");
+      assertOk(!wiring.execution_brain.includes("REJSM_"), "must not emit REJSM brain code");
+    },
+  },
+  {
+    name: "post-process overrides AI REJSM wiring for unicorn zone rejection",
+    run: () => {
+      const badAi: AiBrainWiringResponse = {
+        output_mode: "brain_bodies",
+        direction_brain: "void Direction_Brain_Execute() { gBias = 1; }",
+        setup_brain: "void Setup_Brain_Execute() { gSetupActive = true; }",
+        execution_brain: `void Execution_Brain_Execute() {
+   REJSM_M5_Tick(20);
+   if(REJSM_M5_BullJustConfirmed()) { gExecSignal = true; gExecDir = 1; }
+}`,
+        required_sms: ["REJSM_M5"],
+        sm_configs: { rej_M5: { type: "rejection", id: "M5", TF: "PERIOD_M5", tf: "M5", params: {} } },
+        notes: "Bad AI used REJSM for unicorn pocket",
+      };
+      const fixed = applyZoneScopedRejectionFlowOverride(badAi, "Unicorn pocket rejection next bar", {
+        setup: { modules: ["unicorn"], timeframe: "H1", params: {} },
+        execution: { modules: ["rejection"], timeframe: "M5", params: {} },
+      });
+      assertEq(fixed.output_mode, "strategy_flow", "overridden to strategy_flow");
+      assertEq(fixed.strategy_flow?.steps?.[1]?.event, "UNICORN_CONFIRMED", "zone confirm step");
+      assertOk(!fixed.execution_brain.includes("REJSM_"), "REJSM stripped from brain bodies");
     },
   },
 ];

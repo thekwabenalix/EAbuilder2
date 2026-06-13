@@ -2,6 +2,9 @@
 // The AI extracts this from any plain-English strategy description.
 
 import type { StrategyDirection, StrategyEventType } from "../lib/strategy-events";
+import type { StrategyFamily } from "../lib/strategy-family";
+
+export type { StrategyFamily };
 
 export type RuleType =
   // Indicator-based
@@ -89,6 +92,8 @@ export interface StrategyBlueprint {
   name: string;
   strategyType: string[];
   marketPhilosophy: string;
+  /** User-selected strategy family (Step 0). Inferred on load when missing. */
+  strategyFamily?: StrategyFamily;
 
   rules: NormalizedRule[];
 

@@ -4,6 +4,7 @@ import type {
   StrategyFlowConfig,
   StrategyStepConfig,
   StrategyStepRole,
+  StrategyFamily,
 } from "@/types/blueprint";
 import { ALL_BRAIN_MODULES, TIMEFRAMES as TF_LIST } from "@/lib/brain-modules";
 import { MODULE_UI_PARAMS, type UIParam } from "@/lib/module-library";
@@ -133,6 +134,7 @@ function StepCard({
   index,
   total,
   priorStepLabel,
+  strategyFamily,
   onChange,
   onMoveUp,
   onMoveDown,
@@ -142,13 +144,14 @@ function StepCard({
   index: number;
   total: number;
   priorStepLabel?: string;
+  strategyFamily?: StrategyFamily | null;
   onChange: (step: StrategyStepConfig) => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onRemove: () => void;
 }) {
   const moduleDef = ALL_BRAIN_MODULES.find((m) => m.id === step.module);
-  const moduleGroups = useMemo(() => flowModulesByTaxonomy(), []);
+  const moduleGroups = useMemo(() => flowModulesByTaxonomy(strategyFamily), [strategyFamily]);
   const eventGroups = useMemo(
     () => eventsForStepRoleGrouped(step.module, step.role),
     [step.module, step.role],
@@ -374,9 +377,11 @@ function StepCard({
 export function StrategyFlowBuilder({
   flow,
   onChange,
+  strategyFamily,
 }: {
   flow: StrategyFlowConfig;
   onChange: (flow: StrategyFlowConfig) => void;
+  strategyFamily?: StrategyFamily | null;
 }) {
   const steps = flow.steps ?? [];
   const validation = useMemo(() => validateFlowForBuilder(flow), [flow]);
@@ -414,10 +419,11 @@ export function StrategyFlowBuilder({
         </div>
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           Each step is a verified module event. Steps run in order — a trade fires only when every
-          step in the chain has occurred (with timestamps). Use <strong>Setup</strong> + retest
-          events for zone touch, then <strong>Confirmation</strong> or <strong>Entry</strong> for
-          rejection (wick touch, close holds). Roles are pipeline phases — retest/rejection live in
-          the Event picker, not as roles.
+          step in the chain has occurred (with timestamps). Use <strong>Setup</strong> for zone
+          active, <strong>Confirmation</strong> for{" "}
+          <strong>SMC zone rejection</strong> (wick into OB/FVG/Unicorn, close outside), then{" "}
+          <strong>Entry</strong> or next-bar events. SNR Rejection is only for horizontal S/R levels
+          in the S/R &amp; SnD family.
         </p>
       </div>
 
@@ -465,6 +471,7 @@ export function StrategyFlowBuilder({
             index={index}
             total={steps.length}
             priorStepLabel={index > 0 ? steps[index - 1]?.name : undefined}
+            strategyFamily={strategyFamily}
             onChange={(next) => updateStep(index, next)}
             onMoveUp={() => updateSteps(reorderSteps(steps, index, index - 1))}
             onMoveDown={() => updateSteps(reorderSteps(steps, index, index + 1))}

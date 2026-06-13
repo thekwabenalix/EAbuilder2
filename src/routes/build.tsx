@@ -27,7 +27,7 @@ import {
 import { toast } from "sonner";
 import { createStrategy } from "@/lib/strategies";
 import { extractBrainParams } from "@/lib/api-client";
-import type { FourBrainConfig, BrainConfig, BrainModuleType } from "@/types/blueprint";
+import type { FourBrainConfig, BrainConfig, BrainModuleType, StrategyFamily } from "@/types/blueprint";
 import type { StrategyBlueprint } from "@/types/blueprint";
 import { DEFAULT_BLUEPRINT } from "@/types/blueprint";
 import { ALL_BRAIN_MODULES, TIMEFRAMES as TF_LIST } from "@/lib/brain-modules";
@@ -38,6 +38,20 @@ import { getModuleAdmission, MODULE_ADMISSION_STATUS_META } from "@/lib/module-a
 import { firstBlueprintGenerationError } from "@/lib/blueprint-generation-gate";
 import { EaGenerationError } from "@/lib/generate-ea-router";
 import { StrategyFlowBuilder } from "@/components/StrategyFlowBuilder";
+import { StrategyFamilyPicker } from "@/components/StrategyFamilyPicker";
+import {
+  crossFamilyWarnings,
+  filterModulesForFamily,
+  inferStrategyFamilyFromModules,
+  moduleAllowedInFamily,
+  pickerModulesForBrain,
+} from "@/lib/strategy-family";
+import {
+  isZoneScopedRejectionPair,
+  smcZoneRejectionEventLabel,
+  UNICORN_POCKET_FLOW_CHAIN,
+} from "@/lib/smc-zone-rejection-display";
+import { ZONE_SCOPED_SETUP_MODULES } from "@/lib/zone-scoped-rejection-repair";
 import { GenerationPathBanner } from "@/components/GenerationPathBanner";
 import { TradeAuditPanel } from "@/components/TradeAuditPanel";
 import { EmaPeriodEditor } from "@/components/EmaPeriodEditor";
@@ -100,9 +114,26 @@ interface Preset {
   rr: number;
   risk: number;
   be: boolean;
+  family?: StrategyFamily;
+  /** When set, applying the preset opens Advanced Flow with this chain visible. */
+  useAdvancedFlow?: boolean;
+  flowChain?: string[];
 }
 
 const PRESETS: Preset[] = [
+  {
+    name: "Unicorn Pocket",
+    tag: "SMC",
+    description: "ICT overlap pocket — zone-scoped rejection, enter next bar (Strategy Flow)",
+    setup: { modules: ["unicorn"], timeframe: "H1" },
+    execution: { modules: ["rejection"], timeframe: "H1" },
+    rr: 2,
+    risk: 1,
+    be: true,
+    family: "smc_ict",
+    useAdvancedFlow: true,
+    flowChain: UNICORN_POCKET_FLOW_CHAIN,
+  },
   {
     name: "Classic ICT",
     tag: "Most popular",
@@ -207,16 +238,17 @@ function ModuleMultiSelect({
   onChange,
   brainTimeframe,
   onIndicatorSideEffect,
+  modules,
 }: {
   role: BrainRole;
   selected: BrainModuleType[];
   onChange: (modules: BrainModuleType[]) => void;
   brainTimeframe: string;
   onIndicatorSideEffect?: (result: IndicatorPickerResult) => void;
+  modules: BrainModuleDef[];
 }) {
   const [open, setOpen] = useState(false);
   const [indicatorOpen, setIndicatorOpen] = useState(false);
-  const modules = ALL_MODULES; // Show ALL modules in every brain — role is determined by timeframe, not module type
   const selectedDefs = modules.filter((m) => selected.includes(m.id));
 
   const toggleModule = (id: BrainModuleType) => {
@@ -517,6 +549,8 @@ function BrainCard({
   recommendAbove,
   recommendBelow,
   onIndicatorSideEffect,
+  familyModules,
+  setupModule,
 }: {
   role: BrainRole;
   icon: React.ElementType;
@@ -529,9 +563,11 @@ function BrainCard({
   recommendAbove?: string;
   recommendBelow?: string;
   onIndicatorSideEffect?: (result: IndicatorPickerResult) => void;
+  familyModules: BrainModuleDef[];
+  setupModule?: BrainModuleType;
 }) {
   const [open, setOpen] = useState(false);
-  const modules = ALL_MODULES; // Show ALL modules in every brain
+  const modules = familyModules;
   const configured = Boolean(state?.modules?.[0] && state?.timeframe);
 
   const selectedMod = state?.modules?.[0]
@@ -567,11 +603,19 @@ function BrainCard({
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               {state.modules.map((modId) => {
                 const mod = modules.find((m) => m.id === modId);
-                return mod ? (
-                  <span key={modId} className={`text-xs font-medium ${mod.color}`}>
-                    {mod.symbol} {mod.label}
+                const zoneScoped =
+                  role === "execution" &&
+                  isZoneScopedRejectionPair(setupModule, modId);
+                const label = zoneScoped
+                  ? `${smcZoneRejectionEventLabel(setupModule!)} + Next Bar`
+                  : mod?.label ?? modId.replace(/_/g, " ");
+                const colorClass = zoneScoped ? "text-emerald-400" : mod?.color ?? "text-foreground";
+                const symbol = zoneScoped ? "✓" : mod?.symbol ?? "•";
+                return (
+                  <span key={modId} className={`text-xs font-medium ${colorClass}`}>
+                    {symbol} {label}
                   </span>
-                ) : null;
+                );
               })}
               <span className="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
                 {state!.timeframe}
@@ -604,11 +648,23 @@ function BrainCard({
             <p className="text-[10px] text-muted-foreground -mt-1">
               Use <span className="text-sky-400">Built-in indicator</span> for MACD, RSI, EMA, and
               Bollinger — or pick structure modules below.
+              {role === "execution" &&
+                setupModule &&
+                ZONE_SCOPED_SETUP_MODULES.has(setupModule) && (
+                  <>
+                    {" "}
+                    <span className="text-emerald-400/90">
+                      SMC zone rejection uses the setup zone&apos;s Confirmed event in Strategy Flow
+                      — not SNR Rejection.
+                    </span>
+                  </>
+                )}
             </p>
             <ModuleMultiSelect
               role={role}
               selected={state?.modules ?? []}
               brainTimeframe={state?.timeframe ?? "H1"}
+              modules={familyModules}
               onIndicatorSideEffect={onIndicatorSideEffect}
               onChange={(mods) =>
                 onChange({
@@ -809,6 +865,60 @@ function FourBrainBuilderPage() {
   }
 
   const [builderMode, setBuilderMode] = useState<BuilderFlowMode>("simple");
+  const [strategyFamily, setStrategyFamily] = useState<StrategyFamily | null>(null);
+  const setupModuleId = setup?.modules?.[0];
+
+  function brainPickerModules(role: BrainRole): BrainModuleDef[] {
+    return strategyFamily ? pickerModulesForBrain(strategyFamily, role, setup?.modules) : [];
+  }
+
+  function allSelectedModuleIds(): BrainModuleType[] {
+    const ids: BrainModuleType[] = [
+      ...(direction?.modules ?? []),
+      ...(setup?.modules ?? []),
+      ...(execution?.modules ?? []),
+    ];
+    if (builderMode === "advanced") {
+      for (const step of flowConfig.steps) {
+        if (step.enabled !== false) ids.push(step.module as BrainModuleType);
+      }
+    }
+    return ids;
+  }
+
+  function handleStrategyFamilyChange(next: StrategyFamily) {
+    setStrategyFamily(next);
+    const filter = (mods: BrainModuleType[]) => filterModulesForFamily(mods, next);
+
+    if (direction?.modules?.length) {
+      const modules = filter(direction.modules);
+      if (modules.length !== direction.modules.length) {
+        setDirection(modules.length ? { ...direction, modules } : undefined);
+      }
+    }
+    if (setup?.modules?.length) {
+      const modules = filter(setup.modules);
+      if (modules.length !== setup.modules.length) {
+        setSetup(modules.length ? { ...setup, modules } : undefined);
+      }
+    }
+    if (execution?.modules?.length) {
+      const modules = filter(execution.modules);
+      if (modules.length) setExecution({ ...execution, modules });
+      else if (isZoneScopedRejectionPair(setup?.modules?.[0], execution.modules[0])) {
+        /* keep zone-scoped execution trigger (hidden from SMC picker) */
+      } else setExecution(undefined);
+    }
+    if (builderMode === "advanced" && flowConfig.steps.length) {
+      setFlowConfig({
+        ...flowConfig,
+        steps: flowConfig.steps.filter(
+          (s) => s.enabled === false || moduleAllowedInFamily(s.module, next),
+        ),
+      });
+    }
+  }
+
   const [flowConfig, setFlowConfig] = useState<StrategyFlowConfig>(() => ({
     version: 1,
     mode: "advanced_instances",
@@ -892,27 +1002,38 @@ function FourBrainBuilderPage() {
 
   // ── Preset application ────────────────────────────────────────────────────
   function applyPreset(p: Preset) {
+    const presetModules: BrainModuleType[] = [
+      ...(p.direction?.modules ?? []),
+      ...(p.setup?.modules ?? []),
+      ...p.execution.modules,
+    ];
+    setStrategyFamily(p.family ?? inferStrategyFamilyFromModules(presetModules));
     setDirection(p.direction ? { ...p.direction } : undefined);
     setSetup(p.setup ? { ...p.setup } : undefined);
     setExecution({ ...p.execution });
     setRr(p.rr);
     setRisk(p.risk);
     setBe(p.be);
-    if (builderMode === "advanced") {
-      const fourBrain: FourBrainConfig = {
-        direction: p.direction,
-        setup: p.setup,
-        execution: p.execution,
-        management: {
-          riskPercent: p.risk,
-          rewardRisk: p.rr,
-          breakEvenEnabled: p.be,
-          breakEvenAtR: beAt,
-          maxOpenTrades: maxTrades,
-          stopBuffer: stopBuffer,
-          maxStopPoints: maxStopPts,
-        },
-      };
+
+    const fourBrain: FourBrainConfig = {
+      direction: p.direction,
+      setup: p.setup,
+      execution: p.execution,
+      management: {
+        riskPercent: p.risk,
+        rewardRisk: p.rr,
+        breakEvenEnabled: p.be,
+        breakEvenAtR: beAt,
+        maxOpenTrades: maxTrades,
+        stopBuffer: stopBuffer,
+        maxStopPoints: maxStopPts,
+      },
+    };
+
+    if (p.useAdvancedFlow) {
+      setBuilderMode("advanced");
+      seedFlowFromBrains(fourBrain);
+    } else if (builderMode === "advanced") {
       seedFlowFromBrains(fourBrain);
     }
   }
@@ -934,8 +1055,15 @@ function FourBrainBuilderPage() {
       parts.push(`${setup.timeframe} ${mods}`);
     }
     if (execution?.modules?.[0] && execution.timeframe) {
-      const mods = execution.modules.map((m) => m.replace(/_/g, " ").toUpperCase()).join(" + ");
-      parts.push(`${execution.timeframe} ${mods}`);
+      const modId = execution.modules[0];
+      if (isZoneScopedRejectionPair(setup?.modules?.[0], modId)) {
+        parts.push(
+          `${execution.timeframe} ${smcZoneRejectionEventLabel(setup!.modules[0])} + Next Bar`,
+        );
+      } else {
+        const mods = execution.modules.map((m) => m.replace(/_/g, " ").toUpperCase()).join(" + ");
+        parts.push(`${execution.timeframe} ${mods}`);
+      }
     }
     const chain = parts.join(" → ");
     const mgmt = `${risk}% risk · ${rr}R TP${be ? ` · BE@${beAt}R` : ""}`;
@@ -945,6 +1073,11 @@ function FourBrainBuilderPage() {
   // ── Generate ──────────────────────────────────────────────────────────────
   async function onGenerate() {
     if (!user) return;
+
+    if (!strategyFamily) {
+      toast.error("Choose a strategy family first (Step 0).");
+      return;
+    }
 
     const bp = buildDraftBlueprint();
     if (!bp) {
@@ -972,6 +1105,15 @@ function FourBrainBuilderPage() {
         toast.error(`4-Brain EA generation is blocked for: ${blocked.join(", ")}`);
         return;
       }
+    }
+
+    const mixWarnings = crossFamilyWarnings(allSelectedModuleIds(), strategyFamily);
+    if (strategyFamily !== "hybrid" && mixWarnings.length > 0) {
+      toast.error(mixWarnings[0]);
+      return;
+    }
+    for (const warning of mixWarnings) {
+      toast.warning(warning);
     }
 
     setSaving(true);
@@ -1052,6 +1194,7 @@ function FourBrainBuilderPage() {
       const bp = {
         ...DEFAULT_BLUEPRINT,
         name: nameFromFlowSteps(flowConfig.steps),
+        strategyFamily: strategyFamily ?? undefined,
         fourBrain,
         strategyNotes: strategyNotes.trim(),
         filterRefs: filterRefs.length ? filterRefs : undefined,
@@ -1079,6 +1222,7 @@ function FourBrainBuilderPage() {
     return {
       ...DEFAULT_BLUEPRINT,
       name: buildName(fourBrain),
+      strategyFamily: strategyFamily ?? undefined,
       fourBrain,
       strategyNotes: strategyNotes.trim(),
       filterRefs: filterRefs.length ? filterRefs : undefined,
@@ -1110,8 +1254,21 @@ function FourBrainBuilderPage() {
       strategyNotes,
       filterRefs,
       indicatorRefs,
+      strategyFamily,
     ],
   );
+
+  const familyWarnings = useMemo(() => {
+    if (!strategyFamily) return [];
+    return crossFamilyWarnings(allSelectedModuleIds(), strategyFamily);
+  }, [
+    strategyFamily,
+    direction,
+    setup,
+    execution,
+    builderMode,
+    flowConfig.steps,
+  ]);
 
   const execConfigured = Boolean(execution?.modules?.[0] && execution.timeframe);
   const flowHasEntry = flowConfig.steps.some(
@@ -1124,9 +1281,11 @@ function FourBrainBuilderPage() {
     ...(builderMode === "advanced" ? flowConfig.steps.map((s) => s.module) : []),
   ]);
   const canBuildEa =
-    builderMode === "advanced"
+    Boolean(strategyFamily) &&
+    (builderMode === "advanced"
       ? flowHasEntry && unsafeAiModules.length === 0
-      : execConfigured && unsafeAiModules.length === 0;
+      : execConfigured && unsafeAiModules.length === 0) &&
+    (strategyFamily === "hybrid" || familyWarnings.length === 0);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -1136,6 +1295,25 @@ function FourBrainBuilderPage() {
       />
 
       <div className="flex-1 p-6 space-y-6 max-w-7xl mx-auto w-full">
+        {/* ── Strategy family (Step 0) ── */}
+        <StrategyFamilyPicker value={strategyFamily} onChange={handleStrategyFamilyChange} />
+
+        {familyWarnings.length > 0 && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 space-y-1">
+            {familyWarnings.map((warning) => (
+              <p key={warning} className="text-[11px] text-amber-300/90">
+                {warning}
+              </p>
+            ))}
+          </div>
+        )}
+
+        <div
+          className={[
+            "space-y-6 transition-opacity",
+            strategyFamily ? "" : "opacity-40 pointer-events-none select-none",
+          ].join(" ")}
+        >
         {/* ── Presets ── */}
         <div>
           <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">
@@ -1157,6 +1335,13 @@ function FourBrainBuilderPage() {
                   </span>
                 </div>
                 <p className="text-[11px] text-muted-foreground leading-snug">{p.description}</p>
+                {p.flowChain && p.flowChain.length > 0 && (
+                  <ul className="text-[10px] text-emerald-400/80 space-y-0.5 font-mono leading-snug">
+                    {p.flowChain.map((step) => (
+                      <li key={step}>{step}</li>
+                    ))}
+                  </ul>
+                )}
                 <div className="flex items-center gap-1 mt-1 text-[10px] font-mono text-muted-foreground/60">
                   <span>{p.rr}R</span>
                   <span>·</span>
@@ -1224,7 +1409,11 @@ function FourBrainBuilderPage() {
                 Import from 4-Brain preset
               </Button>
             </div>
-            <StrategyFlowBuilder flow={flowConfig} onChange={setFlowConfig} />
+            <StrategyFlowBuilder
+              flow={flowConfig}
+              onChange={setFlowConfig}
+              strategyFamily={strategyFamily}
+            />
           </div>
         ) : (
           <>
@@ -1252,6 +1441,7 @@ function FourBrainBuilderPage() {
                   optional
                   recommendBelow={setup?.timeframe ?? execution?.timeframe}
                   onIndicatorSideEffect={handleIndicatorSideEffect}
+                  familyModules={brainPickerModules("direction")}
                 />
                 <Arrow active={Boolean(direction?.modules?.[0])} />
                 <BrainCard
@@ -1266,6 +1456,7 @@ function FourBrainBuilderPage() {
                   recommendAbove={direction?.timeframe}
                   recommendBelow={execution?.timeframe}
                   onIndicatorSideEffect={handleIndicatorSideEffect}
+                  familyModules={brainPickerModules("setup")}
                 />
                 <Arrow active={Boolean(setup?.modules?.[0])} />
                 <BrainCard
@@ -1277,6 +1468,8 @@ function FourBrainBuilderPage() {
                   onChange={setExecution}
                   onClear={() => {}}
                   optional={false}
+                  familyModules={brainPickerModules("execution")}
+                  setupModule={setupModuleId}
                   recommendAbove={setup?.timeframe ?? direction?.timeframe}
                   onIndicatorSideEffect={handleIndicatorSideEffect}
                 />
@@ -1459,6 +1652,11 @@ function FourBrainBuilderPage() {
           </Button>
         </div>
 
+        {!canBuildEa && !strategyFamily && (
+          <p className="text-xs text-amber-400 text-center">
+            Choose a strategy family above to unlock the builder.
+          </p>
+        )}
         {!canBuildEa && builderMode === "simple" && !execConfigured && (
           <p className="text-xs text-amber-400 text-center">
             Configure the Execution Brain to enable EA generation.
@@ -1475,6 +1673,7 @@ function FourBrainBuilderPage() {
             for planning, but need verified state-machine contracts before they can trade.
           </p>
         )}
+        </div>
       </div>
     </div>
   );

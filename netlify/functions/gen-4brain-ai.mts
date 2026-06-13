@@ -34,6 +34,11 @@ import {
   validateAiStrategyFlowWiring,
 } from "../../src/lib/ai-strategy-flow.js";
 import {
+  applyZoneScopedRejectionFlowOverride,
+  buildZoneScopedRejectionStrategyFlowWiring,
+  isZoneScopedRejectionStrategy,
+} from "../../src/lib/blessed-zone-rejection-adapter.js";
+import {
   buildEmaCrossTestCloseWiring as buildBlessedEmaCtcWiring,
   buildEmaIfvgSemantics,
   buildEmaTestThenIfvgFormationWiring as buildBlessedEmaIfvgWiring,
@@ -380,10 +385,28 @@ CODE GENERATION RULES
 
     State machines that DO need an sm_config entry: fvg, fvg_inversion, ob, bos,
     choch, bos_choch, liqsweep, snr, gap_snr, breakout, rejection, miss, rsi_hd,
-    ob_fvg, and ema (ONLY the EMA retest/pullback variant — simple EMA cross does not).
+    ob_fvg, unicorn, and ema (ONLY the EMA retest/pullback variant — simple EMA cross does not).
     Prefixes: fvg→FVGSM, fvg_inversion→IFVGSM, ob→OBSM, bos/choch/bos_choch→BOSSM,
     liqsweep→LSSM, snr→SNRSM, gap_snr→GSNRSM, breakout→BRKSM, rejection→REJSM,
-    miss→MISSSM, rsi_hd→RSIHDSM, ob_fvg→OBFVGSM, ema→EMASM.
+    miss→MISSSM, rsi_hd→RSIHDSM, ob_fvg→OBFVGSM, unicorn→UNISMSM, ema→EMASM.
+
+    ★ UNICORN / ZONE-SCOPED REJECTION (critical — do NOT use REJSM for zone pockets):
+    - \`unicorn\` = ICT Unicorn overlap pocket (breaker block + FVG). SETUP role only — never direction.
+    - SNR Rejection (\`rejection\` / REJSM) = horizontal Classic/Gap S/R levels ONLY.
+      It is NOT zone rejection on FVG, OB, or Unicorn pockets.
+    - When setup is unicorn, fvg, order_block, ob_fvg, or breaker_block AND the trader wants
+      rejection on THE zone / pocket / wick outside / close outside / enter next bar:
+      → output_mode MUST be "strategy_flow" with this 3-step chain:
+        1. setup: zone module, *_ACTIVE (e.g. UNICORN_ACTIVE, FVG_CREATED)
+        2. confirmation: same zone module, *_CONFIRMED (e.g. UNICORN_CONFIRMED, FVG_CONFIRMED)
+        3. entry: BAR_AFTER_CONFIRM on the same zone module
+      → NEVER wire REJSM_ for pocket/zone rejection.
+      → If the visual builder shows execution module "rejection" with a zone setup, emit the
+        strategy_flow steps above — the compiler remaps SNR rejection to zone-scoped confirm.
+    Example unicorn pocket strategy_flow:
+      { "role": "setup", "module": "unicorn", "event": "UNICORN_ACTIVE", ... },
+      { "role": "confirmation", "module": "unicorn", "event": "UNICORN_CONFIRMED", ... },
+      { "role": "entry", "module": "unicorn", "event": "BAR_AFTER_CONFIRM", ... }
 
 6.  Include one PrintFormat() log per state transition. Use prefix [DIR], [SETUP], [EXEC].
 
@@ -942,6 +965,7 @@ function defaultSemanticEvent(moduleId: string, role: SemanticBrainRole): string
     },
     order_block: { direction: "active_zone", setup: "active_zone", execution: "mitigation" },
     ob_fvg: { direction: "confluence_zone", setup: "confluence_zone", execution: "entry" },
+    unicorn: { setup: "overlap_active", execution: "zone_rejection" },
     fvg: { direction: "active_zone", setup: "active_zone", execution: "confirmation" },
     fvg_inversion: { direction: "active_zone", setup: "active_zone", execution: "confirmation" },
     liqsweep: { setup: "sweep", execution: "sweep" },
@@ -1183,7 +1207,7 @@ export function validateWiringAgainstSemantics(response: AiBrainWiringResponse):
   }
 
   const smCallRe =
-    /\b(RSIHDSM|OBFVGSM|EMASM|IFVGSM|FVGSM|EGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM)_([A-Za-z0-9]+)_([A-Za-z0-9_]+)\s*\(/g;
+    /\b(RSIHDSM|OBFVGSM|UNISMSM|EMASM|IFVGSM|FVGSM|EGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM)_([A-Za-z0-9]+)_([A-Za-z0-9_]+)\s*\(/g;
   const badSmCalls = new Set<string>();
   let smMatch: RegExpExecArray | null;
   while ((smMatch = smCallRe.exec(allCode)) !== null) {
@@ -1328,6 +1352,7 @@ export function normalizeAiResponse(
   if (!response.required_sms) response.required_sms = [];
   if (!response.notes) response.notes = "";
   normalizeAiStrategyFlowInResponse(response);
+  Object.assign(response, applyZoneScopedRejectionFlowOverride(response, fullText, config));
   if (!response.semantics || typeof response.semantics !== "object") {
     response.semantics = inferLocalSemantics(fullText, config);
   }
@@ -1339,6 +1364,11 @@ export function normalizeAiResponse(
 }
 
 export { isEmaCrossTestClose, isEmaTestThenIfvgFormation };
+export {
+  buildZoneScopedRejectionStrategyFlowWiring,
+  isZoneScopedRejectionStrategy,
+  applyZoneScopedRejectionFlowOverride,
+} from "../../src/lib/blessed-zone-rejection-adapter.js";
 
 export function buildEmaTestThenIfvgFormationWiring(
   text: string,
@@ -1438,6 +1468,18 @@ export default async (req: Request): Promise<Response> => {
     });
   }
 
+  if (isZoneScopedRejectionStrategy(fullText, config)) {
+    const response = buildZoneScopedRejectionStrategyFlowWiring(
+      fullText,
+      config,
+    ) as AiBrainWiringResponse;
+    applyBuiltinFilters(response, fullText, filterRefs);
+    response.validation = validateAiWiringResponse(response);
+    return Response.json(response, {
+      headers: { ...CORS, "Content-Type": "application/json" },
+    });
+  }
+
   if (!process.env.ANTHROPIC_API_KEY)
     return Response.json({ error: "ANTHROPIC_API_KEY not set" }, { status: 500, headers: CORS });
 
@@ -1503,6 +1545,7 @@ ${execDesc}
 Map each brain to one or more strategy_flow steps with correct dependsOn order.
 Use the module library to select verified modules and contract-backed events.
 Extract configuration from the trader's notes and EXACT PARAMETERS blocks.
+If setup is unicorn/fvg/OB with execution rejection, emit UNICORN_ACTIVE → UNICORN_CONFIRMED → BAR_AFTER_CONFIRM (never REJSM).
 In "notes", explain how you mapped their module selections to steps.`;
   } else {
     return Response.json(

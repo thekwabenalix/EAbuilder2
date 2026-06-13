@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getStrategy, updateStrategy, deleteStrategy, duplicateStrategy } from "@/lib/strategies";
 import { useAuth } from "@/lib/auth-context";
@@ -31,6 +31,7 @@ import { StrategySpecForm } from "@/components/StrategySpecForm";
 import { BuilderProgress, BUILDER_STEPS, type BuilderStep } from "@/components/BuilderProgress";
 import { BlueprintExplanationPanel } from "@/components/BlueprintExplanationPanel";
 import { StrategyFlowBuilder } from "@/components/StrategyFlowBuilder";
+import { StrategyFamilyPicker } from "@/components/StrategyFamilyPicker";
 import { EmaPeriodEditor } from "@/components/EmaPeriodEditor";
 import { TradeAuditPanel } from "@/components/TradeAuditPanel";
 import {
@@ -91,8 +92,8 @@ import {
 } from "@/lib/blueprint-generation-gate";
 import type { StrategyBlueprint } from "@/types/blueprint";
 import { DEFAULT_BLUEPRINT } from "@/types/blueprint";
-import type { FourBrainConfig, BrainConfig, BrainModuleType } from "@/types/blueprint";
-import { ALL_BRAIN_MODULES, TIMEFRAMES as TF_LIST, formatBrainChain } from "@/lib/brain-modules";
+import type { FourBrainConfig, BrainConfig, BrainModuleType, StrategyFamily } from "@/types/blueprint";
+import { ALL_BRAIN_MODULES, TIMEFRAMES as TF_LIST, formatBrainChain, type BrainModuleDef } from "@/lib/brain-modules";
 import { MODULE_UI_PARAMS } from "@/lib/module-library";
 import type { UIParam } from "@/lib/module-library";
 import { getModuleAdmission, MODULE_ADMISSION_STATUS_META } from "@/lib/module-admission";
@@ -106,6 +107,17 @@ import {
   type BuilderFlowMode,
 } from "@/lib/strategy-flow-ui";
 import { fourBrainToStrategyFlow } from "@/lib/strategy-flow";
+import {
+  crossFamilyWarnings,
+  filterModulesForFamily,
+  inferStrategyFamilyFromModules,
+  moduleAllowedInFamily,
+  pickerModulesForBrain,
+} from "@/lib/strategy-family";
+import {
+  isZoneScopedRejectionPair,
+  smcZoneRejectionEventLabel,
+} from "@/lib/smc-zone-rejection-display";
 import type { StrategyFlowConfig } from "@/types/blueprint";
 import {
   buildExpectedTradePath,
@@ -812,12 +824,16 @@ function BrainModuleChips({
   brainRole,
   brainTimeframe,
   onIndicatorSideEffect,
+  familyModules,
+  setupModule,
 }: {
   selected: BrainModuleType[];
   onChange: (mods: BrainModuleType[]) => void;
   brainRole: BrainRole;
   brainTimeframe: string;
   onIndicatorSideEffect?: (result: IndicatorPickerResult) => void;
+  familyModules: BrainModuleDef[];
+  setupModule?: BrainModuleType;
 }) {
   const [open, setOpen] = useState(false);
   const [indicatorOpen, setIndicatorOpen] = useState(false);
@@ -841,12 +857,22 @@ function BrainModuleChips({
       <div className="flex flex-wrap gap-1.5">
         {selected.map((id) => {
           const def = ALL_BRAIN_MODULES.find((m) => m.id === id);
+          const zoneScoped =
+            brainRole === "execution" && isZoneScopedRejectionPair(setupModule, id);
+          const label = zoneScoped
+            ? `${smcZoneRejectionEventLabel(setupModule!)} + Next Bar`
+            : def?.label ?? id;
           return (
             <span
               key={id}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary/15 border border-primary/30 text-primary"
+              className={[
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border",
+                zoneScoped
+                  ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
+                  : "bg-primary/15 border-primary/30 text-primary",
+              ].join(" ")}
             >
-              {def?.symbol} {def?.label ?? id}
+              {zoneScoped ? "✓" : def?.symbol} {label}
               <button
                 onClick={() => toggle(id)}
                 className="ml-0.5 hover:text-destructive transition-colors"
@@ -869,7 +895,7 @@ function BrainModuleChips({
       {open && (
         <div className="rounded-lg border border-border bg-card p-3 max-h-72 overflow-y-auto">
           <div className="grid grid-cols-2 gap-1">
-            {ALL_BRAIN_MODULES.map((m) => {
+            {familyModules.map((m) => {
               const active = selected.includes(m.id);
               const admission = getModuleAdmission(m.id);
               const admissionMeta = admission
@@ -1120,6 +1146,8 @@ function BrainCard({
   onChange,
   onToggle,
   onIndicatorSideEffect,
+  familyModules,
+  setupModule,
 }: {
   role: BrainRole;
   config: BrainConfig;
@@ -1128,6 +1156,8 @@ function BrainCard({
   onChange: (c: BrainConfig) => void;
   onToggle?: (on: boolean) => void;
   onIndicatorSideEffect?: (result: IndicatorPickerResult) => void;
+  familyModules: BrainModuleDef[];
+  setupModule?: BrainModuleType;
 }) {
   const meta = BRAIN_META[role];
   return (
@@ -1157,6 +1187,8 @@ function BrainCard({
               brainRole={role}
               brainTimeframe={config.timeframe}
               onIndicatorSideEffect={onIndicatorSideEffect}
+              familyModules={familyModules}
+              setupModule={setupModule}
             />
           </div>
           <div className="space-y-1">
@@ -1262,6 +1294,68 @@ function FourBrainTab({
     seedAdvancedFlow(blueprint, cfg),
   );
 
+  const [strategyFamily, setStrategyFamily] = useState<StrategyFamily>(() =>
+    blueprint.strategyFamily ??
+      inferStrategyFamilyFromModules([
+        ...(cfg.direction?.modules ?? []),
+        ...(cfg.setup?.modules ?? []),
+        ...cfg.execution.modules,
+        ...(blueprint.strategyFlow?.steps?.map((s) => s.module) ?? []),
+      ]),
+  );
+  const setupModuleId = setup?.modules?.[0];
+
+  function brainPickerModules(role: BrainRole): BrainModuleDef[] {
+    return pickerModulesForBrain(strategyFamily, role, setup?.modules);
+  }
+
+  function handleStrategyFamilyChange(next: StrategyFamily) {
+    setStrategyFamily(next);
+    const filter = (mods: BrainModuleType[]) => filterModulesForFamily(mods, next);
+    if (direction?.modules?.length) {
+      const modules = filter(direction.modules);
+      setDirection(modules.length ? { ...direction, modules } : undefined);
+    }
+    if (setup?.modules?.length) {
+      const modules = filter(setup.modules);
+      setSetup(modules.length ? { ...setup, modules } : undefined);
+    }
+    if (execution.modules?.length) {
+      const modules = filter(execution.modules);
+      if (modules.length) setExecution({ ...execution, modules });
+      else if (isZoneScopedRejectionPair(setup?.modules?.[0], execution.modules[0])) {
+        /* keep zone-scoped execution trigger (hidden from SMC picker) */
+      } else {
+        const fallback = pickerModulesForBrain(next, "execution", setup?.modules)[0]?.id;
+        if (fallback) setExecution({ ...execution, modules: [fallback] });
+      }
+    }
+    if (flowConfig.steps.length) {
+      setFlowConfig({
+        ...flowConfig,
+        steps: flowConfig.steps.filter(
+          (s) => s.enabled === false || moduleAllowedInFamily(s.module, next),
+        ),
+      });
+    }
+  }
+
+  const familyWarnings = useMemo(
+    () =>
+      crossFamilyWarnings(
+        [
+          ...(direction?.modules ?? []),
+          ...(setup?.modules ?? []),
+          ...execution.modules,
+          ...(builderMode === "advanced"
+            ? flowConfig.steps.map((s) => s.module)
+            : []),
+        ],
+        strategyFamily,
+      ),
+    [strategyFamily, direction, setup, execution, builderMode, flowConfig.steps],
+  );
+
   const strategyFlowSyncKey = [
     blueprint.strategyFlow?.source ?? "",
     blueprint.strategyFlow?.mode ?? "",
@@ -1315,6 +1409,7 @@ function FourBrainTab({
         builderMode === "advanced" && flowConfig.steps.length
           ? nameFromFlowSteps(flowConfig.steps)
           : parts.join(" → "),
+      strategyFamily,
       fourBrain: newCfg,
       filterRefs: filterRefs.length ? filterRefs : undefined,
       indicatorRefs: indicatorRefs.length ? indicatorRefs : undefined,
@@ -1359,6 +1454,7 @@ function FourBrainTab({
     maxTrades,
     builderMode,
     flowConfig,
+    strategyFamily,
   ]);
 
   const canRegenerate =
@@ -1371,6 +1467,22 @@ function FourBrainTab({
 
   return (
     <div className="max-w-3xl space-y-5 pb-24">
+      <StrategyFamilyPicker
+        value={strategyFamily}
+        onChange={handleStrategyFamilyChange}
+        compact
+      />
+
+      {familyWarnings.length > 0 && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 space-y-1">
+          {familyWarnings.map((warning) => (
+            <p key={warning} className="text-[11px] text-amber-300/90">
+              {warning}
+            </p>
+          ))}
+        </div>
+      )}
+
       {/* Builder mode — Simple 4-Brain vs Advanced Strategy Flow */}
       <div className="rounded-lg border border-border p-1 flex gap-1 bg-muted/20">
         <button
@@ -1468,7 +1580,11 @@ function FourBrainTab({
               Import from 4-Brain preset
             </Button>
           </div>
-          <StrategyFlowBuilder flow={flowConfig} onChange={(next) => setFlowConfig(next)} />
+          <StrategyFlowBuilder
+            flow={flowConfig}
+            onChange={(next) => setFlowConfig(next)}
+            strategyFamily={strategyFamily}
+          />
         </>
       ) : (
         <>
@@ -1490,6 +1606,7 @@ function FourBrainTab({
             }
             onChange={setDirection}
             onIndicatorSideEffect={handleIndicatorSideEffect}
+            familyModules={brainPickerModules("direction")}
           />
 
           {/* Setup brain */}
@@ -1503,6 +1620,7 @@ function FourBrainTab({
             }
             onChange={setSetup}
             onIndicatorSideEffect={handleIndicatorSideEffect}
+            familyModules={brainPickerModules("setup")}
           />
 
           {/* Execution brain — always on */}
@@ -1513,6 +1631,8 @@ function FourBrainTab({
             optional={false}
             onChange={setExecution}
             onIndicatorSideEffect={handleIndicatorSideEffect}
+            familyModules={brainPickerModules("execution")}
+            setupModule={setupModuleId}
           />
         </>
       )}

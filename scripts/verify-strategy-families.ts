@@ -10,6 +10,9 @@ import { normalizeBlueprint } from "../netlify/functions/parse-strategy.mts";
 import { buildEmaTestThenIfvgFormationWiring } from "../netlify/functions/gen-4brain-ai.mts";
 import { buildBlueprintWiring } from "../src/generators/gen-blueprint-wiring";
 import { generateEA } from "../src/generators/gen-ea";
+import { smcZoneRejectionEventLabel } from "../src/lib/smc-zone-rejection-display";
+import { STRATEGY_EVENT_CONTRACTS } from "../src/lib/strategy-events";
+import { pickerModulesForBrain } from "../src/lib/strategy-family";
 import type { AiBrainWiring } from "../src/lib/api-client";
 import type { FourBrainConfig, StrategyBlueprint } from "../src/types/blueprint";
 
@@ -174,6 +177,37 @@ const cases: StrategyFamilyCase[] = [
 ];
 
 console.log("\nStrategy family regression tests\n");
+
+try {
+  assertEq(
+    STRATEGY_EVENT_CONTRACTS.FVG_CONFIRMED.label,
+    "SMC Zone Rejection — FVG",
+    "FVG confirmed event label",
+  );
+  assertEq(
+    smcZoneRejectionEventLabel("unicorn"),
+    "SMC Zone Rejection — Unicorn",
+    "unicorn zone rejection label",
+  );
+  assertOk(
+    !pickerModulesForBrain("smc_ict", "execution").some((m) => m.id === "rejection"),
+    "SMC execution picker hides SNR Rejection",
+  );
+  assertOk(
+    pickerModulesForBrain("snr_snd", "execution").some((m) => m.id === "rejection"),
+    "SnD execution picker includes SNR Rejection",
+  );
+  assertOk(
+    pickerModulesForBrain("hybrid", "execution", ["unicorn"]).every((m) => m.id !== "rejection"),
+    "hybrid hides SNR Rejection when unicorn setup selected",
+  );
+  console.log("[OK  ] SMC vs SNR naming and picker filters");
+} catch (error) {
+  console.log("[FAIL] SMC vs SNR naming and picker filters");
+  console.log(`       ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
+}
+
 let failed = 0;
 for (const test of cases) {
   try {

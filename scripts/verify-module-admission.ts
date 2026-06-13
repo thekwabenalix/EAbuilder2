@@ -15,6 +15,7 @@ import {
 } from "../src/lib/module-admission";
 import { MODULE_CONTRACTS } from "../src/lib/module-contracts";
 import { MODULE_LIBRARY, MODULE_UI_PARAMS } from "../src/lib/module-library";
+import { assertCompleteModuleFamilyMap } from "../src/lib/strategy-family";
 
 type Check = [name: string, ok: boolean, detail?: string];
 
@@ -252,6 +253,17 @@ add(
   indicatorsMissingLookup.length === 0,
   indicatorsMissingLookup.map((indicator) => indicator.id).join(", "),
 );
+
+try {
+  assertCompleteModuleFamilyMap();
+  add("strategy family map covers all brain modules", true);
+} catch (error) {
+  add(
+    "strategy family map covers all brain modules",
+    false,
+    error instanceof Error ? error.message : String(error),
+  );
+}
 
 console.log("\nModule admission verifier\n");
 let failed = 0;

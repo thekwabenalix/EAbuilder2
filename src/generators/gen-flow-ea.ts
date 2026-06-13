@@ -187,7 +187,7 @@ function priorConfirmationIndex(i: number, steps: StrategyStepConfig[]): number 
 }
 
 function isZoneRetestEvent(event: string): boolean {
-  return event.endsWith("_RETESTED") || event === "EMA_RETEST";
+  return event.endsWith("_RETESTED") || event === "EMA_RETEST" || event === "UNICORN_RETESTED";
 }
 
 function isZoneRejectionEvent(event: string): boolean {
@@ -199,6 +199,27 @@ function isZoneRejectionEvent(event: string): boolean {
   );
 }
 
+function emitNextBarAfterConfirmEntry(
+  wrap: (body: string) => string,
+  biasGuard: string,
+  i: number,
+  confIdx: number,
+  T1: string,
+  C1: string,
+): string {
+  return wrap(
+    `${biasGuard}   if(!gFired[${confIdx}]) return;
+   datetime _confT = gTime[${confIdx}];
+   if(_confT <= 0 || ${T1} <= _confT) return;
+   int _bias = gDir[${confIdx}];
+   if(_bias != 0 && !gPrevA[${i}]) {
+      RegisterEvent(${i}, _bias, ${T1}, ${C1}, gSL[${confIdx}]);
+      gPrevA[${i}] = true;
+   } else if(_bias == 0) {
+      gPrevA[${i}] = false;
+   }`,
+  );
+}
 function emitZoneRetestDetect(
   wrap: (body: string) => string,
   biasGuard: string,
@@ -362,6 +383,12 @@ ${clearDown}
 
   // ENTRY — discrete confirmation, carries SL
   if (isEntry(role)) {
+    if (step.event === "BAR_AFTER_CONFIRM") {
+      const confIdx = priorConfirmationIndex(i, steps);
+      if (confIdx >= 0) {
+        return emitNextBarAfterConfirmEntry(wrap, biasGuard, i, confIdx, T1, C1);
+      }
+    }
     if (prof.family === "zone" && isZoneRetestEvent(step.event)) {
       return emitZoneRetestDetect(wrap, biasGuard, biasExpr, i, P, T1, C1);
     }
@@ -369,21 +396,18 @@ ${clearDown}
       const confIdx = role === "entry" ? priorConfirmationIndex(i, steps) : -1;
       if (confIdx >= 0) {
         const fast = pInt(step.params, "fastPeriod", 12);
-        return wrap(
-          `${biasGuard}   if(!gFired[${confIdx}]) return;
-   datetime _confT = gTime[${confIdx}];
-   if(_confT <= 0 || ${T1} <= _confT) return;
-   int _bias = gDir[${confIdx}];
-   int hFast = B4_MA(gTF[${i}], ${fast}, MODE_EMA);
+        return emitNextBarAfterConfirmEntry(
+          wrap,
+          `${biasGuard}   int hFast = B4_MA(gTF[${i}], ${fast}, MODE_EMA);
    double f1 = B4_MAval(hFast, 1);
    double cl = iClose(InpSymbol, gTF[${i}], 1);
-   bool _ok = (_bias == 1 && cl > f1) || (_bias == -1 && cl < f1);
-   if(_ok && !gPrevA[${i}]) {
-      RegisterEvent(${i}, _bias, ${T1}, ${C1}, gSL[${confIdx}]);
-      gPrevA[${i}] = true;
-   } else if(!_ok) {
-      gPrevA[${i}] = false;
-   }`,
+   bool _ok = (gDir[${confIdx}] == 1 && cl > f1) || (gDir[${confIdx}] == -1 && cl < f1);
+   if(!_ok) return;
+`,
+          i,
+          confIdx,
+          T1,
+          C1,
         );
       }
       return wrap(

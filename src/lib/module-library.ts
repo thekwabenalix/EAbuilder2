@@ -1614,10 +1614,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       signals: [
         { fn: "UNISMSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live bullish Unicorn overlap" },
         { fn: "UNISMSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live bearish Unicorn overlap" },
-        { fn: "UNISMSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Overlap pocket tapped — long entry" },
-        { fn: "UNISMSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "Overlap pocket tapped — short entry" },
-        { fn: "UNISMSM_{id}_BullConfirmSL()", returns: "double", meaning: "Breaker low — SL for longs" },
-        { fn: "UNISMSM_{id}_BearConfirmSL()", returns: "double", meaning: "Breaker high — SL for shorts" },
+        { fn: "UNISMSM_{id}_BullJustRetested()", returns: "bool", meaning: "Wick into bull overlap pocket" },
+        { fn: "UNISMSM_{id}_BearJustRetested()", returns: "bool", meaning: "Wick into bear overlap pocket" },
+        { fn: "UNISMSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Close outside pocket after retest — long zone rejection" },
+        { fn: "UNISMSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "Close outside pocket after retest — short zone rejection" },
+        { fn: "UNISMSM_{id}_BullConfirmSL()", returns: "double", meaning: "Retest wick low — SL for longs" },
+        { fn: "UNISMSM_{id}_BearConfirmSL()", returns: "double", meaning: "Retest wick high — SL for shorts" },
         { fn: "UNISMSM_{id}_ActiveBullSL()", returns: "double", meaning: "Setup SL hint for active bull Unicorn" },
         { fn: "UNISMSM_{id}_ActiveBearSL()", returns: "double", meaning: "Setup SL hint for active bear Unicorn" },
       ],
@@ -1630,7 +1632,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       "Wait for the BB and FVG overlap pocket",
     ],
     notSuitedFor: ["OB+FVG confluence (different pattern — use ob_fvg module instead)"],
-    combinesWith: ["bos", "choch", "engulfing", "rejection", "ema"],
+    combinesWith: ["bos", "choch", "engulfing", "pin_bar", "ema"],
   },
 
   // ─── Liquidity Sweep ────────────────────────────────────────────────────────

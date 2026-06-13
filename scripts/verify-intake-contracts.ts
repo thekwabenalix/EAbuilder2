@@ -981,6 +981,114 @@ const cases: ContractCase[] = [
       assertOk(!severities.includes("error"), "repaired intent should not leave audit errors");
     },
   },
+  {
+    name: "unicorn module id resolves from prompt (not ob_fvg)",
+    run: () => {
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          rules: [
+            {
+              id: "h1_unicorn",
+              type: "custom",
+              side: "both",
+              label: "H1 ICT Unicorn overlap pocket setup.",
+              parameters: { timeframe: "H1" },
+              compilable: true,
+            },
+          ],
+        }),
+        "H1 Unicorn overlap pocket — reject the FVG and enter next candle.",
+      );
+      const fb = fourBrainOf(blueprint);
+      const setup = brainOf(fb, "setup");
+      assertEq(modulesOf(setup)[0], "unicorn", "unicorn module id");
+      assertOk(
+        blueprint.strategyFamily === "smc_ict" || blueprint.strategyFamily === "hybrid",
+        "SMC or hybrid family when rejection trigger present",
+      );
+    },
+  },
+  {
+    name: "unicorn reject next bar attaches zone-scoped strategy flow",
+    run: () => {
+      const prompt =
+        "H1 Unicorn setup. Reject the overlap pocket with a wick and close outside. Enter on the next candle.";
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          rules: [
+            {
+              id: "h1_unicorn_setup",
+              type: "custom",
+              side: "both",
+              label: "H1 Unicorn overlap pocket setup.",
+              parameters: { timeframe: "H1" },
+              compilable: true,
+            },
+            {
+              id: "h1_reject_entry",
+              type: "custom",
+              side: "both",
+              label: "Reject pocket and enter next candle.",
+              parameters: { timeframe: "H1" },
+              compilable: true,
+            },
+          ],
+        }),
+        prompt,
+      );
+      const fb = fourBrainOf(blueprint);
+      assertEq(modulesOf(brainOf(fb, "setup"))[0], "unicorn", "setup module");
+      assertEq(modulesOf(brainOf(fb, "execution"))[0], "rejection", "execution trigger id");
+      const flow = blueprint.strategyFlow as Record<string, unknown> | undefined;
+      assertOk(flow && Array.isArray(flow.steps), "strategyFlow attached");
+      const steps = flow!.steps as Array<Record<string, unknown>>;
+      assertEq(steps.length, 3, "three-step zone flow");
+      assertEq(steps[0]?.event, "UNICORN_ACTIVE", "flow setup event");
+      assertEq(steps[1]?.event, "UNICORN_CONFIRMED", "flow zone rejection");
+      assertEq(steps[2]?.event, "BAR_AFTER_CONFIRM", "flow next-bar entry");
+    },
+  },
+  {
+    name: "misplaced unicorn direction repairs to setup with zone flow",
+    run: () => {
+      const blueprint = normalizeBlueprint(
+        clone({
+          ...baseBlueprint,
+          fourBrain: {
+            direction: {
+              modules: ["unicorn"],
+              timeframe: "H1",
+              params: {},
+              description: "Unicorn direction (wrong slot).",
+            },
+            execution: {
+              modules: ["rejection"],
+              timeframe: "H1",
+              params: {},
+              description: "Reject and enter next bar.",
+            },
+            management: {
+              riskPercent: 1,
+              rewardRisk: 2,
+              stopBuffer: 20,
+              breakEvenEnabled: false,
+              breakEvenAtR: 1,
+              maxOpenTrades: 1,
+              maxStopPoints: 0,
+            },
+          },
+        }),
+        "H1 Unicorn — reject pocket, enter next candle.",
+      );
+      const fb = fourBrainOf(blueprint);
+      assertOk(!fb.direction, "direction cleared");
+      assertEq(modulesOf(brainOf(fb, "setup"))[0], "unicorn", "unicorn in setup");
+      const steps = (blueprint.strategyFlow as { steps: unknown[] }).steps;
+      assertEq(steps.length, 3, "zone-scoped flow steps");
+    },
+  },
 ];
 
 console.log("\nStrategy intake contract tests\n");

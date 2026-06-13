@@ -2,6 +2,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import { jsonrepair } from "jsonrepair";
 import { collectBuiltinIndicatorRefs } from "../../src/lib/indicator-boundary.js";
 import { collectBuiltinFilterRefs } from "../../src/lib/builtin-filter-contracts.js";
+import { enrichBlueprintWithStrategyFlow } from "../../src/lib/blueprint-flow-enrich.js";
+import { inferStrategyFamilyFromModules } from "../../src/lib/strategy-family.js";
+import { repairZoneScopedRejectionConfig } from "../../src/lib/zone-scoped-rejection-repair.js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -191,7 +194,7 @@ Match this exact TypeScript interface:
   "strategyNotes": string,            // cross-brain intent, invalidation, sessions, special conditions; "" if none
   "fourBrain": {
     "direction": null | {
-      "modules": string[],            // supported ids only: bos, choch, bos_choch, swing_structure, fvg, fvg_inversion, order_block, liqsweep, breakout, snr, gap_snr, rejection, miss, bb, ema, engulfing, pin_bar
+      "modules": string[],            // supported ids include: bos, choch, fvg, fvg_inversion, order_block, ob_fvg, unicorn, liqsweep, snr, gap_snr, rejection, ema, engulfing, pin_bar, ...
       "timeframe": string,            // MT5 style: M1,M5,M15,M30,H1,H4,D1,W1,MN
       "params": {},                   // extracted module params such as fastPeriod, slowPeriod, lookback, swingLen, expiryBars
       "description": string
@@ -224,8 +227,10 @@ Match this exact TypeScript interface:
 - The final product is a 4-Brain EA. Always include fourBrain when the trader's idea maps to the supported modules.
 - Do NOT use a placeholder module. If the trader says EMA, use ema. If they say FVG, use fvg. If they say order block, use order_block. If they say liquidity sweep, use liqsweep.
 - Direction is optional. Use it for higher-timeframe bias only when the trader describes trend, bias, structure, EMA alignment, BOS, CHoCH, etc.
-- Setup is optional. Use it for zones/context such as FVG, order block, support/resistance, sweep context, or other pre-entry setup.
+- Setup is optional. Use it for zones/context such as FVG, order block, Unicorn overlap pocket, support/resistance, sweep context, or other pre-entry setup.
 - Execution is required. It is the precise trigger: FVG confirmation, liquidity sweep, engulfing, pin bar, breakout, EMA trigger, etc.
+- Unicorn (ICT unicorn, breaker+FVG overlap pocket): module id \`unicorn\` — use as SETUP, never direction. When the trader says reject the pocket / wick into overlap / close outside and enter next candle, use setup=unicorn and execution=rejection (the compiler remaps SNR rejection to zone-scoped confirm + next bar). Do NOT use module rejection for Unicorn pocket rejection in setup — only as execution trigger id for the remap.
+- Pure classic/gap SNR wick rejection (no FVG/OB/Unicorn zone) may use setup=gap_snr or snr with execution=rejection.
 - If timeframes are specified, use them exactly. If missing, default to D1 direction, H4 setup, M15 execution.
 - Put any cross-brain notes in strategyNotes, not in invented modules.
 
@@ -284,6 +289,7 @@ const SUPPORTED_MODULES = new Set([
   "zone_liq",
   "breaker_block",
   "rss_srr",
+  "unicorn",
 ]);
 
 const TIMEFRAMES = new Set(["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN"]);
@@ -400,10 +406,16 @@ function moduleFromRule(rule: Record<string, unknown>): string | undefined {
     text.includes("ob_fvg") ||
     text.includes("ob fvg") ||
     text.includes("order block with fvg") ||
-    text.includes("order block and fvg") ||
-    text.includes("unicorn")
+    text.includes("order block and fvg")
   )
     return "ob_fvg";
+  if (
+    text.includes("unicorn") ||
+    text.includes("ict unicorn") ||
+    text.includes("overlap pocket") ||
+    (text.includes("breaker") && text.includes("fvg") && text.includes("overlap"))
+  )
+    return "unicorn";
   if (mentionsIfvgConcept(text)) return "fvg_inversion";
   if (text.includes("fvg") || text.includes("fair value gap") || text.includes("imbalance"))
     return "fvg";
@@ -842,6 +854,12 @@ function enrichNonEmaBrainFromText(
   if (module === "fvg_inversion" && ifvgEntryEvent) {
     params.entryEvent = ifvgEntryEvent;
   }
+  if (module === "unicorn") {
+    const lookback = extractLookbackFromText(sourceText);
+    const expiry = extractExpiryBarsFromText(sourceText);
+    if (lookback !== undefined) params.lookback = lookback;
+    if (expiry !== undefined) params.uniExpiry = expiry;
+  }
 
   return { ...brain, params };
 }
@@ -1195,6 +1213,17 @@ function paramsFromRule(rule: Record<string, unknown>, module: string): Record<s
         paramNumber(params, ["expiryBars", "expiry"]) ?? extractExpiryBarsFromText(text) ?? 250,
     };
   }
+  if (module === "unicorn") {
+    const text = ruleText(rule);
+    return {
+      lookback:
+        paramNumber(params, ["lookback", "lookbackBars"]) ?? extractLookbackFromText(text) ?? 500,
+      uniExpiry:
+        paramNumber(params, ["uniExpiry", "expiryBars", "expiry"]) ??
+        extractExpiryBarsFromText(text) ??
+        250,
+    };
+  }
   if (module === "liqsweep") {
     const text = ruleText(rule);
     return {
@@ -1312,6 +1341,8 @@ function inferFourBrain(blueprint: Record<string, unknown>, sourceText = "") {
       text.includes("zone") ||
       text.includes("fvg") ||
       text.includes("order block") ||
+      text.includes("unicorn") ||
+      text.includes("overlap pocket") ||
       text.includes("ema_retest")
     );
   };
@@ -1324,6 +1355,9 @@ function inferFourBrain(blueprint: Record<string, unknown>, sourceText = "") {
       text.includes("ema_retest_confirm") ||
       text.includes("close confirmation") ||
       text.includes("next candle") ||
+      text.includes("next bar") ||
+      text.includes("bar after") ||
+      text.includes("following candle") ||
       text.includes("engulf") ||
       text.includes("pin bar") ||
       (text.includes("liquidity sweep") &&
@@ -1564,11 +1598,19 @@ export function normalizeBlueprint(
     corpus,
   );
   const repairedExecution = repairEmaCtcExecutionFromText(enrichedExecution, corpus);
+  const zoneRepairedConfig = repairZoneScopedRejectionConfig(
+    {
+      direction,
+      setup,
+      execution: repairedExecution,
+    },
+    corpus,
+  );
 
   blueprint.fourBrain = {
-    direction,
-    setup,
-    execution: repairedExecution,
+    direction: zoneRepairedConfig.direction,
+    setup: zoneRepairedConfig.setup,
+    execution: zoneRepairedConfig.execution,
     management: {
       riskPercent: num(rawMgmt.riskPercent, num(risk.riskPercent, 1)),
       rewardRisk: rewardRiskFromText ?? num(rawMgmt.rewardRisk, num(risk.rewardRisk, 2)),
@@ -1590,7 +1632,18 @@ export function normalizeBlueprint(
   else delete blueprint.blueprintAudit;
 
   if (typeof blueprint.strategyNotes !== "string") blueprint.strategyNotes = "";
-  return blueprint;
+
+  const fbModules = [
+    ...(zoneRepairedConfig.direction?.modules ?? []),
+    ...(zoneRepairedConfig.setup?.modules ?? []),
+    ...(zoneRepairedConfig.execution?.modules ?? []),
+  ];
+  blueprint.strategyFamily = inferStrategyFamilyFromModules(fbModules);
+
+  return enrichBlueprintWithStrategyFlow(blueprint as import("../../src/types/blueprint.js").StrategyBlueprint) as Record<
+    string,
+    unknown
+  >;
 }
 
 function cleanJson(raw: string): string {
