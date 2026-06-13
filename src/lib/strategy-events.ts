@@ -45,6 +45,20 @@ export type StrategyEventType =
   | "ZONE_LIQ_CONFIRMED"
   | "SNRC2_ACTIVE"
   | "SNRC2_CONFIRMED"
+  | "BB_ZONE_ACTIVE"
+  | "BB_CONFIRMED"
+  | "SRR_CONFIRMED"
+  | "RSS_CONFIRMED"
+  | "SRR_ACTIVE"
+  | "RSS_ACTIVE"
+  | "MEF_ACTIVE"
+  | "MEF_CONFIRMED"
+  | "QM_MEF_ACTIVE"
+  | "QM_MEF_LS_TOUCHED"
+  | "RBR_ACTIVE"
+  | "DBD_ACTIVE"
+  | "RBR_CONFIRMED"
+  | "DBD_CONFIRMED"
   | "BREAKOUT_CONFIRMED"
   | "RSI_HD_ACTIVE"
   | "RSI_HD_CONFIRMED"
@@ -53,7 +67,9 @@ export type StrategyEventType =
   | "ENGULFING_ZONE_ACTIVE"
   | "ENGULFING_CONFIRMED"
   | "ENGULFING_FLIP"
-  | "PIN_BAR_CONFIRMED";
+  | "PIN_BAR_CONFIRMED"
+  | "UNICORN_ACTIVE"
+  | "UNICORN_CONFIRMED";
 
 export interface StrategyEventContract {
   id: StrategyEventType;
@@ -256,6 +272,28 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
     carriesZone: true,
     carriesSlHint: true,
   },
+  UNICORN_ACTIVE: {
+    id: "UNICORN_ACTIVE",
+    label: "Unicorn Active",
+    category: "zone",
+    roles: ["setup"],
+    description: "Breaker block and FVG overlap pocket is live — awaiting retest.",
+    carriesDirection: true,
+    carriesPrice: false,
+    carriesZone: true,
+    carriesSlHint: true,
+  },
+  UNICORN_CONFIRMED: {
+    id: "UNICORN_CONFIRMED",
+    label: "Unicorn Confirmed",
+    category: "entry",
+    roles: ["execution"],
+    description: "Price tapped the Unicorn overlap pocket — entry confirmed.",
+    carriesDirection: true,
+    carriesPrice: true,
+    carriesZone: true,
+    carriesSlHint: true,
+  },
   BOS_BIAS: {
     id: "BOS_BIAS",
     label: "BOS Bias",
@@ -432,6 +470,160 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
     carriesZone: false,
     carriesSlHint: true,
   },
+  BB_ZONE_ACTIVE: {
+    id: "BB_ZONE_ACTIVE",
+    label: "Breaker Block Active",
+    category: "zone",
+    roles: ["setup"],
+    description: "SMC Breaker Block zone is live after failed OB — awaiting retest.",
+    carriesDirection: true,
+    carriesPrice: false,
+    carriesZone: true,
+    carriesSlHint: true,
+  },
+  BB_CONFIRMED: {
+    id: "BB_CONFIRMED",
+    label: "Breaker Block Confirmed",
+    category: "entry",
+    roles: ["setup", "execution"],
+    description: "Breaker block retested and confirmed this bar.",
+    carriesDirection: true,
+    carriesPrice: true,
+    carriesZone: true,
+    carriesSlHint: true,
+  },
+  SRR_CONFIRMED: {
+    id: "SRR_CONFIRMED",
+    label: "SRR Confirmed",
+    category: "entry",
+    roles: ["setup", "execution"],
+    description: "Support drove the minimum number of resistance close-breaks — buy signal.",
+    carriesDirection: true,
+    carriesPrice: true,
+    carriesZone: false,
+    carriesSlHint: true,
+  },
+  RSS_CONFIRMED: {
+    id: "RSS_CONFIRMED",
+    label: "RSS Confirmed",
+    category: "entry",
+    roles: ["setup", "execution"],
+    description: "Resistance drove the minimum number of support close-breaks — sell signal.",
+    carriesDirection: true,
+    carriesPrice: true,
+    carriesZone: false,
+    carriesSlHint: true,
+  },
+  SRR_ACTIVE: {
+    id: "SRR_ACTIVE",
+    label: "SRR Active",
+    category: "zone",
+    roles: ["setup"],
+    description: "Live SRR setup — driving Support has fired and is not invalidated.",
+    carriesDirection: true,
+    carriesPrice: false,
+    carriesZone: false,
+    carriesSlHint: true,
+  },
+  RSS_ACTIVE: {
+    id: "RSS_ACTIVE",
+    label: "RSS Active",
+    category: "zone",
+    roles: ["setup"],
+    description: "Live RSS setup — driving Resistance has fired and is not invalidated.",
+    carriesDirection: true,
+    carriesPrice: false,
+    carriesZone: false,
+    carriesSlHint: true,
+  },
+  MEF_ACTIVE: {
+    id: "MEF_ACTIVE",
+    label: "MEF Active",
+    category: "zone",
+    roles: ["setup"],
+    description: "Live MEF confluence — engulfing + Gap SNR + RBR/DBD, not expired.",
+    carriesDirection: true,
+    carriesPrice: true,
+    carriesZone: true,
+    carriesSlHint: true,
+  },
+  MEF_CONFIRMED: {
+    id: "MEF_CONFIRMED",
+    label: "MEF Confirmed",
+    category: "entry",
+    roles: ["setup", "execution"],
+    description: "MEF confirmed this bar — multi-TF engulfing confluence complete.",
+    carriesDirection: true,
+    carriesPrice: true,
+    carriesZone: true,
+    carriesSlHint: true,
+  },
+  QM_MEF_ACTIVE: {
+    id: "QM_MEF_ACTIVE",
+    label: "QM MEF Active",
+    category: "zone",
+    roles: ["setup"],
+    description: "QM_MEF pattern live — awaiting left-shoulder retest for entry.",
+    carriesDirection: true,
+    carriesPrice: true,
+    carriesZone: true,
+    carriesSlHint: true,
+  },
+  QM_MEF_LS_TOUCHED: {
+    id: "QM_MEF_LS_TOUCHED",
+    label: "QM MEF Left Shoulder Touched",
+    category: "entry",
+    roles: ["setup", "execution"],
+    description: "Left shoulder touched this bar — right-shoulder entry trigger on QM_MEF.",
+    carriesDirection: true,
+    carriesPrice: true,
+    carriesZone: false,
+    carriesSlHint: true,
+  },
+  RBR_ACTIVE: {
+    id: "RBR_ACTIVE",
+    label: "RBR Demand Active",
+    category: "zone",
+    roles: ["setup"],
+    description: "Live RBR demand zone — base intact, awaiting retest.",
+    carriesDirection: true,
+    carriesPrice: false,
+    carriesZone: true,
+    carriesSlHint: true,
+  },
+  DBD_ACTIVE: {
+    id: "DBD_ACTIVE",
+    label: "DBD Supply Active",
+    category: "zone",
+    roles: ["setup"],
+    description: "Live DBD supply zone — base intact, awaiting retest.",
+    carriesDirection: true,
+    carriesPrice: false,
+    carriesZone: true,
+    carriesSlHint: true,
+  },
+  RBR_CONFIRMED: {
+    id: "RBR_CONFIRMED",
+    label: "RBR Confirmed",
+    category: "entry",
+    roles: ["setup", "execution"],
+    description: "RBR demand zone confirmed this bar — leg-out broke above the base.",
+    carriesDirection: true,
+    carriesPrice: true,
+    carriesZone: true,
+    carriesSlHint: true,
+  },
+  DBD_CONFIRMED: {
+    id: "DBD_CONFIRMED",
+    label: "DBD Confirmed",
+    category: "entry",
+    roles: ["setup", "execution"],
+    description: "DBD supply zone confirmed this bar — leg-out broke below the base.",
+    carriesDirection: true,
+    carriesPrice: true,
+    carriesZone: true,
+    carriesSlHint: true,
+  },
   BREAKOUT_CONFIRMED: {
     id: "BREAKOUT_CONFIRMED",
     label: "Breakout Confirmed",
@@ -563,6 +755,10 @@ export const MODULE_SEMANTIC_EVENT_TYPES: Record<string, Record<string, Strategy
     confluence_zone: "OB_FVG_CONFLUENCE",
     entry: "OB_FVG_CONFIRMED",
   },
+  unicorn: {
+    overlap_active: "UNICORN_ACTIVE",
+    overlap_entry: "UNICORN_CONFIRMED",
+  },
   bos: {
     bias: "BOS_BIAS",
     break: "BOS_CONFIRMED",
@@ -600,6 +796,30 @@ export const MODULE_SEMANTIC_EVENT_TYPES: Record<string, Record<string, Strategy
   snrc2: {
     pattern_active: "SNRC2_ACTIVE",
     pattern_confirmed: "SNRC2_CONFIRMED",
+  },
+  breaker_block: {
+    zone_active: "BB_ZONE_ACTIVE",
+    bb_confirmed: "BB_CONFIRMED",
+  },
+  rss_srr: {
+    srr_active: "SRR_ACTIVE",
+    rss_active: "RSS_ACTIVE",
+    srr_confirmed: "SRR_CONFIRMED",
+    rss_confirmed: "RSS_CONFIRMED",
+  },
+  mef: {
+    pattern_active: "MEF_ACTIVE",
+    pattern_confirmed: "MEF_CONFIRMED",
+  },
+  qm_mef: {
+    pattern_active: "QM_MEF_ACTIVE",
+    ls_touched: "QM_MEF_LS_TOUCHED",
+  },
+  rbr_dbd: {
+    demand_active: "RBR_ACTIVE",
+    supply_active: "DBD_ACTIVE",
+    rbr_confirmed: "RBR_CONFIRMED",
+    dbd_confirmed: "DBD_CONFIRMED",
   },
   breakout: {
     breakout: "BREAKOUT_CONFIRMED",

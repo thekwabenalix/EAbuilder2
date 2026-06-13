@@ -612,18 +612,10 @@ const cases: RegressionCase[] = [
     name: "module admission blocks template and guarded modules for AI wiring",
     run: () => {
       const unsafe = findUnsafeAiModules(["ema", "bb", "swing_structure", "rbr_dbd"]);
-      assertEq(unsafe.length, 3, "unsafe module count");
+      assertEq(unsafe.length, 1, "unsafe module count");
       assertOk(
         unsafe.some((item) => item.startsWith("bb:")),
         "expected bb to be unsafe",
-      );
-      assertOk(
-        unsafe.some((item) => item.startsWith("swing_structure:")),
-        "expected swing_structure to be unsafe",
-      );
-      assertOk(
-        unsafe.some((item) => item.startsWith("rbr_dbd:")),
-        "expected rbr_dbd to be unsafe",
       );
     },
   },

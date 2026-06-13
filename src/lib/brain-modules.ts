@@ -42,7 +42,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
   {
     id: "swing_structure",
     label: "Swing Structure",
-    desc: "Multi-timeframe swing points",
+    desc: "Confirmed pivots — HH/HL bull or LH/LL bear bias",
     symbol: "◇",
     color: "text-purple-400",
     category: "Structure",
@@ -79,6 +79,14 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     desc: "Order block and FVG confluence zone",
     symbol: "OB+",
     color: "text-lime-400",
+    category: "OrderBlock",
+  },
+  {
+    id: "unicorn",
+    label: "Unicorn",
+    desc: "Breaker block overlapping same-direction FVG — overlap pocket entry",
+    symbol: "🦄",
+    color: "text-emerald-400",
     category: "OrderBlock",
   },
   // Entry zones — S/R & reactive SNR (same compiler role as OB/FVG: zone → touch → confirm)
@@ -182,13 +190,10 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     color: "text-cyan-400",
     category: "Trend",
   },
-  // Detector-only modules. Visible in 4-Brain selection so users can see that
-  // the module exists, but generation remains guarded until each has a verified
-  // state-machine contract.
   {
     id: "rbr_dbd",
     label: "RBR / DBD",
-    desc: "Supply-demand base pattern detector",
+    desc: "Rally-Base-Rally demand / Drop-Base-Drop supply zones",
     symbol: "R/D",
     color: "text-amber-300",
     category: "EntryZone",
@@ -196,18 +201,18 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
   {
     id: "mef",
     label: "MEF",
-    desc: "Multi-timeframe engulfing confluence detector",
+    desc: "Manipulation Entry Formula — engulfing + Gap SNR + RBR/DBD confluence",
     symbol: "MEF",
     color: "text-fuchsia-300",
-    category: "Detector",
+    category: "EntryZone",
   },
   {
     id: "qm_mef",
     label: "QM MEF",
-    desc: "Quasimodo born from MEF detector",
+    desc: "Quasimodo born from HTF engulfing — left shoulder entry, SL beyond head",
     symbol: "QM",
     color: "text-violet-300",
-    category: "Detector",
+    category: "EntryZone",
   },
   {
     id: "snrc2",
@@ -223,6 +228,22 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     desc: "OB/BB/FVG — wick near zone edge without entering",
     symbol: "LB",
     color: "text-violet-300",
+    category: "EntryZone",
+  },
+  {
+    id: "breaker_block",
+    label: "Breaker Block",
+    desc: "Failed OB flips polarity — SMC breaker zone (not Bollinger)",
+    symbol: "BB",
+    color: "text-emerald-300",
+    category: "EntryZone",
+  },
+  {
+    id: "rss_srr",
+    label: "RSS / SRR",
+    desc: "Repeated support/resistance sweep — Classic SNR multi-break",
+    symbol: "R/S",
+    color: "text-orange-300",
     category: "EntryZone",
   },
 ];

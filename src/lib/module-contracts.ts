@@ -20,7 +20,7 @@ export interface ModuleContractParam {
 }
 
 export interface ModuleContract {
-  id: BrainModuleType | "rsi_hd" | "ob_fvg";
+  id: BrainModuleType | "rsi_hd" | "ob_fvg" | "unicorn";
   label: string;
   implementation: ModuleImplementation;
   smType?: string;
@@ -333,8 +333,53 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         description: "Bars scanned for OB/FVG confluence.",
       },
     ],
-    aliases: ["ob fvg", "order block with fvg", "unicorn", "ob imbalance"],
+    aliases: ["ob fvg", "order block with fvg", "ob imbalance"],
     notes: "Use when trader explicitly requires OB and FVG confluence as one setup.",
+  },
+  unicorn: {
+    id: "unicorn",
+    label: "Unicorn (BB + FVG)",
+    implementation: "state_machine",
+    smType: "unicorn",
+    smPrefix: "UNISMSM",
+    tickArgPolicy: "lookback",
+    supportedRoles: ["setup", "execution"],
+    semanticEvents: [
+      {
+        id: "overlap_active",
+        roles: ["setup"],
+        queryFunctions: [
+          "UNISMSM_{id}_HasActiveBull()",
+          "UNISMSM_{id}_HasActiveBear()",
+          "UNISMSM_{id}_ActiveBullSL()",
+          "UNISMSM_{id}_ActiveBearSL()",
+        ],
+        meaning: "Breaker block and FVG overlap pocket is live — awaiting retest.",
+      },
+      {
+        id: "overlap_entry",
+        roles: ["execution"],
+        queryFunctions: [
+          "UNISMSM_{id}_BullJustConfirmed()",
+          "UNISMSM_{id}_BearJustConfirmed()",
+          "UNISMSM_{id}_BullConfirmSL()",
+          "UNISMSM_{id}_BearConfirmSL()",
+        ],
+        meaning: "Price tapped the overlap pocket — Unicorn entry confirmed.",
+      },
+    ],
+    params: [
+      { name: "lookback", type: "int", default: 500, description: "Bars scanned for OB/FVG/breaker patterns." },
+      { name: "dispMult", type: "double", default: 1.5, description: "Displacement body >= N × ATR." },
+      { name: "dispAtrPeriod", type: "int", default: 14, description: "ATR period for displacement filter." },
+      { name: "obScanBack", type: "int", default: 5, description: "Bars back to find the OB candle." },
+      { name: "pairWindow", type: "int", default: 15, description: "Max bars between breaker birth and FVG." },
+      { name: "obExpiry", type: "int", default: 300, description: "Bars before unbroken OB expires." },
+      { name: "uniExpiry", type: "int", default: 250, description: "Bars before matched Unicorn expires." },
+    ],
+    aliases: ["unicorn", "bb fvg", "breaker fvg", "ict unicorn", "breaker block fvg"],
+    notes:
+      "ICT Unicorn — NOT the same as OB+FVG. Requires a flipped breaker overlapping a same-direction FVG.",
   },
   bos: {
     id: "bos",
@@ -427,33 +472,52 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
   swing_structure: {
     id: "swing_structure",
     label: "Swing Structure",
-    implementation: "not_verified",
-    tickArgPolicy: "none",
+    implementation: "state_machine",
+    smType: "swing_structure",
+    smPrefix: "SWINGSM",
+    tickArgPolicy: "lookback",
     supportedRoles: ["direction", "setup"],
     semanticEvents: [
       {
         id: "swing_bias",
         roles: ["direction"],
-        queryFunctions: ["not_verified:swing_structure_bias"],
-        meaning: "Market direction inferred from higher highs/lows or lower highs/lows.",
+        queryFunctions: ["SWINGSM_{id}_IsBull()", "SWINGSM_{id}_IsBear()"],
+        meaning: "HH/HL bull bias or LH/LL bear bias from confirmed pivots.",
       },
       {
         id: "swing_level",
-        roles: ["setup"],
-        queryFunctions: ["not_verified:swing_structure_level"],
-        meaning: "Recent swing point or swing range used as a setup reference.",
+        roles: ["setup", "direction"],
+        queryFunctions: [
+          "SWINGSM_{id}_BullJustConfirmed()",
+          "SWINGSM_{id}_BearJustConfirmed()",
+          "SWINGSM_{id}_ActiveBullSL()",
+          "SWINGSM_{id}_ActiveBearSL()",
+        ],
+        meaning: "New swing pivot confirmed — last swing low/high as SL reference.",
       },
     ],
     params: [
       {
         name: "lookback",
         type: "int",
-        default: 50,
-        description: "Bars scanned for swing structure.",
+        default: 500,
+        description: "Bars scanned for swing pivots.",
+      },
+      {
+        name: "swingLeft",
+        type: "int",
+        default: 3,
+        description: "Bars on the older side to confirm a pivot.",
+      },
+      {
+        name: "swingRight",
+        type: "int",
+        default: 3,
+        description: "Bars on the newer side to confirm a pivot.",
       },
     ],
     aliases: ["swing structure", "swing high", "swing low", "higher highs", "lower lows"],
-    notes: "Exposed in the visual builder but not yet backed by a verified inline state machine.",
+    notes: "Confirmed pivots only — HH/HL bull or LH/LL bear; not BOS/CHoCH.",
   },
   liqsweep: {
     id: "liqsweep",
@@ -745,6 +809,416 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       "classic snr continuation",
     ],
     notes: "Continuation after Classic SNR break with manipulation pullback and HTF engulfing filter.",
+  },
+  breaker_block: {
+    id: "breaker_block",
+    label: "Breaker Block",
+    implementation: "state_machine",
+    smType: "breaker_block",
+    smPrefix: "BBSM",
+    tickArgPolicy: "lookback",
+    supportedRoles: ["setup", "execution"],
+    semanticEvents: [
+      {
+        id: "zone_active",
+        roles: ["setup"],
+        queryFunctions: [
+          "BBSM_{id}_HasActiveBull()",
+          "BBSM_{id}_HasActiveBear()",
+          "BBSM_{id}_ActiveBullSL()",
+          "BBSM_{id}_ActiveBearSL()",
+        ],
+        meaning: "Live breaker block zone after failed OB — awaiting retest.",
+      },
+      {
+        id: "bb_confirmed",
+        roles: ["setup", "execution"],
+        queryFunctions: [
+          "BBSM_{id}_BullJustConfirmed()",
+          "BBSM_{id}_BearJustConfirmed()",
+          "BBSM_{id}_BullConfirmSL()",
+          "BBSM_{id}_BearConfirmSL()",
+        ],
+        meaning: "Breaker block retested and confirmed this bar (close beyond zone edge).",
+      },
+    ],
+    params: [
+      {
+        name: "lookback",
+        type: "int",
+        default: 500,
+        description: "Bars scanned for OB displacement and BB lifecycle.",
+      },
+      {
+        name: "dispMult",
+        type: "double",
+        default: 1.5,
+        description: "ATR multiplier for displacement body filter.",
+      },
+      {
+        name: "obLookback",
+        type: "int",
+        default: 5,
+        description: "Bars before displacement to find the OB candle.",
+      },
+    ],
+    aliases: [
+      "breaker block",
+      "smc breaker block",
+      "smc bb",
+      "failed order block",
+      "ob flip",
+    ],
+    notes: "SMC Breaker Block — failed OB polarity flip. Not Bollinger Bands (bb).",
+  },
+  rss_srr: {
+    id: "rss_srr",
+    label: "RSS / SRR",
+    implementation: "state_machine",
+    smType: "rss_srr",
+    smPrefix: "RSSSRRSM",
+    tickArgPolicy: "lookback",
+    supportedRoles: ["setup", "execution"],
+    semanticEvents: [
+      {
+        id: "srr_active",
+        roles: ["setup"],
+        queryFunctions: [
+          "RSSSRRSM_{id}_HasActiveBull()",
+          "RSSSRRSM_{id}_ActiveBullSL()",
+        ],
+        meaning: "Live SRR — driving Support swept ≥ minBreaks resistances, not invalidated.",
+      },
+      {
+        id: "rss_active",
+        roles: ["setup"],
+        queryFunctions: [
+          "RSSSRRSM_{id}_HasActiveBear()",
+          "RSSSRRSM_{id}_ActiveBearSL()",
+        ],
+        meaning: "Live RSS — driving Resistance swept ≥ minBreaks supports, not invalidated.",
+      },
+      {
+        id: "srr_confirmed",
+        roles: ["setup", "execution"],
+        queryFunctions: [
+          "RSSSRRSM_{id}_BullJustConfirmed()",
+          "RSSSRRSM_{id}_BullConfirmSL()",
+        ],
+        meaning: "SRR fired this bar — Support drove minBreaks resistance close-breaks.",
+      },
+      {
+        id: "rss_confirmed",
+        roles: ["setup", "execution"],
+        queryFunctions: [
+          "RSSSRRSM_{id}_BearJustConfirmed()",
+          "RSSSRRSM_{id}_BearConfirmSL()",
+        ],
+        meaning: "RSS fired this bar — Resistance drove minBreaks support close-breaks.",
+      },
+    ],
+    params: [
+      {
+        name: "lookback",
+        type: "int",
+        default: 500,
+        description: "Bars scanned for Classic SNR levels and sweeps.",
+      },
+      {
+        name: "minBreaks",
+        type: "int",
+        default: 2,
+        description: "Minimum opposite-side close-breaks before RSS/SRR fires.",
+      },
+      {
+        name: "expiryBars",
+        type: "int",
+        default: 150,
+        description: "Bars until an untouched level expires.",
+      },
+    ],
+    aliases: ["rss", "srr", "rss srr", "repeated support sweep", "repeated resistance sweep"],
+    notes: "Classic SNR sweep counter — RSS (sell) / SRR (buy).",
+  },
+  mef: {
+    id: "mef",
+    label: "MEF",
+    implementation: "state_machine",
+    smType: "mef",
+    smPrefix: "MEFSM",
+    tickArgPolicy: "lookback",
+    supportedRoles: ["setup", "execution"],
+    semanticEvents: [
+      {
+        id: "pattern_active",
+        roles: ["setup"],
+        queryFunctions: [
+          "MEFSM_{id}_HasActiveBull()",
+          "MEFSM_{id}_HasActiveBear()",
+          "MEFSM_{id}_ActiveBullSL()",
+          "MEFSM_{id}_ActiveBearSL()",
+        ],
+        meaning: "Live MEF — engulfing confluence active until expiry.",
+      },
+      {
+        id: "pattern_confirmed",
+        roles: ["setup", "execution"],
+        queryFunctions: [
+          "MEFSM_{id}_BullJustConfirmed()",
+          "MEFSM_{id}_BearJustConfirmed()",
+          "MEFSM_{id}_BullConfirmSL()",
+          "MEFSM_{id}_BearConfirmSL()",
+        ],
+        meaning: "MEF confirmed this bar — strong engulfing + Gap SNR + RBR/DBD inside.",
+      },
+    ],
+    params: [
+      {
+        name: "lookback",
+        type: "int",
+        default: 300,
+        description: "Main-TF bars scanned for engulfing confluence.",
+      },
+      {
+        name: "expiryBars",
+        type: "int",
+        default: 150,
+        description: "Main-TF bars until an unfilled MEF mark expires.",
+      },
+      {
+        name: "gapTf",
+        type: "string",
+        default: "H1",
+        description: "Gap SNR timeframe (1 step below main TF if omitted).",
+      },
+      {
+        name: "baseTf",
+        type: "string",
+        default: "M30",
+        description: "RBR/DBD timeframe (2 steps below main TF if omitted).",
+      },
+      {
+        name: "impulseRatio",
+        type: "double",
+        default: 0.5,
+        description: "RBR/DBD leg candle body/range minimum.",
+      },
+      {
+        name: "baseMaxRatio",
+        type: "double",
+        default: 0.5,
+        description: "RBR/DBD base candle body/range maximum.",
+      },
+      {
+        name: "maxBaseCandles",
+        type: "int",
+        default: 6,
+        description: "Maximum candles in an RBR/DBD base.",
+      },
+      {
+        name: "legBaseMult",
+        type: "double",
+        default: 1.3,
+        description: "Leg range must exceed avg base range × this multiplier.",
+      },
+    ],
+    aliases: [
+      "mef",
+      "manipulation entry formula",
+      "mef candle",
+      "multi timeframe engulfing",
+    ],
+    notes: "Engulfing (main TF) + Gap SNR (1 TF lower) + RBR/DBD (2 TF lower) inside the engulf window.",
+  },
+  qm_mef: {
+    id: "qm_mef",
+    label: "QM MEF",
+    implementation: "state_machine",
+    smType: "qm_mef",
+    smPrefix: "QMMEFSM",
+    tickArgPolicy: "lookback",
+    supportedRoles: ["setup", "execution"],
+    semanticEvents: [
+      {
+        id: "pattern_active",
+        roles: ["setup"],
+        queryFunctions: [
+          "QMMEFSM_{id}_HasActiveBull()",
+          "QMMEFSM_{id}_HasActiveBear()",
+          "QMMEFSM_{id}_ActiveBullSL()",
+          "QMMEFSM_{id}_ActiveBearSL()",
+        ],
+        meaning: "Live QM_MEF awaiting left-shoulder retest — not touched, not invalidated.",
+      },
+      {
+        id: "ls_touched",
+        roles: ["setup", "execution"],
+        queryFunctions: [
+          "QMMEFSM_{id}_BullJustConfirmed()",
+          "QMMEFSM_{id}_BearJustConfirmed()",
+          "QMMEFSM_{id}_BullConfirmSL()",
+          "QMMEFSM_{id}_BearConfirmSL()",
+        ],
+        meaning: "Left shoulder touched this bar — right-shoulder entry trigger.",
+      },
+    ],
+    params: [
+      {
+        name: "lookback",
+        type: "int",
+        default: 300,
+        description: "HTF bars scanned for engulfing-born QM patterns.",
+      },
+      {
+        name: "expiryBars",
+        type: "int",
+        default: 150,
+        description: "HTF bars until an unfilled QM_MEF expires.",
+      },
+      {
+        name: "qmTf",
+        type: "string",
+        default: "M15",
+        description: "LTF Quasimodo timeframe (3 steps below main TF if omitted).",
+      },
+      {
+        name: "confTf",
+        type: "string",
+        default: "M5",
+        description: "Confluence timeframe for Gap SNR / RBR / DBD near left shoulder.",
+      },
+      {
+        name: "confTolFrac",
+        type: "double",
+        default: 0.3,
+        description: "Left-shoulder proximity tolerance as fraction of QM range.",
+      },
+      {
+        name: "impulseRatio",
+        type: "double",
+        default: 0.5,
+        description: "RBR/DBD leg candle body/range minimum.",
+      },
+      {
+        name: "baseMaxRatio",
+        type: "double",
+        default: 0.5,
+        description: "RBR/DBD base candle body/range maximum.",
+      },
+      {
+        name: "maxBaseCandles",
+        type: "int",
+        default: 6,
+        description: "Maximum candles in an RBR/DBD base.",
+      },
+      {
+        name: "legBaseMult",
+        type: "double",
+        default: 1.3,
+        description: "Leg range must exceed avg base range × this multiplier.",
+      },
+    ],
+    aliases: [
+      "qm mef",
+      "qm_mef",
+      "quasimodo mef",
+      "quasimodo manipulation entry",
+    ],
+    notes: "HTF engulfing-born Quasimodo — entry at left shoulder, SL beyond head, optional confluence.",
+  },
+  rbr_dbd: {
+    id: "rbr_dbd",
+    label: "RBR / DBD",
+    implementation: "state_machine",
+    smType: "rbr_dbd",
+    smPrefix: "RBRDBDSM",
+    tickArgPolicy: "lookback",
+    supportedRoles: ["setup", "execution"],
+    semanticEvents: [
+      {
+        id: "demand_active",
+        roles: ["setup"],
+        queryFunctions: [
+          "RBRDBDSM_{id}_HasActiveBull()",
+          "RBRDBDSM_{id}_ActiveBullSL()",
+        ],
+        meaning: "Live RBR demand zone — base not traded through, not expired.",
+      },
+      {
+        id: "supply_active",
+        roles: ["setup"],
+        queryFunctions: [
+          "RBRDBDSM_{id}_HasActiveBear()",
+          "RBRDBDSM_{id}_ActiveBearSL()",
+        ],
+        meaning: "Live DBD supply zone — base not traded through, not expired.",
+      },
+      {
+        id: "rbr_confirmed",
+        roles: ["setup", "execution"],
+        queryFunctions: [
+          "RBRDBDSM_{id}_BullJustConfirmed()",
+          "RBRDBDSM_{id}_BullConfirmSL()",
+        ],
+        meaning: "RBR demand zone confirmed this bar — leg-out broke above base.",
+      },
+      {
+        id: "dbd_confirmed",
+        roles: ["setup", "execution"],
+        queryFunctions: [
+          "RBRDBDSM_{id}_BearJustConfirmed()",
+          "RBRDBDSM_{id}_BearConfirmSL()",
+        ],
+        meaning: "DBD supply zone confirmed this bar — leg-out broke below base.",
+      },
+    ],
+    params: [
+      {
+        name: "lookback",
+        type: "int",
+        default: 400,
+        description: "Bars scanned for RBR/DBD base patterns.",
+      },
+      {
+        name: "expiryBars",
+        type: "int",
+        default: 200,
+        description: "Bars until an untested zone expires.",
+      },
+      {
+        name: "impulseRatio",
+        type: "double",
+        default: 0.5,
+        description: "Leg candle body/range minimum.",
+      },
+      {
+        name: "baseMaxRatio",
+        type: "double",
+        default: 0.5,
+        description: "Base candle body/range maximum.",
+      },
+      {
+        name: "maxBaseCandles",
+        type: "int",
+        default: 6,
+        description: "Maximum candles in a base.",
+      },
+      {
+        name: "legBaseMult",
+        type: "double",
+        default: 1.3,
+        description: "Leg range must exceed avg base range × this multiplier.",
+      },
+    ],
+    aliases: [
+      "rbr",
+      "dbd",
+      "rbr dbd",
+      "rally base rally",
+      "drop base drop",
+      "supply demand zone",
+    ],
+    notes: "RBR demand / DBD supply — base zone invalidates on close through the zone.",
   },
   breakout: {
     id: "breakout",

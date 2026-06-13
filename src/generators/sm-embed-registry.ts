@@ -18,9 +18,18 @@ import { genGapSnrSM } from "./gen-gap-snr-sm";
 import { genFvgInversionSM } from "./gen-ifvg-state-machine";
 import { genLiqSweepSM } from "./gen-liqsweep-sm";
 import { genMissSM } from "./gen-miss-sm";
+import { genRssSrrSM } from "./gen-rss-srr-sm";
+import { genBreakerSM } from "./gen-breaker-sm";
 import { genSnrc2SM } from "./gen-snrc2-sm";
+import { genMefSM } from "./gen-mef-sm";
+import { genQmMefSM } from "./gen-qm-mef-sm";
+import { genRbrDbdSM } from "./gen-rbr-dbd-sm";
+import { genSwingStructureSM } from "./gen-swing-structure-sm";
+import { lowerTfLabel } from "@/lib/mef-tf-ladder";
 import { genZoneLiqSM } from "./gen-zone-liq-sm";
 import { genObFvgSM } from "./gen-obfvg-sm";
+import { genUnicornSM } from "./gen-unicorn-sm";
+import { genPinSM } from "./gen-pin-sm";
 import { genObSM } from "./gen-ob-sm";
 import { genRejectionSM } from "./gen-rejection-sm";
 import { genRsiHdSM } from "./gen-rsi-hd-sm";
@@ -56,6 +65,7 @@ export const SM_MODULE_META: Record<string, { prefix: string; type: string; bosM
     fvg_inversion: { prefix: "IFVGSM", type: "fvg_inversion" },
     order_block: { prefix: "OBSM", type: "ob" },
     ob_fvg: { prefix: "OBFVGSM", type: "ob_fvg" },
+    unicorn: { prefix: "UNISMSM", type: "unicorn" },
     liqsweep: { prefix: "LSSM", type: "liqsweep" },
     snr: { prefix: "SNRSM", type: "snr" },
     gap_snr: { prefix: "GSNRSM", type: "gap_snr" },
@@ -64,8 +74,15 @@ export const SM_MODULE_META: Record<string, { prefix: string; type: string; bosM
     miss: { prefix: "MISSSM", type: "miss" },
     zone_liq: { prefix: "ZLSM", type: "zone_liq" },
     snrc2: { prefix: "SNRC2SM", type: "snrc2" },
+    breaker_block: { prefix: "BBSM", type: "breaker_block" },
+    rss_srr: { prefix: "RSSSRRSM", type: "rss_srr" },
+    mef: { prefix: "MEFSM", type: "mef" },
+    qm_mef: { prefix: "QMMEFSM", type: "qm_mef" },
+    rbr_dbd: { prefix: "RBRDBDSM", type: "rbr_dbd" },
+    swing_structure: { prefix: "SWINGSM", type: "swing_structure" },
     rsi_hd: { prefix: "RSIHDSM", type: "rsi_hd" },
     engulfing: { prefix: "EGSM", type: "engulfing" },
+    pin_bar: { prefix: "PINSM", type: "pin_bar" },
     ema: { prefix: "EMASM", type: "ema" },
   };
 
@@ -84,9 +101,17 @@ export const SM_PREFIX_TYPE: Record<string, string> = {
   MISSSM: "miss",
   ZLSM: "zone_liq",
   SNRC2SM: "snrc2",
+  BBSM: "breaker_block",
+  RSSSRRSM: "rss_srr",
+  MEFSM: "mef",
+  QMMEFSM: "qm_mef",
+  RBRDBDSM: "rbr_dbd",
+  SWINGSM: "swing_structure",
   RSIHDSM: "rsi_hd",
   OBFVGSM: "ob_fvg",
+  UNISMSM: "unicorn",
   EMASM: "ema",
+  PINSM: "pin_bar",
 };
 
 export interface SmFlowProfile {
@@ -105,7 +130,9 @@ const FLOW_PROFILES: Record<string, SmFlowProfile> = {
   fvg_inversion: { prefix: "IFVGSM", family: "zone", hasActive: true },
   order_block: { prefix: "OBSM", family: "zone", hasActive: true },
   ob_fvg: { prefix: "OBFVGSM", family: "zone", hasActive: true },
+  unicorn: { prefix: "UNISMSM", family: "zone", hasActive: true },
   engulfing: { prefix: "EGSM", family: "zone", hasActive: true },
+  pin_bar: { prefix: "PINSM", family: "zone", hasActive: true },
   snr: { prefix: "SNRSM", family: "zone", hasActive: true },
   gap_snr: { prefix: "GSNRSM", family: "zone", hasActive: true },
   breakout: { prefix: "BRKSM", family: "zone", hasActive: true },
@@ -113,6 +140,12 @@ const FLOW_PROFILES: Record<string, SmFlowProfile> = {
   miss: { prefix: "MISSSM", family: "zone", hasActive: true },
   zone_liq: { prefix: "ZLSM", family: "zone", hasActive: true },
   snrc2: { prefix: "SNRC2SM", family: "zone", hasActive: true },
+  breaker_block: { prefix: "BBSM", family: "zone", hasActive: true },
+  rss_srr: { prefix: "RSSSRRSM", family: "zone", hasActive: true },
+  mef: { prefix: "MEFSM", family: "zone", hasActive: true },
+  qm_mef: { prefix: "QMMEFSM", family: "zone", hasActive: true },
+  rbr_dbd: { prefix: "RBRDBDSM", family: "zone", hasActive: true },
+  swing_structure: { prefix: "SWINGSM", family: "bias_break" },
   rsi_hd: { prefix: "RSIHDSM", family: "zone", hasActive: true },
   liqsweep: { prefix: "LSSM", family: "zone", hasActive: false },
 };
@@ -141,14 +174,30 @@ export function smPrefixForType(type: string): string {
       return "ZLSM";
     case "snrc2":
       return "SNRC2SM";
+    case "breaker_block":
+      return "BBSM";
+    case "rss_srr":
+      return "RSSSRRSM";
+    case "mef":
+      return "MEFSM";
+    case "qm_mef":
+      return "QMMEFSM";
+    case "rbr_dbd":
+      return "RBRDBDSM";
+    case "swing_structure":
+      return "SWINGSM";
     case "rsi_hd":
       return "RSIHDSM";
     case "ob_fvg":
       return "OBFVGSM";
+    case "unicorn":
+      return "UNISMSM";
     case "ema":
       return "EMASM";
     case "engulfing":
       return "EGSM";
+    case "pin_bar":
+      return "PINSM";
     case "bos":
     case "choch":
     case "bos_choch":
@@ -232,6 +281,83 @@ export function emitStateMachine(
         pInt(params, "nearPoints", 50),
         pInt(params, "expiryBars", 200),
       );
+    case "rss_srr":
+      return genRssSrrSM(
+        id,
+        TF,
+        tf,
+        pInt(params, "lookback", 500),
+        pInt(params, "minBreaks", 2),
+        pInt(params, "expiryBars", 150),
+        params.ignoreDoji !== false,
+      );
+    case "mef": {
+      const gapLabel = String(params.gapTf ?? lowerTfLabel(tf, 1));
+      const baseLabel = String(params.baseTf ?? lowerTfLabel(tf, 2));
+      return genMefSM(
+        id,
+        TF,
+        tf,
+        tfConst(gapLabel),
+        tfConst(baseLabel),
+        pInt(params, "lookback", 300),
+        pInt(params, "expiryBars", 150),
+        typeof params.impulseRatio === "number" ? params.impulseRatio : 0.5,
+        typeof params.baseMaxRatio === "number" ? params.baseMaxRatio : 0.5,
+        pInt(params, "maxBaseCandles", 6),
+        typeof params.legBaseMult === "number" ? params.legBaseMult : 1.3,
+      );
+    }
+    case "qm_mef": {
+      const qmLabel = String(params.qmTf ?? lowerTfLabel(tf, 3));
+      const confLabel = String(params.confTf ?? lowerTfLabel(tf, 4));
+      return genQmMefSM(
+        id,
+        TF,
+        tf,
+        tfConst(qmLabel),
+        tfConst(confLabel),
+        pInt(params, "lookback", 300),
+        pInt(params, "expiryBars", 150),
+        typeof params.impulseRatio === "number" ? params.impulseRatio : 0.5,
+        typeof params.baseMaxRatio === "number" ? params.baseMaxRatio : 0.5,
+        pInt(params, "maxBaseCandles", 6),
+        typeof params.legBaseMult === "number" ? params.legBaseMult : 1.3,
+        typeof params.confTolFrac === "number" ? params.confTolFrac : 0.3,
+      );
+    }
+    case "rbr_dbd":
+      return genRbrDbdSM(
+        id,
+        TF,
+        tf,
+        pInt(params, "lookback", 400),
+        pInt(params, "expiryBars", 200),
+        typeof params.impulseRatio === "number" ? params.impulseRatio : 0.5,
+        typeof params.baseMaxRatio === "number" ? params.baseMaxRatio : 0.5,
+        pInt(params, "maxBaseCandles", 6),
+        typeof params.legBaseMult === "number" ? params.legBaseMult : 1.3,
+      );
+    case "swing_structure":
+      return genSwingStructureSM(
+        id,
+        TF,
+        tf,
+        pInt(params, "lookback", 500),
+        pInt(params, "swingLeft", pInt(params, "swingLen", 3)),
+        pInt(params, "swingRight", pInt(params, "swingLen", 3)),
+      );
+    case "breaker_block":
+      return genBreakerSM(
+        id,
+        TF,
+        tf,
+        pInt(params, "lookback", 500),
+        pInt(params, "atrPeriod", 14),
+        typeof params.dispMult === "number" ? params.dispMult : 1.5,
+        pInt(params, "obLookback", pInt(params, "scanBack", 5)),
+        pInt(params, "expiryBars", 100),
+      );
     case "snrc2":
       return genSnrc2SM(
         id,
@@ -275,6 +401,19 @@ export function emitStateMachine(
       );
     case "ob_fvg":
       return genObFvgSM(id, TF, tf, pInt(params, "expiryBars", 250));
+    case "unicorn":
+      return genUnicornSM(
+        id,
+        TF,
+        tf,
+        pInt(params, "lookback", 500),
+        typeof params.dispMult === "number" ? params.dispMult : 1.5,
+        pInt(params, "dispAtrPeriod", 14),
+        pInt(params, "obScanBack", 5),
+        pInt(params, "pairWindow", 15),
+        pInt(params, "obExpiry", 300),
+        pInt(params, "uniExpiry", 250),
+      );
     case "ema": {
       const ema = normalizeEmaParams(params);
       return genEmaSM(
@@ -291,6 +430,14 @@ export function emitStateMachine(
     }
     case "engulfing":
       return genEgSM(id, TF, tf, pInt(params, "scanBack", 3), pInt(params, "expiryBars", 100));
+    case "pin_bar":
+      return genPinSM(
+        id,
+        TF,
+        tf,
+        typeof params.wickRatio === "number" ? params.wickRatio : 0.6,
+        typeof params.bodyMaxRatio === "number" ? params.bodyMaxRatio : 0.35,
+      );
     default:
       return `// Unknown SM type: ${type} (id=${id})`;
   }
@@ -349,8 +496,12 @@ export function tickArgForSm(
       return String(pInt(params, "lookback", pInt(params, "maxBars", 50)));
     case "ob_fvg":
       return String(pInt(params, "lookback", 50));
+    case "unicorn":
+      return String(pInt(params, "lookback", 500));
     case "engulfing":
       return String(pInt(params, "scanBack", pInt(params, "lookback", 3)));
+    case "pin_bar":
+      return "1";
     default:
       return String(pInt(params, "lookback", 20));
   }
@@ -374,7 +525,7 @@ export function flowSupportsModuleRole(module: string, role: string): boolean {
 }
 
 /** Modules without verified inline SMs — simple 4-Brain only (legacy heuristic path). */
-export const LEGACY_HEURISTIC_MODULE_IDS = new Set<string>(["pin_bar", "bb", "swing_structure"]);
+export const LEGACY_HEURISTIC_MODULE_IDS = new Set<string>(["bb"]);
 
 export function isFlowVerifiedModule(moduleId: string): boolean {
   if (LEGACY_HEURISTIC_MODULE_IDS.has(moduleId)) return false;
@@ -383,4 +534,4 @@ export function isFlowVerifiedModule(moduleId: string): boolean {
 
 /** Regex alternation of known SM prefixes (IFVGSM before FVGSM). */
 export const SM_PREFIX_REGEX =
-  "RSIHDSM|OBFVGSM|EMASM|IFVGSM|FVGSM|EGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM|ZLSM";
+  "RSIHDSM|OBFVGSM|EMASM|IFVGSM|FVGSM|EGSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM|ZLSM|SNRC2SM|BBSM|RSSSRRSM|MEFSM|QMMEFSM|RBRDBDSM|SWINGSM";

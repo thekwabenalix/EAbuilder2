@@ -881,6 +881,49 @@ const phase3CoverageCases: Array<{
     ],
   },
   {
+    title: "Unicorn setup → engulfing execution",
+    file: "Phase3_Unicorn_Engulfing_Test.mq5",
+    config: {
+      direction: { modules: ["bos"], timeframe: "D1" },
+      setup: { modules: ["unicorn"], timeframe: "H4" },
+      execution: { modules: ["engulfing"], timeframe: "M15" },
+      management: { riskPercent: 1, rewardRisk: 2, stopBuffer: 20, maxOpenTrades: 1 },
+    },
+    aiWiring: {
+      direction_brain: `void Direction_Brain_Execute() {
+  if(BOSSM_D1_IsBull()) gBias = 1;
+  else if(BOSSM_D1_IsBear()) gBias = -1;
+}`,
+      setup_brain: `void Setup_Brain_Execute() {
+  if(UNISMSM_H4_HasActiveBull() && (gBias == 0 || gBias == 1)) {
+    gSetupActive = true; gSetupDir = 1; gSetupSLHint = UNISMSM_H4_ActiveBullSL();
+  } else if(UNISMSM_H4_HasActiveBear() && (gBias == 0 || gBias == -1)) {
+    gSetupActive = true; gSetupDir = -1; gSetupSLHint = UNISMSM_H4_ActiveBearSL();
+  }
+}`,
+      execution_brain: `void Execution_Brain_Execute() {
+  if(!gSetupActive) return;
+  if(gSetupDir == 1 && EGSM_M15_BullJustConfirmed()) {
+    gExecSignal = true; gExecDir = 1; gExecSL = UNISMSM_H4_BullConfirmSL();
+  } else if(gSetupDir == -1 && EGSM_M15_BearJustConfirmed()) {
+    gExecSignal = true; gExecDir = -1; gExecSL = UNISMSM_H4_BearConfirmSL();
+  }
+}`,
+      required_sms: ["BOSSM_D1", "UNISMSM_H4", "EGSM_M15"],
+      sm_configs: {
+        bos_D1: sm("bos", "D1", { lookback: 50, swingLen: 5 }),
+        unicorn_H4: sm("unicorn", "H4", { lookback: 500, pairWindow: 15, uniExpiry: 250 }),
+        engulfing_M15: sm("engulfing", "M15", { scanBack: 3 }),
+      },
+    },
+    requiredSnippets: [
+      "void UNISMSM_H4_Tick",
+      "UNISMSM_H4_HasActiveBull()",
+      "UNISMSM_H4_BullJustConfirmed()",
+      "UNISMSM_H4_ActiveBullSL()",
+    ],
+  },
+  {
     title: "RSI hidden divergence setup → OB+FVG execution",
     file: "Phase3_RSIHD_OBFVG_Test.mq5",
     config: {

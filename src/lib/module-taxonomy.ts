@@ -74,6 +74,7 @@ export const MODULE_TAXONOMY: Record<BrainModuleType, ModuleTaxonomy> = {
   fvg_inversion: "entry_zone",
   order_block: "entry_zone",
   ob_fvg: "entry_zone",
+  unicorn: "entry_zone",
   snr: "entry_zone",
   gap_snr: "entry_zone",
   rejection: "entry_zone",
@@ -86,10 +87,12 @@ export const MODULE_TAXONOMY: Record<BrainModuleType, ModuleTaxonomy> = {
   pin_bar: "confirmation",
   ema: "bias_filter",
   rbr_dbd: "entry_zone",
-  mef: "other",
-  qm_mef: "other",
+  mef: "entry_zone",
+  qm_mef: "entry_zone",
   snrc2: "entry_zone",
   zone_liq: "entry_zone",
+  breaker_block: "entry_zone",
+  rss_srr: "entry_zone",
 };
 
 export function taxonomyForModule(moduleId: string): ModuleTaxonomy {

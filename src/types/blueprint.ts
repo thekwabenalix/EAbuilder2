@@ -328,7 +328,10 @@ export type BrainModuleType =
   | "mef" // multi-timeframe engulfing confluence detector
   | "qm_mef" // Quasimodo born from MEF detector
   | "snrc2" // support/resistance continuation detector
-  | "zone_liq"; // OB/BB/FVG liquidity buildup (alias: liquidity_buildup)
+  | "zone_liq" // OB/BB/FVG liquidity buildup (alias: liquidity_buildup)
+  | "breaker_block" // SMC breaker block (failed OB flip — not Bollinger bb)
+  | "rss_srr" // repeated support/resistance sweep (RSS/SRR)
+  | "unicorn"; // ICT Unicorn — breaker block + FVG overlap
 
 export interface BrainConfig {
   /**

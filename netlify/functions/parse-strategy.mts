@@ -281,6 +281,9 @@ const SUPPORTED_MODULES = new Set([
   "mef",
   "qm_mef",
   "snrc2",
+  "zone_liq",
+  "breaker_block",
+  "rss_srr",
 ]);
 
 const TIMEFRAMES = new Set(["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN"]);

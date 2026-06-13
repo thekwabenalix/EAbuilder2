@@ -13,7 +13,7 @@ import { SM_MODULE_META } from "./sm-embed-registry";
 export { SM_MODULE_META } from "./sm-embed-registry";
 
 /** Modules that still use legacy heuristic brain generators (no verified SM). */
-const LEGACY_HEURISTIC_MODULES = new Set<BrainModuleType>(["pin_bar", "bb", "swing_structure"]);
+const LEGACY_HEURISTIC_MODULES = new Set<BrainModuleType>(["bb"]);
 
 function period(tf: string): string {
   const u = tf.toUpperCase();
@@ -115,6 +115,10 @@ function directionModuleSignal(
     return `if(BOSSM_${t}_IsBull()) ${varName} = 1;
    else if(BOSSM_${t}_IsBear()) ${varName} = -1;`;
   }
+  if (mod === "swing_structure") {
+    return `if(SWINGSM_${t}_IsBull()) ${varName} = 1;
+   else if(SWINGSM_${t}_IsBear()) ${varName} = -1;`;
+  }
   if (mod === "ema") {
     if (isEmaCtcParams(params)) {
       return `{
@@ -164,7 +168,7 @@ function setupModuleBlock(
       gSetupActive = true; gSetupDir = -1; gSetupSLHint = IFVGSM_${t}_LatestBearUL();
    }`;
   }
-  if (mod === "rsi_hd" || mod === "ob_fvg") {
+  if (mod === "rsi_hd" || mod === "ob_fvg" || mod === "unicorn") {
     const p = SM_MODULE_META[mod]!.prefix;
     return `if((gBias == 0 || gBias == 1) && ${p}_${t}_HasActiveBull()) {
       gSetupActive = true; gSetupDir = 1; gSetupSLHint = ${p}_${t}_ActiveBullSL();
@@ -184,6 +188,48 @@ function setupModuleBlock(
       gSetupActive = true; gSetupDir = 1; gSetupSLHint = SNRC2SM_${t}_ActiveBullSL();
    } else if((gBias == 0 || gBias == -1) && SNRC2SM_${t}_HasActiveBear()) {
       gSetupActive = true; gSetupDir = -1; gSetupSLHint = SNRC2SM_${t}_ActiveBearSL();
+   }`;
+  }
+  if (mod === "breaker_block") {
+    return `if((gBias == 0 || gBias == 1) && BBSM_${t}_HasActiveBull()) {
+      gSetupActive = true; gSetupDir = 1; gSetupSLHint = BBSM_${t}_ActiveBullSL();
+   } else if((gBias == 0 || gBias == -1) && BBSM_${t}_HasActiveBear()) {
+      gSetupActive = true; gSetupDir = -1; gSetupSLHint = BBSM_${t}_ActiveBearSL();
+   }`;
+  }
+  if (mod === "rss_srr") {
+    return `if((gBias == 0 || gBias == 1) && RSSSRRSM_${t}_HasActiveBull()) {
+      gSetupActive = true; gSetupDir = 1; gSetupSLHint = RSSSRRSM_${t}_ActiveBullSL();
+   } else if((gBias == 0 || gBias == -1) && RSSSRRSM_${t}_HasActiveBear()) {
+      gSetupActive = true; gSetupDir = -1; gSetupSLHint = RSSSRRSM_${t}_ActiveBearSL();
+   }`;
+  }
+  if (mod === "mef") {
+    return `if((gBias == 0 || gBias == 1) && MEFSM_${t}_HasActiveBull()) {
+      gSetupActive = true; gSetupDir = 1; gSetupSLHint = MEFSM_${t}_ActiveBullSL();
+   } else if((gBias == 0 || gBias == -1) && MEFSM_${t}_HasActiveBear()) {
+      gSetupActive = true; gSetupDir = -1; gSetupSLHint = MEFSM_${t}_ActiveBearSL();
+   }`;
+  }
+  if (mod === "qm_mef") {
+    return `if((gBias == 0 || gBias == 1) && QMMEFSM_${t}_HasActiveBull()) {
+      gSetupActive = true; gSetupDir = 1; gSetupSLHint = QMMEFSM_${t}_ActiveBullSL();
+   } else if((gBias == 0 || gBias == -1) && QMMEFSM_${t}_HasActiveBear()) {
+      gSetupActive = true; gSetupDir = -1; gSetupSLHint = QMMEFSM_${t}_ActiveBearSL();
+   }`;
+  }
+  if (mod === "rbr_dbd") {
+    return `if((gBias == 0 || gBias == 1) && RBRDBDSM_${t}_HasActiveBull()) {
+      gSetupActive = true; gSetupDir = 1; gSetupSLHint = RBRDBDSM_${t}_ActiveBullSL();
+   } else if((gBias == 0 || gBias == -1) && RBRDBDSM_${t}_HasActiveBear()) {
+      gSetupActive = true; gSetupDir = -1; gSetupSLHint = RBRDBDSM_${t}_ActiveBearSL();
+   }`;
+  }
+  if (mod === "swing_structure") {
+    return `if((gBias == 0 || gBias == 1) && SWINGSM_${t}_HasActiveBull()) {
+      gSetupActive = true; gSetupDir = 1; gSetupSLHint = SWINGSM_${t}_ActiveBullSL();
+   } else if((gBias == 0 || gBias == -1) && SWINGSM_${t}_HasActiveBear()) {
+      gSetupActive = true; gSetupDir = -1; gSetupSLHint = SWINGSM_${t}_ActiveBearSL();
    }`;
   }
   if (mod === "liqsweep") {
@@ -436,10 +482,24 @@ function smPrefixFromType(type: string): string {
       return "ZLSM";
     case "snrc2":
       return "SNRC2SM";
+    case "breaker_block":
+      return "BBSM";
+    case "rss_srr":
+      return "RSSSRRSM";
+    case "mef":
+      return "MEFSM";
+    case "qm_mef":
+      return "QMMEFSM";
+    case "rbr_dbd":
+      return "RBRDBDSM";
+    case "swing_structure":
+      return "SWINGSM";
     case "rsi_hd":
       return "RSIHDSM";
     case "ob_fvg":
       return "OBFVGSM";
+    case "unicorn":
+      return "UNISMSM";
     case "ema":
       return "EMASM";
     case "engulfing":
