@@ -1,332 +1,325 @@
 /**
- * SNRC1 Detector — Strong SNR Continuation 1
+ * SNRC1_Detector v2.0.0
  *
- * SNRC1_Detector v1.0.0
- * ────────────────────────────────────────────────
- * A trend-continuation pattern that combines:
+ * An SNRC1 is a Classic SNR breakout that has a same-direction
+ * RBR/DBD or Gap SNR near the broken level ("opposite it").
  *
- *   1. A STRONG SNR that has been BROKEN
- *      (Classic SNR with ATR-qualified displacement — the same pair
- *       logic as Strong_SNR_Detector: opposite-direction A→B + strong
- *       displacement on B)
+ * Bullish SNR breakout (resistance broken up)
+ *   → needs a Bullish Gap SNR (Gap Support) or RBR at/near the level
  *
- *   2. An ENTRY ZONE on the pre-breakout side of the broken level:
- *      • RBR demand base (for bullish breakout)  — DIR_RBR  = +1
- *      • DBD supply base (for bearish breakout)  — DIR_DBD  = -1
- *      • Gap SNR of the matching direction       — within ATR proximity
+ * Bearish SNR breakout (support broken down)
+ *   → needs a Bearish Gap SNR (Gap Resistance) or DBD at/near the level
  *
- * PATTERN (BULLISH SNRC1):
- *   Strong Resistance → broken UP (close > level)
- *   + RBR base (demand zone) or Bullish Gap SNR near the broken level
- *   → Entry when price pulls back to the RBR base or Gap SNR level.
- *   On a line chart: A-shape at the strong resistance, V-shape at entry.
- *
- * PATTERN (BEARISH SNRC1):
- *   Strong Support → broken DOWN (close < level)
- *   + DBD base (supply zone) or Bearish Gap SNR near the broken level
- *   → Entry when price rallies back to the DBD base or Gap SNR level.
- *
- * SNRC1 LIFECYCLE:
- *   ACTIVE    → pattern matched, waiting for price to reach entry zone
- *   TOUCHED   → wick enters the entry zone (RBR base or Gap SNR level)
- *   CONFIRMED → close holds correctly from the zone  ← entry signal bar
- *   BROKEN    → close through the zone against direction → setup failed
- *   EXPIRED   → InpExpiryBars elapsed without being tested
- *
- * DRAWN OBJECTS:
- *   "SMCSNRC1_{id}_ref"  — dashed gray reference line at the broken SSNR level
- *   "SMCSNRC1_{id}_zon"  — filled rectangle (RBR/DBD base) or flat OBJ_TREND (Gap SNR)
- *   "SMCSNRC1_{id}_lbl"  — "SNRC1↑ RBR" / "SNRC1↓ DBD" / "SNRC1↑ G-Sup" etc.
- *
- * JOURNAL:
- *   SNRC1_FORMED | id | dir | entry_type | ssnr_level | entry_zone | time
- *   SNRC1_TOUCHED | id | dir | time
- *   SNRC1_CONFIRMED | id | dir | time        ← the entry bar
- *   SNRC1_BROKEN | id | dir | time
- *   SNRC1_EXPIRED | id | dir | time
+ * Entry: the RBR/DBD zone (box) or Gap SNR (line).
+ * Lifecycle: ACTIVE → TOUCHED → CONFIRMED (entry signal) / BROKEN / EXPIRED
  */
 
-export const SNRC1_DETECTOR_VERSION = "1.0.0";
-export const SNRC1_DETECTOR_MODULE = "SNRC1_Detector";
+export const SNRC1_DETECTOR_VERSION = "2.0.0";
+export const SNRC1_DETECTOR_MODULE  = "SNRC1_Detector";
 
 export function generateSnrc1Detector(): string {
   return `//+------------------------------------------------------------------+
-//| SNRC1_Detector.mq5                                             |
-//| SNRC1 Detector v${SNRC1_DETECTOR_VERSION} — Strong SNR Continuation 1         |
+//| SNRC1_Detector.mq5  v${SNRC1_DETECTOR_VERSION}                         |
 //|                                                                  |
-//| Trend continuation: a Strong SNR (displaced reversal pair) that  |
-//| is broken by momentum, with an RBR / DBD base OR Gap SNR on the |
-//| pre-breakout side.  Entry = pullback to the base / Gap SNR.     |
+//| SNRC1 = Classic SNR Breakout with a same-direction RBR/DBD or  |
+//|         Gap SNR acting as the entry zone.                       |
 //|                                                                  |
-//| Embeds: Strong SNR · RBR/DBD · Gap SNR detection inline.        |
-//| NO trading logic. Detection and visualisation only.            |
+//| Bull breakout → RBR (demand) or Gap Support near broken level   |
+//| Bear breakout → DBD (supply) or Gap Resistance near broken level|
+//|                                                                  |
+//| Entry is at the matching zone; the broken SNR level is shown    |
+//| as a dashed reference line.                                      |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SNR Module Library"
-#property version   "1.00"
+#property copyright "EA Builder — SNRC1 Detector"
+#property version   "2.00"
 #property strict
 #property indicator_chart_window
 #property indicator_plots 0
 
-// ── Strong SNR types / states ─────────────────────────────────────
-#define SSNR_RES        1    // resistance (Bullish A → Bearish B)
-#define SSNR_SUP        2    // support    (Bearish A → Bullish B)
-#define SSNR_LIVE       0    // active or touched (not yet broken)
-#define SSNR_BROKEN     1
-#define SSNR_EXPIRED    2
+// ── Classic SNR types ─────────────────────────────────────────────
+#define SNR_SUP      1     // Bear A → Bull B
+#define SNR_RES      2     // Bull A → Bear B
 
-// ── RBR/DBD base directions ───────────────────────────────────────
-#define DIR_RBR         1    // Rally-Base-Rally  (demand zone)
-#define DIR_DBD        -1    // Drop-Base-Drop    (supply zone)
+// ── RBR / DBD direction ───────────────────────────────────────────
+#define DIR_RBR      1     // Rally-Base-Rally  (demand / bullish)
+#define DIR_DBD     -1     // Drop-Base-Drop    (supply  / bearish)
 
 // ── Gap SNR types ─────────────────────────────────────────────────
-#define GAP_SUP         1    // Gap Support    (Bull A → Bull B)
-#define GAP_RES         2    // Gap Resistance (Bear A → Bear B)
+#define GAP_SUP      1     // Bull A → Bull B  = Gap Support
+#define GAP_RES      2     // Bear A → Bear B  = Gap Resistance
 
-// ── SNRC1 states ──────────────────────────────────────────────────
-#define C1_ACTIVE       0
-#define C1_TOUCHED      1
-#define C1_CONFIRMED    2
-#define C1_BROKEN       3
-#define C1_EXPIRED      4
-#define C1_UNDRAWN     -1
+// ── Entry zone type ───────────────────────────────────────────────
+#define ENTRY_BASE   1
+#define ENTRY_GAP    2
 
-// ── SNRC1 entry types ─────────────────────────────────────────────
-#define C1_ENTRY_BASE   1    // RBR or DBD base
-#define C1_ENTRY_GAP    2    // Gap SNR level
+// ── SNRC1 lifecycle ───────────────────────────────────────────────
+#define C1_ACTIVE    0
+#define C1_TOUCHED   1
+#define C1_CONFIRMED 2
+#define C1_BROKEN    3
+#define C1_EXPIRED   4
+#define C1_UNDRAWN  -1
 
-// ── Array limits ─────────────────────────────────────────────────
-#define SSNR_MAX    500
-#define BASE_MAX    400
-#define GAP_MAX     500
-#define SNRC1_MAX   200
+#define SNR_MAX   600
+#define BASE_MAX  400
+#define GAP_MAX   600
+#define SNRC1_MAX 200
+#define OBJ_PFX   "SMCSNRC1_"
 
-#define OBJ_PFX "SMCSNRC1_"
-
-// ─── Inputs ────────────────────────────────────────────────────────
+// ── Inputs ────────────────────────────────────────────────────────
 input ENUM_TIMEFRAMES InpTF            = PERIOD_CURRENT; // Timeframe
-input int             InpLookback      = 500;            // Bars to scan on init
-//--- Strong SNR qualifier
-input double          InpDispMult      = 1.5;   // Displacement >= N x ATR
-input int             InpDispAtrPer    = 14;    // ATR period for displacement
-input int             InpDispBars      = 3;     // Bars to accumulate displacement (incl B)
-input bool            InpIgnoreDoji    = true;  // Skip neutral candles in pair detection
-input int             InpDojiPoints    = 0;     // Doji body threshold in points (0=exact)
-//--- RBR/DBD base qualifier
-input double          InpImpulseRatio  = 0.50;  // Leg body/range >= this to qualify
-input double          InpBaseMaxRatio  = 0.50;  // Base body/range <= this to qualify
-input int             InpMaxBaseLen    = 6;     // Max consecutive base candles
-input double          InpLegBaseMult   = 1.30;  // Leg range >= N x avg base range
-//--- SNRC1 pairing
-input double          InpProxATR       = 1.50;  // Max distance from broken level to entry zone (ATR)
-//--- SNRC1 lifecycle
-input int             InpExpiryBars    = 150;   // Bars until SNRC1 expires (0 = never)
-input int             InpMaxSnrc1      = 50;    // Max active SNRC1 setups
-//--- Display
-input color           InpBullColor     = clrLimeGreen;   // Bullish SNRC1 entry zone
-input color           InpBearColor     = clrCrimson;     // Bearish SNRC1 entry zone
-input color           InpTouchColor    = clrGold;        // Entry zone when TOUCHED
-input color           InpConfirmColor  = clrDodgerBlue;  // Entry zone when CONFIRMED
-input color           InpRefColor      = clrDimGray;     // Broken SSNR reference line
-input int             InpOpacity       = 75;             // Zone fill opacity (0-100)
-input bool            InpShowLog       = true;
+input int             InpLookback      = 500;            // Historical bars to scan
+input bool            InpIgnoreDoji    = true;           // Skip doji in Classic SNR detection
+input int             InpDojiPoints    = 0;              // Doji body threshold (points; 0 = exact)
 
-// ─── Structs ───────────────────────────────────────────────────────
-struct SsnrRec          // Strong SNR levels (internal — not drawn individually)
+//--- RBR / DBD detection
+input double InpImpulseRatio   = 0.5;  // Leg   body/range ≥ this (impulse qualifier)
+input double InpBaseMaxRatio   = 0.5;  // Base  body/range ≤ this (base qualifier)
+input int    InpMaxBaseCandles = 6;    // Max candles in base
+input double InpLegBaseMult    = 1.3;  // Leg range ≥ N × avg base range
+
+//--- Proximity — how close the zone must be to the broken Classic SNR level
+input double InpProxATR    = 2.0;  // Zone proximity in ATR multiples
+input int    InpProxAtrPer = 14;   // ATR period for proximity calculation
+
+//--- Lifecycle
+input int  InpExpiryBars = 100;   // Bars until an untouched SNRC1 expires (0 = never)
+input int  InpMaxSnrc1   = 30;    // Max active SNRC1 setups on chart
+
+//--- Display
+input color InpBullColor  = C'30,130,210';  // Bull SNRC1 colour
+input color InpBearColor  = C'210,60,40';   // Bear SNRC1 colour
+input int   InpFontSize   = 8;
+input bool  InpShowLog    = true;
+
+//+------------------------------------------------------------------+
+//| Structs                                                          |
+//+------------------------------------------------------------------+
+struct SnrRec
 {
    int      id;
-   int      stype;        // SSNR_RES or SSNR_SUP
-   int      sstate;       // SSNR_LIVE / SSNR_BROKEN / SSNR_EXPIRED
-   double   level;        // Candle A close
+   int      stype;        // SNR_SUP or SNR_RES
+   double   price;        // Candle A close (the Classic SNR level)
    datetime candleATime;
    datetime candleBTime;
-   datetime endTime;      // time of break / expiry
-   int      ageCounter;
-   bool     paired;       // an SNRC1 was already created for this break
+   bool     broken;       // consumed by a breakout
 };
 
-struct BaseRec          // RBR/DBD base zones
+struct BaseRec
 {
    int      id;
    int      bdir;         // DIR_RBR or DIR_DBD
-   double   zhi;          // base high (zone upper)
-   double   zlo;          // base low  (zone lower)
-   datetime baseLeft;     // oldest base candle time
-   datetime legOutTime;   // confirmation bar time
+   double   zhi;          // base zone high
+   double   zlo;          // base zone low
+   datetime baseLeft;     // oldest base candle time (left anchor)
+   datetime legOutTime;   // leg-out candle time (zone confirmed)
    bool     dead;
    int      ageCounter;
 };
 
-struct GapRec           // Gap SNR levels
+struct GapRec
 {
    int      id;
    int      gtype;        // GAP_SUP or GAP_RES
-   int      gstate;       // SSNR_LIVE / SSNR_BROKEN / SSNR_EXPIRED (reuse defs)
-   double   level;
+   double   level;        // Candle A close
    datetime candleATime;
    datetime candleBTime;
+   bool     dead;
    int      ageCounter;
 };
 
-struct Snrc1Rec         // The matched SNRC1 setup
+struct Snrc1Rec
 {
    int      id;
-   int      c1dir;        // +1 bull / -1 bear
-   int      entryType;    // C1_ENTRY_BASE or C1_ENTRY_GAP
-   double   brokenLevel;  // the broken Strong SNR level
-   datetime breakTime;    // bar when the SSNR was broken
-   double   entryHi;      // entry zone top
-   double   entryLo;      // entry zone bottom (= entryHi for Gap SNR line)
-   datetime entryLeft;    // left edge of entry zone
+   int      c1dir;        // +1 bull, -1 bear
+   int      entryType;    // ENTRY_BASE or ENTRY_GAP
+   double   brokenLevel;  // the Classic SNR price
+   datetime snrOrigin;    // candleATime of the Classic SNR
+   datetime breakTime;    // bar when breakout was detected
+   double   entryHi;      // entry zone top  (= level for gaps)
+   double   entryLo;      // entry zone bottom (= level for gaps)
+   datetime entryLeft;    // left anchor of entry zone
    int      c1state;
    int      drawnState;
    int      ageCounter;
 };
 
-SsnrRec  ssnrList[SSNR_MAX];  int ssnrTotal = 0;
-BaseRec  baseList[BASE_MAX];  int baseTotal = 0;
-GapRec   gapList[GAP_MAX];   int gapTotal  = 0;
-Snrc1Rec snrc1List[SNRC1_MAX]; int snrc1Total = 0;
-int      nextSsnrId = 0, nextBaseId = 0, nextGapId = 0, nextC1Id = 0;
+SnrRec   snrList  [SNR_MAX ];
+BaseRec  baseList [BASE_MAX];
+GapRec   gapList  [GAP_MAX ];
+Snrc1Rec snrc1List[SNRC1_MAX];
+
+int      snrTotal = 0, baseTotal = 0, gapTotal = 0, snrc1Total = 0;
+int      nextSnrId = 0, nextBaseId = 0, nextGapId = 0, nextC1Id = 0;
 datetime lastBarTime = 0;
 
 //+------------------------------------------------------------------+
-//| Shared helpers                                                   |
+//| Object name helpers                                              |
 //+------------------------------------------------------------------+
-color BlendWithBg(color base, int pct)
-{
-   color  bg = (color)ChartGetInteger(0, CHART_COLOR_BACKGROUND);
-   double t  = MathMax(0.0, MathMin(100.0, (double)pct)) / 100.0;
-   int r = (int)(( base & 0xFF)        * t + ( bg & 0xFF)        * (1.0 - t));
-   int g = (int)(((base >>  8) & 0xFF) * t + ((bg >>  8) & 0xFF) * (1.0 - t));
-   int b = (int)(((base >> 16) & 0xFF) * t + ((bg >> 16) & 0xFF) * (1.0 - t));
-   return (color)(r | (g << 8) | (b << 16));
-}
+string ObjZone(int id) { return OBJ_PFX + IntegerToString(id) + "_z";   }
+string ObjLvl (int id) { return OBJ_PFX + IntegerToString(id) + "_lv";  }
+string ObjLine(int id) { return OBJ_PFX + IntegerToString(id) + "_ln";  }
+string ObjLbl (int id) { return OBJ_PFX + IntegerToString(id) + "_lb";  }
 
-double CalcATR(int sh)
-{
-   int avail = iBars(_Symbol, InpTF);
-   if(avail < sh + InpDispAtrPer + 2) return 0.0;
-   double sum = 0.0;
-   for(int k = sh + 1; k <= sh + InpDispAtrPer; k++)
-   {
-      double h  = iHigh (_Symbol, InpTF, k);
-      double l  = iLow  (_Symbol, InpTF, k);
-      double pc = iClose(_Symbol, InpTF, k + 1);
-      sum += MathMax(h - l, MathMax(MathAbs(h - pc), MathAbs(l - pc)));
-   }
-   return sum / (double)InpDispAtrPer;
-}
-
-int CandleDir(int sh)   // +1 bull / -1 bear / 0 doji
+//+------------------------------------------------------------------+
+//| Candle helpers                                                   |
+//+------------------------------------------------------------------+
+int CandleDir(int sh)
 {
    double c = iClose(_Symbol, InpTF, sh);
    double o = iOpen (_Symbol, InpTF, sh);
+   double body = MathAbs(c - o);
    if(InpIgnoreDoji)
    {
       double thr = (InpDojiPoints > 0) ? InpDojiPoints * _Point : 0.0;
-      if(MathAbs(c - o) <= thr) return 0;
+      if(body <= thr) return 0;
    }
-   return (c > o) ? 1 : (c < o) ? -1 : 0;
+   if(c > o) return  1;
+   if(c < o) return -1;
+   return 0;
 }
 
-double BodyRatio(int sh) // body / range for RBR/DBD base detection
+double BodyRatio(int sh)
 {
-   double o = iOpen (_Symbol, InpTF, sh);
-   double c = iClose(_Symbol, InpTF, sh);
-   double r = iHigh (_Symbol, InpTF, sh) - iLow(_Symbol, InpTF, sh);
-   return (r > 0.0) ? MathAbs(c - o) / r : 0.0;
+   double o = iOpen(_Symbol, InpTF, sh), c = iClose(_Symbol, InpTF, sh);
+   double r = iHigh(_Symbol, InpTF, sh) - iLow(_Symbol, InpTF, sh);
+   return r <= 0.0 ? 0.0 : MathAbs(c - o) / r;
 }
 
-double SumDisp(int shStart, int shEnd, int reqDir) // cumulative displacement bodies
+double BarRng(int sh) { return iHigh(_Symbol, InpTF, sh) - iLow(_Symbol, InpTF, sh); }
+bool IsBull(int sh)   { return iClose(_Symbol, InpTF, sh) > iOpen(_Symbol, InpTF, sh); }
+bool IsBear(int sh)   { return iClose(_Symbol, InpTF, sh) < iOpen(_Symbol, InpTF, sh); }
+
+//+------------------------------------------------------------------+
+//| ATR (SMA of True Range)                                         |
+//+------------------------------------------------------------------+
+double CalcATR(int sh)
 {
-   double total = 0.0;
-   int lo = MathMin(shStart, shEnd), hi = MathMax(shStart, shEnd);
-   for(int b = hi; b >= lo; b--)
+   int avail = iBars(_Symbol, InpTF);
+   if(InpProxAtrPer <= 0 || sh + InpProxAtrPer + 1 >= avail) return _Point;
+   double sum = 0.0;
+   for(int i = 0; i < InpProxAtrPer; i++)
    {
-      double o = iOpen (_Symbol, InpTF, b);
-      double c = iClose(_Symbol, InpTF, b);
-      if(reqDir > 0 && c > o) total += (c - o);
-      if(reqDir < 0 && c < o) total += (o - c);
+      double hi = iHigh (_Symbol, InpTF, sh + i);
+      double lo = iLow  (_Symbol, InpTF, sh + i);
+      double pc = iClose(_Symbol, InpTF, sh + i + 1);
+      sum += MathMax(hi - lo, MathMax(MathAbs(hi - pc), MathAbs(lo - pc)));
    }
-   return total;
+   return sum / InpProxAtrPer;
 }
 
 //+------------------------------------------------------------------+
-//| ─── STRONG SNR DETECTION ────────────────────────────────────── |
+//| Distance from a price level to the nearest edge of [zlo, zhi].  |
+//| Returns 0 if the level is inside (or on the boundary of) the   |
+//| zone, otherwise the gap to the nearest edge.                    |
 //+------------------------------------------------------------------+
-void CheckStrongSnr(int shA, int shB)
+double DistToZone(double lvl, double zhi, double zlo)
+{
+   if(lvl >= zlo && lvl <= zhi) return 0.0;
+   if(lvl > zhi) return lvl - zhi;
+   return zlo - lvl;
+}
+
+//+------------------------------------------------------------------+
+//| Classic SNR Detection                                           |
+//| shA = older candle, shB = newer candle                          |
+//+------------------------------------------------------------------+
+void AddSnrLevel(int shA, int shB)
 {
    int avail = iBars(_Symbol, InpTF);
    if(shA >= avail || shB < 0) return;
 
-   int dirA = CandleDir(shA), dirB = CandleDir(shB);
-   if(dirA == 0 || dirB == 0 || dirA == dirB) return;  // doji or same dir
+   int dA = CandleDir(shA), dB = CandleDir(shB);
+   if(dA == 0 || dB == 0) return;  // doji — skip
 
-   int stype = (dirA > 0) ? SSNR_RES : SSNR_SUP;
-   int dispDir = -dirA;   // displacement direction opposite to A
+   int stype = 0;
+   if(dA > 0 && dB < 0) stype = SNR_RES;  // Bull A → Bear B = Resistance
+   if(dA < 0 && dB > 0) stype = SNR_SUP;  // Bear A → Bull B = Support
+   if(stype == 0) return;                   // same direction = Gap SNR; not Classic
 
-   double atr = CalcATR(shA);
-   if(atr <= 0.0) return;
+   double   lvl = iClose(_Symbol, InpTF, shA);
+   datetime tA  = iTime(_Symbol, InpTF, shA);
+   datetime tB  = iTime(_Symbol, InpTF, shB);
 
-   // Clamp displacement window to bar[1] in live mode
-   int endShift = shB - (InpDispBars - 1);
-   if(endShift < 1) endShift = 1;
-   double disp = SumDisp(shB, endShift, dispDir);
-   if(disp < InpDispMult * atr) return;   // not strong enough
+   for(int i = 0; i < snrTotal; i++)
+      if(snrList[i].candleATime == tA && snrList[i].stype == stype) return;  // dedup
 
-   double   lvl   = iClose(_Symbol, InpTF, shA);
-   datetime timeA = iTime (_Symbol, InpTF, shA);
-   datetime timeB = iTime (_Symbol, InpTF, shB);
-
-   for(int i = 0; i < ssnrTotal; i++)
-      if(ssnrList[i].candleATime == timeA && ssnrList[i].stype == stype) return;
-
-   if(ssnrTotal >= SSNR_MAX) return;
-   int idx = ssnrTotal++;
-   ssnrList[idx].id          = nextSsnrId++;
-   ssnrList[idx].stype       = stype;
-   ssnrList[idx].sstate      = SSNR_LIVE;
-   ssnrList[idx].level       = lvl;
-   ssnrList[idx].candleATime = timeA;
-   ssnrList[idx].candleBTime = timeB;
-   ssnrList[idx].endTime     = 0;
-   ssnrList[idx].ageCounter  = 0;
-   ssnrList[idx].paired      = false;
+   if(snrTotal >= SNR_MAX) return;
+   int idx = snrTotal++;
+   snrList[idx].id          = nextSnrId++;
+   snrList[idx].stype       = stype;
+   snrList[idx].price       = lvl;
+   snrList[idx].candleATime = tA;
+   snrList[idx].candleBTime = tB;
+   snrList[idx].broken      = false;
 }
 
 //+------------------------------------------------------------------+
-//| ─── RBR / DBD BASE DETECTION ───────────────────────────────── |
+//| Gap SNR Detection (same-direction candle pair)                  |
 //+------------------------------------------------------------------+
-void DetectBase(int sh)   // sh = leg-out (breakout) bar
+void CheckGapPair(int shA, int shB)
+{
+   int avail = iBars(_Symbol, InpTF);
+   if(shA >= avail || shB < 0) return;
+
+   int dA = CandleDir(shA), dB = CandleDir(shB);
+   if(dA == 0 || dB == 0) return;
+
+   int gtype = 0;
+   if(dA > 0 && dB > 0) gtype = GAP_SUP;  // both bull → Gap Support
+   if(dA < 0 && dB < 0) gtype = GAP_RES;  // both bear → Gap Resistance
+   if(gtype == 0) return;
+
+   double   lvl = iClose(_Symbol, InpTF, shA);
+   datetime tA  = iTime(_Symbol, InpTF, shA);
+   datetime tB  = iTime(_Symbol, InpTF, shB);
+
+   for(int i = 0; i < gapTotal; i++)
+      if(gapList[i].candleATime == tA && gapList[i].gtype == gtype) return;
+
+   if(gapTotal >= GAP_MAX) return;
+   int idx = gapTotal++;
+   gapList[idx].id          = nextGapId++;
+   gapList[idx].gtype       = gtype;
+   gapList[idx].level       = lvl;
+   gapList[idx].candleATime = tA;
+   gapList[idx].candleBTime = tB;
+   gapList[idx].dead        = false;
+   gapList[idx].ageCounter  = 0;
+}
+
+//+------------------------------------------------------------------+
+//| RBR / DBD Detection                                             |
+//| sh = the leg-out candle (breakout bar, confirming the pattern)  |
+//+------------------------------------------------------------------+
+void DetectBase(int sh)
 {
    int avail = iBars(_Symbol, InpTF);
    if(sh + 2 >= avail) return;
 
    // Leg-out must be a strong impulse
    if(BodyRatio(sh) < InpImpulseRatio) return;
-   int bdir;
-   double co = iClose(_Symbol, InpTF, sh), oo = iOpen(_Symbol, InpTF, sh);
-   if(co > oo)      bdir = DIR_RBR;
-   else if(co < oo) bdir = DIR_DBD;
+   int dir;
+   if(IsBull(sh))      dir = DIR_RBR;
+   else if(IsBear(sh)) dir = DIR_DBD;
    else return;
 
-   // Collect consecutive small-body base candles just before leg-out
+   // Collect the run of small-body base candles immediately before leg-out
    int baseLen = 0;
-   while(baseLen < InpMaxBaseLen && (sh + 1 + baseLen) < avail
+   while(baseLen < InpMaxBaseCandles
+         && (sh + 1 + baseLen) < avail
          && BodyRatio(sh + 1 + baseLen) <= InpBaseMaxRatio)
       baseLen++;
    if(baseLen < 1) return;
 
+   // Leg-in: strong impulse in the same direction
    int legInSh = sh + 1 + baseLen;
    if(legInSh >= avail) return;
-
-   // Leg-in: strong impulse in the SAME direction
    if(BodyRatio(legInSh) < InpImpulseRatio) return;
-   double ci = iClose(_Symbol, InpTF, legInSh), oi = iOpen(_Symbol, InpTF, legInSh);
-   if(bdir == DIR_RBR && ci <= oi) return;
-   if(bdir == DIR_DBD && ci >= oi) return;
+   if(dir == DIR_RBR && !IsBull(legInSh)) return;
+   if(dir == DIR_DBD && !IsBear(legInSh)) return;
 
-   // Measure base extent
+   // Base extent + average range
    double bhi = -1.0, blo = 1e18, sumR = 0.0;
    for(int k = 0; k < baseLen; k++)
    {
@@ -339,183 +332,399 @@ void DetectBase(int sh)   // sh = leg-out (breakout) bar
    double avgR = sumR / baseLen;
    if(avgR <= 0.0) return;
 
-   double legOutR = iHigh(_Symbol, InpTF, sh) - iLow(_Symbol, InpTF, sh);
-   double legInR  = iHigh(_Symbol, InpTF, legInSh) - iLow(_Symbol, InpTF, legInSh);
-   if(legOutR < InpLegBaseMult * avgR || legInR < InpLegBaseMult * avgR) return;
+   // Legs must be larger than the base
+   if(BarRng(sh)      < InpLegBaseMult * avgR) return;
+   if(BarRng(legInSh) < InpLegBaseMult * avgR) return;
 
-   // Leg-out must break out of the base
-   if(bdir == DIR_RBR && co <= bhi) return;
-   if(bdir == DIR_DBD && co >= blo) return;
+   // Leg-out must break OUT of the base
+   double loClose = iClose(_Symbol, InpTF, sh);
+   if(dir == DIR_RBR && loClose <= bhi) return;
+   if(dir == DIR_DBD && loClose >= blo) return;
 
-   datetime bt = iTime(_Symbol, InpTF, sh + baseLen);  // oldest base candle
-   datetime lt = iTime(_Symbol, InpTF, sh);
+   datetime baseLeft  = iTime(_Symbol, InpTF, sh + baseLen);
+   datetime legOutT   = iTime(_Symbol, InpTF, sh);
 
    for(int k = 0; k < baseTotal; k++)
-      if(!baseList[k].dead && baseList[k].baseLeft == bt) return;   // dedup
+      if(!baseList[k].dead && baseList[k].baseLeft == baseLeft) return;  // dedup
 
    if(baseTotal >= BASE_MAX) return;
    int idx = baseTotal++;
-   baseList[idx].id         = nextBaseId++;
-   baseList[idx].bdir       = bdir;
-   baseList[idx].zhi        = bhi;
-   baseList[idx].zlo        = blo;
-   baseList[idx].baseLeft   = bt;
-   baseList[idx].legOutTime = lt;
-   baseList[idx].dead       = false;
-   baseList[idx].ageCounter = 0;
+   baseList[idx].id          = nextBaseId++;
+   baseList[idx].bdir        = dir;
+   baseList[idx].zhi         = bhi;
+   baseList[idx].zlo         = blo;
+   baseList[idx].baseLeft    = baseLeft;
+   baseList[idx].legOutTime  = legOutT;
+   baseList[idx].dead        = false;
+   baseList[idx].ageCounter  = 0;
 }
 
 //+------------------------------------------------------------------+
-//| ─── GAP SNR DETECTION ──────────────────────────────────────── |
+//| Try to pair a breakout with a same-direction RBR/DBD or Gap SNR |
+//|                                                                  |
+//| The zone must:                                                   |
+//|   • match direction (bull break → RBR / Gap-Sup; bear → DBD / Gap-Res)
+//|   • be within InpProxATR × ATR of the broken level              |
+//| Pick the closest match. BASE wins over GAP when equidistant.   |
 //+------------------------------------------------------------------+
-void CheckGapPair(int shA, int shB)
+void TryMatchSnrc1(int snrIdx, int sh)
 {
-   int avail = iBars(_Symbol, InpTF);
-   if(shA >= avail || shB < 0) return;
+   if(snrc1Total >= SNRC1_MAX) return;
 
-   int dirA = CandleDir(shA), dirB = CandleDir(shB);
-   if(dirA == 0 || dirB == 0) return;
-   if(dirA != dirB) return;   // opposite = Classic SNR, not Gap SNR
+   double   brokenLvl = snrList[snrIdx].price;
+   datetime breakTime = iTime(_Symbol, InpTF, sh);
+   datetime snrOrigin = snrList[snrIdx].candleATime;
+   int      dir       = (snrList[snrIdx].stype == SNR_RES) ? +1 : -1;  // +1 bull break, -1 bear
 
-   int gtype = (dirA > 0) ? GAP_SUP : GAP_RES;
-   double   lvl   = iClose(_Symbol, InpTF, shA);
-   datetime timeA = iTime (_Symbol, InpTF, shA);
-   datetime timeB = iTime (_Symbol, InpTF, shB);
+   double atr  = CalcATR(sh);
+   if(atr <= 0.0) atr = 10 * _Point;
+   double prox = InpProxATR * atr;
 
-   for(int i = 0; i < gapTotal; i++)
-      if(gapList[i].candleATime == timeA && gapList[i].gtype == gtype) return;
-
-   if(gapTotal >= GAP_MAX) return;
-   int idx = gapTotal++;
-   gapList[idx].id          = nextGapId++;
-   gapList[idx].gtype       = gtype;
-   gapList[idx].gstate      = SSNR_LIVE;
-   gapList[idx].level       = lvl;
-   gapList[idx].candleATime = timeA;
-   gapList[idx].candleBTime = timeB;
-   gapList[idx].ageCounter  = 0;
-}
-
-//+------------------------------------------------------------------+
-//| Object name helpers                                              |
-//+------------------------------------------------------------------+
-string RefNm(int id)  { return OBJ_PFX + IntegerToString(id) + "_ref"; }
-string ZonNm(int id)  { return OBJ_PFX + IntegerToString(id) + "_zon"; }
-string LblNm(int id)  { return OBJ_PFX + IntegerToString(id) + "_lbl"; }
-
-//+------------------------------------------------------------------+
-//| Draw one SNRC1 setup                                            |
-//+------------------------------------------------------------------+
-void DrawSnrc1One(int idx)
-{
-   snrc1List[idx].drawnState = snrc1List[idx].c1state;
-
-   ObjectDelete(0, RefNm(snrc1List[idx].id));
-   ObjectDelete(0, ZonNm(snrc1List[idx].id));
-   ObjectDelete(0, LblNm(snrc1List[idx].id));
-
-   int    st   = snrc1List[idx].c1state;
-   int    dir  = snrc1List[idx].c1dir;
-   bool   live = (st == C1_ACTIVE || st == C1_TOUCHED || st == C1_CONFIRMED);
-   if(!live) return;   // remove objects for terminal states
-
-   // ── Reference line: the broken Strong SNR level ────────────────
-   color refClr = BlendWithBg(InpRefColor, 60);
-   datetime refT2 = snrc1List[idx].breakTime;
-   if(ObjectCreate(0, RefNm(snrc1List[idx].id), OBJ_TREND, 0,
-                   snrc1List[idx].entryLeft, snrc1List[idx].brokenLevel,
-                   refT2,                    snrc1List[idx].brokenLevel))
+   // ── Try RBR / DBD ────────────────────────────────────────────────
+   int bestBase = -1; double bestBaseDist = prox + 1.0;
+   int reqBaseDir = (dir > 0) ? DIR_RBR : DIR_DBD;
+   for(int i = 0; i < baseTotal; i++)
    {
-      ObjectSetInteger(0, RefNm(snrc1List[idx].id), OBJPROP_COLOR,     refClr);
-      ObjectSetInteger(0, RefNm(snrc1List[idx].id), OBJPROP_STYLE,     STYLE_DASH);
-      ObjectSetInteger(0, RefNm(snrc1List[idx].id), OBJPROP_WIDTH,     1);
-      ObjectSetInteger(0, RefNm(snrc1List[idx].id), OBJPROP_RAY_RIGHT, 0);
-      ObjectSetInteger(0, RefNm(snrc1List[idx].id), OBJPROP_SELECTABLE,false);
-      ObjectSetInteger(0, RefNm(snrc1List[idx].id), OBJPROP_HIDDEN,    true);
-      ObjectSetInteger(0, RefNm(snrc1List[idx].id), OBJPROP_BACK,      true);
+      if(baseList[i].dead) continue;
+      if(baseList[i].bdir != reqBaseDir) continue;
+      double dist = DistToZone(brokenLvl, baseList[i].zhi, baseList[i].zlo);
+      if(dist > prox) continue;
+      if(dist < bestBaseDist) { bestBaseDist = dist; bestBase = i; }
    }
 
-   // ── Entry zone color based on state ───────────────────────────
-   color rawZoneClr;
-   if(st == C1_TOUCHED)   rawZoneClr = InpTouchColor;
-   else if(st == C1_CONFIRMED) rawZoneClr = InpConfirmColor;
-   else                   rawZoneClr = (dir > 0) ? InpBullColor : InpBearColor;
-   color zoneClr = BlendWithBg(rawZoneClr, InpOpacity);
-
-   // ── Entry zone ─────────────────────────────────────────────────
-   double hi = snrc1List[idx].entryHi, lo = snrc1List[idx].entryLo;
-   datetime eLeft  = snrc1List[idx].entryLeft;
-   datetime eRight = iTime(_Symbol, InpTF, 0);   // live bar (right edge extends)
-
-   if(snrc1List[idx].entryType == C1_ENTRY_BASE)
+   if(bestBase >= 0)
    {
-      // Filled rectangle for RBR/DBD base
-      if(ObjectCreate(0, ZonNm(snrc1List[idx].id), OBJ_RECTANGLE, 0,
-                      eLeft, hi, eRight, lo))
+      int idx = snrc1Total++;
+      snrc1List[idx].id          = nextC1Id++;
+      snrc1List[idx].c1dir       = dir;
+      snrc1List[idx].entryType   = ENTRY_BASE;
+      snrc1List[idx].brokenLevel = brokenLvl;
+      snrc1List[idx].snrOrigin   = snrOrigin;
+      snrc1List[idx].breakTime   = breakTime;
+      snrc1List[idx].entryHi     = baseList[bestBase].zhi;
+      snrc1List[idx].entryLo     = baseList[bestBase].zlo;
+      snrc1List[idx].entryLeft   = baseList[bestBase].baseLeft;
+      snrc1List[idx].c1state     = C1_ACTIVE;
+      snrc1List[idx].drawnState  = C1_UNDRAWN;
+      snrc1List[idx].ageCounter  = 0;
+      if(InpShowLog)
+         PrintFormat("SNRC1 | id=%d | %s | entry=%s | level=%.5f | zone=[%.5f,%.5f] | %s",
+            snrc1List[idx].id, dir > 0 ? "BULL" : "BEAR",
+            dir > 0 ? "RBR" : "DBD",
+            brokenLvl, baseList[bestBase].zhi, baseList[bestBase].zlo,
+            TimeToString(breakTime, TIME_DATE|TIME_MINUTES));
+      return;
+   }
+
+   // ── Try Gap SNR ──────────────────────────────────────────────────
+   int reqGap = (dir > 0) ? GAP_SUP : GAP_RES;
+   int bestGap = -1; double bestGapDist = prox + 1.0;
+   for(int i = 0; i < gapTotal; i++)
+   {
+      if(gapList[i].dead) continue;
+      if(gapList[i].gtype != reqGap) continue;
+      double dist = MathAbs(gapList[i].level - brokenLvl);
+      if(dist > prox) continue;
+      if(dist < bestGapDist) { bestGapDist = dist; bestGap = i; }
+   }
+
+   if(bestGap >= 0)
+   {
+      int idx = snrc1Total++;
+      snrc1List[idx].id          = nextC1Id++;
+      snrc1List[idx].c1dir       = dir;
+      snrc1List[idx].entryType   = ENTRY_GAP;
+      snrc1List[idx].brokenLevel = brokenLvl;
+      snrc1List[idx].snrOrigin   = snrOrigin;
+      snrc1List[idx].breakTime   = breakTime;
+      snrc1List[idx].entryHi     = gapList[bestGap].level;
+      snrc1List[idx].entryLo     = gapList[bestGap].level;
+      snrc1List[idx].entryLeft   = gapList[bestGap].candleATime;
+      snrc1List[idx].c1state     = C1_ACTIVE;
+      snrc1List[idx].drawnState  = C1_UNDRAWN;
+      snrc1List[idx].ageCounter  = 0;
+      if(InpShowLog)
+         PrintFormat("SNRC1 | id=%d | %s | entry=%s | level=%.5f | gap=%.5f | %s",
+            snrc1List[idx].id, dir > 0 ? "BULL" : "BEAR",
+            dir > 0 ? "G-Sup" : "G-Res",
+            brokenLvl, gapList[bestGap].level,
+            TimeToString(breakTime, TIME_DATE|TIME_MINUTES));
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Check bar sh for breakouts of active Classic SNR levels.        |
+//+------------------------------------------------------------------+
+void CheckBreakout(int sh)
+{
+   double   cl = iClose(_Symbol, InpTF, sh);
+   datetime bt = iTime (_Symbol, InpTF, sh);
+
+   for(int i = 0; i < snrTotal; i++)
+   {
+      if(snrList[i].broken) continue;
+      if(snrList[i].candleBTime >= bt) continue;  // level must be confirmed before this bar
+
+      double lvl    = snrList[i].price;
+      bool   boBull = (snrList[i].stype == SNR_RES && cl > lvl);
+      bool   boBear = (snrList[i].stype == SNR_SUP && cl < lvl);
+      if(!boBull && !boBear) continue;
+
+      snrList[i].broken = true;
+      TryMatchSnrc1(i, sh);
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Update SNRC1 lifecycle at bar sh                                |
+//|                                                                  |
+//| Bull SNRC1 (entry zone BELOW broken resistance):                |
+//|   Touch     : bar LOW  ≤ zone top  (price pulls back to zone)   |
+//|   Confirmed : close    > zone top  (bounced up from zone)       |
+//|   Broken    : close    < zone bottom (zone traded through)      |
+//|                                                                  |
+//| Bear SNRC1 (entry zone ABOVE broken support):                   |
+//|   Touch     : bar HIGH ≥ zone bottom (price pulls back to zone) |
+//|   Confirmed : close    < zone bottom (bounced down from zone)   |
+//|   Broken    : close    > zone top  (zone traded through)        |
+//+------------------------------------------------------------------+
+void UpdateSnrc1AtBar(int sh)
+{
+   double   hi = iHigh (_Symbol, InpTF, sh);
+   double   lo = iLow  (_Symbol, InpTF, sh);
+   double   cl = iClose(_Symbol, InpTF, sh);
+   datetime bt = iTime (_Symbol, InpTF, sh);
+
+   for(int i = 0; i < snrc1Total; i++)
+   {
+      int st = snrc1List[i].c1state;
+      if(st == C1_BROKEN || st == C1_EXPIRED) continue;
+      if(snrc1List[i].breakTime >= bt) continue;
+
+      snrc1List[i].ageCounter++;
+
+      double   zhi    = snrc1List[i].entryHi;
+      double   zlo    = snrc1List[i].entryLo;
+      bool     isBull = (snrc1List[i].c1dir > 0);
+
+      // ── Expiry ─────────────────────────────────────────────────────
+      if(InpExpiryBars > 0 && snrc1List[i].ageCounter >= InpExpiryBars)
       {
-         ObjectSetInteger(0, ZonNm(snrc1List[idx].id), OBJPROP_COLOR,     zoneClr);
-         ObjectSetInteger(0, ZonNm(snrc1List[idx].id), OBJPROP_WIDTH,     2);
-         ObjectSetInteger(0, ZonNm(snrc1List[idx].id), OBJPROP_FILL,      true);
-         ObjectSetInteger(0, ZonNm(snrc1List[idx].id), OBJPROP_BACK,      true);
-         ObjectSetInteger(0, ZonNm(snrc1List[idx].id), OBJPROP_SELECTABLE,false);
-         ObjectSetInteger(0, ZonNm(snrc1List[idx].id), OBJPROP_HIDDEN,    true);
+         snrc1List[i].c1state = C1_EXPIRED;
+         if(InpShowLog)
+            PrintFormat("SNRC1_EXPIRED | id=%d | %s", snrc1List[i].id, isBull ? "BULL" : "BEAR");
+         continue;
+      }
+
+      // ── Zone broken (close through in wrong direction) ─────────────
+      bool broken = isBull ? (cl < zlo) : (cl > zhi);
+      if(broken)
+      {
+         snrc1List[i].c1state = C1_BROKEN;
+         if(InpShowLog)
+            PrintFormat("SNRC1_BROKEN | id=%d | %s", snrc1List[i].id, isBull ? "BULL" : "BEAR");
+         continue;
+      }
+
+      // ── Touch: price wicks into zone ───────────────────────────────
+      bool touched = isBull ? (lo <= zhi) : (hi >= zlo);
+
+      // ── Confirmed: bounced from zone in right direction ────────────
+      bool confirmed = isBull ? (touched && cl > zhi) : (touched && cl < zlo);
+
+      if(st == C1_ACTIVE && touched)
+      {
+         if(confirmed) snrc1List[i].c1state = C1_CONFIRMED;
+         else          snrc1List[i].c1state = C1_TOUCHED;
+         if(confirmed && InpShowLog)
+            PrintFormat("SNRC1_CONFIRMED | id=%d | %s | entry=%.5f",
+               snrc1List[i].id, isBull ? "BULL" : "BEAR", zhi);
+      }
+      else if(st == C1_TOUCHED && confirmed)
+      {
+         snrc1List[i].c1state = C1_CONFIRMED;
+         if(InpShowLog)
+            PrintFormat("SNRC1_CONFIRMED | id=%d | %s | entry=%.5f",
+               snrc1List[i].id, isBull ? "BULL" : "BEAR", zhi);
+      }
+   }
+}
+
+void UpdateBaseAtBar(int sh)
+{
+   datetime bt = iTime(_Symbol, InpTF, sh);
+   for(int i = 0; i < baseTotal; i++)
+   {
+      if(baseList[i].dead) continue;
+      if(baseList[i].legOutTime >= bt) continue;
+      baseList[i].ageCounter++;
+      if(InpExpiryBars > 0 && baseList[i].ageCounter >= InpExpiryBars)
+         baseList[i].dead = true;
+   }
+}
+
+void UpdateGapAtBar(int sh)
+{
+   datetime bt = iTime(_Symbol, InpTF, sh);
+   for(int i = 0; i < gapTotal; i++)
+   {
+      if(gapList[i].dead) continue;
+      if(gapList[i].candleBTime >= bt) continue;
+      gapList[i].ageCounter++;
+      if(InpExpiryBars > 0 && gapList[i].ageCounter >= InpExpiryBars)
+         gapList[i].dead = true;
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Drawing                                                          |
+//+------------------------------------------------------------------+
+void DrawSnrc1(int i)
+{
+   int      st     = snrc1List[i].c1state;
+   bool     isBull = (snrc1List[i].c1dir > 0);
+   datetime tNow   = iTime(_Symbol, InpTF, 0);
+
+   // Always delete and redraw from scratch
+   ObjectDelete(0, ObjZone(snrc1List[i].id));
+   ObjectDelete(0, ObjLine(snrc1List[i].id));
+   ObjectDelete(0, ObjLvl (snrc1List[i].id));
+   ObjectDelete(0, ObjLbl (snrc1List[i].id));
+
+   // Terminal states — remove from chart
+   if(st == C1_BROKEN || st == C1_EXPIRED)
+   {
+      snrc1List[i].drawnState = st;
+      return;
+   }
+
+   // Colour: confirmed → brighter, otherwise base colour
+   color clr = (st == C1_CONFIRMED)
+               ? (isBull ? clrMediumSeaGreen : clrOrangeRed)
+               : (isBull ? InpBullColor      : InpBearColor);
+
+   bool     isGap  = (snrc1List[i].entryType == ENTRY_GAP);
+   double   ehi    = snrc1List[i].entryHi;
+   double   elo    = snrc1List[i].entryLo;
+   datetime tLeft  = snrc1List[i].entryLeft;
+
+   // ── Entry zone box (RBR/DBD) or gap line ─────────────────────────
+   if(!isGap)
+   {
+      if(ObjectCreate(0, ObjZone(snrc1List[i].id), OBJ_RECTANGLE, 0, tLeft, ehi, tNow, elo))
+      {
+         ObjectSetInteger(0, ObjZone(snrc1List[i].id), OBJPROP_COLOR,      clr);
+         ObjectSetInteger(0, ObjZone(snrc1List[i].id), OBJPROP_FILL,       true);
+         ObjectSetInteger(0, ObjZone(snrc1List[i].id), OBJPROP_BACK,       true);
+         ObjectSetInteger(0, ObjZone(snrc1List[i].id), OBJPROP_WIDTH,      1);
+         ObjectSetInteger(0, ObjZone(snrc1List[i].id), OBJPROP_SELECTABLE, false);
+         ObjectSetInteger(0, ObjZone(snrc1List[i].id), OBJPROP_HIDDEN,     true);
       }
    }
    else
    {
-      // Flat OBJ_TREND line for Gap SNR (hi == lo == the level)
-      if(ObjectCreate(0, ZonNm(snrc1List[idx].id), OBJ_TREND, 0,
-                      eLeft, hi, eRight, hi))
+      // Gap SNR: a solid horizontal line at the gap level
+      if(ObjectCreate(0, ObjLine(snrc1List[i].id), OBJ_TREND, 0, tLeft, ehi, tNow, ehi))
       {
-         ObjectSetInteger(0, ZonNm(snrc1List[idx].id), OBJPROP_COLOR,     zoneClr);
-         ObjectSetInteger(0, ZonNm(snrc1List[idx].id), OBJPROP_STYLE,     STYLE_SOLID);
-         ObjectSetInteger(0, ZonNm(snrc1List[idx].id), OBJPROP_WIDTH,     2);
-         ObjectSetInteger(0, ZonNm(snrc1List[idx].id), OBJPROP_RAY_RIGHT, 1);
-         ObjectSetInteger(0, ZonNm(snrc1List[idx].id), OBJPROP_SELECTABLE,false);
-         ObjectSetInteger(0, ZonNm(snrc1List[idx].id), OBJPROP_HIDDEN,    true);
-         ObjectSetInteger(0, ZonNm(snrc1List[idx].id), OBJPROP_BACK,      true);
+         ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_COLOR,      clr);
+         ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_WIDTH,      2);
+         ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_STYLE,      STYLE_SOLID);
+         ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_RAY_RIGHT,  true);
+         ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_SELECTABLE, false);
+         ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_HIDDEN,     true);
+         ObjectSetInteger(0, ObjLine(snrc1List[i].id), OBJPROP_BACK,       true);
       }
    }
 
-   // ── Label ──────────────────────────────────────────────────────
-   string arrow = dir > 0 ? "↑" : "↓";
-   string etype = snrc1List[idx].entryType == C1_ENTRY_BASE
-                  ? (dir > 0 ? "RBR" : "DBD") : (dir > 0 ? "G-Sup" : "G-Res");
-   string stTag = st == C1_CONFIRMED ? " ✓" : (st == C1_TOUCHED ? " ~" : "");
-   string lbl   = "SNRC1" + arrow + " " + etype + stTag;
-   double lbPrc = dir > 0 ? lo : hi;
-
-   if(ObjectCreate(0, LblNm(snrc1List[idx].id), OBJ_TEXT, 0, eLeft, lbPrc))
+   // ── Broken Classic SNR reference line (dashed) ────────────────────
+   datetime lvlLeft = snrc1List[i].snrOrigin;
+   double   lvl     = snrc1List[i].brokenLevel;
+   if(ObjectCreate(0, ObjLvl(snrc1List[i].id), OBJ_TREND, 0, lvlLeft, lvl, tNow, lvl))
    {
-      ObjectSetString( 0, LblNm(snrc1List[idx].id), OBJPROP_TEXT,   lbl);
-      ObjectSetInteger(0, LblNm(snrc1List[idx].id), OBJPROP_COLOR,  BlendWithBg(rawZoneClr, 100));
-      ObjectSetInteger(0, LblNm(snrc1List[idx].id), OBJPROP_FONTSIZE, 8);
-      ObjectSetInteger(0, LblNm(snrc1List[idx].id), OBJPROP_ANCHOR,
-         dir > 0 ? ANCHOR_LEFT_UPPER : ANCHOR_LEFT_LOWER);
-      ObjectSetInteger(0, LblNm(snrc1List[idx].id), OBJPROP_SELECTABLE, false);
-      ObjectSetInteger(0, LblNm(snrc1List[idx].id), OBJPROP_HIDDEN,     true);
-      ObjectSetInteger(0, LblNm(snrc1List[idx].id), OBJPROP_BACK,       false);
+      ObjectSetInteger(0, ObjLvl(snrc1List[i].id), OBJPROP_COLOR,      clr);
+      ObjectSetInteger(0, ObjLvl(snrc1List[i].id), OBJPROP_STYLE,      STYLE_DASH);
+      ObjectSetInteger(0, ObjLvl(snrc1List[i].id), OBJPROP_WIDTH,      1);
+      ObjectSetInteger(0, ObjLvl(snrc1List[i].id), OBJPROP_RAY_RIGHT,  true);
+      ObjectSetInteger(0, ObjLvl(snrc1List[i].id), OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, ObjLvl(snrc1List[i].id), OBJPROP_HIDDEN,     true);
+      ObjectSetInteger(0, ObjLvl(snrc1List[i].id), OBJPROP_BACK,       true);
    }
+
+   // ── Label ─────────────────────────────────────────────────────────
+   string typeStr;
+   if(snrc1List[i].entryType == ENTRY_BASE)
+      typeStr = (isBull ? "RBR" : "DBD");
+   else
+      typeStr = (isBull ? "G-Sup" : "G-Res");
+
+   string suffix = "";
+   if(st == C1_TOUCHED)   suffix = " ~";
+   if(st == C1_CONFIRMED) suffix = " ✓";
+
+   string lbl = (isBull ? "SNRC1↑" : "SNRC1↓") + " " + typeStr + suffix;
+
+   // Anchor label at the zone edge closest to the broken level
+   double lblPrice = isBull ? ehi : elo;  // zone top for bull, zone bottom for bear
+   if(ObjectCreate(0, ObjLbl(snrc1List[i].id), OBJ_TEXT, 0, tLeft, lblPrice))
+   {
+      ObjectSetString (0, ObjLbl(snrc1List[i].id), OBJPROP_TEXT,       lbl);
+      ObjectSetInteger(0, ObjLbl(snrc1List[i].id), OBJPROP_COLOR,      clr);
+      ObjectSetInteger(0, ObjLbl(snrc1List[i].id), OBJPROP_FONTSIZE,   InpFontSize);
+      ObjectSetInteger(0, ObjLbl(snrc1List[i].id), OBJPROP_ANCHOR,     isBull ? ANCHOR_LOWER : ANCHOR_UPPER);
+      ObjectSetInteger(0, ObjLbl(snrc1List[i].id), OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, ObjLbl(snrc1List[i].id), OBJPROP_HIDDEN,     true);
+      ObjectSetInteger(0, ObjLbl(snrc1List[i].id), OBJPROP_BACK,       false);
+   }
+
+   snrc1List[i].drawnState = st;
 }
 
 void DrawAll()
 {
    for(int i = 0; i < snrc1Total; i++)
       if(snrc1List[i].drawnState != snrc1List[i].c1state)
-         DrawSnrc1One(i);
+         DrawSnrc1(i);
    ChartRedraw(0);
 }
 
 void ExtendZones()
 {
-   datetime now = iTime(_Symbol, InpTF, 0);
+   datetime tNow = iTime(_Symbol, InpTF, 0);
    for(int i = 0; i < snrc1Total; i++)
    {
-      if(snrc1List[i].c1state > C1_CONFIRMED) continue;
-      if(snrc1List[i].entryType == C1_ENTRY_BASE)
-         ObjectSetInteger(0, ZonNm(snrc1List[i].id), OBJPROP_TIME, 1, now);
-      else
-         ObjectSetInteger(0, ZonNm(snrc1List[i].id), OBJPROP_TIME, 1, now);
+      int st = snrc1List[i].c1state;
+      if(st == C1_BROKEN || st == C1_EXPIRED) continue;
+
+      string zn = ObjZone(snrc1List[i].id);
+      if(ObjectFind(0, zn) >= 0) ObjectSetInteger(0, zn, OBJPROP_TIME, 1, tNow);
+
+      string ln = ObjLine(snrc1List[i].id);
+      if(ObjectFind(0, ln) >= 0) ObjectSetInteger(0, ln, OBJPROP_TIME, 1, tNow);
+
+      string lv = ObjLvl(snrc1List[i].id);
+      if(ObjectFind(0, lv) >= 0) ObjectSetInteger(0, lv, OBJPROP_TIME, 1, tNow);
+   }
+}
+
+void EnforceMax()
+{
+   if(InpMaxSnrc1 <= 0) return;
+   int cnt = 0;
+   for(int i = 0; i < snrc1Total; i++)
+      if(snrc1List[i].c1state < C1_BROKEN) cnt++;
+
+   while(cnt > InpMaxSnrc1)
+   {
+      int oldest = -1; datetime oldestT = (datetime)LONG_MAX;
+      for(int i = 0; i < snrc1Total; i++)
+      {
+         if(snrc1List[i].c1state >= C1_BROKEN) continue;
+         if(snrc1List[i].breakTime < oldestT) { oldestT = snrc1List[i].breakTime; oldest = i; }
+      }
+      if(oldest < 0) break;
+      snrc1List[oldest].c1state    = C1_EXPIRED;
+      snrc1List[oldest].drawnState = C1_UNDRAWN;
+      cnt--;
    }
 }
 
@@ -529,326 +738,65 @@ void DeleteAllObjects()
 }
 
 //+------------------------------------------------------------------+
-//| SNRC1 pairing: scan for a post-break RBR/DBD/Gap SNR match.     |
+//| OnInit — two-pass chronological scan                            |
 //|                                                                  |
-//| KEY RULE: the entry zone (RBR/DBD/Gap SNR) must form AFTER the  |
-//| Strong SNR is broken — the SNR (left) comes before the base     |
-//| (right).  Pairing is attempted every bar by ScanPendingMatches. |
-//+------------------------------------------------------------------+
-void TryCreateSnrc1(int ssnrIdx, int currentSh)
-{
-   if(ssnrList[ssnrIdx].paired) return;
-   if(ssnrList[ssnrIdx].sstate != SSNR_BROKEN) return;
-   if(snrc1Total >= SNRC1_MAX) return;
-
-   datetime breakTime  = ssnrList[ssnrIdx].endTime;   // bar when SSNR was broken
-   double   brokenLvl  = ssnrList[ssnrIdx].level;
-   int      stype      = ssnrList[ssnrIdx].stype;
-   int      dir        = (stype == SSNR_RES) ? 1 : -1;
-
-   double atr = CalcATR(currentSh);
-   if(atr <= 0.0) atr = 10 * _Point;
-   double prox = InpProxATR * atr;
-
-   // ── Helper: distance from brokenLvl to nearest edge of base zone ─
-   // Returns 0 if level is inside [zlo, zhi], else gap to nearest edge.
-
-   // ── Try RBR/DBD base that confirmed AFTER the break ─────────────
-   int bestBase = -1; double bestDist = prox + 1.0;
-   for(int i = 0; i < baseTotal; i++)
-   {
-      if(baseList[i].dead) continue;
-      if(dir > 0 && baseList[i].bdir != DIR_RBR) continue;
-      if(dir < 0 && baseList[i].bdir != DIR_DBD) continue;
-
-      // *** KEY FIX: base leg-out (confirmation) must come AFTER the break ***
-      if(baseList[i].legOutTime <= breakTime) continue;
-
-      // Distance from the broken level to the nearest edge of the base zone
-      // 0 if the level overlaps the zone; positive if there is a gap
-      double dist;
-      if(brokenLvl >= baseList[i].zlo && brokenLvl <= baseList[i].zhi)
-         dist = 0.0;                          // broken level inside the base
-      else if(brokenLvl > baseList[i].zhi)
-         dist = brokenLvl - baseList[i].zhi;  // level above base top
-      else
-         dist = baseList[i].zlo - brokenLvl;  // level below base bottom
-
-      if(dist > prox) continue;
-      if(dist < bestDist) { bestDist = dist; bestBase = i; }
-   }
-
-   if(bestBase >= 0)
-   {
-      int idx = snrc1Total++;
-      snrc1List[idx].id           = nextC1Id++;
-      snrc1List[idx].c1dir        = dir;
-      snrc1List[idx].entryType    = C1_ENTRY_BASE;
-      snrc1List[idx].brokenLevel  = brokenLvl;
-      snrc1List[idx].breakTime    = breakTime;
-      snrc1List[idx].entryHi      = baseList[bestBase].zhi;
-      snrc1List[idx].entryLo      = baseList[bestBase].zlo;
-      snrc1List[idx].entryLeft    = baseList[bestBase].baseLeft;
-      snrc1List[idx].c1state      = C1_ACTIVE;
-      snrc1List[idx].drawnState   = C1_UNDRAWN;
-      snrc1List[idx].ageCounter   = 0;
-      ssnrList[ssnrIdx].paired    = true;
-      if(InpShowLog)
-         PrintFormat("SNRC1_FORMED | id=%d | dir=%s | entry=BASE(%s) | ssnr=%.5f | zone=[%.5f,%.5f] | break=%s",
-            snrc1List[idx].id, dir > 0 ? "BULL" : "BEAR",
-            dir > 0 ? "RBR" : "DBD",
-            brokenLvl, snrc1List[idx].entryHi, snrc1List[idx].entryLo,
-            TimeToString(breakTime, TIME_DATE|TIME_MINUTES));
-      return;
-   }
-
-   // ── Try Gap SNR that confirmed AFTER the break ───────────────────
-   int reqGapType = (dir > 0) ? GAP_SUP : GAP_RES;
-   int bestGap = -1; bestDist = prox + 1.0;
-   for(int i = 0; i < gapTotal; i++)
-   {
-      if(gapList[i].gstate != SSNR_LIVE) continue;
-      if(gapList[i].gtype != reqGapType) continue;
-
-      // *** KEY FIX: Gap SNR must be confirmed AFTER the break ***
-      if(gapList[i].candleBTime <= breakTime) continue;
-
-      double dist = MathAbs(gapList[i].level - brokenLvl);
-      if(dist > prox) continue;
-      if(dist < bestDist) { bestDist = dist; bestGap = i; }
-   }
-
-   if(bestGap >= 0)
-   {
-      int idx = snrc1Total++;
-      snrc1List[idx].id           = nextC1Id++;
-      snrc1List[idx].c1dir        = dir;
-      snrc1List[idx].entryType    = C1_ENTRY_GAP;
-      snrc1List[idx].brokenLevel  = brokenLvl;
-      snrc1List[idx].breakTime    = breakTime;
-      snrc1List[idx].entryHi      = gapList[bestGap].level;
-      snrc1List[idx].entryLo      = gapList[bestGap].level;
-      snrc1List[idx].entryLeft    = gapList[bestGap].candleATime;
-      snrc1List[idx].c1state      = C1_ACTIVE;
-      snrc1List[idx].drawnState   = C1_UNDRAWN;
-      snrc1List[idx].ageCounter   = 0;
-      ssnrList[ssnrIdx].paired    = true;
-      if(InpShowLog)
-         PrintFormat("SNRC1_FORMED | id=%d | dir=%s | entry=GAP(%s) | ssnr=%.5f | level=%.5f | break=%s",
-            snrc1List[idx].id, dir > 0 ? "BULL" : "BEAR",
-            dir > 0 ? "G-Sup" : "G-Res",
-            brokenLvl, gapList[bestGap].level,
-            TimeToString(breakTime, TIME_DATE|TIME_MINUTES));
-   }
-}
-
-// Run on every bar: attempt pairing for all broken, unmatched SSNRs
-void ScanPendingMatches(int sh)
-{
-   for(int i = 0; i < ssnrTotal; i++)
-      TryCreateSnrc1(i, sh);
-}
-
-//+------------------------------------------------------------------+
-//| Lifecycle updates per bar                                       |
-//+------------------------------------------------------------------+
-
-// Update Strong SNR list — detect breaks (pairing is deferred to ScanPendingMatches)
-void UpdateSsnrAtBar(int sh)
-{
-   double   cl = iClose(_Symbol, InpTF, sh);
-   datetime bt = iTime (_Symbol, InpTF, sh);
-   for(int i = 0; i < ssnrTotal; i++)
-   {
-      if(ssnrList[i].sstate != SSNR_LIVE) continue;
-      if(ssnrList[i].candleBTime >= bt) continue;
-      ssnrList[i].ageCounter++;
-      // Expiry (use same InpExpiryBars as SNRC1 for consistency)
-      if(InpExpiryBars > 0 && ssnrList[i].ageCounter >= InpExpiryBars)
-         { ssnrList[i].sstate = SSNR_EXPIRED; ssnrList[i].endTime = bt; continue; }
-      // Break detection — record break time so ScanPendingMatches can filter post-break bases
-      bool brokeUp   = (ssnrList[i].stype == SSNR_RES && cl > ssnrList[i].level);
-      bool brokeDown = (ssnrList[i].stype == SSNR_SUP && cl < ssnrList[i].level);
-      if(brokeUp || brokeDown)
-      {
-         ssnrList[i].sstate = SSNR_BROKEN;
-         ssnrList[i].endTime = bt;
-         // Pairing is NOT attempted here — ScanPendingMatches runs after all detectors on this bar
-      }
-   }
-}
-
-// Update RBR/DBD base list — expire bases traded through
-void UpdateBaseAtBar(int sh)
-{
-   double cl = iClose(_Symbol, InpTF, sh);
-   for(int i = 0; i < baseTotal; i++)
-   {
-      if(baseList[i].dead) continue;
-      if(baseList[i].legOutTime >= iTime(_Symbol, InpTF, sh)) continue;
-      baseList[i].ageCounter++;
-      if((baseList[i].bdir == DIR_RBR && cl < baseList[i].zlo) ||
-         (baseList[i].bdir == DIR_DBD && cl > baseList[i].zhi))
-         baseList[i].dead = true;
-   }
-}
-
-// Update Gap SNR list — detect breaks
-void UpdateGapAtBar(int sh)
-{
-   double cl = iClose(_Symbol, InpTF, sh);
-   datetime bt = iTime(_Symbol, InpTF, sh);
-   for(int i = 0; i < gapTotal; i++)
-   {
-      if(gapList[i].gstate != SSNR_LIVE) continue;
-      if(gapList[i].candleBTime >= bt) continue;
-      gapList[i].ageCounter++;
-      bool broke = (gapList[i].gtype == GAP_SUP   && cl < gapList[i].level) ||
-                   (gapList[i].gtype == GAP_RES && cl > gapList[i].level);
-      if(broke) gapList[i].gstate = SSNR_BROKEN;
-   }
-}
-
-// Update SNRC1 setups — touched / confirmed / broken / expired
-void UpdateSnrc1AtBar(int sh)
-{
-   double   hi = iHigh (_Symbol, InpTF, sh);
-   double   lo = iLow  (_Symbol, InpTF, sh);
-   double   cl = iClose(_Symbol, InpTF, sh);
-   datetime bt = iTime (_Symbol, InpTF, sh);
-
-   for(int i = 0; i < snrc1Total; i++)
-   {
-      if(snrc1List[i].c1state >= C1_BROKEN) continue;
-      if(snrc1List[i].breakTime >= bt) continue;  // only check after the break bar
-
-      snrc1List[i].ageCounter++;
-      if(InpExpiryBars > 0 && snrc1List[i].ageCounter >= InpExpiryBars)
-      {
-         snrc1List[i].c1state = C1_EXPIRED;
-         if(InpShowLog)
-            PrintFormat("SNRC1_EXPIRED | id=%d | dir=%s | time=%s",
-               snrc1List[i].id, snrc1List[i].c1dir > 0 ? "BULL" : "BEAR",
-               TimeToString(bt, TIME_DATE|TIME_MINUTES));
-         continue;
-      }
-
-      int    dir = snrc1List[i].c1dir;
-      double eHi = snrc1List[i].entryHi, eLo = snrc1List[i].entryLo;
-
-      // ── BROKEN check (close through entry zone against direction) ─
-      bool broken = (dir > 0 && cl < eLo) || (dir < 0 && cl > eHi);
-      if(broken)
-      {
-         snrc1List[i].c1state = C1_BROKEN;
-         if(InpShowLog)
-            PrintFormat("SNRC1_BROKEN | id=%d | dir=%s | time=%s",
-               snrc1List[i].id, dir > 0 ? "BULL" : "BEAR",
-               TimeToString(bt, TIME_DATE|TIME_MINUTES));
-         continue;
-      }
-
-      // ── TOUCHED check (wick enters zone) ──────────────────────────
-      bool touchedZone = (dir > 0 && lo <= eHi) || (dir < 0 && hi >= eLo);
-
-      if(touchedZone)
-      {
-         // ── CONFIRMED: wick in zone AND close holds correctly ───────
-         bool confirmed = (dir > 0 && cl >= eLo) || (dir < 0 && cl <= eHi);
-         if(confirmed && snrc1List[i].c1state == C1_TOUCHED)
-         {
-            snrc1List[i].c1state = C1_CONFIRMED;
-            if(InpShowLog)
-               PrintFormat("SNRC1_CONFIRMED | id=%d | dir=%s | entry=%s | time=%s",
-                  snrc1List[i].id, dir > 0 ? "BULL" : "BEAR",
-                  snrc1List[i].entryType == C1_ENTRY_BASE ? (dir > 0 ? "RBR" : "DBD") : "Gap",
-                  TimeToString(bt, TIME_DATE|TIME_MINUTES));
-         }
-         else if(snrc1List[i].c1state == C1_ACTIVE)
-         {
-            snrc1List[i].c1state = C1_TOUCHED;
-            if(InpShowLog)
-               PrintFormat("SNRC1_TOUCHED | id=%d | dir=%s | time=%s",
-                  snrc1List[i].id, dir > 0 ? "BULL" : "BEAR",
-                  TimeToString(bt, TIME_DATE|TIME_MINUTES));
-         }
-      }
-   }
-}
-
-// Enforce max SNRC1 count (drop oldest active)
-void EnforceMaxSnrc1()
-{
-   if(InpMaxSnrc1 <= 0) return;
-   int cnt = 0;
-   for(int i = 0; i < snrc1Total; i++)
-      if(snrc1List[i].c1state < C1_BROKEN) cnt++;
-   while(cnt > InpMaxSnrc1)
-   {
-      int oldest = -1; datetime oldestT = (datetime)LONG_MAX;
-      for(int i = 0; i < snrc1Total; i++)
-      {
-         if(snrc1List[i].c1state >= C1_BROKEN) continue;
-         if(snrc1List[i].breakTime < oldestT) { oldestT = snrc1List[i].breakTime; oldest = i; }
-      }
-      if(oldest < 0) break;
-      snrc1List[oldest].c1state = C1_EXPIRED;
-      cnt--;
-   }
-}
-
+//| Pass 1: detect all Classic SNR levels, Gap SNRs, RBR/DBD bases |
+//| Pass 2: replay bar-by-bar, detect breakouts + update lifecycle  |
+//|                                                                  |
+//| The two-pass approach ensures a breakout at bar sh can only     |
+//| match zones that were detected in Pass 1 and thus existed at    |
+//| or before bar sh.                                               |
 //+------------------------------------------------------------------+
 int OnInit()
 {
    DeleteAllObjects();
-   ssnrTotal = 0; baseTotal = 0; gapTotal = 0; snrc1Total = 0;
-   nextSsnrId = 0; nextBaseId = 0; nextGapId = 0; nextC1Id = 0;
+   snrTotal = 0; baseTotal = 0; gapTotal = 0; snrc1Total = 0;
+   nextSnrId = 0; nextBaseId = 0; nextGapId = 0; nextC1Id = 0;
 
    int avail = iBars(_Symbol, InpTF);
-   if(avail < InpDispBars + 5) { Print("SNRC1_Detector: not enough bars."); return INIT_FAILED; }
+   if(avail < 4) { Print("SNRC1_Detector: not enough bars."); return INIT_FAILED; }
+   int limit = MathMin(InpLookback, avail - 3);
 
-   int limit   = MathMin(InpLookback, avail - InpDispBars - 3);
-   int startSh = MathMax(2, InpDispBars + 1);
-
-   // ── Pass 1: Detect all levels (oldest → newest) ─────────────────
-   for(int sh = limit; sh >= startSh; sh--)
+   // ── Pass 1: Detection (oldest → newest) ─────────────────────────
+   for(int sh = limit; sh >= 1; sh--)
    {
-      CheckStrongSnr(sh, sh - 1);    // SSNR pair
-      DetectBase(sh);                // RBR/DBD at leg-out bar
-      CheckGapPair(sh, sh - 1);     // Gap SNR pair
+      AddSnrLevel(sh + 1, sh);  // Candle A = sh+1 (older), B = sh (newer)
+      CheckGapPair(sh + 1, sh);
+      DetectBase(sh);            // sh = leg-out bar
    }
 
-   // ── Pass 2: Lifecycle replay (oldest → newest).  After all detectors ─
-   // have run for the bar, ScanPendingMatches tries to pair every broken   ─
-   // SSNR with any RBR/DBD/Gap SNR that confirmed ON THIS bar or earlier.  ─
-   for(int sh = limit - 1; sh >= 1; sh--)
+   // ── Pass 2: Lifecycle replay (oldest → newest) ───────────────────
+   for(int sh = limit; sh >= 1; sh--)
    {
-      UpdateSsnrAtBar(sh);
+      CheckBreakout(sh);
       UpdateBaseAtBar(sh);
       UpdateGapAtBar(sh);
-      ScanPendingMatches(sh);  // pair broken SSNRs with post-break bases/gaps
       UpdateSnrc1AtBar(sh);
    }
 
-   EnforceMaxSnrc1();
+   EnforceMax();
    DrawAll();
 
-   int nA=0, nT=0, nC=0, nBr=0, nEx=0;
+   int nA = 0, nT = 0, nC = 0, nBr = 0, nEx = 0;
    for(int i = 0; i < snrc1Total; i++)
-      switch(snrc1List[i].c1state) {
+      switch(snrc1List[i].c1state)
+      {
          case C1_ACTIVE:    nA++;  break;
          case C1_TOUCHED:   nT++;  break;
          case C1_CONFIRMED: nC++;  break;
          case C1_BROKEN:    nBr++; break;
          case C1_EXPIRED:   nEx++; break;
       }
-   PrintFormat("SNRC1_Detector v${SNRC1_DETECTOR_VERSION} ready | active=%d touched=%d confirmed=%d broken=%d expired=%d | disp>=%.1fx ATR(%d) | %s %s",
-      nA, nT, nC, nBr, nEx, InpDispMult, InpDispAtrPer, _Symbol, EnumToString(InpTF));
+   PrintFormat("SNRC1_Detector v${SNRC1_DETECTOR_VERSION} ready | active=%d touched=%d confirmed=%d broken=%d expired=%d | prox=%.1f×ATR(%d) | %s %s",
+      nA, nT, nC, nBr, nEx, InpProxATR, InpProxAtrPer, _Symbol, EnumToString(InpTF));
    return INIT_SUCCEEDED;
 }
 
 void OnDeinit(const int reason) { DeleteAllObjects(); ChartRedraw(0); }
 
+//+------------------------------------------------------------------+
+//| OnCalculate — new bar                                           |
+//+------------------------------------------------------------------+
 int OnCalculate(const int rates_total, const int prev_calculated,
                 const datetime &time[], const double &open[],
                 const double &high[], const double &low[],
@@ -859,19 +807,20 @@ int OnCalculate(const int rates_total, const int prev_calculated,
    if(cur == lastBarTime) return rates_total;
    lastBarTime = cur;
 
-   // Detect new formations on just-closed bars (shA=2, shB=1)
-   CheckStrongSnr(2, 1);
-   DetectBase(1);
+   // Bar 1 just closed: detect new levels/zones from bars 2→1
+   AddSnrLevel(2, 1);
    CheckGapPair(2, 1);
+   DetectBase(1);
 
-   // Update lifecycle, then pair any newly broken SSNR with post-break bases/gaps
-   UpdateSsnrAtBar(1);
+   // Check if bar 1 broke any Classic SNR and try to match a zone
+   CheckBreakout(1);
+
+   // Update lifecycle
    UpdateBaseAtBar(1);
    UpdateGapAtBar(1);
-   ScanPendingMatches(1);   // pair broken SSNRs with post-break RBR/DBD/Gap SNRs
    UpdateSnrc1AtBar(1);
 
-   EnforceMaxSnrc1();
+   EnforceMax();
    ExtendZones();
    DrawAll();
 
