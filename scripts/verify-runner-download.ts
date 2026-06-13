@@ -18,13 +18,18 @@ function assertRunnerAsset(label: string, filePath: string) {
 }
 
 console.log("\nRunner download verifier\n");
-const sourceSize = assertRunnerAsset("source runner", sourceRunner);
 const publicSize = assertRunnerAsset("public runner download", publicRunner);
 
-if (sourceSize !== publicSize) {
-  throw new Error(
-    `public runner does not match source runner size: ${publicSize} bytes vs ${sourceSize} bytes`,
-  );
+if (existsSync(sourceRunner)) {
+  const sourceSize = assertRunnerAsset("source runner", sourceRunner);
+  if (sourceSize !== publicSize) {
+    throw new Error(
+      `public runner does not match source runner size: ${publicSize} bytes vs ${sourceSize} bytes`,
+    );
+  }
+  console.log(`[OK  ] source and public runner sizes match (${publicSize} bytes)`);
+} else {
+  console.log("[OK  ] source runner absent (dist/ is gitignored) — public asset verified only");
 }
 
 console.log(`[OK  ] public download asset present (${publicSize} bytes)`);
