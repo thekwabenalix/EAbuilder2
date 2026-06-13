@@ -29,6 +29,8 @@ import { generateUnicornDetector } from "../src/lib/smc-modules/unicorn-detector
 import { generateUnicornStateModule } from "../src/lib/smc-modules/unicorn-state-module";
 import { generatePinBarDetector } from "../src/lib/smc-modules/pin-bar-detector";
 import { generatePinBarStateModule } from "../src/lib/smc-modules/pin-bar-state-module";
+import { generateBollingerDetector } from "../src/lib/indicator-modules/bollinger-detector";
+import { generateBollingerStateModule } from "../src/lib/indicator-modules/bollinger-state-module";
 import { generateSwingStructureDetector } from "../src/lib/smc-modules/swing-structure-detector";
 import { generateSwingStructureStateModule } from "../src/lib/smc-modules/swing-structure-state-module";
 import { generateRsiHiddenDivergenceDetector } from "../src/lib/indicator-modules/rsi-hidden-divergence-detector";
@@ -44,6 +46,7 @@ import { generateQmMefStateModule } from "../src/lib/smc-modules/qm-mef-state-mo
 import { generateSnrc2Detector } from "../src/lib/smc-modules/snrc2-detector";
 import { generateSnrc2StateModule } from "../src/lib/smc-modules/snrc2-state-module";
 import { generateStrongSnrDetector } from "../src/lib/smc-modules/strong-snr-detector";
+import { generateSnrc1Detector } from "../src/lib/smc-modules/snrc1-detector";
 
 // Strategy Flow runtime (instance event gate) — proof-of-feasibility EA
 import { generateFlowDemoEA, tryGenerateFlowEAFromFourBrain } from "../src/generators/gen-flow-ea";
@@ -114,6 +117,7 @@ const items: Item[] = [
   { file: "Miss_State_Module.mq5", code: generateMissStateModule() },
   { file: "RSS_SRR_Detector.mq5", code: generateRssSrrDetector() },
   { file: "RSS_SRR_State_Module.mq5", code: generateRssSrrStateModule() },
+  // Legacy standalone liquidity detectors (superseded by Liquidity_Buildup + ZLSM — compile regression only)
   { file: "FVG_Liquidity_Detector.mq5", code: generateFvgLiquidityDetector() },
   { file: "OB_Liquidity_Detector.mq5", code: generateObLiquidityDetector() },
   { file: "BB_Liquidity_Detector.mq5", code: generateBbLiquidityDetector() },
@@ -124,6 +128,8 @@ const items: Item[] = [
   { file: "Unicorn_State_Module.mq5", code: generateUnicornStateModule() },
   { file: "Pin_Bar_Detector.mq5", code: generatePinBarDetector() },
   { file: "Pin_Bar_State_Module.mq5", code: generatePinBarStateModule() },
+  { file: "Bollinger_Detector.mq5", code: generateBollingerDetector() },
+  { file: "Bollinger_State_Module.mq5", code: generateBollingerStateModule() },
   {
     file: "Swing_Structure_Detector.mq5",
     code: generateSwingStructureDetector(),
@@ -180,6 +186,10 @@ const items: Item[] = [
   {
     file: "Strong_SNR_Detector.mq5",
     code: generateStrongSnrDetector(),
+  },
+  {
+    file: "SNRC1_Detector.mq5",
+    code: generateSnrc1Detector(),
   },
   {
     file: "FLOW_BOS_FVG_BOS_Demo.mq5",
@@ -968,6 +978,50 @@ const phase3CoverageCases: Array<{
       "PINSM_M15_BullJustConfirmed()",
       "PINSM_M15_BullConfirmSL()",
       "void FVGSM_H4_Tick",
+    ],
+  },
+  {
+    title: "BB midline direction → FVG setup → band touch execution",
+    file: "Phase3_BB_FVG_Touch_Test.mq5",
+    config: {
+      direction: { modules: ["bb"], timeframe: "H4", params: { period: 20, deviation: 2 } },
+      setup: { modules: ["fvg"], timeframe: "H1" },
+      execution: { modules: ["bb"], timeframe: "M15", params: { period: 20, deviation: 2, mode: "touch" } },
+      management: { riskPercent: 1, rewardRisk: 2, stopBuffer: 20, maxOpenTrades: 1 },
+    },
+    aiWiring: {
+      direction_brain: `void Direction_Brain_Execute() {
+  if(BOLLSM_H4_IsBull()) gBias = 1;
+  else if(BOLLSM_H4_IsBear()) gBias = -1;
+}`,
+      setup_brain: `void Setup_Brain_Execute() {
+  if(FVGSM_H1_HasActiveBull() && (gBias == 0 || gBias == 1)) {
+    gSetupActive = true; gSetupDir = 1; gSetupSLHint = FVGSM_H1_ActiveBullSL();
+  } else if(FVGSM_H1_HasActiveBear() && (gBias == 0 || gBias == -1)) {
+    gSetupActive = true; gSetupDir = -1; gSetupSLHint = FVGSM_H1_ActiveBearSL();
+  }
+}`,
+      execution_brain: `void Execution_Brain_Execute() {
+  if(!gSetupActive) return;
+  if(gSetupDir == 1 && BOLLSM_M15_BullJustConfirmed()) {
+    gExecSignal = true; gExecDir = 1; gExecSL = BOLLSM_M15_BullConfirmSL();
+  } else if(gSetupDir == -1 && BOLLSM_M15_BearJustConfirmed()) {
+    gExecSignal = true; gExecDir = -1; gExecSL = BOLLSM_M15_BearConfirmSL();
+  }
+}`,
+      required_sms: ["BOLLSM_H4", "FVGSM_H1", "BOLLSM_M15"],
+      sm_configs: {
+        bb_H4: sm("bb", "H4", { period: 20, deviation: 2, mode: "midline" }),
+        fvg_H1: sm("fvg", "H1", { lookback: 50, expiryBars: 100 }),
+        bb_M15: sm("bb", "M15", { period: 20, deviation: 2, mode: "touch" }),
+      },
+    },
+    requiredSnippets: [
+      "void BOLLSM_H4_Tick",
+      "BOLLSM_H4_IsBull()",
+      "void BOLLSM_M15_Tick",
+      "BOLLSM_M15_BullJustConfirmed()",
+      "void FVGSM_H1_Tick",
     ],
   },
   {

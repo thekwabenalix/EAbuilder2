@@ -50,6 +50,7 @@ import { generateChochDetector } from "@/lib/smc-modules/choch-detector";
 import { generateClassicSnrDetector } from "@/lib/smc-modules/classic-snr-detector";
 import { generateGapSnrDetector } from "@/lib/smc-modules/gap-snr-detector";
 import { generateStrongSnrDetector } from "@/lib/smc-modules/strong-snr-detector";
+import { generateSnrc1Detector } from "@/lib/smc-modules/snrc1-detector";
 import { generateBreakoutDetector } from "@/lib/smc-modules/breakout-detector";
 import { generateRejectionDetector } from "@/lib/smc-modules/rejection-detector";
 import { generateMissDetector } from "@/lib/smc-modules/miss-detector";
@@ -154,6 +155,8 @@ interface ModuleEntry {
   status: ModuleStatus;
   generate?: () => string;
   catalogKind?: ModuleCatalogKind;
+  /** Standalone file kept for compile regression; use the named module in Strategy Builder instead. */
+  supersededBy?: { name: string; hint: string };
 }
 
 interface ModuleCategory {
@@ -454,6 +457,10 @@ const TRADING_MODULES: ModuleCategory[] = [
         status: "ready",
         generate: generateFvgLiquidityDetector,
         catalogKind: "standalone_indicator",
+        supersededBy: {
+          name: "Liquidity Buildup + ZLSM",
+          hint: "Use Liquidity_Buildup.mq5 or the zone_liq brain module — unified OB+BB+FVG pool",
+        },
       },
       {
         id: "ob-liquidity",
@@ -481,6 +488,10 @@ const TRADING_MODULES: ModuleCategory[] = [
         status: "ready",
         generate: generateObLiquidityDetector,
         catalogKind: "standalone_indicator",
+        supersededBy: {
+          name: "Liquidity Buildup + ZLSM",
+          hint: "Use Liquidity_Buildup.mq5 or the zone_liq brain module — unified OB+BB+FVG pool",
+        },
       },
       {
         id: "bb-liquidity",
@@ -508,6 +519,10 @@ const TRADING_MODULES: ModuleCategory[] = [
         status: "ready",
         generate: generateBbLiquidityDetector,
         catalogKind: "standalone_indicator",
+        supersededBy: {
+          name: "Liquidity Buildup + ZLSM",
+          hint: "Use Liquidity_Buildup.mq5 or the zone_liq brain module — unified OB+BB+FVG pool",
+        },
       },
       {
         id: "ob-fvg",
@@ -658,6 +673,41 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         status: "ready",
         generate: generateStrongSnrDetector,
+      },
+      {
+        id: "snrc1",
+        filename: "SNRC1_Detector.mq5",
+        name: "SNRC1 Detector",
+        description:
+          "Strong SNR Continuation 1 — a trend-continuation setup. " +
+          "A Strong SNR (displaced reversal pair with ATR-filtered momentum candle) " +
+          "gets broken by price, while on the pre-breakout side there is an RBR " +
+          "(bullish) / DBD (bearish) demand/supply base OR a Gap SNR level within " +
+          "proximity. Entry = when price pulls back to the RBR/DBD base or Gap SNR " +
+          "after the breakout. On a line chart: the breakout shows as a clean push " +
+          "through the A/V-shaped strong SNR, then a pullback to the base for re-entry.",
+        rules: [
+          "BULLISH SNRC1: Strong Resistance broken UP (close > level) + RBR demand base OR Bullish Gap SNR within InpProxATR × ATR",
+          "BEARISH SNRC1: Strong Support broken DOWN (close < level) + DBD supply base OR Bearish Gap SNR within InpProxATR × ATR",
+          "Strong SNR qualifier: Classic pair (A→B opposite dir) + displacement body sum ≥ InpDispMult × ATR",
+          "RBR/DBD qualifier: leg-in (impulse) → 1-6 small base candles → leg-out (impulse same dir, breaks base)",
+          "Gap SNR qualifier: same-direction candle pair (Bull A → Bull B = Support, Bear A → Bear B = Resistance)",
+          "ACTIVE → waiting for pullback to entry zone",
+          "TOUCHED → wick enters the RBR/DBD base or reaches the Gap SNR level",
+          "CONFIRMED → close holds correctly from the zone (entry signal bar)",
+          "BROKEN → close through the zone against direction (setup failed)",
+          "EXPIRED → InpExpiryBars elapsed without being tested",
+        ],
+        output: [
+          "Dashed gray reference line at the broken Strong SNR level",
+          "Filled rectangle (RBR/DBD base) or solid horizontal line (Gap SNR) — the entry zone",
+          "ACTIVE: green/crimson zone  |  TOUCHED: gold  |  CONFIRMED: blue  |  BROKEN/EXPIRED: removed",
+          "Label: 'SNRC1↑ RBR' / 'SNRC1↓ DBD' / 'SNRC1↑ G-Sup' / 'SNRC1↓ G-Res' (+ '✓' on confirm)",
+          "Journal: SNRC1_FORMED | SNRC1_TOUCHED | SNRC1_CONFIRMED | SNRC1_BROKEN | SNRC1_EXPIRED",
+          "Inputs: disp_mult · disp_atr_per · disp_bars · impulse_ratio · base_max_ratio · prox_atr · expiry_bars · max_snrc1",
+        ],
+        status: "ready",
+        generate: generateSnrc1Detector,
       },
       {
         id: "breakout",
@@ -1930,6 +1980,11 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         status: "ready",
         generate: generateStrongEngulfingDetector,
+        catalogKind: "standalone_indicator",
+        supersededBy: {
+          name: "Engulfing (EGSM)",
+          hint: "Strategy Builder uses the verified EGSM inline state machine — includes strong 2-candle engulfings",
+        },
       },
       {
         id: "rbr-dbd-detector",
@@ -2305,6 +2360,18 @@ function oneYearAgo() {
   return d.toISOString().slice(0, 10).replace(/-/g, ".");
 }
 
+function SupersededBadge({ by }: { by: ModuleEntry["supersededBy"] }) {
+  if (!by) return null;
+  return (
+    <span
+      className="text-[10px] px-1.5 py-0.5 rounded border font-medium whitespace-nowrap bg-muted/40 text-muted-foreground border-border/60"
+      title={by.hint}
+    >
+      Use {by.name}
+    </span>
+  );
+}
+
 function CatalogKindBadge({ kind }: { kind: ModuleCatalogKind }) {
   const meta: Record<ModuleCatalogKind, { label: string; tone: string; hint: string }> = {
     standalone_indicator: {
@@ -2528,8 +2595,12 @@ function ModuleCard({ mod }: { mod: ModuleEntry }) {
             <h3 className="font-semibold text-sm">{mod.name}</h3>
             <StatusBadge status={mod.status} />
             {mod.catalogKind && <CatalogKindBadge kind={mod.catalogKind} />}
+            {mod.supersededBy && <SupersededBadge by={mod.supersededBy} />}
           </div>
           <p className="text-xs text-muted-foreground">{mod.description}</p>
+          {mod.supersededBy && (
+            <p className="text-[11px] text-amber-400/90 mt-1.5 leading-snug">{mod.supersededBy.hint}</p>
+          )}
         </div>
         {isReady && (
           <Button size="sm" onClick={handleDownload} className="shrink-0">
@@ -2665,10 +2736,12 @@ function ModulesPage() {
             <p>
               <span className="font-medium text-foreground/90">Trading Modules</span> (this page) is
               a download library of standalone MT5 files — detectors, liquidity visualisers, state
-              modules, and full EAs. Items like{" "}
-              <span className="font-medium">FVG / OB / BB Liquidity Detector</span> are{" "}
-              <span className="font-medium">not</span> brain slots: download → compile → attach to a
-              chart on their own.
+              modules, and full EAs.               Items like{" "}
+              <span className="font-medium">FVG / OB / BB Liquidity Detector</span> are legacy
+              standalone files (superseded by{" "}
+              <span className="font-medium">Liquidity Buildup + zone_liq / ZLSM</span>) —{" "}
+              <span className="font-medium">not</span> brain slots: download → compile → attach, or
+              use Strategy Builder for EAs.
             </p>
             <p>
               Phase 1: {totalReady} of {totalModules} files ready · Detection → State → Execution
