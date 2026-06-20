@@ -33,8 +33,13 @@ export { flowSupportsModuleRole, isFlowVerifiedModule } from "./sm-embed-registr
 
 export const FLOW_DEMO_EA_NAME = "FLOW_BOS_FVG_BOS_Demo";
 
-function isEntry(role: string): boolean {
-  return role === "entry" || role === "confirmation";
+/** Confirmation registers events; only the final entry step may open trades. */
+function isTradeEntry(role: string): boolean {
+  return role === "entry";
+}
+
+function isConfirmationRole(role: string): boolean {
+  return role === "confirmation";
 }
 
 export function flowEaSupportsAllSteps(flow: StrategyFlowConfig): boolean {
@@ -381,8 +386,24 @@ ${clearDown}
     );
   }
 
-  // ENTRY — discrete confirmation, carries SL
-  if (isEntry(role)) {
+  // CONFIRMATION — zone rejection / retest (registers event; does not open trades)
+  if (isConfirmationRole(role)) {
+    if (prof.family === "zone" && isZoneRejectionEvent(step.event)) {
+      return emitZoneRejectionDetect(wrap, biasGuard, i, P, T1, C1);
+    }
+    if (prof.family === "zone" && isZoneRetestEvent(step.event)) {
+      return emitZoneRetestDetect(wrap, biasGuard, biasExpr, i, P, T1, C1);
+    }
+    if (prof.family === "ema") {
+      return wrap(
+        `   if(${P}_JustConfirmed()) { int _d = ${P}_ConfirmDir(); RegisterEvent(${i}, _d, ${T1}, ${C1}, ${P}_ConfirmSL()); }`,
+      );
+    }
+    return `void DetectStep_${i}() { /* ${m}/confirmation not supported */ }`;
+  }
+
+  // ENTRY — discrete confirmation or next-bar entry; carries SL
+  if (isTradeEntry(role)) {
     if (step.event === "BAR_AFTER_CONFIRM") {
       const confIdx = priorConfirmationIndex(i, steps);
       if (confIdx >= 0) {
@@ -566,7 +587,7 @@ export function generateFlowEA(
   const rr = mgmt?.rewardRisk ?? 3.0;
   const maxStop = mgmt?.maxStopPoints ?? 0;
   const maxOpen = mgmt?.maxOpenTrades ?? 1;
-  const entryIdxs = steps.map((s, i) => (isEntry(s.role) ? i : -1)).filter((i) => i >= 0);
+  const entryIdxs = steps.map((s, i) => (isTradeEntry(s.role) ? i : -1)).filter((i) => i >= 0);
   const setupStep = steps.find((s) => s.role === "setup" || s.role === "filter");
   const expiryBars = defaultSetupExpiryBars(setupStep);
 

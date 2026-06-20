@@ -25,8 +25,47 @@ export function genUnicornSM(
   pairWindow = 15,
   obExpiry = 300,
   uniExpiry = 250,
+  enableDraw = false,
 ): string {
   const P = `UNISMSM_${id}_`;
+  const drawFns = enableDraw
+    ? `
+#define ${P}OBJ_PREFIX "EAUNI_${id}_"
+
+void ${P}DrawRect(string nm, datetime t1, double p1, datetime t2, double p2, color c, int style, bool fill, int width)
+{
+   if(ObjectFind(0, nm) >= 0) return;
+   if(ObjectCreate(0, nm, OBJ_RECTANGLE, 0, t1, p1, t2, p2))
+   {
+      ObjectSetInteger(0, nm, OBJPROP_COLOR,      c);
+      ObjectSetInteger(0, nm, OBJPROP_STYLE,      style);
+      ObjectSetInteger(0, nm, OBJPROP_WIDTH,      width);
+      ObjectSetInteger(0, nm, OBJPROP_FILL,       fill);
+      ObjectSetInteger(0, nm, OBJPROP_BACK,       true);
+      ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, nm, OBJPROP_HIDDEN,     true);
+   }
+}
+
+void ${P}DrawUni(int dir, datetime obT, double brkHi, double brkLo, double ovTop, double ovBot, datetime matchT)
+{
+   string key = IntegerToString((long)matchT);
+   color c = (dir == 1) ? clrMediumSeaGreen : clrTomato;
+   ${P}DrawRect(${P}OBJ_PREFIX + "brk_" + key, obT, brkHi, matchT, brkLo, c, STYLE_DASH, false, 1);
+   ${P}DrawRect(${P}OBJ_PREFIX + "ovl_" + key, obT, ovTop, matchT, ovBot, c, STYLE_SOLID, true, 2);
+   string lbl = ${P}OBJ_PREFIX + "lbl_" + key;
+   double anchor = (dir == 1) ? ovBot : ovTop;
+   if(ObjectFind(0, lbl) < 0 && ObjectCreate(0, lbl, OBJ_TEXT, 0, obT, anchor))
+   {
+      ObjectSetString (0, lbl, OBJPROP_TEXT,       "Unicorn");
+      ObjectSetInteger(0, lbl, OBJPROP_COLOR,      c);
+      ObjectSetInteger(0, lbl, OBJPROP_FONTSIZE,   9);
+      ObjectSetInteger(0, lbl, OBJPROP_ANCHOR,     dir == 1 ? ANCHOR_UPPER : ANCHOR_LOWER);
+      ObjectSetInteger(0, lbl, OBJPROP_SELECTABLE, false);
+   }
+}
+`
+    : "";
 
   return `
 //+------------------------------------------------------------------+
@@ -120,6 +159,7 @@ double ${P}CalcATR(int sh)
    }
    return sum / (double)${dispAtrPeriod};
 }
+${drawFns}
 
 void ${P}AddOb(int dir, double hi, double lo, datetime obT, datetime confT)
 {
@@ -272,6 +312,7 @@ void ${P}MatchPass(int sh)
          ${P}obList[i].matched = true;
          ${P}fvgList[f].used   = true;
          ${P}AddUni(${P}obList[i].dir, ${P}obList[i].hi, ${P}obList[i].lo, ovTop, ovBot, barT);
+         ${enableDraw ? `${P}DrawUni(${P}obList[i].dir, ${P}obList[i].obTime, ${P}obList[i].hi, ${P}obList[i].lo, ovTop, ovBot, barT);` : ""}
          break;
       }
    }

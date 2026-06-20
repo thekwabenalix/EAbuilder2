@@ -111,9 +111,9 @@ interface Preset {
   name: string;
   tag: string;
   description: string;
-  direction?: { modules: BrainModuleType[]; timeframe: string };
-  setup?: { modules: BrainModuleType[]; timeframe: string };
-  execution: { modules: BrainModuleType[]; timeframe: string };
+  direction?: BrainConfig;
+  setup?: BrainConfig;
+  execution: BrainConfig;
   rr: number;
   risk: number;
   be: boolean;
@@ -128,7 +128,11 @@ const PRESETS: Preset[] = [
     name: "Unicorn Pocket",
     tag: "SMC",
     description: "ICT overlap pocket — zone-scoped rejection, enter next bar (Strategy Flow)",
-    setup: { modules: ["unicorn"], timeframe: "H1" },
+    setup: {
+      modules: ["unicorn"],
+      timeframe: "H1",
+      params: { lookback: 500, pairWindow: 15, uniExpiry: 250, drawZones: true },
+    },
     execution: { modules: ["rejection"], timeframe: "H1" },
     rr: 2,
     risk: 1,

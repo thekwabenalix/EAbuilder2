@@ -25,6 +25,25 @@ import { getModuleContract } from "./module-contracts";
 import { firstEventForRole } from "./strategy-flow-events";
 import { formatStepDisplayName } from "./strategy-step-label";
 
+/** Match Unicorn_Detector indicator defaults so flow EAs see the same pockets. */
+const UNICORN_FLOW_DEFAULT_PARAMS: Record<string, number> = {
+  lookback: 500,
+  dispMult: 1.5,
+  dispAtrPeriod: 14,
+  obScanBack: 5,
+  pairWindow: 15,
+  obExpiry: 300,
+  uniExpiry: 250,
+};
+
+function zoneFlowParams(zoneMod: string, config: FourBrainConfig): Record<string, unknown> | undefined {
+  const raw = config.setup?.params ?? config.direction?.params ?? config.execution.params;
+  if (zoneMod === "unicorn") {
+    return { ...UNICORN_FLOW_DEFAULT_PARAMS, drawZones: true, ...(raw ?? {}) };
+  }
+  return raw;
+}
+
 type BrainKind = "direction" | "setup" | "execution";
 
 /** SMC zone modules whose rejection must scope to the zone — not SNR `rejection`. */
@@ -216,7 +235,7 @@ function tryBuildZoneScopedRejectionFlow(config: FourBrainConfig): StrategyFlowC
 
   const zoneTf = config.setup?.timeframe ?? config.direction?.timeframe ?? config.execution.timeframe;
   const entryTf = config.execution.timeframe;
-  const params = config.setup?.params ?? config.direction?.params ?? config.execution.params;
+  const params = zoneFlowParams(zoneMod, config);
 
   const steps: StrategyStepConfig[] = [];
   let priorAnchor: StrategyStepConfig[] = [];

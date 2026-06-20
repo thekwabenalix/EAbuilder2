@@ -419,6 +419,7 @@ export function emitStateMachine(
         pInt(params, "pairWindow", 15),
         pInt(params, "obExpiry", 300),
         pInt(params, "uniExpiry", 250),
+        params.drawZones === true,
       );
     case "ema": {
       const ema = normalizeEmaParams(params);
@@ -496,6 +497,8 @@ export function tickArgForSm(
         return String(pInt(params, "lookback", 20));
       case "fvg":
         return String(pInt(params, "fvgLookback", 50));
+      case "unicorn":
+        return String(pInt(params, "lookback", 500));
       default:
         return String(pInt(params, "lookback", 50));
     }

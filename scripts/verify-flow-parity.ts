@@ -283,7 +283,7 @@ const unicornFlow = {
       module: "unicorn",
       timeframe: "H1",
       event: "UNICORN_ACTIVE",
-      params: { lookback: 500, uniExpiry: 250 },
+      params: { lookback: 500, uniExpiry: 250, drawZones: true },
       enabled: true,
     },
     {
@@ -315,6 +315,10 @@ assertOk(unicornCode.includes("UNISMSM_H1_BullJustRetested"), "unicorn SM expose
 assertOk(unicornCode.includes("UNISMSM_H1_BullJustConfirmed"), "unicorn SM exposes zone rejection confirm");
 assertOk(unicornCode.includes("_confT"), "unicorn next-bar entry waits for bar after confirmation");
 assertOk(unicornCode.includes("UNISMSM_H1_HasActiveBull"), "unicorn setup arms on active pocket");
+assertOk(unicornCode.includes("UNISMSM_H1_Tick(500)"), "unicorn flow tick uses 500-bar lookback");
+assertOk(!unicornCode.includes("void EvaluateEntry_1()"), "confirmation step must not open trades");
+assertOk(unicornCode.includes("void EvaluateEntry_2()"), "entry step opens trades after confirm");
+assertOk(unicornCode.includes("DrawUni"), "unicorn flow draws overlap pockets on chart");
 console.log("[OK  ] unicorn setup → zone rejection → next-bar entry flow");
 
 console.log("\n10 flow engine parity check(s) passed.\n");
