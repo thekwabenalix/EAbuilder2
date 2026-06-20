@@ -172,7 +172,7 @@ function StrategyBuilders() {
         subtitle="Two ways to create an Expert Advisor — choose the one that fits your workflow"
       />
 
-      <div className="p-6 space-y-8 max-w-5xl">
+      <div className="p-6 space-y-8 max-w-5xl mx-auto">
         {/* ── Builder selection cards (shown only on idle) ── */}
         {stage === "idle" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

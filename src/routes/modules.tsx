@@ -2716,7 +2716,7 @@ function ModulesPage() {
         subtitle="Modular trading concept engine — standalone detection, visualisation, and lifecycle modules across every major trading methodology."
       />
 
-      <div className="p-6 space-y-6 max-w-5xl">
+      <div className="p-6 space-y-6 max-w-5xl mx-auto">
         {/* Architecture banner */}
         <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 flex items-start gap-3">
           <FlaskConical className="h-4 w-4 text-primary shrink-0 mt-0.5" />
