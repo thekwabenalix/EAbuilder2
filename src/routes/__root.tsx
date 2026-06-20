@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
-import { AuthGate } from "@/components/AuthGate";
+import { LandingPage } from "@/components/LandingPage";
 import { AppShell } from "@/components/AppShell";
 import { Loader2 } from "lucide-react";
 
@@ -19,7 +19,7 @@ function Gate() {
       </div>
     );
   }
-  if (!user) return <AuthGate />;
+  if (!user) return <LandingPage />;
   return (
     <AppShell>
       <Outlet />
