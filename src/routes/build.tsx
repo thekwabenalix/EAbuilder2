@@ -41,7 +41,7 @@ import { MODULE_UI_PARAMS } from "@/lib/module-library";
 import type { UIParam } from "@/lib/module-library";
 import { getModuleAdmission, MODULE_ADMISSION_STATUS_META } from "@/lib/module-admission";
 import { firstBlueprintGenerationError } from "@/lib/blueprint-generation-gate";
-import { EaGenerationError } from "@/lib/generate-ea-router";
+import { EaGenerationError } from "@/lib/blueprint-generation-gate";
 import { StrategyFlowBuilder } from "@/components/StrategyFlowBuilder";
 import { StrategyFamilyPicker } from "@/components/StrategyFamilyPicker";
 import {

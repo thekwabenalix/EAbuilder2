@@ -245,6 +245,22 @@ const items: Item[] = [
     )!,
   },
   {
+    // Unicorn Pocket preset: zone active → SMC rejection → next-bar entry (matches /build preset)
+    file: "FLOW_Unicorn_Pocket_Preset.mq5",
+    code: tryGenerateFlowEAFromFourBrain(
+      {
+        setup: {
+          modules: ["unicorn"],
+          timeframe: "H1",
+          params: { lookback: 500, pairWindow: 15, uniExpiry: 250, drawZones: true },
+        },
+        execution: { modules: ["rejection"], timeframe: "H1" },
+        management: { riskPercent: 1, rewardRisk: 2, maxOpenTrades: 1 },
+      } as unknown as Parameters<typeof tryGenerateFlowEAFromFourBrain>[0],
+      "Unicorn_Pocket_Preset",
+    )!,
+  },
+  {
     file: "_TEST_RSIHDSM_M15.mq5",
     code: wrapInlineSM(
       "RSIHDSM M15",

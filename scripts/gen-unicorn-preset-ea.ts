@@ -34,7 +34,9 @@ const lines = code.split("\n").length;
 console.log(`Wrote ${out} (${lines} lines)`);
 console.log(`  UNISMSM_H1_Tick(500): ${code.includes("UNISMSM_H1_Tick(500)")}`);
 console.log(`  DrawUni: ${code.includes("DrawUni")}`);
-console.log(`  EvaluateEntry_2 only: ${code.includes("void EvaluateEntry_2()") && !code.includes("void EvaluateEntry_1()")}`);
+console.log(
+  `  EvaluateEntry_2 only: ${code.includes("void EvaluateEntry_2()") && !code.includes("void EvaluateEntry_1()")}`,
+);
 
 if (!lint.ok) {
   console.error("MQL5 lint warnings:", lint.warnings);

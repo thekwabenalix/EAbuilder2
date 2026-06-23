@@ -33,6 +33,7 @@
     "verify:assistant-hotfixes": "tsx scripts/verify-assistant-hotfixes.ts",
     "verify:audit": "tsx scripts/verify-trade-audit.ts",
     "verify:runner-download": "tsx scripts/verify-runner-download.ts",
+    "gen:unicorn-preset": "tsx scripts/gen-unicorn-preset-ea.ts",
     "verify:release": "npm run verify && npx tsc --noEmit && npm run lint && npm run build"
   },
   "dependencies": {
