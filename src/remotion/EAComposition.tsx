@@ -1,14 +1,7 @@
 import React from "react";
-import {
-  AbsoluteFill,
-  useCurrentFrame,
-  interpolate,
-  Easing,
-  Sequence,
-} from "remotion";
+import { AbsoluteFill, useCurrentFrame, interpolate, Easing, Sequence } from "remotion";
 
-const MONO =
-  '"JetBrains Mono","Cascadia Code","Fira Code","Courier New",monospace';
+const MONO = '"JetBrains Mono","Cascadia Code","Fira Code","Courier New",monospace';
 
 /* ── Utility sub-components ─────────────────────────────────── */
 
@@ -60,9 +53,7 @@ const CodeLine: React.FC<{
       }}
     >
       <span style={{ color }}>{text}</span>
-      {comment && (
-        <span style={{ color: "rgba(255,255,255,0.26)" }}>{comment}</span>
-      )}
+      {comment && <span style={{ color: "rgba(255,255,255,0.26)" }}>{comment}</span>}
     </div>
   );
 };
@@ -98,9 +89,7 @@ const TypewriterComment: React.FC<{ text: string; charsPerFrame: number }> = ({
     >
       {typed}
       {count < text.length && (
-        <span style={{ opacity: cursorOpacity, color: "rgba(255,255,255,0.5)" }}>
-          |
-        </span>
+        <span style={{ opacity: cursorOpacity, color: "rgba(255,255,255,0.5)" }}>|</span>
       )}
     </div>
   );
@@ -266,28 +255,16 @@ export const EAComposition: React.FC = () => {
           />
         </Sequence>
         <Sequence from={38} layout="none">
-          <CodeLine
-            text="  SetupBrain_Update();   "
-            color="#e2e8f0"
-            comment="  // FVG on H1"
-          />
+          <CodeLine text="  SetupBrain_Update();   " color="#e2e8f0" comment="  // FVG on H1" />
         </Sequence>
         <Sequence from={54} layout="none">
-          <CodeLine
-            text="  ExecBrain_Update();    "
-            color="#e2e8f0"
-            comment="  // BOS on M5"
-          />
+          <CodeLine text="  ExecBrain_Update();    " color="#e2e8f0" comment="  // BOS on M5" />
         </Sequence>
         <Sequence from={68} layout="none">
           <CodeLine text="  if (ConfluenceGate()) {" color="#93c5fd" />
         </Sequence>
         <Sequence from={76} layout="none">
-          <CodeLine
-            text="    ManageBrain_Execute();"
-            color="#e2e8f0"
-            comment="  // 1% risk, 2R"
-          />
+          <CodeLine text="    ManageBrain_Execute();" color="#e2e8f0" comment="  // 1% risk, 2R" />
         </Sequence>
         <Sequence from={90} layout="none">
           <CodeLine text="  }" color="#e2e8f0" />

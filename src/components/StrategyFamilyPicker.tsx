@@ -64,8 +64,12 @@ export function StrategyFamilyPicker({
               </div>
               {!compact && (
                 <>
-                  <p className="text-[11px] text-muted-foreground leading-snug">{family.description}</p>
-                  <p className="text-[10px] text-muted-foreground/70 font-mono">{family.examples}</p>
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    {family.description}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground/70 font-mono">
+                    {family.examples}
+                  </p>
                 </>
               )}
             </button>

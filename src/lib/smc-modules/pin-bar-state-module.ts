@@ -50,7 +50,10 @@ export function generatePinBarStateModule(): string {
       `//| Pin Bar Detector v${PIN_BAR_DETECTOR_VERSION}                              `,
       `//| Pin Bar State Module v${PIN_BAR_STATE_MODULE_VERSION} — Phase 2: State + Buffers`,
     )
-    .replace("#property indicator_plots 0", "#property indicator_buffers 4\n#property indicator_plots   0")
+    .replace(
+      "#property indicator_plots 0",
+      "#property indicator_buffers 4\n#property indicator_plots   0",
+    )
     .replace(
       "input bool            InpShowLog       = true;",
       `input bool            InpShowLog       = true;
@@ -68,10 +71,7 @@ double BearSLBuf[];`,
     "void ScanBar(int sh)\n{\n   bool _bull = IsBullPin(sh);\n   bool _bear = IsBearPin(sh);\n   WritePinBuffers(sh, _bull, _bear);\n   if(_bull)",
   );
 
-  code = code.replace(
-    "   if(IsBearPin(sh))",
-    "   if(_bear)",
-  );
+  code = code.replace("   if(IsBearPin(sh))", "   if(_bear)");
 
   code = code.replace(
     "int OnInit()  { lastBarTime = 0; return INIT_SUCCEEDED; }",

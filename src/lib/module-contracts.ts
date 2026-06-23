@@ -359,10 +359,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       {
         id: "retest",
         roles: ["setup", "execution"],
-        queryFunctions: [
-          "UNISMSM_{id}_BullJustRetested()",
-          "UNISMSM_{id}_BearJustRetested()",
-        ],
+        queryFunctions: ["UNISMSM_{id}_BullJustRetested()", "UNISMSM_{id}_BearJustRetested()"],
         meaning: "Price wicks into the overlap pocket (first touch / retest).",
       },
       {
@@ -389,13 +386,48 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       },
     ],
     params: [
-      { name: "lookback", type: "int", default: 500, description: "Bars scanned for OB/FVG/breaker patterns." },
-      { name: "dispMult", type: "double", default: 1.5, description: "Displacement body >= N × ATR." },
-      { name: "dispAtrPeriod", type: "int", default: 14, description: "ATR period for displacement filter." },
-      { name: "obScanBack", type: "int", default: 5, description: "Bars back to find the OB candle." },
-      { name: "pairWindow", type: "int", default: 15, description: "Max bars between breaker birth and FVG." },
-      { name: "obExpiry", type: "int", default: 300, description: "Bars before unbroken OB expires." },
-      { name: "uniExpiry", type: "int", default: 250, description: "Bars before matched Unicorn expires." },
+      {
+        name: "lookback",
+        type: "int",
+        default: 500,
+        description: "Bars scanned for OB/FVG/breaker patterns.",
+      },
+      {
+        name: "dispMult",
+        type: "double",
+        default: 1.5,
+        description: "Displacement body >= N × ATR.",
+      },
+      {
+        name: "dispAtrPeriod",
+        type: "int",
+        default: 14,
+        description: "ATR period for displacement filter.",
+      },
+      {
+        name: "obScanBack",
+        type: "int",
+        default: 5,
+        description: "Bars back to find the OB candle.",
+      },
+      {
+        name: "pairWindow",
+        type: "int",
+        default: 15,
+        description: "Max bars between breaker birth and FVG.",
+      },
+      {
+        name: "obExpiry",
+        type: "int",
+        default: 300,
+        description: "Bars before unbroken OB expires.",
+      },
+      {
+        name: "uniExpiry",
+        type: "int",
+        default: 250,
+        description: "Bars before matched Unicorn expires.",
+      },
     ],
     aliases: ["unicorn", "bb fvg", "breaker fvg", "ict unicorn", "breaker block fvg"],
     notes:
@@ -828,7 +860,8 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       "support/resistance continuation 2",
       "classic snr continuation",
     ],
-    notes: "Continuation after Classic SNR break with manipulation pullback and HTF engulfing filter.",
+    notes:
+      "Continuation after Classic SNR break with manipulation pullback and HTF engulfing filter.",
   },
   breaker_block: {
     id: "breaker_block",
@@ -882,13 +915,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         description: "Bars before displacement to find the OB candle.",
       },
     ],
-    aliases: [
-      "breaker block",
-      "smc breaker block",
-      "smc bb",
-      "failed order block",
-      "ob flip",
-    ],
+    aliases: ["breaker block", "smc breaker block", "smc bb", "failed order block", "ob flip"],
     notes: "SMC Breaker Block — failed OB polarity flip. Not Bollinger Bands (bb).",
   },
   rss_srr: {
@@ -903,37 +930,25 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       {
         id: "srr_active",
         roles: ["setup"],
-        queryFunctions: [
-          "RSSSRRSM_{id}_HasActiveBull()",
-          "RSSSRRSM_{id}_ActiveBullSL()",
-        ],
+        queryFunctions: ["RSSSRRSM_{id}_HasActiveBull()", "RSSSRRSM_{id}_ActiveBullSL()"],
         meaning: "Live SRR — driving Support swept ≥ minBreaks resistances, not invalidated.",
       },
       {
         id: "rss_active",
         roles: ["setup"],
-        queryFunctions: [
-          "RSSSRRSM_{id}_HasActiveBear()",
-          "RSSSRRSM_{id}_ActiveBearSL()",
-        ],
+        queryFunctions: ["RSSSRRSM_{id}_HasActiveBear()", "RSSSRRSM_{id}_ActiveBearSL()"],
         meaning: "Live RSS — driving Resistance swept ≥ minBreaks supports, not invalidated.",
       },
       {
         id: "srr_confirmed",
         roles: ["setup", "execution"],
-        queryFunctions: [
-          "RSSSRRSM_{id}_BullJustConfirmed()",
-          "RSSSRRSM_{id}_BullConfirmSL()",
-        ],
+        queryFunctions: ["RSSSRRSM_{id}_BullJustConfirmed()", "RSSSRRSM_{id}_BullConfirmSL()"],
         meaning: "SRR fired this bar — Support drove minBreaks resistance close-breaks.",
       },
       {
         id: "rss_confirmed",
         roles: ["setup", "execution"],
-        queryFunctions: [
-          "RSSSRRSM_{id}_BearJustConfirmed()",
-          "RSSSRRSM_{id}_BearConfirmSL()",
-        ],
+        queryFunctions: ["RSSSRRSM_{id}_BearJustConfirmed()", "RSSSRRSM_{id}_BearConfirmSL()"],
         meaning: "RSS fired this bar — Resistance drove minBreaks support close-breaks.",
       },
     ],
@@ -1042,13 +1057,9 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         description: "Leg range must exceed avg base range × this multiplier.",
       },
     ],
-    aliases: [
-      "mef",
-      "manipulation entry formula",
-      "mef candle",
-      "multi timeframe engulfing",
-    ],
-    notes: "Engulfing (main TF) + Gap SNR (1 TF lower) + RBR/DBD (2 TF lower) inside the engulf window.",
+    aliases: ["mef", "manipulation entry formula", "mef candle", "multi timeframe engulfing"],
+    notes:
+      "Engulfing (main TF) + Gap SNR (1 TF lower) + RBR/DBD (2 TF lower) inside the engulf window.",
   },
   qm_mef: {
     id: "qm_mef",
@@ -1138,13 +1149,9 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         description: "Leg range must exceed avg base range × this multiplier.",
       },
     ],
-    aliases: [
-      "qm mef",
-      "qm_mef",
-      "quasimodo mef",
-      "quasimodo manipulation entry",
-    ],
-    notes: "HTF engulfing-born Quasimodo — entry at left shoulder, SL beyond head, optional confluence.",
+    aliases: ["qm mef", "qm_mef", "quasimodo mef", "quasimodo manipulation entry"],
+    notes:
+      "HTF engulfing-born Quasimodo — entry at left shoulder, SL beyond head, optional confluence.",
   },
   rbr_dbd: {
     id: "rbr_dbd",
@@ -1158,37 +1165,25 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       {
         id: "demand_active",
         roles: ["setup"],
-        queryFunctions: [
-          "RBRDBDSM_{id}_HasActiveBull()",
-          "RBRDBDSM_{id}_ActiveBullSL()",
-        ],
+        queryFunctions: ["RBRDBDSM_{id}_HasActiveBull()", "RBRDBDSM_{id}_ActiveBullSL()"],
         meaning: "Live RBR demand zone — base not traded through, not expired.",
       },
       {
         id: "supply_active",
         roles: ["setup"],
-        queryFunctions: [
-          "RBRDBDSM_{id}_HasActiveBear()",
-          "RBRDBDSM_{id}_ActiveBearSL()",
-        ],
+        queryFunctions: ["RBRDBDSM_{id}_HasActiveBear()", "RBRDBDSM_{id}_ActiveBearSL()"],
         meaning: "Live DBD supply zone — base not traded through, not expired.",
       },
       {
         id: "rbr_confirmed",
         roles: ["setup", "execution"],
-        queryFunctions: [
-          "RBRDBDSM_{id}_BullJustConfirmed()",
-          "RBRDBDSM_{id}_BullConfirmSL()",
-        ],
+        queryFunctions: ["RBRDBDSM_{id}_BullJustConfirmed()", "RBRDBDSM_{id}_BullConfirmSL()"],
         meaning: "RBR demand zone confirmed this bar — leg-out broke above base.",
       },
       {
         id: "dbd_confirmed",
         roles: ["setup", "execution"],
-        queryFunctions: [
-          "RBRDBDSM_{id}_BearJustConfirmed()",
-          "RBRDBDSM_{id}_BearConfirmSL()",
-        ],
+        queryFunctions: ["RBRDBDSM_{id}_BearJustConfirmed()", "RBRDBDSM_{id}_BearConfirmSL()"],
         meaning: "DBD supply zone confirmed this bar — leg-out broke below base.",
       },
     ],
@@ -1230,14 +1225,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         description: "Leg range must exceed avg base range × this multiplier.",
       },
     ],
-    aliases: [
-      "rbr",
-      "dbd",
-      "rbr dbd",
-      "rally base rally",
-      "drop base drop",
-      "supply demand zone",
-    ],
+    aliases: ["rbr", "dbd", "rbr dbd", "rally base rally", "drop base drop", "supply demand zone"],
     notes: "RBR demand / DBD supply — base zone invalidates on close through the zone.",
   },
   breakout: {
@@ -1344,7 +1332,12 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
     ],
     params: [
       { name: "period", type: "int", default: 20, description: "Bollinger period." },
-      { name: "deviation", type: "double", default: 2, description: "Standard deviation multiplier." },
+      {
+        name: "deviation",
+        type: "double",
+        default: 2,
+        description: "Standard deviation multiplier.",
+      },
       {
         name: "mode",
         type: "string",

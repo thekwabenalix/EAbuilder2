@@ -47,7 +47,8 @@ export const STRATEGY_FAMILIES: StrategyFamilyMeta[] = [
     id: "hybrid",
     label: "Hybrid",
     shortLabel: "Mix",
-    description: "All modules — combine schools when you know the wiring (cross-family warnings still apply).",
+    description:
+      "All modules — combine schools when you know the wiring (cross-family warnings still apply).",
     examples: "HTF EMA filter + OB setup · Any custom chain",
   },
 ];
@@ -116,8 +117,7 @@ export function pickerModulesForBrain(
   const base = family ? modulesForFamily(family) : ALL_BRAIN_MODULES;
   if (role !== "execution") return base;
   const hideSnr =
-    family === "smc_ict" ||
-    (setupModules?.some((m) => ZONE_SCOPED_SETUP_MODULES.has(m)) ?? false);
+    family === "smc_ict" || (setupModules?.some((m) => ZONE_SCOPED_SETUP_MODULES.has(m)) ?? false);
   if (!hideSnr) return base;
   return base.filter((m) => m.id !== "rejection");
 }
@@ -133,9 +133,7 @@ export function inferStrategyFamilyFromModules(
   moduleIds: Array<BrainModuleType | string | undefined>,
 ): StrategyFamily {
   const ids = [
-    ...new Set(
-      moduleIds.filter((id): id is BrainModuleType => Boolean(id)) as BrainModuleType[],
-    ),
+    ...new Set(moduleIds.filter((id): id is BrainModuleType => Boolean(id)) as BrainModuleType[]),
   ];
   if (ids.length === 0) return "hybrid";
 
@@ -154,9 +152,7 @@ export function crossFamilyWarnings(
   selectedFamily: StrategyFamily,
 ): string[] {
   const ids = [
-    ...new Set(
-      moduleIds.filter((id): id is BrainModuleType => Boolean(id)) as BrainModuleType[],
-    ),
+    ...new Set(moduleIds.filter((id): id is BrainModuleType => Boolean(id)) as BrainModuleType[]),
   ];
   const warnings: string[] = [];
 

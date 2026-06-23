@@ -53,7 +53,10 @@ export function generateMefStateModule(): string {
       "//| Detection only — no trade logic.                                ",
       "//| Detection + 4-buffer iCustom contract — no trade logic.         ",
     )
-    .replace("#property indicator_plots 0", "#property indicator_buffers 4\n#property indicator_plots   0")
+    .replace(
+      "#property indicator_plots 0",
+      "#property indicator_buffers 4\n#property indicator_plots   0",
+    )
     .replace(
       "input bool   InpShowLog       = true;",
       `input bool   InpShowLog       = true;

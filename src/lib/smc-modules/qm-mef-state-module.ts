@@ -53,7 +53,10 @@ export function generateQmMefStateModule(): string {
       "//| Quasimodo uses candle CLOSES, not wicks. Detection only.       ",
       "//| Quasimodo + 4-buffer iCustom contract — detection only.        ",
     )
-    .replace("#property indicator_plots 0", "#property indicator_buffers 4\n#property indicator_plots   0")
+    .replace(
+      "#property indicator_plots 0",
+      "#property indicator_buffers 4\n#property indicator_plots   0",
+    )
     .replace(
       "input bool   InpShowLog        = true;",
       `input bool   InpShowLog        = true;

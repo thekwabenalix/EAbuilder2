@@ -83,10 +83,7 @@ function shouldSkipZoneRepair(config: FourBrainConfig, corpus: string): boolean 
     return true;
   }
 
-  if (
-    setupMod === "gap_snr" &&
-    !/\bunicorn\b|\bfvg\b|order block|overlap pocket/i.test(corpus)
-  ) {
+  if (setupMod === "gap_snr" && !/\bunicorn\b|\bfvg\b|order block|overlap pocket/i.test(corpus)) {
     return true;
   }
 

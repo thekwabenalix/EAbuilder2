@@ -113,7 +113,11 @@ export function emaPeriodsFromText(text: string): number[] {
 
 export function extractEmaPeriodsFromConfig(
   text: string,
-  config?: { direction?: { params?: Record<string, unknown> }; setup?: { params?: Record<string, unknown> }; execution?: { params?: Record<string, unknown> } },
+  config?: {
+    direction?: { params?: Record<string, unknown> };
+    setup?: { params?: Record<string, unknown> };
+    execution?: { params?: Record<string, unknown> };
+  },
 ): NormalizedEmaParams {
   const merged = {
     ...(config?.direction?.params ?? {}),
@@ -121,7 +125,10 @@ export function extractEmaPeriodsFromConfig(
     ...(config?.execution?.params ?? {}),
   };
   const fromParams = normalizeEmaParams(merged);
-  if (fromParams.periods.length >= 1 && (merged.emaPeriods || merged.fastPeriod || merged.slowPeriod)) {
+  if (
+    fromParams.periods.length >= 1 &&
+    (merged.emaPeriods || merged.fastPeriod || merged.slowPeriod)
+  ) {
     return fromParams;
   }
   return normalizeEmaParams({ emaPeriods: emaPeriodsFromText(text) });

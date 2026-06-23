@@ -138,9 +138,7 @@ function AuthModal({
             setInfo(null);
           }}
         >
-          {mode === "signin"
-            ? "Need an account? Sign up"
-            : "Already have an account? Sign in"}
+          {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
         </button>
       </div>
     </div>
@@ -309,9 +307,7 @@ export function LandingPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
-      {showAuth && (
-        <AuthModal onClose={() => setShowAuth(false)} initialMode={authMode} />
-      )}
+      {showAuth && <AuthModal onClose={() => setShowAuth(false)} initialMode={authMode} />}
 
       {/* ── Nav ─────────────────────────────────────────── */}
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-md">
@@ -331,11 +327,7 @@ export function LandingPage() {
             >
               Sign in
             </Button>
-            <Button
-              size="sm"
-              className="gap-1.5"
-              onClick={() => openAuth("signup")}
-            >
+            <Button size="sm" className="gap-1.5" onClick={() => openAuth("signup")}>
               Get started
               <ArrowRight className="h-3.5 w-3.5" />
             </Button>
@@ -380,18 +372,13 @@ export function LandingPage() {
 
             {/* Sub */}
             <p className="lp-fade-up lp-d2 text-base text-muted-foreground leading-relaxed mb-8 max-w-md">
-              Describe any strategy in plain English. EAbuilder maps it to
-              verified modules and generates a compilable, self-contained Expert
-              Advisor.
+              Describe any strategy in plain English. EAbuilder maps it to verified modules and
+              generates a compilable, self-contained Expert Advisor.
             </p>
 
             {/* CTAs */}
             <div className="lp-fade-up lp-d3 flex flex-wrap items-center gap-3 mb-8">
-              <Button
-                size="lg"
-                className="gap-2 px-6"
-                onClick={() => openAuth("signup")}
-              >
+              <Button size="lg" className="gap-2 px-6" onClick={() => openAuth("signup")}>
                 Start building free
                 <ArrowRight className="h-4 w-4" />
               </Button>
@@ -407,11 +394,7 @@ export function LandingPage() {
 
             {/* Trust row */}
             <div className="lp-fade-up lp-d4 flex flex-wrap gap-3">
-              {[
-                "No credit card required",
-                "28+ verified modules",
-                "Always compiles",
-              ].map((t) => (
+              {["No credit card required", "28+ verified modules", "Always compiles"].map((t) => (
                 <span
                   key={t}
                   className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
@@ -430,8 +413,7 @@ export function LandingPage() {
               <div
                 className="pointer-events-none absolute -inset-4 rounded-2xl opacity-20 blur-2xl"
                 style={{
-                  background:
-                    "oklch(0.63 0.24 262 / 0.6)",
+                  background: "oklch(0.63 0.24 262 / 0.6)",
                 }}
                 aria-hidden
               />
@@ -452,10 +434,11 @@ export function LandingPage() {
             { value: "1", label: "File output" },
             { value: "100%", label: "Compilation rate" },
           ].map((s) => (
-            <div key={s.label} className="flex flex-col items-center md:items-start md:px-10 gap-0.5">
-              <span className="text-2xl font-black tracking-tight text-foreground">
-                {s.value}
-              </span>
+            <div
+              key={s.label}
+              className="flex flex-col items-center md:items-start md:px-10 gap-0.5"
+            >
+              <span className="text-2xl font-black tracking-tight text-foreground">{s.value}</span>
               <span className="text-xs text-muted-foreground">{s.label}</span>
             </div>
           ))}
@@ -469,9 +452,7 @@ export function LandingPage() {
             <p className="text-[11px] font-mono text-primary/70 uppercase tracking-widest mb-3">
               How it works
             </p>
-            <h2 className="text-3xl font-black tracking-tight">
-              Three steps from idea to EA
-            </h2>
+            <h2 className="text-3xl font-black tracking-tight">Three steps from idea to EA</h2>
           </div>
 
           {/* Steps with connectors */}
@@ -479,7 +460,10 @@ export function LandingPage() {
             {/* Connector line — desktop only */}
             <div
               className="hidden md:block absolute top-8 left-[calc(33.33%+1rem)] right-[calc(33.33%+1rem)] h-px"
-              style={{ background: "linear-gradient(90deg, transparent, oklch(0.63 0.24 262 / 0.4), transparent)" }}
+              style={{
+                background:
+                  "linear-gradient(90deg, transparent, oklch(0.63 0.24 262 / 0.4), transparent)",
+              }}
               aria-hidden
             />
 
@@ -489,15 +473,11 @@ export function LandingPage() {
                 className="relative bg-card border border-border/60 rounded-xl p-6 hover:border-primary/30 transition-colors"
               >
                 {/* Step number */}
-                <div
-                  className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-primary/25 bg-primary/10 text-sm font-black font-mono text-primary mb-4"
-                >
+                <div className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-primary/25 bg-primary/10 text-sm font-black font-mono text-primary mb-4">
                   {s.n}
                 </div>
                 <h3 className="font-semibold text-sm mb-2">{s.title}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  {s.body}
-                </p>
+                <p className="text-xs text-muted-foreground leading-relaxed">{s.body}</p>
               </div>
             ))}
           </div>
@@ -511,12 +491,10 @@ export function LandingPage() {
             <p className="text-[11px] font-mono text-primary/70 uppercase tracking-widest mb-3">
               Architecture
             </p>
-            <h2 className="text-3xl font-black tracking-tight mb-3">
-              The 4-Brain model
-            </h2>
+            <h2 className="text-3xl font-black tracking-tight mb-3">The 4-Brain model</h2>
             <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
-              Every EA runs four independent brains on separate timeframes. A
-              trade fires only when all active brains agree.
+              Every EA runs four independent brains on separate timeframes. A trade fires only when
+              all active brains agree.
             </p>
           </div>
 
@@ -527,31 +505,21 @@ export function LandingPage() {
                 className={cn(
                   "bg-card border border-border/60 border-l-2 rounded-xl p-6",
                   "hover:bg-card/80 transition-colors",
-                  b.border
+                  b.border,
                 )}
               >
                 <div className="flex items-start justify-between mb-4">
                   <div
-                    className={cn(
-                      "flex items-center justify-center w-9 h-9 rounded-lg",
-                      b.iconBg
-                    )}
+                    className={cn("flex items-center justify-center w-9 h-9 rounded-lg", b.iconBg)}
                   >
                     <b.icon className={cn("h-4 w-4", b.iconColor)} />
                   </div>
-                  <span
-                    className={cn(
-                      "text-[10px] font-mono px-2 py-1 rounded-md",
-                      b.badgeColor
-                    )}
-                  >
+                  <span className={cn("text-[10px] font-mono px-2 py-1 rounded-md", b.badgeColor)}>
                     {b.badge}
                   </span>
                 </div>
                 <h3 className="text-sm font-semibold mb-1.5">{b.title}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  {b.body}
-                </p>
+                <p className="text-xs text-muted-foreground leading-relaxed">{b.body}</p>
               </div>
             ))}
           </div>
@@ -565,11 +533,11 @@ export function LandingPage() {
                     key={i}
                     className={cn(
                       "w-2.5 h-2.5 rounded-full border border-background lp-dot-pulse",
-                      c
+                      c,
                     )}
                     style={{ animationDelay: `${i * 0.4}s` }}
                   />
-                )
+                ),
               )}
             </div>
             <p className="text-xs text-primary/80 font-mono">
@@ -582,16 +550,22 @@ export function LandingPage() {
       {/* ── Module ticker ────────────────────────────────── */}
       <section className="py-14 border-t border-border/40 overflow-hidden relative">
         {/* Edge fades */}
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-24 z-10" style={{ background: "linear-gradient(90deg, var(--color-background), transparent)" }} aria-hidden />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-24 z-10" style={{ background: "linear-gradient(270deg, var(--color-background), transparent)" }} aria-hidden />
+        <div
+          className="pointer-events-none absolute inset-y-0 left-0 w-24 z-10"
+          style={{ background: "linear-gradient(90deg, var(--color-background), transparent)" }}
+          aria-hidden
+        />
+        <div
+          className="pointer-events-none absolute inset-y-0 right-0 w-24 z-10"
+          style={{ background: "linear-gradient(270deg, var(--color-background), transparent)" }}
+          aria-hidden
+        />
 
         <div className="text-center mb-8">
           <p className="text-[11px] font-mono text-primary/70 uppercase tracking-widest mb-2">
             Module library
           </p>
-          <h2 className="text-2xl font-black tracking-tight">
-            Your strategy vocabulary
-          </h2>
+          <h2 className="text-2xl font-black tracking-tight">Your strategy vocabulary</h2>
           <p className="text-sm text-muted-foreground mt-2">
             Every module is a verified, compilable building block.
           </p>
@@ -604,12 +578,8 @@ export function LandingPage() {
               key={i}
               className="flex items-center gap-2 shrink-0 rounded-lg border border-border/60 bg-card/50 px-4 py-2.5 hover:border-primary/30 transition-colors"
             >
-              <span className="text-xs font-medium whitespace-nowrap">
-                {m.name}
-              </span>
-              <span className="text-[10px] text-muted-foreground/60 font-mono">
-                {m.cat}
-              </span>
+              <span className="text-xs font-medium whitespace-nowrap">{m.name}</span>
+              <span className="text-[10px] text-muted-foreground/60 font-mono">{m.cat}</span>
             </div>
           ))}
         </div>
@@ -622,9 +592,7 @@ export function LandingPage() {
             <p className="text-[11px] font-mono text-primary/70 uppercase tracking-widest mb-3">
               Features
             </p>
-            <h2 className="text-3xl font-black tracking-tight">
-              Built for serious traders
-            </h2>
+            <h2 className="text-3xl font-black tracking-tight">Built for serious traders</h2>
             <p className="text-sm text-muted-foreground mt-2">
               Not a template builder. Not raw AI-generated code.
             </p>
@@ -640,9 +608,7 @@ export function LandingPage() {
                   <f.icon className="h-4 w-4 text-primary" />
                 </div>
                 <h3 className="text-sm font-semibold mb-2">{f.title}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  {f.body}
-                </p>
+                <p className="text-xs text-muted-foreground leading-relaxed">{f.body}</p>
               </div>
             ))}
           </div>
@@ -666,8 +632,8 @@ export function LandingPage() {
             Ready to build your first EA?
           </h2>
           <p className="text-muted-foreground text-base leading-relaxed mb-10 max-w-lg mx-auto">
-            Describe any strategy. Get a compilable MT5 Expert Advisor ready for
-            MetaEditor in minutes.
+            Describe any strategy. Get a compilable MT5 Expert Advisor ready for MetaEditor in
+            minutes.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Button

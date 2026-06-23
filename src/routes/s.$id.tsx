@@ -92,8 +92,18 @@ import {
 } from "@/lib/blueprint-generation-gate";
 import type { StrategyBlueprint } from "@/types/blueprint";
 import { DEFAULT_BLUEPRINT } from "@/types/blueprint";
-import type { FourBrainConfig, BrainConfig, BrainModuleType, StrategyFamily } from "@/types/blueprint";
-import { ALL_BRAIN_MODULES, TIMEFRAMES as TF_LIST, formatBrainChain, type BrainModuleDef } from "@/lib/brain-modules";
+import type {
+  FourBrainConfig,
+  BrainConfig,
+  BrainModuleType,
+  StrategyFamily,
+} from "@/types/blueprint";
+import {
+  ALL_BRAIN_MODULES,
+  TIMEFRAMES as TF_LIST,
+  formatBrainChain,
+  type BrainModuleDef,
+} from "@/lib/brain-modules";
 import { MODULE_UI_PARAMS } from "@/lib/module-library";
 import type { UIParam } from "@/lib/module-library";
 import { getModuleAdmission, MODULE_ADMISSION_STATUS_META } from "@/lib/module-admission";
@@ -861,7 +871,7 @@ function BrainModuleChips({
             brainRole === "execution" && isZoneScopedRejectionPair(setupModule, id);
           const label = zoneScoped
             ? `${smcZoneRejectionEventLabel(setupModule!)} + Next Bar`
-            : def?.label ?? id;
+            : (def?.label ?? id);
           return (
             <span
               key={id}
@@ -1049,32 +1059,33 @@ function ModuleParamEditor({
       </Label>
       {hasEma && <EmaPeriodEditor params={params} onChange={onChange} />}
       {allParams.length > 0 && (
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-        {allParams.map((p) => {
-          const current = typeof params[p.key] === "number" ? (params[p.key] as number) : p.default;
-          return (
-            <div key={p.key} className="space-y-0.5">
-              <Label className="text-[11px] text-muted-foreground">{p.label}</Label>
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="number"
-                  min={p.min}
-                  max={p.max}
-                  step={p.step}
-                  value={current}
-                  onChange={(e) => {
-                    const v = parseFloat(e.target.value);
-                    if (!isNaN(v)) onChange({ ...params, [p.key]: v });
-                  }}
-                  className="w-full h-7 rounded border border-border bg-background px-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
-                  title={p.hint}
-                />
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+          {allParams.map((p) => {
+            const current =
+              typeof params[p.key] === "number" ? (params[p.key] as number) : p.default;
+            return (
+              <div key={p.key} className="space-y-0.5">
+                <Label className="text-[11px] text-muted-foreground">{p.label}</Label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min={p.min}
+                    max={p.max}
+                    step={p.step}
+                    value={current}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (!isNaN(v)) onChange({ ...params, [p.key]: v });
+                    }}
+                    className="w-full h-7 rounded border border-border bg-background px-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                    title={p.hint}
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground/60 leading-tight">{p.hint}</p>
               </div>
-              <p className="text-[10px] text-muted-foreground/60 leading-tight">{p.hint}</p>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
@@ -1294,8 +1305,9 @@ function FourBrainTab({
     seedAdvancedFlow(blueprint, cfg),
   );
 
-  const [strategyFamily, setStrategyFamily] = useState<StrategyFamily>(() =>
-    blueprint.strategyFamily ??
+  const [strategyFamily, setStrategyFamily] = useState<StrategyFamily>(
+    () =>
+      blueprint.strategyFamily ??
       inferStrategyFamilyFromModules([
         ...(cfg.direction?.modules ?? []),
         ...(cfg.setup?.modules ?? []),
@@ -1347,9 +1359,7 @@ function FourBrainTab({
           ...(direction?.modules ?? []),
           ...(setup?.modules ?? []),
           ...execution.modules,
-          ...(builderMode === "advanced"
-            ? flowConfig.steps.map((s) => s.module)
-            : []),
+          ...(builderMode === "advanced" ? flowConfig.steps.map((s) => s.module) : []),
         ],
         strategyFamily,
       ),
@@ -1467,11 +1477,7 @@ function FourBrainTab({
 
   return (
     <div className="max-w-3xl space-y-5 pb-24">
-      <StrategyFamilyPicker
-        value={strategyFamily}
-        onChange={handleStrategyFamilyChange}
-        compact
-      />
+      <StrategyFamilyPicker value={strategyFamily} onChange={handleStrategyFamilyChange} compact />
 
       {familyWarnings.length > 0 && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 space-y-1">

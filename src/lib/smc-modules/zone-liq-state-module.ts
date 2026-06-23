@@ -18,10 +18,7 @@ export const ZONE_LIQ_STATE_MODULE_VERSION = LIQUIDITY_BUILDUP_STATE_MODULE_VERS
 
 export function generateLiquidityBuildupStateModule(): string {
   return generateLiquidityBuildup()
-    .replace(
-      "//| Liquidity_Buildup.mq5",
-      `//| ${LIQUIDITY_BUILDUP_STATE_MODULE}.mq5`,
-    )
+    .replace("//| Liquidity_Buildup.mq5", `//| ${LIQUIDITY_BUILDUP_STATE_MODULE}.mq5`)
     .replace(
       `//| SMC Liquidity v${LIQUIDITY_BUILDUP_VERSION} — Combined OB + BB + FVG`,
       `//| Liquidity Buildup State Module v${LIQUIDITY_BUILDUP_STATE_MODULE_VERSION}`,

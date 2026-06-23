@@ -15,7 +15,7 @@
  */
 
 export const SNRC1_DETECTOR_VERSION = "2.0.0";
-export const SNRC1_DETECTOR_MODULE  = "SNRC1_Detector";
+export const SNRC1_DETECTOR_MODULE = "SNRC1_Detector";
 
 export function generateSnrc1Detector(): string {
   return `//+------------------------------------------------------------------+

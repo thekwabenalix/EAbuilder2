@@ -268,7 +268,11 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       signals: [
         { fn: "SWINGSM_{id}_IsBull()", returns: "bool", meaning: "HH+HL bull bias" },
         { fn: "SWINGSM_{id}_IsBear()", returns: "bool", meaning: "LH+LL bear bias" },
-        { fn: "SWINGSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Swing high confirmed" },
+        {
+          fn: "SWINGSM_{id}_BullJustConfirmed()",
+          returns: "bool",
+          meaning: "Swing high confirmed",
+        },
         { fn: "SWINGSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "Swing low confirmed" },
         { fn: "SWINGSM_{id}_ActiveBullSL()", returns: "double", meaning: "Last swing low" },
         { fn: "SWINGSM_{id}_ActiveBearSL()", returns: "double", meaning: "Last swing high" },
@@ -833,7 +837,8 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         usage: "BB CONFIRMED = retest held — entry signal with SL at retest extreme.",
       },
     ],
-    lifecycle: "OB broken → BB born → ACTIVE → RETESTED → CONFIRMED | MITIGATED | INVALIDATED | EXPIRED",
+    lifecycle:
+      "OB broken → BB born → ACTIVE → RETESTED → CONFIRMED | MITIGATED | INVALIDATED | EXPIRED",
     params: [
       {
         name: "lookback",
@@ -899,8 +904,16 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         { fn: "BBSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "Bear BB confirmed" },
         { fn: "BBSM_{id}_BullConfirmSL()", returns: "double", meaning: "SL below retest low" },
         { fn: "BBSM_{id}_BearConfirmSL()", returns: "double", meaning: "SL above retest high" },
-        { fn: "BBSM_{id}_ActiveBullSL()", returns: "double", meaning: "SL hint for active bull BB" },
-        { fn: "BBSM_{id}_ActiveBearSL()", returns: "double", meaning: "SL hint for active bear BB" },
+        {
+          fn: "BBSM_{id}_ActiveBullSL()",
+          returns: "double",
+          meaning: "SL hint for active bull BB",
+        },
+        {
+          fn: "BBSM_{id}_ActiveBearSL()",
+          returns: "double",
+          meaning: "SL hint for active bear BB",
+        },
       ],
       reset: "BBSM_{id}_Reset()",
     },
@@ -947,7 +960,8 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         usage: "RSS/SRR fires when minBreaks threshold reached — entry at driving level.",
       },
     ],
-    lifecycle: "Classic SNR level → opposite close-breaks counted → RSS/SRR fires once → invalidated on wick breach",
+    lifecycle:
+      "Classic SNR level → opposite close-breaks counted → RSS/SRR fires once → invalidated on wick breach",
     params: [
       {
         name: "lookback",
@@ -994,14 +1008,38 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     inlineApi: {
       tick: "RSSSRRSM_{id}_Tick(lookback)",
       signals: [
-        { fn: "RSSSRRSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "SRR buy signal this bar" },
-        { fn: "RSSSRRSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "RSS sell signal this bar" },
-        { fn: "RSSSRRSM_{id}_BullConfirmSL()", returns: "double", meaning: "S wick low — SL for longs" },
-        { fn: "RSSSRRSM_{id}_BearConfirmSL()", returns: "double", meaning: "R wick high — SL for shorts" },
+        {
+          fn: "RSSSRRSM_{id}_BullJustConfirmed()",
+          returns: "bool",
+          meaning: "SRR buy signal this bar",
+        },
+        {
+          fn: "RSSSRRSM_{id}_BearJustConfirmed()",
+          returns: "bool",
+          meaning: "RSS sell signal this bar",
+        },
+        {
+          fn: "RSSSRRSM_{id}_BullConfirmSL()",
+          returns: "double",
+          meaning: "S wick low — SL for longs",
+        },
+        {
+          fn: "RSSSRRSM_{id}_BearConfirmSL()",
+          returns: "double",
+          meaning: "R wick high — SL for shorts",
+        },
         { fn: "RSSSRRSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live SRR setup" },
         { fn: "RSSSRRSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live RSS setup" },
-        { fn: "RSSSRRSM_{id}_ActiveBullSL()", returns: "double", meaning: "SL hint for active SRR" },
-        { fn: "RSSSRRSM_{id}_ActiveBearSL()", returns: "double", meaning: "SL hint for active RSS" },
+        {
+          fn: "RSSSRRSM_{id}_ActiveBullSL()",
+          returns: "double",
+          meaning: "SL hint for active SRR",
+        },
+        {
+          fn: "RSSSRRSM_{id}_ActiveBearSL()",
+          returns: "double",
+          meaning: "SL hint for active RSS",
+        },
       ],
       reset: "RSSSRRSM_{id}_Reset()",
     },
@@ -1124,14 +1162,38 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     inlineApi: {
       tick: "RBRDBDSM_{id}_Tick(lookback)",
       signals: [
-        { fn: "RBRDBDSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "RBR demand this bar" },
-        { fn: "RBRDBDSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "DBD supply this bar" },
-        { fn: "RBRDBDSM_{id}_BullConfirmSL()", returns: "double", meaning: "Demand zone low — SL for longs" },
-        { fn: "RBRDBDSM_{id}_BearConfirmSL()", returns: "double", meaning: "Supply zone high — SL for shorts" },
+        {
+          fn: "RBRDBDSM_{id}_BullJustConfirmed()",
+          returns: "bool",
+          meaning: "RBR demand this bar",
+        },
+        {
+          fn: "RBRDBDSM_{id}_BearJustConfirmed()",
+          returns: "bool",
+          meaning: "DBD supply this bar",
+        },
+        {
+          fn: "RBRDBDSM_{id}_BullConfirmSL()",
+          returns: "double",
+          meaning: "Demand zone low — SL for longs",
+        },
+        {
+          fn: "RBRDBDSM_{id}_BearConfirmSL()",
+          returns: "double",
+          meaning: "Supply zone high — SL for shorts",
+        },
         { fn: "RBRDBDSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live RBR demand zone" },
         { fn: "RBRDBDSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live DBD supply zone" },
-        { fn: "RBRDBDSM_{id}_ActiveBullSL()", returns: "double", meaning: "SL hint for active demand" },
-        { fn: "RBRDBDSM_{id}_ActiveBearSL()", returns: "double", meaning: "SL hint for active supply" },
+        {
+          fn: "RBRDBDSM_{id}_ActiveBullSL()",
+          returns: "double",
+          meaning: "SL hint for active demand",
+        },
+        {
+          fn: "RBRDBDSM_{id}_ActiveBearSL()",
+          returns: "double",
+          meaning: "SL hint for active supply",
+        },
       ],
       reset: "RBRDBDSM_{id}_Reset()",
     },
@@ -1248,12 +1310,28 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       signals: [
         { fn: "MEFSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Bull MEF this bar" },
         { fn: "MEFSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "Bear MEF this bar" },
-        { fn: "MEFSM_{id}_BullConfirmSL()", returns: "double", meaning: "Engulfing low — SL for longs" },
-        { fn: "MEFSM_{id}_BearConfirmSL()", returns: "double", meaning: "Engulfing high — SL for shorts" },
+        {
+          fn: "MEFSM_{id}_BullConfirmSL()",
+          returns: "double",
+          meaning: "Engulfing low — SL for longs",
+        },
+        {
+          fn: "MEFSM_{id}_BearConfirmSL()",
+          returns: "double",
+          meaning: "Engulfing high — SL for shorts",
+        },
         { fn: "MEFSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live bull MEF" },
         { fn: "MEFSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live bear MEF" },
-        { fn: "MEFSM_{id}_ActiveBullSL()", returns: "double", meaning: "SL hint for active bull MEF" },
-        { fn: "MEFSM_{id}_ActiveBearSL()", returns: "double", meaning: "SL hint for active bear MEF" },
+        {
+          fn: "MEFSM_{id}_ActiveBullSL()",
+          returns: "double",
+          meaning: "SL hint for active bull MEF",
+        },
+        {
+          fn: "MEFSM_{id}_ActiveBearSL()",
+          returns: "double",
+          meaning: "SL hint for active bear MEF",
+        },
       ],
       reset: "MEFSM_{id}_Reset()",
     },
@@ -1297,7 +1375,8 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         usage: "Fire when left shoulder is touched (BullJustConfirmed) — right-shoulder entry.",
       },
     ],
-    lifecycle: "HTF engulf + LTF QM → await LS retest → entry at LS touch → invalidate on head break or expiry",
+    lifecycle:
+      "HTF engulf + LTF QM → await LS retest → entry at LS touch → invalidate on head break or expiry",
     params: [
       {
         name: "lookback",
@@ -1376,14 +1455,46 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     inlineApi: {
       tick: "QMMEFSM_{id}_Tick(lookback)",
       signals: [
-        { fn: "QMMEFSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Bull LS touched this bar" },
-        { fn: "QMMEFSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "Bear LS touched this bar" },
-        { fn: "QMMEFSM_{id}_BullConfirmSL()", returns: "double", meaning: "Head level — SL for longs" },
-        { fn: "QMMEFSM_{id}_BearConfirmSL()", returns: "double", meaning: "Head level — SL for shorts" },
-        { fn: "QMMEFSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live bull QM awaiting LS" },
-        { fn: "QMMEFSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live bear QM awaiting LS" },
-        { fn: "QMMEFSM_{id}_ActiveBullSL()", returns: "double", meaning: "SL hint for active bull QM" },
-        { fn: "QMMEFSM_{id}_ActiveBearSL()", returns: "double", meaning: "SL hint for active bear QM" },
+        {
+          fn: "QMMEFSM_{id}_BullJustConfirmed()",
+          returns: "bool",
+          meaning: "Bull LS touched this bar",
+        },
+        {
+          fn: "QMMEFSM_{id}_BearJustConfirmed()",
+          returns: "bool",
+          meaning: "Bear LS touched this bar",
+        },
+        {
+          fn: "QMMEFSM_{id}_BullConfirmSL()",
+          returns: "double",
+          meaning: "Head level — SL for longs",
+        },
+        {
+          fn: "QMMEFSM_{id}_BearConfirmSL()",
+          returns: "double",
+          meaning: "Head level — SL for shorts",
+        },
+        {
+          fn: "QMMEFSM_{id}_HasActiveBull()",
+          returns: "bool",
+          meaning: "Live bull QM awaiting LS",
+        },
+        {
+          fn: "QMMEFSM_{id}_HasActiveBear()",
+          returns: "bool",
+          meaning: "Live bear QM awaiting LS",
+        },
+        {
+          fn: "QMMEFSM_{id}_ActiveBullSL()",
+          returns: "double",
+          meaning: "SL hint for active bull QM",
+        },
+        {
+          fn: "QMMEFSM_{id}_ActiveBearSL()",
+          returns: "double",
+          meaning: "SL hint for active bear QM",
+        },
       ],
       reset: "QMMEFSM_{id}_Reset()",
     },
@@ -1612,16 +1723,56 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     inlineApi: {
       tick: "UNISMSM_{id}_Tick(lookback)",
       signals: [
-        { fn: "UNISMSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live bullish Unicorn overlap" },
-        { fn: "UNISMSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live bearish Unicorn overlap" },
-        { fn: "UNISMSM_{id}_BullJustRetested()", returns: "bool", meaning: "Wick into bull overlap pocket" },
-        { fn: "UNISMSM_{id}_BearJustRetested()", returns: "bool", meaning: "Wick into bear overlap pocket" },
-        { fn: "UNISMSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Close outside pocket after retest — long zone rejection" },
-        { fn: "UNISMSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "Close outside pocket after retest — short zone rejection" },
-        { fn: "UNISMSM_{id}_BullConfirmSL()", returns: "double", meaning: "Retest wick low — SL for longs" },
-        { fn: "UNISMSM_{id}_BearConfirmSL()", returns: "double", meaning: "Retest wick high — SL for shorts" },
-        { fn: "UNISMSM_{id}_ActiveBullSL()", returns: "double", meaning: "Setup SL hint for active bull Unicorn" },
-        { fn: "UNISMSM_{id}_ActiveBearSL()", returns: "double", meaning: "Setup SL hint for active bear Unicorn" },
+        {
+          fn: "UNISMSM_{id}_HasActiveBull()",
+          returns: "bool",
+          meaning: "Live bullish Unicorn overlap",
+        },
+        {
+          fn: "UNISMSM_{id}_HasActiveBear()",
+          returns: "bool",
+          meaning: "Live bearish Unicorn overlap",
+        },
+        {
+          fn: "UNISMSM_{id}_BullJustRetested()",
+          returns: "bool",
+          meaning: "Wick into bull overlap pocket",
+        },
+        {
+          fn: "UNISMSM_{id}_BearJustRetested()",
+          returns: "bool",
+          meaning: "Wick into bear overlap pocket",
+        },
+        {
+          fn: "UNISMSM_{id}_BullJustConfirmed()",
+          returns: "bool",
+          meaning: "Close outside pocket after retest — long zone rejection",
+        },
+        {
+          fn: "UNISMSM_{id}_BearJustConfirmed()",
+          returns: "bool",
+          meaning: "Close outside pocket after retest — short zone rejection",
+        },
+        {
+          fn: "UNISMSM_{id}_BullConfirmSL()",
+          returns: "double",
+          meaning: "Retest wick low — SL for longs",
+        },
+        {
+          fn: "UNISMSM_{id}_BearConfirmSL()",
+          returns: "double",
+          meaning: "Retest wick high — SL for shorts",
+        },
+        {
+          fn: "UNISMSM_{id}_ActiveBullSL()",
+          returns: "double",
+          meaning: "Setup SL hint for active bull Unicorn",
+        },
+        {
+          fn: "UNISMSM_{id}_ActiveBearSL()",
+          returns: "double",
+          meaning: "Setup SL hint for active bear Unicorn",
+        },
       ],
       reset: "UNISMSM_{id}_Reset()",
     },
@@ -2423,10 +2574,26 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     inlineApi: {
       tick: "ZLSM_{id}_Tick(lookback)",
       signals: [
-        { fn: "ZLSM_{id}_HasActiveBull()", returns: "bool", meaning: "Zone with liquidity built (bull)" },
-        { fn: "ZLSM_{id}_HasActiveBear()", returns: "bool", meaning: "Zone with liquidity built (bear)" },
-        { fn: "ZLSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "New bull buildup this bar" },
-        { fn: "ZLSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "New bear buildup this bar" },
+        {
+          fn: "ZLSM_{id}_HasActiveBull()",
+          returns: "bool",
+          meaning: "Zone with liquidity built (bull)",
+        },
+        {
+          fn: "ZLSM_{id}_HasActiveBear()",
+          returns: "bool",
+          meaning: "Zone with liquidity built (bear)",
+        },
+        {
+          fn: "ZLSM_{id}_BullJustConfirmed()",
+          returns: "bool",
+          meaning: "New bull buildup this bar",
+        },
+        {
+          fn: "ZLSM_{id}_BearJustConfirmed()",
+          returns: "bool",
+          meaning: "New bear buildup this bar",
+        },
         { fn: "ZLSM_{id}_BullConfirmSL()", returns: "double", meaning: "Bull SL" },
         { fn: "ZLSM_{id}_BearConfirmSL()", returns: "double", meaning: "Bear SL" },
         { fn: "ZLSM_{id}_ActiveBullSL()", returns: "double", meaning: "Armed bull SL hint" },
@@ -3059,28 +3226,74 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       "Uses iBands (buffer 0=mid, 1=upper, 2=lower). Touch: lower-band rejection (wick below, close above) for longs; upper-band rejection for shorts. Breakout: close above upper / below lower. Midline bias: close vs mid.",
     roles: [
       { role: "direction", fit: "primary", usage: "IsBull/IsBear from close vs midline." },
-      { role: "setup", fit: "primary", usage: "HasActiveBull/Bear when price holds above/below midline." },
-      { role: "execution", fit: "primary", usage: "BullJustConfirmed on lower-band touch rejection (touch mode)." },
+      {
+        role: "setup",
+        fit: "primary",
+        usage: "HasActiveBull/Bear when price holds above/below midline.",
+      },
+      {
+        role: "execution",
+        fit: "primary",
+        usage: "BullJustConfirmed on lower-band touch rejection (touch mode).",
+      },
     ],
     lifecycle: "Point-in-time on the just-closed bar — recalculated each tick",
     params: [
-      { name: "period", type: "int", default: 20, range: [5, 100], description: "Bollinger period", traderPhrases: [] },
-      { name: "deviation", type: "double", default: 2, range: [1, 4], description: "Std-dev multiplier", traderPhrases: [] },
+      {
+        name: "period",
+        type: "int",
+        default: 20,
+        range: [5, 100],
+        description: "Bollinger period",
+        traderPhrases: [],
+      },
+      {
+        name: "deviation",
+        type: "double",
+        default: 2,
+        range: [1, 4],
+        description: "Std-dev multiplier",
+        traderPhrases: [],
+      },
     ],
     outputStates: [
-      { name: "BullJustConfirmed()", meaning: "Lower-band touch rejection or upper breakout", tradingImplication: "ENTRY LONG" },
-      { name: "BearJustConfirmed()", meaning: "Upper-band touch rejection or lower breakout", tradingImplication: "ENTRY SHORT" },
-      { name: "IsBull() / IsBear()", meaning: "Close above/below midline", tradingImplication: "Direction bias" },
+      {
+        name: "BullJustConfirmed()",
+        meaning: "Lower-band touch rejection or upper breakout",
+        tradingImplication: "ENTRY LONG",
+      },
+      {
+        name: "BearJustConfirmed()",
+        meaning: "Upper-band touch rejection or lower breakout",
+        tradingImplication: "ENTRY SHORT",
+      },
+      {
+        name: "IsBull() / IsBear()",
+        meaning: "Close above/below midline",
+        tradingImplication: "Direction bias",
+      },
     ],
     inlineApi: {
       tick: "BOLLSM_{id}_Tick(1)",
       signals: [
-        { fn: "BOLLSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Bull band signal this bar" },
-        { fn: "BOLLSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "Bear band signal this bar" },
+        {
+          fn: "BOLLSM_{id}_BullJustConfirmed()",
+          returns: "bool",
+          meaning: "Bull band signal this bar",
+        },
+        {
+          fn: "BOLLSM_{id}_BearJustConfirmed()",
+          returns: "bool",
+          meaning: "Bear band signal this bar",
+        },
         { fn: "BOLLSM_{id}_IsBull()", returns: "bool", meaning: "Close above midline" },
         { fn: "BOLLSM_{id}_IsBear()", returns: "bool", meaning: "Close below midline" },
         { fn: "BOLLSM_{id}_BullConfirmSL()", returns: "double", meaning: "Bar low — SL for longs" },
-        { fn: "BOLLSM_{id}_BearConfirmSL()", returns: "double", meaning: "Bar high — SL for shorts" },
+        {
+          fn: "BOLLSM_{id}_BearConfirmSL()",
+          returns: "double",
+          meaning: "Bar high — SL for shorts",
+        },
       ],
       reset: "BOLLSM_{id}_Reset()",
     },
@@ -3156,9 +3369,21 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         { fn: "PINSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Bull pin bar this bar" },
         { fn: "PINSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "Bear pin bar this bar" },
         { fn: "PINSM_{id}_BullConfirmSL()", returns: "double", meaning: "Bar low — SL for longs" },
-        { fn: "PINSM_{id}_BearConfirmSL()", returns: "double", meaning: "Bar high — SL for shorts" },
-        { fn: "PINSM_{id}_HasActiveBull()", returns: "bool", meaning: "Just-closed bar is bull pin" },
-        { fn: "PINSM_{id}_HasActiveBear()", returns: "bool", meaning: "Just-closed bar is bear pin" },
+        {
+          fn: "PINSM_{id}_BearConfirmSL()",
+          returns: "double",
+          meaning: "Bar high — SL for shorts",
+        },
+        {
+          fn: "PINSM_{id}_HasActiveBull()",
+          returns: "bool",
+          meaning: "Just-closed bar is bull pin",
+        },
+        {
+          fn: "PINSM_{id}_HasActiveBear()",
+          returns: "bool",
+          meaning: "Just-closed bar is bear pin",
+        },
       ],
       reset: "PINSM_{id}_Reset()",
     },

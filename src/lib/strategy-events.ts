@@ -180,7 +180,8 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
     label: "SMC Zone Rejection — FVG",
     category: "entry",
     roles: ["execution"],
-    description: "Price wicks into the FVG and closes outside — zone-scoped SMC rejection (not SNR).",
+    description:
+      "Price wicks into the FVG and closes outside — zone-scoped SMC rejection (not SNR).",
     carriesDirection: true,
     carriesPrice: true,
     carriesZone: true,
@@ -213,7 +214,8 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
     label: "SMC Zone Rejection — IFVG",
     category: "entry",
     roles: ["execution"],
-    description: "Price wicks into the IFVG and closes outside — zone-scoped SMC rejection (not SNR).",
+    description:
+      "Price wicks into the IFVG and closes outside — zone-scoped SMC rejection (not SNR).",
     carriesDirection: true,
     carriesPrice: true,
     carriesZone: true,
@@ -246,7 +248,8 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
     label: "SMC Zone Rejection — OB",
     category: "entry",
     roles: ["execution"],
-    description: "Price wicks into the order block and closes outside — zone-scoped SMC rejection (not SNR).",
+    description:
+      "Price wicks into the order block and closes outside — zone-scoped SMC rejection (not SNR).",
     carriesDirection: true,
     carriesPrice: true,
     carriesZone: true,
@@ -301,7 +304,8 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
     label: "SMC Zone Rejection — Unicorn",
     category: "entry",
     roles: ["execution"],
-    description: "After pocket retest, close holds outside the overlap — SMC zone rejection (not SNR).",
+    description:
+      "After pocket retest, close holds outside the overlap — SMC zone rejection (not SNR).",
     carriesDirection: true,
     carriesPrice: true,
     carriesZone: true,
@@ -466,7 +470,8 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
     label: "Liquidity Buildup Confirmed",
     category: "entry",
     roles: ["setup", "execution"],
-    description: "New liquidity buildup on this bar — closest wick within proximity of the zone edge.",
+    description:
+      "New liquidity buildup on this bar — closest wick within proximity of the zone edge.",
     carriesDirection: true,
     carriesPrice: true,
     carriesZone: true,
@@ -477,7 +482,8 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
     label: "SNRC2 Active",
     category: "zone",
     roles: ["setup"],
-    description: "SNRC2 continuation pattern is live — entry level active until tapped or invalidated.",
+    description:
+      "SNRC2 continuation pattern is live — entry level active until tapped or invalidated.",
     carriesDirection: true,
     carriesPrice: true,
     carriesZone: false,
@@ -488,7 +494,8 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
     label: "SNRC2 Confirmed",
     category: "entry",
     roles: ["setup", "execution"],
-    description: "SNRC2 continuation pattern confirmed this bar (L3/R3 pivot with HTF engulfing filter).",
+    description:
+      "SNRC2 continuation pattern confirmed this bar (L3/R3 pivot with HTF engulfing filter).",
     carriesDirection: true,
     carriesPrice: true,
     carriesZone: false,
@@ -510,7 +517,8 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
     label: "SMC Zone Rejection — Breaker Block",
     category: "entry",
     roles: ["setup", "execution"],
-    description: "Price wicks into the breaker block and closes outside — zone-scoped SMC rejection.",
+    description:
+      "Price wicks into the breaker block and closes outside — zone-scoped SMC rejection.",
     carriesDirection: true,
     carriesPrice: true,
     carriesZone: true,

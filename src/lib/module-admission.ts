@@ -315,8 +315,7 @@ export const MODULE_ADMISSION: Record<string, ModuleAdmissionRecord> = {
     status: "verified_state_machine",
     aiVocabulary: true,
     contractRequired: true,
-    notes:
-      "Verified Bollinger Bands inline state machine (BOLLSM). Not SMC Breaker Block (BBSM).",
+    notes: "Verified Bollinger Bands inline state machine (BOLLSM). Not SMC Breaker Block (BBSM).",
   },
   pin_bar: {
     id: "pin_bar",

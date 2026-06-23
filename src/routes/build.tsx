@@ -27,7 +27,12 @@ import {
 import { toast } from "sonner";
 import { createStrategy } from "@/lib/strategies";
 import { extractBrainParams } from "@/lib/api-client";
-import type { FourBrainConfig, BrainConfig, BrainModuleType, StrategyFamily } from "@/types/blueprint";
+import type {
+  FourBrainConfig,
+  BrainConfig,
+  BrainModuleType,
+  StrategyFamily,
+} from "@/types/blueprint";
 import type { StrategyBlueprint } from "@/types/blueprint";
 import { DEFAULT_BLUEPRINT } from "@/types/blueprint";
 import { ALL_BRAIN_MODULES, TIMEFRAMES as TF_LIST } from "@/lib/brain-modules";
@@ -611,13 +616,14 @@ function BrainCard({
               {state.modules.map((modId) => {
                 const mod = modules.find((m) => m.id === modId);
                 const zoneScoped =
-                  role === "execution" &&
-                  isZoneScopedRejectionPair(setupModule, modId);
+                  role === "execution" && isZoneScopedRejectionPair(setupModule, modId);
                 const label = zoneScoped
                   ? `${smcZoneRejectionEventLabel(setupModule!)} + Next Bar`
-                  : mod?.label ?? modId.replace(/_/g, " ");
-                const colorClass = zoneScoped ? "text-emerald-400" : mod?.color ?? "text-foreground";
-                const symbol = zoneScoped ? "✓" : mod?.symbol ?? "•";
+                  : (mod?.label ?? modId.replace(/_/g, " "));
+                const colorClass = zoneScoped
+                  ? "text-emerald-400"
+                  : (mod?.color ?? "text-foreground");
+                const symbol = zoneScoped ? "✓" : (mod?.symbol ?? "•");
                 return (
                   <span key={modId} className={`text-xs font-medium ${colorClass}`}>
                     {symbol} {label}
@@ -726,44 +732,42 @@ function BrainCard({
                     <div className="mb-3">
                       <EmaPeriodEditor
                         params={(state?.params as Record<string, unknown>) ?? {}}
-                        onChange={(p) =>
-                          onChange({ ...(state as BrainState), params: p })
-                        }
+                        onChange={(p) => onChange({ ...(state as BrainState), params: p })}
                       />
                     </div>
                   )}
                   {allUiParams.length > 0 && (
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                    {allUiParams.map((p) => {
-                      const current =
-                        typeof state?.params?.[p.key] === "number"
-                          ? (state.params![p.key] as number)
-                          : p.default;
-                      return (
-                        <div key={p.key} className="space-y-0.5">
-                          <label className="text-[11px] text-muted-foreground">{p.label}</label>
-                          <input
-                            type="number"
-                            min={p.min}
-                            max={p.max}
-                            step={p.step}
-                            value={current}
-                            onChange={(e) => {
-                              const v = parseFloat(e.target.value);
-                              if (!isNaN(v))
-                                onChange({
-                                  ...(state as BrainState),
-                                  params: { ...(state?.params ?? {}), [p.key]: v },
-                                });
-                            }}
-                            className="w-full h-7 rounded border border-border bg-background px-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
-                            title={p.hint}
-                          />
-                          <p className="text-[10px] text-muted-foreground/60">{p.hint}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                      {allUiParams.map((p) => {
+                        const current =
+                          typeof state?.params?.[p.key] === "number"
+                            ? (state.params![p.key] as number)
+                            : p.default;
+                        return (
+                          <div key={p.key} className="space-y-0.5">
+                            <label className="text-[11px] text-muted-foreground">{p.label}</label>
+                            <input
+                              type="number"
+                              min={p.min}
+                              max={p.max}
+                              step={p.step}
+                              value={current}
+                              onChange={(e) => {
+                                const v = parseFloat(e.target.value);
+                                if (!isNaN(v))
+                                  onChange({
+                                    ...(state as BrainState),
+                                    params: { ...(state?.params ?? {}), [p.key]: v },
+                                  });
+                              }}
+                              className="w-full h-7 rounded border border-border bg-background px-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                              title={p.hint}
+                            />
+                            <p className="text-[10px] text-muted-foreground/60">{p.hint}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
               );
@@ -1275,14 +1279,7 @@ function FourBrainBuilderPage() {
   const familyWarnings = useMemo(() => {
     if (!strategyFamily) return [];
     return crossFamilyWarnings(allSelectedModuleIds(), strategyFamily);
-  }, [
-    strategyFamily,
-    direction,
-    setup,
-    execution,
-    builderMode,
-    flowConfig.steps,
-  ]);
+  }, [strategyFamily, direction, setup, execution, builderMode, flowConfig.steps]);
 
   const execConfigured = Boolean(execution?.modules?.[0] && execution.timeframe);
   const flowHasEntry = flowConfig.steps.some(
@@ -1328,371 +1325,372 @@ function FourBrainBuilderPage() {
             strategyFamily ? "" : "opacity-40 pointer-events-none select-none",
           ].join(" ")}
         >
-        {/* ── Presets ── */}
-        <div>
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">
-            Quick start — presets
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {PRESETS.map((p) => (
-              <button
-                key={p.name}
-                onClick={() => applyPreset(p)}
-                className="group flex flex-col gap-1.5 rounded-lg border border-border hover:border-primary/50 bg-card hover:bg-muted/20 p-3 text-left transition-all"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold group-hover:text-primary transition-colors">
-                    {p.name}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">
-                    {p.tag}
-                  </span>
-                </div>
-                <p className="text-[11px] text-muted-foreground leading-snug">{p.description}</p>
-                {p.flowChain && p.flowChain.length > 0 && (
-                  <ul className="text-[10px] text-emerald-400/80 space-y-0.5 font-mono leading-snug">
-                    {p.flowChain.map((step) => (
-                      <li key={step}>{step}</li>
-                    ))}
-                  </ul>
-                )}
-                <div className="flex items-center gap-1 mt-1 text-[10px] font-mono text-muted-foreground/60">
-                  <span>{p.rr}R</span>
-                  <span>·</span>
-                  <span>{p.risk}%</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* ── Builder mode ── */}
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-            Builder mode
-          </p>
-          <div className="rounded-lg border border-border p-1 flex gap-1 bg-muted/20 max-w-xl">
-            <button
-              type="button"
-              onClick={() => setBuilderMode("simple")}
-              className={[
-                "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-all",
-                builderMode === "simple"
-                  ? "bg-background text-foreground shadow-sm border border-border"
-                  : "text-muted-foreground hover:text-foreground",
-              ].join(" ")}
-            >
-              Simple — 4-Brain preset
-            </button>
-            <button
-              type="button"
-              onClick={activateAdvancedMode}
-              className={[
-                "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-all",
-                builderMode === "advanced"
-                  ? "bg-background text-foreground shadow-sm border border-border"
-                  : "text-muted-foreground hover:text-foreground",
-              ].join(" ")}
-            >
-              Advanced — Strategy Flow
-            </button>
-          </div>
-          <p className="text-[11px] text-muted-foreground max-w-2xl">
-            {builderMode === "simple"
-              ? "Three brain slots (Direction · Setup · Execution). The compiler expands them into ordered steps automatically."
-              : "Build any number of ordered module steps from scratch — same Strategy Flow engine as AI output and the advanced editor on saved strategies."}
-          </p>
-        </div>
-
-        {builderMode === "advanced" ? (
-          <div className="space-y-4 max-w-2xl">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <GitBranch className="h-4 w-4 text-sky-400" />
-                Ordered event chain — add, reorder, and configure each step
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="text-xs shrink-0"
-                disabled={!buildFourBrainConfig()}
-                onClick={() => seedFlowFromBrains()}
-              >
-                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                Import from 4-Brain preset
-              </Button>
-            </div>
-            <StrategyFlowBuilder
-              flow={flowConfig}
-              onChange={setFlowConfig}
-              strategyFamily={strategyFamily}
-            />
-          </div>
-        ) : (
-          <>
-            <ActiveConfluenceFilters
-              filterRefs={filterRefs}
-              indicatorRefs={indicatorRefs}
-              onRemoveFilter={removeFilter}
-              onRemoveIndicator={removeIndicator}
-            />
-
-            {/* ── Brain flow ── */}
-            <div>
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">
-                Configure each brain
-              </p>
-              <div className="flex items-stretch gap-0 flex-col lg:flex-row">
-                <BrainCard
-                  role="direction"
-                  icon={Brain}
-                  title="Direction Brain"
-                  color="bg-violet-500"
-                  state={direction}
-                  onChange={setDirection}
-                  onClear={() => setDirection(undefined)}
-                  optional
-                  recommendBelow={setup?.timeframe ?? execution?.timeframe}
-                  onIndicatorSideEffect={handleIndicatorSideEffect}
-                  familyModules={brainPickerModules("direction")}
-                />
-                <Arrow active={Boolean(direction?.modules?.[0])} />
-                <BrainCard
-                  role="setup"
-                  icon={Target}
-                  title="Setup Brain"
-                  color="bg-amber-500"
-                  state={setup}
-                  onChange={setSetup}
-                  onClear={() => setSetup(undefined)}
-                  optional
-                  recommendAbove={direction?.timeframe}
-                  recommendBelow={execution?.timeframe}
-                  onIndicatorSideEffect={handleIndicatorSideEffect}
-                  familyModules={brainPickerModules("setup")}
-                />
-                <Arrow active={Boolean(setup?.modules?.[0])} />
-                <BrainCard
-                  role="execution"
-                  icon={Crosshair}
-                  title="Execution Brain"
-                  color="bg-emerald-500"
-                  state={execution}
-                  onChange={setExecution}
-                  onClear={() => {}}
-                  optional={false}
-                  familyModules={brainPickerModules("execution")}
-                  setupModule={setupModuleId}
-                  recommendAbove={setup?.timeframe ?? direction?.timeframe}
-                  onIndicatorSideEffect={handleIndicatorSideEffect}
-                />
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* ── Management Brain ── */}
-        <div className="rounded-xl border border-border bg-card p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="p-1.5 rounded-lg bg-sky-500/10">
-              <Settings2 className="h-4 w-4 text-sky-400" />
-            </div>
-            <span className="text-sm font-semibold">Management Brain</span>
-            <span className="text-[10px] text-muted-foreground">risk · exits · limits</span>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-5">
-            {/* Risk */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <Label className="text-xs">Risk per trade</Label>
-                <span className="text-xs font-mono text-primary">{risk.toFixed(1)}%</span>
-              </div>
-              <Slider
-                min={0.1}
-                max={5}
-                step={0.1}
-                value={[risk]}
-                onValueChange={([v]) => setRisk(v)}
-              />
-            </div>
-
-            {/* R:R */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <Label className="text-xs">Reward : Risk</Label>
-                <span className="text-xs font-mono text-primary">{rr.toFixed(1)}R</span>
-              </div>
-              <Slider
-                min={0.5}
-                max={10}
-                step={0.5}
-                value={[rr]}
-                onValueChange={([v]) => setRr(v)}
-              />
-            </div>
-
-            {/* Stop buffer */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <Label className="text-xs">Stop buffer</Label>
-                <span className="text-xs font-mono text-primary">{stopBuffer} pts</span>
-              </div>
-              <Slider
-                min={5}
-                max={100}
-                step={5}
-                value={[stopBuffer]}
-                onValueChange={([v]) => setStopBuffer(v)}
-              />
-            </div>
-
-            {/* Max SL */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <Label className="text-xs">Max stop loss</Label>
-                <span className="text-xs font-mono text-primary">
-                  {maxStopPts === 0
-                    ? "no limit"
-                    : `${maxStopPts} pts (${(maxStopPts / 10).toFixed(0)} pips)`}
-                </span>
-              </div>
-              <Slider
-                min={0}
-                max={300}
-                step={10}
-                value={[maxStopPts]}
-                onValueChange={([v]) => setMaxStopPts(v)}
-              />
-              <p className="text-[10px] text-muted-foreground/60">
-                Skip trades whose SL distance exceeds this. 0 = no limit.
-              </p>
-            </div>
-
-            {/* Break-even */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <Label className="text-xs">Break-even</Label>
-                <Switch checked={be} onCheckedChange={setBe} />
-              </div>
-              {be && (
-                <div className="flex justify-between items-center">
-                  <span className="text-[11px] text-muted-foreground">Move SL to B/E at</span>
-                  <div className="flex items-center gap-2">
-                    <Slider
-                      min={0.25}
-                      max={3}
-                      step={0.25}
-                      value={[beAt]}
-                      onValueChange={([v]) => setBeAt(v)}
-                      className="w-24"
-                    />
-                    <span className="text-xs font-mono text-primary w-8">{beAt}R</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Max trades */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <Label className="text-xs">Max open trades</Label>
-                <span className="text-xs font-mono text-primary">{maxTrades}</span>
-              </div>
-              <Slider
-                min={1}
-                max={10}
-                step={1}
-                value={[maxTrades]}
-                onValueChange={([v]) => setMaxTrades(v)}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* ── Strategy Rules — cross-brain conditions for AI ── */}
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-5 py-4 space-y-2">
+          {/* ── Presets ── */}
           <div>
-            <Label className="text-xs font-semibold text-amber-400">Strategy Rules</Label>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              Conditions that apply across the whole strategy — max SL distance, required sequences,
-              invalidation rules, session filters. Claude reads this when generating with AI.
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">
+              Quick start — presets
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {PRESETS.map((p) => (
+                <button
+                  key={p.name}
+                  onClick={() => applyPreset(p)}
+                  className="group flex flex-col gap-1.5 rounded-lg border border-border hover:border-primary/50 bg-card hover:bg-muted/20 p-3 text-left transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold group-hover:text-primary transition-colors">
+                      {p.name}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">
+                      {p.tag}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-snug">{p.description}</p>
+                  {p.flowChain && p.flowChain.length > 0 && (
+                    <ul className="text-[10px] text-emerald-400/80 space-y-0.5 font-mono leading-snug">
+                      {p.flowChain.map((step) => (
+                        <li key={step}>{step}</li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="flex items-center gap-1 mt-1 text-[10px] font-mono text-muted-foreground/60">
+                    <span>{p.rr}R</span>
+                    <span>·</span>
+                    <span>{p.risk}%</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Builder mode ── */}
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+              Builder mode
+            </p>
+            <div className="rounded-lg border border-border p-1 flex gap-1 bg-muted/20 max-w-xl">
+              <button
+                type="button"
+                onClick={() => setBuilderMode("simple")}
+                className={[
+                  "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-all",
+                  builderMode === "simple"
+                    ? "bg-background text-foreground shadow-sm border border-border"
+                    : "text-muted-foreground hover:text-foreground",
+                ].join(" ")}
+              >
+                Simple — 4-Brain preset
+              </button>
+              <button
+                type="button"
+                onClick={activateAdvancedMode}
+                className={[
+                  "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-all",
+                  builderMode === "advanced"
+                    ? "bg-background text-foreground shadow-sm border border-border"
+                    : "text-muted-foreground hover:text-foreground",
+                ].join(" ")}
+              >
+                Advanced — Strategy Flow
+              </button>
+            </div>
+            <p className="text-[11px] text-muted-foreground max-w-2xl">
+              {builderMode === "simple"
+                ? "Three brain slots (Direction · Setup · Execution). The compiler expands them into ordered steps automatically."
+                : "Build any number of ordered module steps from scratch — same Strategy Flow engine as AI output and the advanced editor on saved strategies."}
             </p>
           </div>
-          <Textarea
-            value={strategyNotes}
-            onChange={(e) => setStrategyNotes(e.target.value)}
-            rows={3}
-            className="text-xs font-mono resize-none"
-            placeholder={`• If opposite EMA cross fires, reset direction and cancel all pending setups
+
+          {builderMode === "advanced" ? (
+            <div className="space-y-4 max-w-2xl">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <GitBranch className="h-4 w-4 text-sky-400" />
+                  Ordered event chain — add, reorder, and configure each step
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs shrink-0"
+                  disabled={!buildFourBrainConfig()}
+                  onClick={() => seedFlowFromBrains()}
+                >
+                  <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                  Import from 4-Brain preset
+                </Button>
+              </div>
+              <StrategyFlowBuilder
+                flow={flowConfig}
+                onChange={setFlowConfig}
+                strategyFamily={strategyFamily}
+              />
+            </div>
+          ) : (
+            <>
+              <ActiveConfluenceFilters
+                filterRefs={filterRefs}
+                indicatorRefs={indicatorRefs}
+                onRemoveFilter={removeFilter}
+                onRemoveIndicator={removeIndicator}
+              />
+
+              {/* ── Brain flow ── */}
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">
+                  Configure each brain
+                </p>
+                <div className="flex items-stretch gap-0 flex-col lg:flex-row">
+                  <BrainCard
+                    role="direction"
+                    icon={Brain}
+                    title="Direction Brain"
+                    color="bg-violet-500"
+                    state={direction}
+                    onChange={setDirection}
+                    onClear={() => setDirection(undefined)}
+                    optional
+                    recommendBelow={setup?.timeframe ?? execution?.timeframe}
+                    onIndicatorSideEffect={handleIndicatorSideEffect}
+                    familyModules={brainPickerModules("direction")}
+                  />
+                  <Arrow active={Boolean(direction?.modules?.[0])} />
+                  <BrainCard
+                    role="setup"
+                    icon={Target}
+                    title="Setup Brain"
+                    color="bg-amber-500"
+                    state={setup}
+                    onChange={setSetup}
+                    onClear={() => setSetup(undefined)}
+                    optional
+                    recommendAbove={direction?.timeframe}
+                    recommendBelow={execution?.timeframe}
+                    onIndicatorSideEffect={handleIndicatorSideEffect}
+                    familyModules={brainPickerModules("setup")}
+                  />
+                  <Arrow active={Boolean(setup?.modules?.[0])} />
+                  <BrainCard
+                    role="execution"
+                    icon={Crosshair}
+                    title="Execution Brain"
+                    color="bg-emerald-500"
+                    state={execution}
+                    onChange={setExecution}
+                    onClear={() => {}}
+                    optional={false}
+                    familyModules={brainPickerModules("execution")}
+                    setupModule={setupModuleId}
+                    recommendAbove={setup?.timeframe ?? direction?.timeframe}
+                    onIndicatorSideEffect={handleIndicatorSideEffect}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ── Management Brain ── */}
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="p-1.5 rounded-lg bg-sky-500/10">
+                <Settings2 className="h-4 w-4 text-sky-400" />
+              </div>
+              <span className="text-sm font-semibold">Management Brain</span>
+              <span className="text-[10px] text-muted-foreground">risk · exits · limits</span>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-5">
+              {/* Risk */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label className="text-xs">Risk per trade</Label>
+                  <span className="text-xs font-mono text-primary">{risk.toFixed(1)}%</span>
+                </div>
+                <Slider
+                  min={0.1}
+                  max={5}
+                  step={0.1}
+                  value={[risk]}
+                  onValueChange={([v]) => setRisk(v)}
+                />
+              </div>
+
+              {/* R:R */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label className="text-xs">Reward : Risk</Label>
+                  <span className="text-xs font-mono text-primary">{rr.toFixed(1)}R</span>
+                </div>
+                <Slider
+                  min={0.5}
+                  max={10}
+                  step={0.5}
+                  value={[rr]}
+                  onValueChange={([v]) => setRr(v)}
+                />
+              </div>
+
+              {/* Stop buffer */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label className="text-xs">Stop buffer</Label>
+                  <span className="text-xs font-mono text-primary">{stopBuffer} pts</span>
+                </div>
+                <Slider
+                  min={5}
+                  max={100}
+                  step={5}
+                  value={[stopBuffer]}
+                  onValueChange={([v]) => setStopBuffer(v)}
+                />
+              </div>
+
+              {/* Max SL */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label className="text-xs">Max stop loss</Label>
+                  <span className="text-xs font-mono text-primary">
+                    {maxStopPts === 0
+                      ? "no limit"
+                      : `${maxStopPts} pts (${(maxStopPts / 10).toFixed(0)} pips)`}
+                  </span>
+                </div>
+                <Slider
+                  min={0}
+                  max={300}
+                  step={10}
+                  value={[maxStopPts]}
+                  onValueChange={([v]) => setMaxStopPts(v)}
+                />
+                <p className="text-[10px] text-muted-foreground/60">
+                  Skip trades whose SL distance exceeds this. 0 = no limit.
+                </p>
+              </div>
+
+              {/* Break-even */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label className="text-xs">Break-even</Label>
+                  <Switch checked={be} onCheckedChange={setBe} />
+                </div>
+                {be && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-[11px] text-muted-foreground">Move SL to B/E at</span>
+                    <div className="flex items-center gap-2">
+                      <Slider
+                        min={0.25}
+                        max={3}
+                        step={0.25}
+                        value={[beAt]}
+                        onValueChange={([v]) => setBeAt(v)}
+                        className="w-24"
+                      />
+                      <span className="text-xs font-mono text-primary w-8">{beAt}R</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Max trades */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label className="text-xs">Max open trades</Label>
+                  <span className="text-xs font-mono text-primary">{maxTrades}</span>
+                </div>
+                <Slider
+                  min={1}
+                  max={10}
+                  step={1}
+                  value={[maxTrades]}
+                  onValueChange={([v]) => setMaxTrades(v)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* ── Strategy Rules — cross-brain conditions for AI ── */}
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-5 py-4 space-y-2">
+            <div>
+              <Label className="text-xs font-semibold text-amber-400">Strategy Rules</Label>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Conditions that apply across the whole strategy — max SL distance, required
+                sequences, invalidation rules, session filters. Claude reads this when generating
+                with AI.
+              </p>
+            </div>
+            <Textarea
+              value={strategyNotes}
+              onChange={(e) => setStrategyNotes(e.target.value)}
+              rows={3}
+              className="text-xs font-mono resize-none"
+              placeholder={`• If opposite EMA cross fires, reset direction and cancel all pending setups
 • Only enter after price retests either EMA — ignore any IFVGs that formed before
 • Max stop loss = 7 pips (70 points) — skip trade if SL distance exceeds this
 • Breakeven at 1.5R, keep original TP active`}
-          />
-        </div>
-
-        {/* ── Compiler path + trade audit preview ── */}
-        {draftBlueprint && (
-          <div className="space-y-3 max-w-2xl">
-            <GenerationPathBanner blueprint={draftBlueprint} />
-            <TradeAuditPanel blueprint={draftBlueprint} compact />
+            />
           </div>
-        )}
 
-        {/* ── Summary + Generate ── */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-xl border border-border bg-card/50 px-5 py-4">
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
-              Strategy summary
-            </p>
-            <p className="text-sm font-mono text-foreground truncate">{summary()}</p>
-          </div>
-          <Button
-            size="lg"
-            disabled={!canBuildEa || saving}
-            onClick={onGenerate}
-            className="shrink-0 gap-2"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Saving…
-              </>
-            ) : (
-              <>
-                <Zap className="h-4 w-4" /> Generate EA
-              </>
-            )}
-          </Button>
-        </div>
-
-        {!canBuildEa && !strategyFamily && (
-          <p className="text-xs text-amber-400 text-center">
-            Choose a strategy family above to unlock the builder.
-          </p>
-        )}
-        {!canBuildEa && builderMode === "simple" && !execConfigured && (
-          <p className="text-xs text-amber-400 text-center">
-            Configure the Execution Brain to enable EA generation.
-          </p>
-        )}
-        {!canBuildEa && builderMode === "advanced" && !flowHasEntry && (
-          <p className="text-xs text-amber-400 text-center">
-            Add at least one Entry step to your Strategy Flow to enable EA generation.
-          </p>
-        )}
-        {!canBuildEa && unsafeAiModules.length > 0 && (
-          <p className="text-xs text-amber-400 text-center">
-            EA generation is blocked for: {unsafeAiModules.join(", ")}. These modules are visible
-            for planning, but need verified state-machine contracts before they can trade.
-          </p>
-        )}
-        {!canBuildEa &&
-          strategyFamily &&
-          strategyFamily !== "hybrid" &&
-          familyWarnings.length > 0 && (
-            <p className="text-xs text-amber-400 text-center">{familyWarnings[0]}</p>
+          {/* ── Compiler path + trade audit preview ── */}
+          {draftBlueprint && (
+            <div className="space-y-3 max-w-2xl">
+              <GenerationPathBanner blueprint={draftBlueprint} />
+              <TradeAuditPanel blueprint={draftBlueprint} compact />
+            </div>
           )}
+
+          {/* ── Summary + Generate ── */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-xl border border-border bg-card/50 px-5 py-4">
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
+                Strategy summary
+              </p>
+              <p className="text-sm font-mono text-foreground truncate">{summary()}</p>
+            </div>
+            <Button
+              size="lg"
+              disabled={!canBuildEa || saving}
+              onClick={onGenerate}
+              className="shrink-0 gap-2"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Saving…
+                </>
+              ) : (
+                <>
+                  <Zap className="h-4 w-4" /> Generate EA
+                </>
+              )}
+            </Button>
+          </div>
+
+          {!canBuildEa && !strategyFamily && (
+            <p className="text-xs text-amber-400 text-center">
+              Choose a strategy family above to unlock the builder.
+            </p>
+          )}
+          {!canBuildEa && builderMode === "simple" && !execConfigured && (
+            <p className="text-xs text-amber-400 text-center">
+              Configure the Execution Brain to enable EA generation.
+            </p>
+          )}
+          {!canBuildEa && builderMode === "advanced" && !flowHasEntry && (
+            <p className="text-xs text-amber-400 text-center">
+              Add at least one Entry step to your Strategy Flow to enable EA generation.
+            </p>
+          )}
+          {!canBuildEa && unsafeAiModules.length > 0 && (
+            <p className="text-xs text-amber-400 text-center">
+              EA generation is blocked for: {unsafeAiModules.join(", ")}. These modules are visible
+              for planning, but need verified state-machine contracts before they can trade.
+            </p>
+          )}
+          {!canBuildEa &&
+            strategyFamily &&
+            strategyFamily !== "hybrid" &&
+            familyWarnings.length > 0 && (
+              <p className="text-xs text-amber-400 text-center">{familyWarnings[0]}</p>
+            )}
         </div>
       </div>
     </div>

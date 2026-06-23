@@ -81,7 +81,8 @@ function StepParamEditor({
       {scalarParams.length > 0 && (
         <div className="grid grid-cols-2 gap-x-3 gap-y-2">
           {scalarParams.map((p) => {
-            const current = typeof params[p.key] === "number" ? (params[p.key] as number) : p.default;
+            const current =
+              typeof params[p.key] === "number" ? (params[p.key] as number) : p.default;
             return (
               <div key={p.key} className="space-y-0.5">
                 <Label className="text-[10px] text-muted-foreground">{p.label}</Label>
@@ -420,10 +421,9 @@ export function StrategyFlowBuilder({
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           Each step is a verified module event. Steps run in order — a trade fires only when every
           step in the chain has occurred (with timestamps). Use <strong>Setup</strong> for zone
-          active, <strong>Confirmation</strong> for{" "}
-          <strong>SMC zone rejection</strong> (wick into OB/FVG/Unicorn, close outside), then{" "}
-          <strong>Entry</strong> or next-bar events. SNR Rejection is only for horizontal S/R levels
-          in the S/R &amp; SnD family.
+          active, <strong>Confirmation</strong> for <strong>SMC zone rejection</strong> (wick into
+          OB/FVG/Unicorn, close outside), then <strong>Entry</strong> or next-bar events. SNR
+          Rejection is only for horizontal S/R levels in the S/R &amp; SnD family.
         </p>
       </div>
 

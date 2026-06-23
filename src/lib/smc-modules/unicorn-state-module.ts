@@ -49,7 +49,10 @@ export function generateUnicornStateModule(): string {
       `//| SMC Combination v${UNICORN_DETECTOR_VERSION} — Unicorn (Breaker + FVG)   `,
       `//| Unicorn State Module v${UNICORN_STATE_MODULE_VERSION} — Phase 2: State + Buffers`,
     )
-    .replace("#property indicator_plots 0", "#property indicator_buffers 4\n#property indicator_plots   0")
+    .replace(
+      "#property indicator_plots 0",
+      "#property indicator_buffers 4\n#property indicator_plots   0",
+    )
     .replace(
       "input bool            InpShowLog      = true;",
       `input bool            InpShowLog      = true;

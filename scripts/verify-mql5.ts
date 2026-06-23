@@ -626,7 +626,12 @@ const phase3CoverageCases: Array<{
       required_sms: ["BOSSM_H4", "SNRC2SM_H1", "EGSM_M15"],
       sm_configs: {
         bos_H4: sm("bos", "H4", { lookback: 20 }),
-        snrc2_H1: sm("snrc2", "H1", { lookback: 400, swingStrength: 2, htfTf: "H4", htfLookback: 4 }),
+        snrc2_H1: sm("snrc2", "H1", {
+          lookback: 400,
+          swingStrength: 2,
+          htfTf: "H4",
+          htfLookback: 4,
+        }),
         engulfing_M15: sm("engulfing", "M15", { scanBack: 3 }),
       },
     },
@@ -987,7 +992,11 @@ const phase3CoverageCases: Array<{
     config: {
       direction: { modules: ["bb"], timeframe: "H4", params: { period: 20, deviation: 2 } },
       setup: { modules: ["fvg"], timeframe: "H1" },
-      execution: { modules: ["bb"], timeframe: "M15", params: { period: 20, deviation: 2, mode: "touch" } },
+      execution: {
+        modules: ["bb"],
+        timeframe: "M15",
+        params: { period: 20, deviation: 2, mode: "touch" },
+      },
       management: { riskPercent: 1, rewardRisk: 2, stopBuffer: 20, maxOpenTrades: 1 },
     },
     aiWiring: {
@@ -1223,8 +1232,7 @@ runAiTest("RSI HD setup template embeds verified SM", "RSI_HD_Template_Setup_Tes
     ["RSIHDSM reset emitted", code.includes("RSIHDSM_M5_Reset();")],
     [
       "RSIHDSM ticked",
-      code.includes(`RSIHDSM_M5_Tick(${rsiTickArg});`) &&
-        code.includes("B4_TickOnce_RSIHDSM_M5"),
+      code.includes(`RSIHDSM_M5_Tick(${rsiTickArg});`) && code.includes("B4_TickOnce_RSIHDSM_M5"),
     ],
     ["RSI params preserved", code.includes("iRSI(InpSymbol, PERIOD_M5, 21, PRICE_CLOSE)")],
     ["setup uses active bull", code.includes("RSIHDSM_M5_HasActiveBull()")],

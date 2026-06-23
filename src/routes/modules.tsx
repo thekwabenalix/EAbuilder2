@@ -139,11 +139,7 @@ function downloadMql5(filename: string, content: string) {
 type ModuleStatus = "ready" | "pending" | "planned" | "builtin";
 
 /** How this file is meant to be used — not the same as Strategy Builder brain slots. */
-type ModuleCatalogKind =
-  | "standalone_indicator"
-  | "state_module"
-  | "full_ea"
-  | "brain_composable";
+type ModuleCatalogKind = "standalone_indicator" | "state_module" | "full_ea" | "brain_composable";
 
 interface ModuleEntry {
   id: string;
@@ -2599,7 +2595,9 @@ function ModuleCard({ mod }: { mod: ModuleEntry }) {
           </div>
           <p className="text-xs text-muted-foreground">{mod.description}</p>
           {mod.supersededBy && (
-            <p className="text-[11px] text-amber-400/90 mt-1.5 leading-snug">{mod.supersededBy.hint}</p>
+            <p className="text-[11px] text-amber-400/90 mt-1.5 leading-snug">
+              {mod.supersededBy.hint}
+            </p>
           )}
         </div>
         {isReady && (
@@ -2721,9 +2719,7 @@ function ModulesPage() {
         <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 flex items-start gap-3">
           <FlaskConical className="h-4 w-4 text-primary shrink-0 mt-0.5" />
           <div className="text-xs text-primary/80 space-y-2">
-            <p className="font-semibold text-primary">
-              Two catalogs — do not confuse them
-            </p>
+            <p className="font-semibold text-primary">Two catalogs — do not confuse them</p>
             <p>
               <span className="font-medium text-foreground/90">Strategy Builder</span> (
               <Link to="/build" className="underline hover:text-primary">
@@ -2736,7 +2732,7 @@ function ModulesPage() {
             <p>
               <span className="font-medium text-foreground/90">Trading Modules</span> (this page) is
               a download library of standalone MT5 files — detectors, liquidity visualisers, state
-              modules, and full EAs.               Items like{" "}
+              modules, and full EAs. Items like{" "}
               <span className="font-medium">FVG / OB / BB Liquidity Detector</span> are legacy
               standalone files (superseded by{" "}
               <span className="font-medium">Liquidity Buildup + zone_liq / ZLSM</span>) —{" "}

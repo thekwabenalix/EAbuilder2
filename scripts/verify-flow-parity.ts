@@ -312,7 +312,10 @@ const unicornFlow = {
 };
 const unicornCode = generateFlowEA(unicornFlow, "Unicorn_ZoneReject_Test");
 assertOk(unicornCode.includes("UNISMSM_H1_BullJustRetested"), "unicorn SM exposes pocket retest");
-assertOk(unicornCode.includes("UNISMSM_H1_BullJustConfirmed"), "unicorn SM exposes zone rejection confirm");
+assertOk(
+  unicornCode.includes("UNISMSM_H1_BullJustConfirmed"),
+  "unicorn SM exposes zone rejection confirm",
+);
 assertOk(unicornCode.includes("_confT"), "unicorn next-bar entry waits for bar after confirmation");
 assertOk(unicornCode.includes("UNISMSM_H1_HasActiveBull"), "unicorn setup arms on active pocket");
 assertOk(unicornCode.includes("UNISMSM_H1_Tick(500)"), "unicorn flow tick uses 500-bar lookback");

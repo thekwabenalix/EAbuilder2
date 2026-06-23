@@ -456,9 +456,10 @@ export function emitStateMachine(
           : typeof params.stdDev === "number"
             ? params.stdDev
             : 2.0,
-        (params.mode === "breakout" || params.mode === "midline"
-          ? params.mode
-          : "touch") as "touch" | "breakout" | "midline",
+        (params.mode === "breakout" || params.mode === "midline" ? params.mode : "touch") as
+          | "touch"
+          | "breakout"
+          | "midline",
       );
     default:
       return `// Unknown SM type: ${type} (id=${id})`;

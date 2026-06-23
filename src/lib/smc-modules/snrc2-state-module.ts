@@ -13,10 +13,7 @@
  * NO trading logic — state tracking, signal buffers, and visualisation only.
  */
 
-import {
-  SNRC2_DETECTOR_VERSION,
-  generateSnrc2Detector,
-} from "./snrc2-detector";
+import { SNRC2_DETECTOR_VERSION, generateSnrc2Detector } from "./snrc2-detector";
 
 export const SNRC2_STATE_MODULE_VERSION = "1.0.0";
 export const SNRC2_STATE_MODULE = "SNRC2_State_Module";
@@ -79,7 +76,10 @@ export function generateSnrc2StateModule(): string {
       "//| Detection only — no trade logic.                                ",
       "//| Detection + 4-buffer iCustom contract — no trade logic.         ",
     )
-    .replace("#property indicator_plots 0", "#property indicator_buffers 4\n#property indicator_plots   0")
+    .replace(
+      "#property indicator_plots 0",
+      "#property indicator_buffers 4\n#property indicator_plots   0",
+    )
     .replace('#define OBJ_PREFIX  "SMSNRC2_"', '#define OBJ_PREFIX  "SMCSNRC2_"')
     .replace(
       "input bool            InpShowLog     = true;",

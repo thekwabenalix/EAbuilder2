@@ -36,7 +36,10 @@ const UNICORN_FLOW_DEFAULT_PARAMS: Record<string, number> = {
   uniExpiry: 250,
 };
 
-function zoneFlowParams(zoneMod: string, config: FourBrainConfig): Record<string, unknown> | undefined {
+function zoneFlowParams(
+  zoneMod: string,
+  config: FourBrainConfig,
+): Record<string, unknown> | undefined {
   const raw = config.setup?.params ?? config.direction?.params ?? config.execution.params;
   if (zoneMod === "unicorn") {
     return { ...UNICORN_FLOW_DEFAULT_PARAMS, drawZones: true, ...(raw ?? {}) };
@@ -103,8 +106,7 @@ function zoneActiveEvent(moduleId: string): StrategyEventType | undefined {
 
 function zoneRejectionEvent(moduleId: string): StrategyEventType | undefined {
   const mapped = MODULE_SEMANTIC_EVENT_TYPES[moduleId];
-  const fromSemantic =
-    mapped?.zone_rejection ?? mapped?.overlap_entry ?? mapped?.confirmation;
+  const fromSemantic = mapped?.zone_rejection ?? mapped?.overlap_entry ?? mapped?.confirmation;
   return fromSemantic ?? firstEventForRole(moduleId, "confirmation");
 }
 
@@ -132,9 +134,7 @@ export function normalizeMisplacedModules(config: FourBrainConfig): FourBrainCon
   }
 
   next.direction =
-    dirOk.length > 0
-      ? { ...config.direction!, modules: dirOk as BrainModuleType[] }
-      : undefined;
+    dirOk.length > 0 ? { ...config.direction!, modules: dirOk as BrainModuleType[] } : undefined;
 
   return next;
 }
@@ -208,12 +208,10 @@ export function downstreamAnchorSteps(steps: StrategyStepConfig[]): StrategyStep
 }
 
 function resolveZoneModule(config: FourBrainConfig): BrainModuleType | null {
-  const setupMod =
-    config.setup?.modules?.length === 1 ? config.setup.modules[0] : undefined;
+  const setupMod = config.setup?.modules?.length === 1 ? config.setup.modules[0] : undefined;
   if (setupMod && ZONE_SCOPED_SETUP_MODULES.has(setupMod)) return setupMod;
 
-  const dirMod =
-    config.direction?.modules?.length === 1 ? config.direction.modules[0] : undefined;
+  const dirMod = config.direction?.modules?.length === 1 ? config.direction.modules[0] : undefined;
   if (dirMod && ZONE_SCOPED_SETUP_MODULES.has(dirMod) && !config.setup) return dirMod;
 
   return null;
@@ -233,7 +231,8 @@ function tryBuildZoneScopedRejectionFlow(config: FourBrainConfig): StrategyFlowC
   const rejectEv = zoneRejectionEvent(zoneMod);
   if (!activeEv || !rejectEv) return null;
 
-  const zoneTf = config.setup?.timeframe ?? config.direction?.timeframe ?? config.execution.timeframe;
+  const zoneTf =
+    config.setup?.timeframe ?? config.direction?.timeframe ?? config.execution.timeframe;
   const entryTf = config.execution.timeframe;
   const params = zoneFlowParams(zoneMod, config);
 

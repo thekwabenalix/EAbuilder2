@@ -72,7 +72,9 @@ export function buildZoneScopedRejectionStrategyFlowWiring(
 ): AiBrainWiring {
   const cfg = effectiveConfig(text, config);
   if (!cfg) {
-    throw new Error("buildZoneScopedRejectionStrategyFlowWiring: not a zone-scoped rejection strategy");
+    throw new Error(
+      "buildZoneScopedRejectionStrategyFlowWiring: not a zone-scoped rejection strategy",
+    );
   }
 
   const normalized = normalizeMisplacedModules(cfg);

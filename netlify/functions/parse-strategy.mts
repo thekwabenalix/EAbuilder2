@@ -1640,10 +1640,9 @@ export function normalizeBlueprint(
   ];
   blueprint.strategyFamily = inferStrategyFamilyFromModules(fbModules);
 
-  return enrichBlueprintWithStrategyFlow(blueprint as import("../../src/types/blueprint.js").StrategyBlueprint) as Record<
-    string,
-    unknown
-  >;
+  return enrichBlueprintWithStrategyFlow(
+    blueprint as import("../../src/types/blueprint.js").StrategyBlueprint,
+  ) as Record<string, unknown>;
 }
 
 function cleanJson(raw: string): string {

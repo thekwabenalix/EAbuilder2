@@ -19,8 +19,19 @@ export type Snrc2CoreOpts = {
 };
 
 export function emitSnrc2Core(o: Snrc2CoreOpts): string {
-  const { p, sym, tf, htf, lookback, swingStrength, htfLookback, expiryBars, draw, objPrefix, showLog } =
-    o;
+  const {
+    p,
+    sym,
+    tf,
+    htf,
+    lookback,
+    swingStrength,
+    htfLookback,
+    expiryBars,
+    draw,
+    objPrefix,
+    showLog,
+  } = o;
 
   return `
 #define ${p}DIR_BULL    1

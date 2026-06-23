@@ -71,8 +71,7 @@ export function zoneScopedFlowChainDisplay(zoneModule: BrainModuleType): string[
   }
   const activeLabel = STRATEGY_EVENT_CONTRACTS[events.active]?.label ?? events.active;
   const confirmLabel = STRATEGY_EVENT_CONTRACTS[events.confirm]?.label ?? events.confirm;
-  const entryLabel =
-    STRATEGY_EVENT_CONTRACTS.BAR_AFTER_CONFIRM?.label ?? "Next Bar After Confirm";
+  const entryLabel = STRATEGY_EVENT_CONTRACTS.BAR_AFTER_CONFIRM?.label ?? "Next Bar After Confirm";
   return [`1. ${activeLabel}`, `2. ${confirmLabel}`, `3. ${entryLabel}`];
 }
 

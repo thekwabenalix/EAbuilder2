@@ -58,7 +58,10 @@ export function generateSwingStructureStateModule(): string {
       `//| SMC Module Library v${SWING_STRUCTURE_DETECTOR_VERSION} — Phase 1: Detection Only  `,
       `//| Swing Structure State Module v${SWING_STRUCTURE_STATE_MODULE_VERSION} — Phase 2`,
     )
-    .replace("#property indicator_plots 0", "#property indicator_buffers 4\n#property indicator_plots   0")
+    .replace(
+      "#property indicator_plots 0",
+      "#property indicator_buffers 4\n#property indicator_plots   0",
+    )
     .replace(
       "input bool InpShowLog = true; // Print swing events to journal",
       `input bool InpShowLog = true; // Print swing events to journal
@@ -100,9 +103,9 @@ double BearSLBuf[];`,
 
   code = code.replace(
     "int OnInit()\n{\n   DeleteAll();",
-    "int OnInit()\n{\n   SetIndexBuffer(0, BullConfirmBuf, INDICATOR_DATA);\n   SetIndexBuffer(1, BearConfirmBuf, INDICATOR_DATA);\n   SetIndexBuffer(2, BullSLBuf,      INDICATOR_DATA);\n   SetIndexBuffer(3, BearSLBuf,      INDICATOR_DATA);\n   ArraySetAsSeries(BullConfirmBuf, true);\n   ArraySetAsSeries(BearConfirmBuf, true);\n   ArraySetAsSeries(BullSLBuf,      true);\n   ArraySetAsSeries(BearSLBuf,      true);\n   IndicatorSetString(INDICATOR_SHORTNAME, \"SwingStruct_State v" +
+    'int OnInit()\n{\n   SetIndexBuffer(0, BullConfirmBuf, INDICATOR_DATA);\n   SetIndexBuffer(1, BearConfirmBuf, INDICATOR_DATA);\n   SetIndexBuffer(2, BullSLBuf,      INDICATOR_DATA);\n   SetIndexBuffer(3, BearSLBuf,      INDICATOR_DATA);\n   ArraySetAsSeries(BullConfirmBuf, true);\n   ArraySetAsSeries(BearConfirmBuf, true);\n   ArraySetAsSeries(BullSLBuf,      true);\n   ArraySetAsSeries(BearSLBuf,      true);\n   IndicatorSetString(INDICATOR_SHORTNAME, "SwingStruct_State v' +
       SWING_STRUCTURE_STATE_MODULE_VERSION +
-      "\");\n   ResetBuffers();\n   DeleteAll();",
+      '");\n   ResetBuffers();\n   DeleteAll();',
   );
 
   return code;

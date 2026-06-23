@@ -785,7 +785,11 @@ const cases: RegressionCase[] = [
       const wiring = buildZoneScopedRejectionStrategyFlowWiring(
         "ICT unicorn overlap pocket on H1, reject wick into pocket, enter next candle on M5",
         {
-          setup: { modules: ["unicorn"], timeframe: "H1", params: { lookback: 500, uniExpiry: 250 } },
+          setup: {
+            modules: ["unicorn"],
+            timeframe: "H1",
+            params: { lookback: 500, uniExpiry: 250 },
+          },
           execution: { modules: ["rejection"], timeframe: "M5", params: {} },
         },
       );
@@ -809,13 +813,19 @@ const cases: RegressionCase[] = [
    if(REJSM_M5_BullJustConfirmed()) { gExecSignal = true; gExecDir = 1; }
 }`,
         required_sms: ["REJSM_M5"],
-        sm_configs: { rej_M5: { type: "rejection", id: "M5", TF: "PERIOD_M5", tf: "M5", params: {} } },
+        sm_configs: {
+          rej_M5: { type: "rejection", id: "M5", TF: "PERIOD_M5", tf: "M5", params: {} },
+        },
         notes: "Bad AI used REJSM for unicorn pocket",
       };
-      const fixed = applyZoneScopedRejectionFlowOverride(badAi, "Unicorn pocket rejection next bar", {
-        setup: { modules: ["unicorn"], timeframe: "H1", params: {} },
-        execution: { modules: ["rejection"], timeframe: "M5", params: {} },
-      });
+      const fixed = applyZoneScopedRejectionFlowOverride(
+        badAi,
+        "Unicorn pocket rejection next bar",
+        {
+          setup: { modules: ["unicorn"], timeframe: "H1", params: {} },
+          execution: { modules: ["rejection"], timeframe: "M5", params: {} },
+        },
+      );
       assertEq(fixed.output_mode, "strategy_flow", "overridden to strategy_flow");
       assertEq(fixed.strategy_flow?.steps?.[1]?.event, "UNICORN_CONFIRMED", "zone confirm step");
       assertOk(!fixed.execution_brain.includes("REJSM_"), "REJSM stripped from brain bodies");

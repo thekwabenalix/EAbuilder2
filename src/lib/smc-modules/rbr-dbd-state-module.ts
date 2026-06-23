@@ -49,7 +49,10 @@ export function generateRbrDbdStateModule(): string {
       `//| RBR/DBD Detector v${RBR_DBD_DETECTOR_VERSION}                            `,
       `//| RBR/DBD State Module v${RBR_DBD_STATE_MODULE_VERSION} — Phase 2: State + Buffers`,
     )
-    .replace("#property indicator_plots 0", "#property indicator_buffers 4\n#property indicator_plots   0")
+    .replace(
+      "#property indicator_plots 0",
+      "#property indicator_buffers 4\n#property indicator_plots   0",
+    )
     .replace(
       "input bool            InpShowLog      = true;",
       `input bool            InpShowLog      = true;

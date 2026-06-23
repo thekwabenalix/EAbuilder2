@@ -49,7 +49,10 @@ export function generateBollingerStateModule(): string {
       `//| Bollinger Bands v${BOLL_DETECTOR_VERSION} — touch & breakout marks     `,
       `//| Bollinger State Module v${BOLL_STATE_MODULE_VERSION} — Phase 2: State + Buffers`,
     )
-    .replace("#property indicator_plots 0", "#property indicator_buffers 4\n#property indicator_plots   0")
+    .replace(
+      "#property indicator_plots 0",
+      "#property indicator_buffers 4\n#property indicator_plots   0",
+    )
     .replace(
       "input bool            InpShowLog   = true;",
       `input bool            InpShowLog   = true;
@@ -72,26 +75,14 @@ double BearSLBuf[];`,
    double mid = BandVal(0, sh);`,
   );
 
-  code = code.replace(
-    "   if(l <= lo && c > lo)\n   {",
-    "   if(l <= lo && c > lo) { _bull = true;",
-  );
-  code = code.replace(
-    "   if(h >= up && c < up)\n   {",
-    "   if(h >= up && c < up) { _bear = true;",
-  );
-  code = code.replace(
-    "   if(c > up)\n   {",
-    "   if(c > up) { _bull = true;",
-  );
-  code = code.replace(
-    "   if(c < lo)\n   {",
-    "   if(c < lo) { _bear = true;",
-  );
+  code = code.replace("   if(l <= lo && c > lo)\n   {", "   if(l <= lo && c > lo) { _bull = true;");
+  code = code.replace("   if(h >= up && c < up)\n   {", "   if(h >= up && c < up) { _bear = true;");
+  code = code.replace("   if(c > up)\n   {", "   if(c > up) { _bull = true;");
+  code = code.replace("   if(c < lo)\n   {", "   if(c < lo) { _bear = true;");
 
   code = code.replace(
-    "      if(InpShowLog && sh == 1) PrintFormat(\"BB_BREAKOUT_BEAR | lo=%.5f | %s\", lo, TimeToString(t, TIME_DATE|TIME_MINUTES));\n   }\n}",
-    "      if(InpShowLog && sh == 1) PrintFormat(\"BB_BREAKOUT_BEAR | lo=%.5f | %s\", lo, TimeToString(t, TIME_DATE|TIME_MINUTES));\n   }\n   WriteBollBuffers(sh, _bull, _bear);\n}",
+    '      if(InpShowLog && sh == 1) PrintFormat("BB_BREAKOUT_BEAR | lo=%.5f | %s", lo, TimeToString(t, TIME_DATE|TIME_MINUTES));\n   }\n}',
+    '      if(InpShowLog && sh == 1) PrintFormat("BB_BREAKOUT_BEAR | lo=%.5f | %s", lo, TimeToString(t, TIME_DATE|TIME_MINUTES));\n   }\n   WriteBollBuffers(sh, _bull, _bear);\n}',
   );
 
   code = code.replace(
