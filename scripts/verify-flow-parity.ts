@@ -322,6 +322,8 @@ assertOk(unicornCode.includes("UNISMSM_H1_Tick(500)"), "unicorn flow tick uses 5
 assertOk(!unicornCode.includes("void EvaluateEntry_1()"), "confirmation step must not open trades");
 assertOk(unicornCode.includes("void EvaluateEntry_2()"), "entry step opens trades after confirm");
 assertOk(unicornCode.includes("DrawUni"), "unicorn flow draws overlap pockets on chart");
+assertOk(unicornCode.includes("gPrevA[2] = false"), "new confirm clears entry latch");
+assertOk(unicornCode.includes("SL above entry for BUY"), "flow entry validates stop side");
 console.log("[OK  ] unicorn setup → zone rejection → next-bar entry flow");
 
 console.log("\n10 flow engine parity check(s) passed.\n");

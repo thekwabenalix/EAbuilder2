@@ -248,10 +248,18 @@ function emitZoneRejectionDetect(
   P: string,
   T1: string,
   C1: string,
+  steps: StrategyStepConfig[],
 ): string {
+  const clearDown = emitClearDownstream(i, steps);
   return wrap(
-    `${biasGuard}   if(${P}_BullJustConfirmed())      RegisterEvent(${i}, 1, ${T1}, ${C1}, ${P}_BullConfirmSL());
-   else if(${P}_BearJustConfirmed()) RegisterEvent(${i}, -1, ${T1}, ${C1}, ${P}_BearConfirmSL());`,
+    `${biasGuard}   if(${P}_BullJustConfirmed()) {
+      RegisterEvent(${i}, 1, ${T1}, ${C1}, ${P}_BullConfirmSL());
+${clearDown}
+   }
+   else if(${P}_BearJustConfirmed()) {
+      RegisterEvent(${i}, -1, ${T1}, ${C1}, ${P}_BearConfirmSL());
+${clearDown}
+   }`,
   );
 }
 
@@ -364,15 +372,22 @@ ${clearDown}
       isZoneRejectionEvent(step.event) &&
       !isZoneRetestEvent(step.event)
     ) {
-      return emitZoneRejectionDetect(wrap, biasGuard, i, P, T1, C1);
+      return emitZoneRejectionDetect(wrap, biasGuard, i, P, T1, C1, steps);
     }
     if (prof.family === "zone" && prof.hasActive) {
+      const clearDown = emitClearDownstream(i, steps);
       return wrap(
         `${biasGuard}   int _bias = ${biasExpr};
    bool _ab = ${P}_HasActiveBull();
    bool _bb = ${P}_HasActiveBear();
-   if((_bias == 0 || _bias == 1) && _ab && !gPrevA[${i}]) RegisterEvent(${i}, 1, ${T1}, ${C1}, 0.0);
-   else if((_bias == 0 || _bias == -1) && _bb && !gPrevB[${i}]) RegisterEvent(${i}, -1, ${T1}, ${C1}, 0.0);
+   if((_bias == 0 || _bias == 1) && _ab && !gPrevA[${i}]) {
+      RegisterEvent(${i}, 1, ${T1}, ${C1}, 0.0);
+${clearDown}
+   }
+   else if((_bias == 0 || _bias == -1) && _bb && !gPrevB[${i}]) {
+      RegisterEvent(${i}, -1, ${T1}, ${C1}, 0.0);
+${clearDown}
+   }
    gPrevA[${i}] = _ab; gPrevB[${i}] = _bb;`,
       );
     }
@@ -389,7 +404,7 @@ ${clearDown}
   // CONFIRMATION — zone rejection / retest (registers event; does not open trades)
   if (isConfirmationRole(role)) {
     if (prof.family === "zone" && isZoneRejectionEvent(step.event)) {
-      return emitZoneRejectionDetect(wrap, biasGuard, i, P, T1, C1);
+      return emitZoneRejectionDetect(wrap, biasGuard, i, P, T1, C1, steps);
     }
     if (prof.family === "zone" && isZoneRetestEvent(step.event)) {
       return emitZoneRetestDetect(wrap, biasGuard, biasExpr, i, P, T1, C1);
@@ -587,6 +602,7 @@ export function generateFlowEA(
   const rr = mgmt?.rewardRisk ?? 3.0;
   const maxStop = mgmt?.maxStopPoints ?? 0;
   const maxOpen = mgmt?.maxOpenTrades ?? 1;
+  const stopBuffer = mgmt?.stopBuffer ?? 0;
   const entryIdxs = steps.map((s, i) => (isTradeEntry(s.role) ? i : -1)).filter((i) => i >= 0);
   const setupStep = steps.find((s) => s.role === "setup" || s.role === "filter");
   const expiryBars = defaultSetupExpiryBars(setupStep);
@@ -688,6 +704,7 @@ input long   InpMagic         = 770120;
 input double InpRiskPct        = ${risk};
 input double InpRewardRisk     = ${rr};
 input int    InpMaxStopPts     = ${maxStop};
+input int    InpStopBufferPts  = ${stopBuffer};
 input int    InpMaxOpenTrades  = ${maxOpen};
 input int    InpSetupExpiryBars = ${expiryBars};
 input bool   InpAudit         = true;
@@ -750,31 +767,97 @@ double LotsForRisk(double slDistance)
 
 bool OpenTrade(int entryIdx, int dir)
 {
-   double entryPx = (dir == 1) ? SymbolInfoDouble(InpSymbol, SYMBOL_ASK)
-                               : SymbolInfoDouble(InpSymbol, SYMBOL_BID);
-   double sl = gSL[entryIdx];
-   if(sl <= 0) { gLastGate = "BLOCKED: no SL"; return false; }
-   double slDist = MathAbs(entryPx - sl);
-   double pt = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
-   if(InpMaxStopPts > 0 && pt > 0 && (slDist / pt) > InpMaxStopPts)
-   { gLastGate = "SKIP: SL too wide"; return false; }
-   double tp = (dir == 1) ? entryPx + InpRewardRisk * slDist : entryPx - InpRewardRisk * slDist;
-   double lots = LotsForRisk(slDist);
-   if(lots <= 0) { gLastGate = "BLOCKED: lot calc"; return false; }
-   bool ok = (dir == 1) ? trade.Buy(lots, InpSymbol, entryPx, sl, tp)
-                        : trade.Sell(lots, InpSymbol, entryPx, sl, tp);
-   if(ok) {
-      gLastTraded[entryIdx] = gTime[entryIdx];
-      gTradeCount++;
-      gLastGate = "TRADE " + (dir == 1 ? "BUY" : "SELL") + " @ " + TimeToString(gTime[entryIdx], TIME_DATE|TIME_MINUTES);
-      if(InpAudit) {
+   double pt     = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   int    digits = (int)SymbolInfoInteger(InpSymbol, SYMBOL_DIGITS);
+   long   stops  = SymbolInfoInteger(InpSymbol, SYMBOL_TRADE_STOPS_LEVEL);
+   double buf    = InpStopBufferPts * pt;
+   double rawSl  = gSL[entryIdx];
+   if(rawSl <= 0) { gLastGate = "BLOCKED: no SL"; return false; }
+
+   if(dir == 1)
+   {
+      double ask = SymbolInfoDouble(InpSymbol, SYMBOL_ASK);
+      if(rawSl >= ask) {
+         gLastGate = "BLOCKED: SL above entry for BUY";
+         if(InpAudit) PrintFormat("[GATE] BUY blocked: SL %.5f >= ask %.5f", rawSl, ask);
+         gFired[entryIdx] = false; gPrevA[entryIdx] = false;
+         return false;
+      }
+      double sl   = NormalizeDouble(rawSl - buf, digits);
+      double dist = (ask - sl) / pt;
+      if(dist < (double)stops) {
+         gLastGate = "BLOCKED: stops level";
+         if(InpAudit) PrintFormat("[GATE] BUY blocked: dist %.0f < stops %d", dist, (int)stops);
+         gFired[entryIdx] = false; gPrevA[entryIdx] = false;
+         return false;
+      }
+      if(InpMaxStopPts > 0 && dist > InpMaxStopPts) {
+         gLastGate = "SKIP: SL too wide";
+         gFired[entryIdx] = false; gPrevA[entryIdx] = false;
+         return false;
+      }
+      double lot = LotsForRisk(dist * pt);
+      if(lot <= 0) { gLastGate = "BLOCKED: lot calc"; return false; }
+      double tp = NormalizeDouble(ask + dist * InpRewardRisk * pt, digits);
+      bool ok = trade.Buy(lot, InpSymbol, ask, sl, tp);
+      if(ok) {
+         gLastTraded[entryIdx] = gTime[entryIdx];
+         gTradeCount++;
+         gLastGate = "TRADE BUY @ " + TimeToString(gTime[entryIdx], TIME_DATE|TIME_MINUTES);
+      } else {
+         gLastGate = "BLOCKED: OrderSend failed";
+         gFired[entryIdx] = false; gPrevA[entryIdx] = false;
+      }
+      if(ok && InpAudit) {
          Print("===== TRADE AUDIT =====");
          for(int s = 0; s < STEP_COUNT; s++)
             if(gFired[s])
                PrintFormat("  %s : %s @ %s", gStepName[s], DirTxt(gDir[s]), TimeToString(gTime[s], TIME_DATE|TIME_MINUTES));
-         PrintFormat("  ENTRY %s lots=%.2f SL=%.5f TP=%.5f", dir == 1 ? "BUY" : "SELL", lots, sl, tp);
+         PrintFormat("  ENTRY BUY lots=%.2f SL=%.5f TP=%.5f", lot, sl, tp);
          Print("=======================");
       }
+      return ok;
+   }
+
+   double bid = SymbolInfoDouble(InpSymbol, SYMBOL_BID);
+   if(rawSl <= bid) {
+      gLastGate = "BLOCKED: SL below entry for SELL";
+      if(InpAudit) PrintFormat("[GATE] SELL blocked: SL %.5f <= bid %.5f", rawSl, bid);
+      gFired[entryIdx] = false; gPrevA[entryIdx] = false;
+      return false;
+   }
+   double sl   = NormalizeDouble(rawSl + buf, digits);
+   double dist = (sl - bid) / pt;
+   if(dist < (double)stops) {
+      gLastGate = "BLOCKED: stops level";
+      if(InpAudit) PrintFormat("[GATE] SELL blocked: dist %.0f < stops %d", dist, (int)stops);
+      gFired[entryIdx] = false; gPrevA[entryIdx] = false;
+      return false;
+   }
+   if(InpMaxStopPts > 0 && dist > InpMaxStopPts) {
+      gLastGate = "SKIP: SL too wide";
+      gFired[entryIdx] = false; gPrevA[entryIdx] = false;
+      return false;
+   }
+   double lot = LotsForRisk(dist * pt);
+   if(lot <= 0) { gLastGate = "BLOCKED: lot calc"; return false; }
+   double tp = NormalizeDouble(bid - dist * InpRewardRisk * pt, digits);
+   bool ok = trade.Sell(lot, InpSymbol, bid, sl, tp);
+   if(ok) {
+      gLastTraded[entryIdx] = gTime[entryIdx];
+      gTradeCount++;
+      gLastGate = "TRADE SELL @ " + TimeToString(gTime[entryIdx], TIME_DATE|TIME_MINUTES);
+   } else {
+      gLastGate = "BLOCKED: OrderSend failed";
+      gFired[entryIdx] = false; gPrevA[entryIdx] = false;
+   }
+   if(ok && InpAudit) {
+      Print("===== TRADE AUDIT =====");
+      for(int s = 0; s < STEP_COUNT; s++)
+         if(gFired[s])
+            PrintFormat("  %s : %s @ %s", gStepName[s], DirTxt(gDir[s]), TimeToString(gTime[s], TIME_DATE|TIME_MINUTES));
+      PrintFormat("  ENTRY SELL lots=%.2f SL=%.5f TP=%.5f", lot, sl, tp);
+      Print("=======================");
    }
    return ok;
 }

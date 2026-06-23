@@ -12,6 +12,7 @@ input long   InpMagic         = 770120;
 input double InpRiskPct        = 1;
 input double InpRewardRisk     = 2;
 input int    InpMaxStopPts     = 0;
+input int    InpStopBufferPts  = 0;
 input int    InpMaxOpenTrades  = 1;
 input int    InpSetupExpiryBars = 100;
 input bool   InpAudit         = true;
@@ -74,31 +75,97 @@ double LotsForRisk(double slDistance)
 
 bool OpenTrade(int entryIdx, int dir)
 {
-   double entryPx = (dir == 1) ? SymbolInfoDouble(InpSymbol, SYMBOL_ASK)
-                               : SymbolInfoDouble(InpSymbol, SYMBOL_BID);
-   double sl = gSL[entryIdx];
-   if(sl <= 0) { gLastGate = "BLOCKED: no SL"; return false; }
-   double slDist = MathAbs(entryPx - sl);
-   double pt = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
-   if(InpMaxStopPts > 0 && pt > 0 && (slDist / pt) > InpMaxStopPts)
-   { gLastGate = "SKIP: SL too wide"; return false; }
-   double tp = (dir == 1) ? entryPx + InpRewardRisk * slDist : entryPx - InpRewardRisk * slDist;
-   double lots = LotsForRisk(slDist);
-   if(lots <= 0) { gLastGate = "BLOCKED: lot calc"; return false; }
-   bool ok = (dir == 1) ? trade.Buy(lots, InpSymbol, entryPx, sl, tp)
-                        : trade.Sell(lots, InpSymbol, entryPx, sl, tp);
-   if(ok) {
-      gLastTraded[entryIdx] = gTime[entryIdx];
-      gTradeCount++;
-      gLastGate = "TRADE " + (dir == 1 ? "BUY" : "SELL") + " @ " + TimeToString(gTime[entryIdx], TIME_DATE|TIME_MINUTES);
-      if(InpAudit) {
+   double pt     = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   int    digits = (int)SymbolInfoInteger(InpSymbol, SYMBOL_DIGITS);
+   long   stops  = SymbolInfoInteger(InpSymbol, SYMBOL_TRADE_STOPS_LEVEL);
+   double buf    = InpStopBufferPts * pt;
+   double rawSl  = gSL[entryIdx];
+   if(rawSl <= 0) { gLastGate = "BLOCKED: no SL"; return false; }
+
+   if(dir == 1)
+   {
+      double ask = SymbolInfoDouble(InpSymbol, SYMBOL_ASK);
+      if(rawSl >= ask) {
+         gLastGate = "BLOCKED: SL above entry for BUY";
+         if(InpAudit) PrintFormat("[GATE] BUY blocked: SL %.5f >= ask %.5f", rawSl, ask);
+         gFired[entryIdx] = false; gPrevA[entryIdx] = false;
+         return false;
+      }
+      double sl   = NormalizeDouble(rawSl - buf, digits);
+      double dist = (ask - sl) / pt;
+      if(dist < (double)stops) {
+         gLastGate = "BLOCKED: stops level";
+         if(InpAudit) PrintFormat("[GATE] BUY blocked: dist %.0f < stops %d", dist, (int)stops);
+         gFired[entryIdx] = false; gPrevA[entryIdx] = false;
+         return false;
+      }
+      if(InpMaxStopPts > 0 && dist > InpMaxStopPts) {
+         gLastGate = "SKIP: SL too wide";
+         gFired[entryIdx] = false; gPrevA[entryIdx] = false;
+         return false;
+      }
+      double lot = LotsForRisk(dist * pt);
+      if(lot <= 0) { gLastGate = "BLOCKED: lot calc"; return false; }
+      double tp = NormalizeDouble(ask + dist * InpRewardRisk * pt, digits);
+      bool ok = trade.Buy(lot, InpSymbol, ask, sl, tp);
+      if(ok) {
+         gLastTraded[entryIdx] = gTime[entryIdx];
+         gTradeCount++;
+         gLastGate = "TRADE BUY @ " + TimeToString(gTime[entryIdx], TIME_DATE|TIME_MINUTES);
+      } else {
+         gLastGate = "BLOCKED: OrderSend failed";
+         gFired[entryIdx] = false; gPrevA[entryIdx] = false;
+      }
+      if(ok && InpAudit) {
          Print("===== TRADE AUDIT =====");
          for(int s = 0; s < STEP_COUNT; s++)
             if(gFired[s])
                PrintFormat("  %s : %s @ %s", gStepName[s], DirTxt(gDir[s]), TimeToString(gTime[s], TIME_DATE|TIME_MINUTES));
-         PrintFormat("  ENTRY %s lots=%.2f SL=%.5f TP=%.5f", dir == 1 ? "BUY" : "SELL", lots, sl, tp);
+         PrintFormat("  ENTRY BUY lots=%.2f SL=%.5f TP=%.5f", lot, sl, tp);
          Print("=======================");
       }
+      return ok;
+   }
+
+   double bid = SymbolInfoDouble(InpSymbol, SYMBOL_BID);
+   if(rawSl <= bid) {
+      gLastGate = "BLOCKED: SL below entry for SELL";
+      if(InpAudit) PrintFormat("[GATE] SELL blocked: SL %.5f <= bid %.5f", rawSl, bid);
+      gFired[entryIdx] = false; gPrevA[entryIdx] = false;
+      return false;
+   }
+   double sl   = NormalizeDouble(rawSl + buf, digits);
+   double dist = (sl - bid) / pt;
+   if(dist < (double)stops) {
+      gLastGate = "BLOCKED: stops level";
+      if(InpAudit) PrintFormat("[GATE] SELL blocked: dist %.0f < stops %d", dist, (int)stops);
+      gFired[entryIdx] = false; gPrevA[entryIdx] = false;
+      return false;
+   }
+   if(InpMaxStopPts > 0 && dist > InpMaxStopPts) {
+      gLastGate = "SKIP: SL too wide";
+      gFired[entryIdx] = false; gPrevA[entryIdx] = false;
+      return false;
+   }
+   double lot = LotsForRisk(dist * pt);
+   if(lot <= 0) { gLastGate = "BLOCKED: lot calc"; return false; }
+   double tp = NormalizeDouble(bid - dist * InpRewardRisk * pt, digits);
+   bool ok = trade.Sell(lot, InpSymbol, bid, sl, tp);
+   if(ok) {
+      gLastTraded[entryIdx] = gTime[entryIdx];
+      gTradeCount++;
+      gLastGate = "TRADE SELL @ " + TimeToString(gTime[entryIdx], TIME_DATE|TIME_MINUTES);
+   } else {
+      gLastGate = "BLOCKED: OrderSend failed";
+      gFired[entryIdx] = false; gPrevA[entryIdx] = false;
+   }
+   if(ok && InpAudit) {
+      Print("===== TRADE AUDIT =====");
+      for(int s = 0; s < STEP_COUNT; s++)
+         if(gFired[s])
+            PrintFormat("  %s : %s @ %s", gStepName[s], DirTxt(gDir[s]), TimeToString(gTime[s], TIME_DATE|TIME_MINUTES));
+      PrintFormat("  ENTRY SELL lots=%.2f SL=%.5f TP=%.5f", lot, sl, tp);
+      Print("=======================");
    }
    return ok;
 }
@@ -551,15 +618,29 @@ void DetectStep_0()
    int _bias = 0;
    bool _ab = UNISMSM_H1_HasActiveBull();
    bool _bb = UNISMSM_H1_HasActiveBear();
-   if((_bias == 0 || _bias == 1) && _ab && !gPrevA[0]) RegisterEvent(0, 1, iTime(InpSymbol, gTF[0], 1), iClose(InpSymbol, gTF[0], 1), 0.0);
-   else if((_bias == 0 || _bias == -1) && _bb && !gPrevB[0]) RegisterEvent(0, -1, iTime(InpSymbol, gTF[0], 1), iClose(InpSymbol, gTF[0], 1), 0.0);
+   if((_bias == 0 || _bias == 1) && _ab && !gPrevA[0]) {
+      RegisterEvent(0, 1, iTime(InpSymbol, gTF[0], 1), iClose(InpSymbol, gTF[0], 1), 0.0);
+      gFired[1] = false; gTime[1] = 0; gDir[1] = 0; gSL[1] = 0.0; gPrevA[1] = false; gPrevB[1] = false;
+      gFired[2] = false; gTime[2] = 0; gDir[2] = 0; gSL[2] = 0.0; gPrevA[2] = false; gPrevB[2] = false;
+   }
+   else if((_bias == 0 || _bias == -1) && _bb && !gPrevB[0]) {
+      RegisterEvent(0, -1, iTime(InpSymbol, gTF[0], 1), iClose(InpSymbol, gTF[0], 1), 0.0);
+      gFired[1] = false; gTime[1] = 0; gDir[1] = 0; gSL[1] = 0.0; gPrevA[1] = false; gPrevB[1] = false;
+      gFired[2] = false; gTime[2] = 0; gDir[2] = 0; gSL[2] = 0.0; gPrevA[2] = false; gPrevB[2] = false;
+   }
    gPrevA[0] = _ab; gPrevB[0] = _bb;
 }
 
 void DetectStep_1()
 {
-   if(UNISMSM_H1_BullJustConfirmed())      RegisterEvent(1, 1, iTime(InpSymbol, gTF[1], 1), iClose(InpSymbol, gTF[1], 1), UNISMSM_H1_BullConfirmSL());
-   else if(UNISMSM_H1_BearJustConfirmed()) RegisterEvent(1, -1, iTime(InpSymbol, gTF[1], 1), iClose(InpSymbol, gTF[1], 1), UNISMSM_H1_BearConfirmSL());
+   if(UNISMSM_H1_BullJustConfirmed()) {
+      RegisterEvent(1, 1, iTime(InpSymbol, gTF[1], 1), iClose(InpSymbol, gTF[1], 1), UNISMSM_H1_BullConfirmSL());
+      gFired[2] = false; gTime[2] = 0; gDir[2] = 0; gSL[2] = 0.0; gPrevA[2] = false; gPrevB[2] = false;
+   }
+   else if(UNISMSM_H1_BearJustConfirmed()) {
+      RegisterEvent(1, -1, iTime(InpSymbol, gTF[1], 1), iClose(InpSymbol, gTF[1], 1), UNISMSM_H1_BearConfirmSL());
+      gFired[2] = false; gTime[2] = 0; gDir[2] = 0; gSL[2] = 0.0; gPrevA[2] = false; gPrevB[2] = false;
+   }
 }
 
 void DetectStep_2()
