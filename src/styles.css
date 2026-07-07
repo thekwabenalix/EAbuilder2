@@ -18,6 +18,11 @@
 @theme inline {
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
 
+  /* Custom easing curves — never use built-in CSS easings on deliberate UI */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
   --radius-sm: calc(var(--radius) - 3px);
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 3px);
@@ -155,6 +160,17 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
   }
+
+  /* Button press feedback — confirms every pressable element immediately */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    transition: transform 120ms var(--ease-out);
+  }
+
+  button:not(:disabled):active,
+  [role="button"]:not(:disabled):active {
+    transform: scale(0.97);
+  }
 }
 
 /* ── Landing page animations ─────────────────────────────────── */
@@ -162,7 +178,7 @@
 @keyframes lp-fade-up {
   from {
     opacity: 0;
-    transform: translateY(18px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -202,16 +218,37 @@
 
 /* Utility classes */
 .lp-fade-up {
-  animation: lp-fade-up 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: lp-fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .lp-fade-in {
-  animation: lp-fade-in 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: lp-fade-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .lp-ticker {
   animation: lp-ticker 32s linear infinite;
 }
 .lp-dot-pulse {
   animation: lp-pulse-dot 2.4s ease-in-out infinite;
+}
+
+/* Accessibility — reduced motion: keep opacity reveals, remove all movement */
+@media (prefers-reduced-motion: reduce) {
+  .lp-fade-up {
+    animation: lp-fade-in 0.3s ease both;
+  }
+  .lp-fade-in {
+    animation: lp-fade-in 0.3s ease both;
+  }
+  .lp-ticker {
+    animation-play-state: paused;
+  }
+  .lp-dot-pulse {
+    animation: none;
+    opacity: 0.7;
+  }
+  button:not(:disabled):active,
+  [role="button"]:not(:disabled):active {
+    transform: none;
+  }
 }
 
 /* Stagger delay helpers */
