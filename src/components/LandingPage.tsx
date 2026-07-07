@@ -306,7 +306,7 @@ export function LandingPage() {
         <ChartBackdrop />
         {!reduced && <MarketWaves pointer={pointer} />}
 
-        <header className="relative z-20 mx-auto flex h-24 max-w-[1440px] items-center justify-between px-6 sm:px-10 lg:px-12">
+        <header className="relative z-20 mx-auto flex h-20 w-full max-w-[1920px] items-center justify-between px-5 sm:px-8 lg:px-12 xl:px-16 2xl:px-20">
           <BrandMark />
 
           <nav className="hidden items-center gap-10 text-sm font-medium text-[var(--lp-muted)] lg:flex">
@@ -348,13 +348,13 @@ export function LandingPage() {
           </div>
         </header>
 
-        <main className="relative z-10 mx-auto grid min-h-[calc(100vh-6rem)] max-w-[1440px] grid-cols-1 items-center gap-8 px-6 pb-16 pt-8 sm:px-10 lg:grid-cols-[0.9fr_1.1fr] lg:px-12 lg:pb-8">
-          <div className="max-w-2xl">
+        <main className="relative z-10 mx-auto grid min-h-[calc(100vh-5rem)] w-full max-w-[1920px] grid-cols-1 items-center gap-6 px-5 pb-8 pt-2 sm:px-8 lg:grid-cols-[minmax(680px,0.86fr)_minmax(640px,1.14fr)] lg:px-12 lg:pb-6 xl:px-16 2xl:px-20">
+          <div className="max-w-[780px] lg:pl-0">
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
-              className="mb-9 inline-flex items-center gap-3 rounded-full border border-[var(--lp-accent-border)] bg-[var(--lp-pill)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--lp-text)] shadow-[0_18px_60px_var(--lp-soft-shadow)]"
+              className="mb-7 inline-flex items-center gap-3 rounded-full border border-[var(--lp-accent-border)] bg-[var(--lp-pill)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--lp-text)] shadow-[0_18px_60px_var(--lp-soft-shadow)]"
             >
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--lp-accent)] text-white">
                 <Sparkles className="h-3.5 w-3.5" />
@@ -366,7 +366,7 @@ export function LandingPage() {
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.62, delay: 0.08, ease: [0.23, 1, 0.32, 1] }}
-              className="max-w-[760px] text-[clamp(3.6rem,7vw,6.4rem)] font-semibold leading-[0.98] tracking-[-0.055em] text-[var(--lp-text)]"
+              className="max-w-[820px] text-[clamp(3.4rem,5.15vw,5.85rem)] font-semibold leading-[0.96] tracking-[-0.052em] text-[var(--lp-text)]"
             >
               Build smarter
               <br />
@@ -379,7 +379,7 @@ export function LandingPage() {
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.62, delay: 0.16, ease: [0.23, 1, 0.32, 1] }}
-              className="mt-8 max-w-[520px] text-xl leading-8 text-[var(--lp-muted)]"
+              className="mt-6 max-w-[560px] text-lg leading-8 text-[var(--lp-muted)] xl:text-xl"
             >
               Describe your strategy in plain English. We map it to verified modules and generate a
               self-contained Expert Advisor.
@@ -389,7 +389,7 @@ export function LandingPage() {
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.62, delay: 0.24, ease: [0.23, 1, 0.32, 1] }}
-              className="mt-10 flex flex-wrap items-center gap-5"
+              className="mt-8 flex flex-wrap items-center gap-5"
             >
               <motion.button
                 type="button"
@@ -419,7 +419,7 @@ export function LandingPage() {
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.62, delay: 0.34, ease: [0.23, 1, 0.32, 1] }}
-              className="mt-12 flex flex-wrap items-center gap-6 text-sm text-[var(--lp-text)] sm:gap-8"
+              className="mt-9 flex flex-wrap items-center gap-6 text-sm text-[var(--lp-text)] sm:gap-8"
             >
               {featureRow.map(({ icon: Icon, label }) => (
                 <div key={label} className="flex items-center gap-3">
@@ -434,7 +434,7 @@ export function LandingPage() {
             initial={{ opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.12, ease: [0.23, 1, 0.32, 1] }}
-            className="relative min-h-[520px] lg:min-h-[720px]"
+            className="relative min-h-[420px] lg:min-h-[calc(100vh-6rem)]"
           >
             <div className="absolute inset-0 rounded-[3rem] bg-[radial-gradient(circle_at_52%_50%,var(--lp-cube-glow),transparent_42%)]" />
             <Suspense fallback={<div className="h-full w-full" />}>
