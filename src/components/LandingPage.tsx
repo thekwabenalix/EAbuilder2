@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ThemeToggleIcon } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
 import { EAComposition } from "@/remotion/EAComposition";
 import {
@@ -319,6 +320,7 @@ export function LandingPage() {
             </span>
           </div>
           <div className="flex items-center gap-2">
+            <ThemeToggleIcon />
             <Button
               variant="ghost"
               size="sm"

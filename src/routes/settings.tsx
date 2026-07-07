@@ -27,7 +27,7 @@ import {
   XCircle,
   Monitor,
 } from "lucide-react";
-import { toast } from "sonner";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -426,6 +426,16 @@ function SettingsPage() {
 
         {/* ── RIGHT: Account ── */}
         <div className="space-y-6">
+          <section className="rounded-md border border-border bg-card p-4">
+            <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Appearance</h2>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Light, dark, or match your system preference.
+            </p>
+            <div className="mt-4">
+              <ThemeToggle className="w-full flex flex-wrap gap-1" />
+            </div>
+          </section>
+
           <section className="rounded-md border border-border bg-card p-4">
             <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Account</h2>
             <div className="mt-3 space-y-1 text-sm">

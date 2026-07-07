@@ -12,6 +12,7 @@ import {
   TerminalSquare,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { ThemeToggleIcon } from "@/components/ThemeToggle";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -39,7 +40,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <aside className="md:w-56 md:border-r border-b md:border-b-0 border-border bg-sidebar flex md:flex-col">
         <div className="hidden md:flex items-center gap-2 px-4 h-14 border-b border-border">
           <TerminalSquare className="h-5 w-5 text-primary" />
-          <span className="font-semibold text-sm tracking-tight">MT5 AI Builder</span>
+          <span className="font-semibold text-sm tracking-tight flex-1">MT5 AI Builder</span>
+          <ThemeToggleIcon />
         </div>
         <nav className="flex md:flex-col flex-1 p-2 gap-1 overflow-x-auto">
           {NAV.map((item) => {
@@ -86,6 +88,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="md:hidden flex items-center gap-2 px-4 h-12 border-b border-border bg-card">
           <TerminalSquare className="h-4 w-4 text-primary shrink-0" />
           <span className="text-sm font-semibold truncate flex-1">MT5 AI Builder</span>
+          <ThemeToggleIcon />
           <Button variant="ghost" size="sm" onClick={() => signOut()} aria-label="Sign out">
             <LogOut className="h-4 w-4" />
           </Button>
