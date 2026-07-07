@@ -1476,7 +1476,7 @@ function FourBrainTab({
   const [aiWiring] = useState<AiWiringInsightData | null>(blueprint.aiWiringDiagnostics ?? null);
 
   return (
-    <div className="max-w-3xl space-y-5 pb-24">
+    <div className="w-full max-w-7xl space-y-5 pb-24">
       <StrategyFamilyPicker value={strategyFamily} onChange={handleStrategyFamilyChange} compact />
 
       {familyWarnings.length > 0 && (
@@ -1757,7 +1757,7 @@ function FourBrainTab({
 
       {/* Generate EA — sticky footer */}
       <div className="fixed bottom-0 left-0 right-0 md:left-56 z-20 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 sm:px-6 py-3">
-        <div className="max-w-3xl mx-auto flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 sm:flex-row sm:items-center">
           <p className="text-[11px] text-muted-foreground flex-1 hidden sm:block">
             Compiles verified modules into a self-contained EA. Use the Assistant to debug
             backtests.
