@@ -16,7 +16,7 @@
  *   Step 2 - Displacement strength qualifier:
  *     Sum the on-direction bodies across InpDispBars bars starting at
  *     Candle B (capped at bar[1] in live mode to avoid the live bar).
- *     If the cumulative displacement < InpDispMult �- ATR → reject.
+ *     If the cumulative displacement < InpDispMult x ATR → reject.
  *     During live OnCalculate this reduces to checking Candle B alone
  *     (bar[1]) which is sufficient for the sharp-move requirement.
  *

@@ -114,6 +114,7 @@ import {
   detachAdvancedFlow,
   nameFromFlowSteps,
   seedAdvancedFlow,
+  safeFlowSteps,
   type BuilderFlowMode,
 } from "@/lib/strategy-flow-ui";
 import { fourBrainToStrategyFlow } from "@/lib/strategy-flow";
@@ -1367,19 +1368,20 @@ function FourBrainTab({
   );
 
   const strategyFlow = blueprint.strategyFlow;
+  const strategyFlowSteps = safeFlowSteps(strategyFlow);
   const strategyFlowSyncKey = [
     strategyFlow?.source ?? "",
     strategyFlow?.mode ?? "",
-    strategyFlow?.steps?.length ?? 0,
-    strategyFlow?.steps?.map((s) => s.id).join(",") ?? "",
+    strategyFlowSteps.length,
+    strategyFlowSteps.map((s) => s.id).join(","),
   ].join("|");
 
   useEffect(() => {
-    if (strategyFlow?.steps?.length) {
+    if (strategyFlow && strategyFlowSteps.length) {
       setBuilderMode("advanced");
-      setFlowConfig(strategyFlow);
+      setFlowConfig({ ...strategyFlow, steps: strategyFlowSteps });
     }
-  }, [strategyFlow, strategyFlowSyncKey]);
+  }, [strategyFlow, strategyFlowSteps, strategyFlowSyncKey]);
 
   function buildFourBrainConfig(): FourBrainConfig {
     return {

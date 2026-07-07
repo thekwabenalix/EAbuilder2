@@ -1654,7 +1654,7 @@ function cleanJson(raw: string): string {
   text = text.trim();
 
   // Replace smart/curly quotes with straight ones
-  text = text.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
+  text = text.replace(/[--]/g, '"').replace(/[‘’]/g, "'");
 
   // Remove control characters that break JSON (keep tab/newline/CR for structure)
   text = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");

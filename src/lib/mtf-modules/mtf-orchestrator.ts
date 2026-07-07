@@ -83,7 +83,7 @@ export function generateMtfOrchestrator(cfg: MtfOrchestratorConfig): string {
     `input int             InpSlippage     = ${e.slippage};                    // Max slippage (points)`,
     `input double          InpRiskPct      = ${e.riskPct.toFixed(1)};                  // Risk per trade (% of balance)`,
     `input double          InpRR           = ${e.rr.toFixed(1)};                  // Reward-to-risk ratio for TP`,
-    `input double          InpBreakevenR   = ${e.breakevenR.toFixed(1)};                  // Move SL to BE at N�-R profit (0 = off)`,
+    `input double          InpBreakevenR   = ${e.breakevenR.toFixed(1)};                  // Move SL to BE at NxR profit (0 = off)`,
     `input int             InpMaxTrades    = ${e.maxTrades};                    // Max concurrent positions`,
     `input int             InpMaxSpreadPts = ${e.maxSpreadPts};                   // Max spread before signal blocked`,
     ``,

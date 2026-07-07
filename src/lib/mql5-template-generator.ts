@@ -106,7 +106,7 @@ export const FILTER_RULE_TYPES = new Set([
   "atr_volatility",
   "volatility_filter",
   // Trade-management primitives - govern execution, not signal detection
-  "fixed_rr_take_profit", // TP = entry ± (risk_dist �- reward_ratio)
+  "fixed_rr_take_profit", // TP = entry ± (risk_dist x reward_ratio)
   "max_open_trades_filter", // block entries when open positions ≥ max
 ]);
 
@@ -330,7 +330,7 @@ interface Ctx {
   useChartSymbol: boolean;
 
   // Trade-management primitives
-  /** fixed_rr_take_profit: TP = entry ± (risk_dist �- rewardRatio) */
+  /** fixed_rr_take_profit: TP = entry ± (risk_dist x rewardRatio) */
   hasFixedRR: boolean;
   rrRatio: number;
   /** max_open_trades_filter: block new entries when open positions ≥ maxOpenTrades */
@@ -618,7 +618,7 @@ function genInputs(bp: StrategyBlueprint, ctx: Ctx): string {
       `input int    InpOBATRPeriod = ${ctx.obATRPeriod};   // ATR period for displacement filter`,
     );
     lines.push(
-      `input double InpOBDispMult  = ${ctx.obDispMult.toFixed(1)};   // Displacement body ≥ N �- ATR`,
+      `input double InpOBDispMult  = ${ctx.obDispMult.toFixed(1)};   // Displacement body ≥ N x ATR`,
     );
     lines.push(
       `input int    InpOBScanBack  = ${ctx.obScanBack};    // Bars before displacement to search for OB candle`,
@@ -1359,7 +1359,7 @@ void BOS_ExecuteEntries()
    }
 }
 
-// Move SL to break-even when profit >= InpBEAtR �- initial risk.
+// Move SL to break-even when profit >= InpBEAtR x initial risk.
 void BOS_ManageBreakEven()
 {
    double point  = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
@@ -1611,7 +1611,7 @@ void OB_ExecuteEntries()
    }
 }
 
-// Called every tick: move SL to break-even when profit >= InpBEAtR �- initial risk.
+// Called every tick: move SL to break-even when profit >= InpBEAtR x initial risk.
 void OB_ManageBreakEven()
 {
    double point  = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);

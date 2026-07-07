@@ -19,11 +19,11 @@
  * TRADE SETUP:
  *   Entry : market order at Ask (buy) / Bid (sell)
  *   SL    : retestLow (buy) / retestHigh (sell) - from state module buffer
- *   TP    : Entry ± SL_distance �- InpRR
- *   Lots  : (balance �- InpRiskPct / 100) / (SL_distance �- pip_value_per_lot)
+ *   TP    : Entry ± SL_distance x InpRR
+ *   Lots  : (balance x InpRiskPct / 100) / (SL_distance x pip_value_per_lot)
  *
  * BREAKEVEN:
- *   On every tick, if profit ≥ InpBreakevenR �- initial_risk → move SL to entry
+ *   On every tick, if profit ≥ InpBreakevenR x initial_risk → move SL to entry
  *
  * TRADE BLOCKED WHEN:
  *   · Confirmation buffer ≠ 1.0 or SL buffer = 0
@@ -91,8 +91,8 @@ input int    InpSlippage   = 3;        // Max entry slippage in points
 //=== Inputs - Risk management ======================================
 input group "══════════ Risk Management ══════════"
 input double InpRiskPct    = 1.0;  // Risk per trade (% of account balance)
-input double InpRR         = 2.0;  // Risk:Reward ratio  (TP = entry ± SL_dist �- RR)
-input double InpBreakevenR = 0.5;  // Move SL to entry when profit ≥ X �- risk  (0 = off)
+input double InpRR         = 2.0;  // Risk:Reward ratio  (TP = entry ± SL_dist x RR)
+input double InpBreakevenR = 0.5;  // Move SL to entry when profit ≥ X x risk  (0 = off)
 
 //=== Inputs - Filters ==============================================
 input group "══════════ Filters ══════════"
@@ -301,7 +301,7 @@ void OnTick()
 
 //+------------------------------------------------------------------+
 //| Open a market order. SL comes from the state module buffer.    |
-//| TP = entry ± SL_distance �- InpRR.                              |
+//| TP = entry ± SL_distance x InpRR.                              |
 //| Lots derived from risk% of balance.                            |
 //+------------------------------------------------------------------+
 bool OpenTrade(ENUM_ORDER_TYPE type, double sl)
@@ -337,7 +337,7 @@ bool OpenTrade(ENUM_ORDER_TYPE type, double sl)
       return false;
    }
 
-   // TP: entry ± SL_distance �- RR
+   // TP: entry ± SL_distance x RR
    double tp   = isBull ? entry + slDist * InpRR
                         : entry - slDist * InpRR;
 
@@ -396,7 +396,7 @@ double CalcLots(double slDist)
 }
 
 //+------------------------------------------------------------------+
-//| Move SL to breakeven when floating profit ≥ InpBreakevenR �- R  |
+//| Move SL to breakeven when floating profit ≥ InpBreakevenR x R  |
 //+------------------------------------------------------------------+
 void ManageBreakeven()
 {

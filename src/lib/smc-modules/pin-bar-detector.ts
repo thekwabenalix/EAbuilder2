@@ -23,8 +23,8 @@ export function generatePinBarDetector(): string {
 #define OBJ_PREFIX "SMCPIN_"
 
 input ENUM_TIMEFRAMES InpTF           = PERIOD_CURRENT;
-input double          InpWickRatio    = 0.6;   // Wick >= N �- range
-input double          InpBodyMaxRatio = 0.35;  // Body <= N �- range
+input double          InpWickRatio    = 0.6;   // Wick >= N x range
+input double          InpBodyMaxRatio = 0.35;  // Body <= N x range
 input bool            InpDraw          = true;
 input string          InpLabel         = "Pin";
 input int             InpFontSize      = 8;

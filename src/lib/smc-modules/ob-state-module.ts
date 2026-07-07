@@ -12,7 +12,7 @@
  *     Zone: hi = OB candle high, lo = OB candle low
  *   Bearish OB: last BULLISH candle before a bearish displacement
  *     Zone: hi = OB candle high, lo = OB candle low
- *   Displacement: candle body ≥ InpDispMult �- ATR(InpAtrPeriod)
+ *   Displacement: candle body ≥ InpDispMult x ATR(InpAtrPeriod)
  *
  * STATE MACHINE:
  *   ACTIVE     → OB detected, displacement confirmed, zone untouched
@@ -121,7 +121,7 @@ input int             InpLookback  = 500;            // Historical bars to scan
 
 //--- Inputs - OB Detection
 input int    InpAtrPeriod  = 14;   // ATR period for displacement filter
-input double InpDispMult   = 1.5;  // Displacement body ≥ N �- ATR
+input double InpDispMult   = 1.5;  // Displacement body ≥ N x ATR
 input int    InpObScanBack = 5;    // Bars before displacement to search for OB candle
 
 //--- Inputs - Lifecycle
@@ -254,7 +254,7 @@ void OB_Add(int dir, datetime obT, datetime dispT, double hi, double lo)
 
 //+------------------------------------------------------------------+
 //| Scan bar dispShift as a potential displacement candle.           |
-//| If displacement confirmed (body >= InpDispMult �- ATR), look     |
+//| If displacement confirmed (body >= InpDispMult x ATR), look     |
 //| back up to InpObScanBack bars for the last opposing candle.     |
 //| That opposing candle becomes the Order Block zone.               |
 //+------------------------------------------------------------------+

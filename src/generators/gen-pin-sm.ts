@@ -2,8 +2,8 @@
  * Inline Pin Bar State Machine Generator
  *
  * Point-in-time rejection candle on the just-closed bar (shift 1):
- *   Bull pin: lower wick >= wickRatio �- range, body <= bodyMaxRatio �- range
- *   Bear pin: upper wick >= wickRatio �- range, body <= bodyMaxRatio �- range
+ *   Bull pin: lower wick >= wickRatio x range, body <= bodyMaxRatio x range
+ *   Bear pin: upper wick >= wickRatio x range, body <= bodyMaxRatio x range
  *
  * Standard API:
  *   PINSM_{id}_Reset()

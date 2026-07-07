@@ -15,7 +15,7 @@
  * Identification:
  *   - leg candle  : decisive body (body/range ≥ InpImpulseRatio) in the move direction
  *   - base candle : small body (body/range ≤ InpBaseMaxRatio), any direction
- *   - legs must be larger than the base (leg range ≥ InpLegBaseMult �- avg base range)
+ *   - legs must be larger than the base (leg range ≥ InpLegBaseMult x avg base range)
  *   - leg-out must break OUT of the base (close beyond base high/low)
  *
  * Invalidation: a zone is "traded through" and removed when price CLOSES beyond

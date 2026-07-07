@@ -214,11 +214,11 @@ export function reportPhase0Step0d(): void {
     console.log("✅ SUCCESS: Classic ICT EA generated successfully!\n");
     console.log("📊 Generation Stats:");
     console.log(`   - Lines of MQL5: ${result.stats.lines}`);
-    console.log(`   - Direction Brain: ${result.stats.hasDirectionBrain ? "✓" : "�-"}`);
-    console.log(`   - Setup Brain: ${result.stats.hasSetupBrain ? "✓" : "�-"}`);
-    console.log(`   - Execution Brain: ${result.stats.hasExecutionBrain ? "✓" : "�-"}`);
-    console.log(`   - Management Brain: ${result.stats.hasManagementBrain ? "✓" : "�-"}`);
-    console.log(`   - Confluence Gate: ${result.stats.hasConfluenceGate ? "✓" : "�-"}`);
+    console.log(`   - Direction Brain: ${result.stats.hasDirectionBrain ? "✓" : "x"}`);
+    console.log(`   - Setup Brain: ${result.stats.hasSetupBrain ? "✓" : "x"}`);
+    console.log(`   - Execution Brain: ${result.stats.hasExecutionBrain ? "✓" : "x"}`);
+    console.log(`   - Management Brain: ${result.stats.hasManagementBrain ? "✓" : "x"}`);
+    console.log(`   - Confluence Gate: ${result.stats.hasConfluenceGate ? "✓" : "x"}`);
     console.log(`   - Logging Calls: ${result.stats.loggingCalls}`);
 
     console.log("\n📋 Generated EA (first 800 chars):\n");

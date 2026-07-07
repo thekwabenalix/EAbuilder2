@@ -93,7 +93,7 @@ input bool   InpTradeBear  = true;   // Enable bear signals
 input int    InpMagic      = ${cfg.magic}; // Magic number (unique per EA instance)
 input double InpRiskPct    = ${cfg.riskPct.toFixed(1)};  // Risk per trade (% of account balance)
 input double InpRR         = ${cfg.rr.toFixed(1)};        // Reward-to-risk ratio
-input double InpBreakevenR = ${cfg.breakevenR.toFixed(1)}; // Breakeven trigger (�- initial risk, 0=off)
+input double InpBreakevenR = ${cfg.breakevenR.toFixed(1)}; // Breakeven trigger (x initial risk, 0=off)
 input int    InpSlippage   = ${cfg.slippage};              // Max entry slippage in points
 
 //=== Inputs - Filters ==============================================

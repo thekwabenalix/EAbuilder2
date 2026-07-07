@@ -118,7 +118,7 @@ export interface ConfluenceGate {
   summary: string;
   // Examples:
   // "✓ Direction=BULL Setup=ACTIVE Execution=SIGNAL → TRADE"
-  // "�- Direction=NEUTRAL Setup=ACTIVE Execution=SIGNAL → blocked by direction"
+  // "x Direction=NEUTRAL Setup=ACTIVE Execution=SIGNAL → blocked by direction"
 }
 
 /**

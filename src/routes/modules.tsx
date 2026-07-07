@@ -243,7 +243,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         rules: [
           "Bullish OB: last BEARISH candle before a bullish displacement",
           "Bearish OB: last BULLISH candle before a bearish displacement",
-          "Displacement: candle body ≥ InpDispMult �- ATR(InpAtrPeriod) (default 1.5 �- ATR14)",
+          "Displacement: candle body ≥ InpDispMult x ATR(InpAtrPeriod) (default 1.5 x ATR14)",
           "Mitigation: barLow ≤ OB high (bull) or barHigh ≥ OB low (bear)",
           "Invalidation: close < OB low (bull) or close > OB high (bear)",
         ],
@@ -344,7 +344,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "BOS REMOVED when close goes back through the level (self-cleaning)",
           "Pivot filter: InpPivotLen=5 bars each side (reduces minor pivot noise)",
           "Distance filter: InpMinSwingPts - new swing must differ by N points from previous (0=off)",
-          "ATR filter: InpUseAtrFilt=true → use InpAtrMult �- ATR instead of fixed points",
+          "ATR filter: InpUseAtrFilt=true → use InpAtrMult x ATR instead of fixed points",
           "Max lines: InpMaxBosLines=20 - oldest active BOS removed when limit exceeded",
         ],
         output: [
@@ -438,7 +438,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "candle is labeled 'FLq'; entering the gap kills the level.",
         rules: [
           "FVG: 3-candle gap - Bullish C1.high<C3.low (near edge=C3.low), Bearish C1.low>C3.high (near edge=C3.high)",
-          "Proximity auto-scales: InpNearATR �- ATR(14), or fixed InpNearPoints override",
+          "Proximity auto-scales: InpNearATR x ATR(14), or fixed InpNearPoints override",
           "Liquidity = wick within proximity of the gap edge WITHOUT entering the gap",
           "Touch (wick low<=gap top for bull / high>=gap bottom for bear) kills the level",
           "Closest approach wins - label moves to a nearer candle if one appears",
@@ -468,11 +468,11 @@ const TRADING_MODULES: ModuleCategory[] = [
           "reaction level. The closest-approach candle is labeled 'OLq'; touching the " +
           "OB body kills the level.",
         rules: [
-          "OB: displacement-based (body>=InpDispMult�-ATR); Bull OB=last bearish candle, Bear OB=last bullish candle",
+          "OB: displacement-based (body>=InpDispMultxATR); Bull OB=last bearish candle, Bear OB=last bullish candle",
           "Body near-edge = the OB candle's OPEN (body top for bull OB, body bottom for bear OB)",
           "Liquidity = wick within proximity of the body edge WITHOUT touching the body",
           "Touch (wick low<=obOpen for bull / high>=obOpen for bear) kills the level",
-          "Proximity = InpNearATR �- ATR(14), or fixed InpNearPoints override",
+          "Proximity = InpNearATR x ATR(14), or fixed InpNearPoints override",
           "Levels expire after InpExpiryBars bars (0 = never)",
         ],
         output: [
@@ -646,13 +646,13 @@ const TRADING_MODULES: ModuleCategory[] = [
         description:
           "Detects Classic S/R levels that are followed by a strong displacement move. " +
           "Same candle-pair logic as Classic SNR (direction reversal), but Candle B " +
-          "must deliver a displacement of at least InpDispMult �- ATR to qualify. " +
+          "must deliver a displacement of at least InpDispMult x ATR to qualify. " +
           "On a line chart: bullish = sharp V-shape, bearish = sharp A-shape. " +
           "Full ACTIVE → TOUCHED → BROKEN / EXPIRED lifecycle.",
         rules: [
           "STRONG RESISTANCE: Bullish Candle A → Bearish Candle B  (A close = resistance)",
           "STRONG SUPPORT:    Bearish Candle A → Bullish Candle B  (A close = support)",
-          "Displacement qualifier: sum of on-direction bodies across InpDispBars bars (starting at B) ≥ InpDispMult �- ATR",
+          "Displacement qualifier: sum of on-direction bodies across InpDispBars bars (starting at B) ≥ InpDispMult x ATR",
           "Live detection uses Candle B only (InpDispBars ≥ 1); history scan uses the full window",
           "Doji filter: InpIgnoreDoji=true skips neutral candles (exact or body threshold)",
           "Touched: wick reaches level (low ≤ level for support / high ≥ level for resistance)",
@@ -683,9 +683,9 @@ const TRADING_MODULES: ModuleCategory[] = [
           "after the breakout. On a line chart: the breakout shows as a clean push " +
           "through the A/V-shaped strong SNR, then a pullback to the base for re-entry.",
         rules: [
-          "BULLISH SNRC1: Strong Resistance broken UP (close > level) + RBR demand base OR Bullish Gap SNR within InpProxATR �- ATR",
-          "BEARISH SNRC1: Strong Support broken DOWN (close < level) + DBD supply base OR Bearish Gap SNR within InpProxATR �- ATR",
-          "Strong SNR qualifier: Classic pair (A→B opposite dir) + displacement body sum ≥ InpDispMult �- ATR",
+          "BULLISH SNRC1: Strong Resistance broken UP (close > level) + RBR demand base OR Bullish Gap SNR within InpProxATR x ATR",
+          "BEARISH SNRC1: Strong Support broken DOWN (close < level) + DBD supply base OR Bearish Gap SNR within InpProxATR x ATR",
+          "Strong SNR qualifier: Classic pair (A→B opposite dir) + displacement body sum ≥ InpDispMult x ATR",
           "RBR/DBD qualifier: leg-in (impulse) → 1-6 small base candles → leg-out (impulse same dir, breaks base)",
           "Gap SNR qualifier: same-direction candle pair (Bull A → Bull B = Support, Bear A → Bear B = Resistance)",
           "ACTIVE → waiting for pullback to entry zone",
@@ -724,7 +724,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "RETESTED: wick returns to level from correct side without closing through",
           "INVALIDATED: close back through the broken level (failed flip zone)",
           "EXPIRED: InpExpiryBars (default 100) bars elapsed without invalidation",
-          "Filters: InpMinBodyPts (body size) · InpMinBreakDist (points) · InpUseAtrFilt (ATR �- mult)",
+          "Filters: InpMinBodyPts (body size) · InpMinBreakDist (points) · InpUseAtrFilt (ATR x mult)",
         ],
         output: [
           "ACTIVE: OBJ_TREND line + 'Bull BO'/'Bear BO' label + ▲/▼ arrow, width 1",
@@ -889,7 +889,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Same 4-buffer contract as FVG State Module - drop-in for any Phase 3 " +
           "execution module or MTF orchestrator step.",
         rules: [
-          "Bullish OB: last BEARISH candle before a bullish displacement (body ≥ InpDispMult �- ATR)",
+          "Bullish OB: last BEARISH candle before a bullish displacement (body ≥ InpDispMult x ATR)",
           "Bearish OB: last BULLISH candle before a bearish displacement",
           "RETESTED: wick enters zone - Bull: Low ≤ OB high  |  Bear: High ≥ OB low",
           "CONFIRMED: from RETESTED, close exits near edge - Bull: Close > OB high  |  Bear: Close < OB low",
@@ -985,8 +985,8 @@ const TRADING_MODULES: ModuleCategory[] = [
         rules: [
           "Levels: Classic (Bull→Bear = Res, Bear→Bull = Sup) + Gap (same-dir pair); valid only AFTER Candle B",
           "Every closed candle is evaluated - no swing-pivot requirement",
-          "Bullish miss: wick Low above support AND (Low - level) <= InpNearATR �- ATR(14)",
-          "Bearish miss: wick High below resistance AND (level - High) <= InpNearATR �- ATR(14)",
+          "Bullish miss: wick Low above support AND (Low - level) <= InpNearATR x ATR(14)",
+          "Bearish miss: wick High below resistance AND (level - High) <= InpNearATR x ATR(14)",
           "Any wick TOUCH (Low <= support OR High >= resistance) kills the level - no miss possible",
           "When a closer approach is found, old buffer entries are cleared and new ones written",
           "Levels expire after InpExpiryBars bars (0 = never)",
@@ -1157,7 +1157,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "The BB then tracks ACTIVE → RETESTED → CONFIRMED with identical lifecycle to " +
           "OB State. Same 4-buffer contract - drop-in for any Phase 3 or MTF step.",
         rules: [
-          "OB Detection: ATR body ≥ InpDispMult �- ATR14 → walk back up to InpObLookback bars for last opposing candle",
+          "OB Detection: ATR body ≥ InpDispMult x ATR14 → walk back up to InpObLookback bars for last opposing candle",
           "Bullish OB (last bearish before bull disp.) broken when close < OB lo → Bearish BB",
           "Bearish OB (last bullish before bear disp.) broken when close > OB hi → Bullish BB",
           "BB ACTIVE: breakout confirmed - zone now flipped polarity",
@@ -1256,7 +1256,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         rules: [
           "RESISTANCE: Bullish A → Bearish B  →  A.close = resistance level",
           "SUPPORT:    Bearish A → Bullish B  →  A.close = support level",
-          "Optional doji filter: skip candles with body ≤ InpDojiThresh �- range",
+          "Optional doji filter: skip candles with body ≤ InpDojiThresh x range",
           "RETESTED: wick reaches level - Support: barLow ≤ level  |  Resistance: barHigh ≥ level",
           "CONFIRMED: from RETESTED, close holds - Support: close > level  |  Resistance: close < level",
           "BROKEN: close on wrong side [terminal]  |  EXPIRED: barsAlive ≥ InpExpiryBars [terminal]",
@@ -1287,7 +1287,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         rules: [
           "GAP SUPPORT:    Bullish A → Bullish B  →  A.close = support level",
           "GAP RESISTANCE: Bearish A → Bearish B  →  A.close = resistance level",
-          "Optional doji filter: skip candles with body ≤ InpDojiThresh �- range",
+          "Optional doji filter: skip candles with body ≤ InpDojiThresh x range",
           "RETESTED: wick reaches level - Support: barLow ≤ level  |  Resistance: barHigh ≥ level",
           "CONFIRMED: from RETESTED, close holds - Support: close > level  |  Resistance: close < level",
           "BROKEN: close on wrong side [terminal]  |  EXPIRED: barsAlive ≥ InpExpiryBars [terminal]",
@@ -1337,11 +1337,11 @@ const TRADING_MODULES: ModuleCategory[] = [
           "BUY signal:  BullConfirmBuf[1]==1.0 AND BullSLBuf[1]>0 AND sl < entry",
           "SELL signal: BearConfirmBuf[1]==1.0 AND BearSLBuf[1]>0 AND sl > entry",
           "Entry: new-bar open (one signal check per candle close)",
-          "TP: entry ± slDist �- InpRR  (default RR = 2.0)",
-          "Lot size: (balance �- InpRiskPct%) / (slDist �- tickValue/tickSize)",
+          "TP: entry ± slDist x InpRR  (default RR = 2.0)",
+          "Lot size: (balance x InpRiskPct%) / (slDist x tickValue/tickSize)",
           "Spread filter: current spread > InpMaxSpreadPts → SIGNAL_BLOCKED",
           "Max trades: CountMyPositions() ≥ InpMaxTrades → SIGNAL_BLOCKED",
-          "Breakeven: every tick - if floating profit ≥ InpBreakevenR �- initialRisk, move SL to entry",
+          "Breakeven: every tick - if floating profit ≥ InpBreakevenR x initialRisk, move SL to entry",
         ],
         output: [
           "Journal: TRADE_OPENED | dir | entry | sl | tp | lots | risk",
@@ -1367,11 +1367,11 @@ const TRADING_MODULES: ModuleCategory[] = [
           "BUY signal:  BullConfirmBuf[1]==1.0 AND BullSLBuf[1]>0 AND sl < entry",
           "SELL signal: BearConfirmBuf[1]==1.0 AND BearSLBuf[1]>0 AND sl > entry",
           "Entry: new-bar open (one signal check per candle close)",
-          "TP: entry ± slDist �- InpRR  (default RR = 2.0)",
-          "Lot size: (balance �- InpRiskPct%) / (slDist �- tickValue/tickSize)",
+          "TP: entry ± slDist x InpRR  (default RR = 2.0)",
+          "Lot size: (balance x InpRiskPct%) / (slDist x tickValue/tickSize)",
           "Spread filter: current spread > InpMaxSpreadPts → SIGNAL_BLOCKED",
           "Max trades: CountMyPositions() ≥ InpMaxTrades → SIGNAL_BLOCKED",
-          "Breakeven: every tick - if floating profit ≥ InpBreakevenR �- initialRisk, move SL to entry",
+          "Breakeven: every tick - if floating profit ≥ InpBreakevenR x initialRisk, move SL to entry",
         ],
         output: [
           "Reads iCustom() buffers 0–3 from OB_State_Module (BullConfirm / BearConfirm / BullSL / BearSL)",
@@ -1394,7 +1394,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "BUY signal:  BullConfirmBuf[1]==1.0 (RBS CONFIRMED) AND BullSLBuf[1]>0",
           "SELL signal: BearConfirmBuf[1]==1.0 (SBR CONFIRMED) AND BearSLBuf[1]>0",
           "Entry: new-bar open after confirmed breakout retest",
-          "TP: entry ± slDist �- InpRR  (default RR = 2.0)",
+          "TP: entry ± slDist x InpRR  (default RR = 2.0)",
           "Spread filter, max-trades guard, breakeven management identical to FVG EA",
         ],
         output: [
@@ -1418,7 +1418,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "BUY signal:  BullConfirmBuf[1]==1.0 (Bullish BB CONFIRMED) AND BullSLBuf[1]>0",
           "SELL signal: BearConfirmBuf[1]==1.0 (Bearish BB CONFIRMED) AND BearSLBuf[1]>0",
           "Two-layer detection: OB detected → OB broken (BB created) → BB retested → CONFIRMED",
-          "TP: entry ± slDist �- InpRR  (default RR = 2.0)",
+          "TP: entry ± slDist x InpRR  (default RR = 2.0)",
           "Spread filter, max-trades guard, breakeven management identical to FVG EA",
         ],
         output: [
@@ -1443,7 +1443,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "SELL signal: BearConfirmBuf[1]==1.0 (Bear Sweep CONFIRMED) AND BearSLBuf[1]>0",
           "SL for bull entries: sweepLow (wick low of sweep bar)",
           "SL for bear entries: sweepHigh (wick high of sweep bar)",
-          "TP: entry ± slDist �- InpRR  (default RR = 2.0)",
+          "TP: entry ± slDist x InpRR  (default RR = 2.0)",
         ],
         output: [
           "Reads iCustom() buffers 0–3 from LiqSweep_State_Module",
@@ -1466,7 +1466,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "BUY signal:  BullConfirmBuf[1]==1.0 (Bullish IFVG CONFIRMED) AND BullSLBuf[1]>0",
           "SELL signal: BearConfirmBuf[1]==1.0 (Bearish IFVG CONFIRMED) AND BearSLBuf[1]>0",
           "Two-layer detection: FVG detected → FVG inverted (IFVG created) → IFVG retested → CONFIRMED",
-          "TP: entry ± slDist �- InpRR  (default RR = 2.0)",
+          "TP: entry ± slDist x InpRR  (default RR = 2.0)",
           "Spread filter, max-trades guard, breakeven management identical to FVG EA",
         ],
         output: [
@@ -1491,7 +1491,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "SELL signal: BearConfirmBuf[1]==1.0 (Resistance CONFIRMED) AND BearSLBuf[1]>0",
           "SL for bulls: retestLow (wick low of the retest candle)",
           "SL for bears: retestHigh (wick high of the retest candle)",
-          "TP: entry ± slDist �- InpRR  (default RR = 2.0)",
+          "TP: entry ± slDist x InpRR  (default RR = 2.0)",
         ],
         output: [
           "Reads iCustom() buffers 0–3 from Classic_SNR_State_Module",
@@ -1514,7 +1514,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "BUY signal:  BullConfirmBuf[1]==1.0 (Gap Support CONFIRMED) AND BullSLBuf[1]>0",
           "SELL signal: BearConfirmBuf[1]==1.0 (Gap Resistance CONFIRMED) AND BearSLBuf[1]>0",
           "SL for bulls: retestLow  |  SL for bears: retestHigh",
-          "TP: entry ± slDist �- InpRR  (default RR = 2.0)",
+          "TP: entry ± slDist x InpRR  (default RR = 2.0)",
           "Spread filter, max-trades guard, breakeven management identical to FVG EA",
         ],
         output: [
@@ -1993,7 +1993,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         rules: [
           "Leg candle: strong body (body/range ≥ InpImpulseRatio) in the move direction",
           "Base: 1–6 small-bodied candles (body/range ≤ InpBaseMaxRatio), any direction",
-          "Legs must be larger than the base (leg range ≥ InpLegBaseMult �- avg base range)",
+          "Legs must be larger than the base (leg range ≥ InpLegBaseMult x avg base range)",
           "Leg-out must close OUT of the base (above base high for RBR, below base low for DBD)",
           "RBR (bull legs) → Demand zone; DBD (bear legs) → Supply zone",
           "Zone = base high..low; traded through (close beyond) → invalid",

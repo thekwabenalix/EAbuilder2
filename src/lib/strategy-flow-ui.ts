@@ -19,6 +19,12 @@ import { formatStepDisplayName, normalizeFlowStepNames } from "@/lib/strategy-st
 
 export type BuilderFlowMode = "simple" | "advanced";
 
+export function safeFlowSteps(
+  flow?: StrategyBlueprint["strategyFlow"] | null,
+): StrategyStepConfig[] {
+  return Array.isArray(flow?.steps) ? flow.steps : [];
+}
+
 export const STEP_ROLE_OPTIONS: Array<{ value: StrategyStepRole; label: string }> = [
   { value: "direction", label: "Direction" },
   { value: "setup", label: "Setup" },
@@ -32,7 +38,7 @@ export function blueprintUsesAdvancedFlow(bp: StrategyBlueprint): boolean {
   return (
     bp.strategyFlow?.mode === "advanced_instances" &&
     bp.strategyFlow.source === "user" &&
-    (bp.strategyFlow.steps?.length ?? 0) > 0
+    safeFlowSteps(bp.strategyFlow).length > 0
   );
 }
 
@@ -48,7 +54,7 @@ export function seedAdvancedFlow(
   if (blueprintUsesAdvancedFlow(bp) && bp.strategyFlow) {
     return {
       ...bp.strategyFlow,
-      steps: normalizeFlowStepNames(bp.strategyFlow.steps ?? []),
+      steps: normalizeFlowStepNames(safeFlowSteps(bp.strategyFlow)),
     };
   }
   const cfg = fourBrain ?? bp.fourBrain;

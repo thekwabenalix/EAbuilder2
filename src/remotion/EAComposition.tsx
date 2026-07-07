@@ -170,7 +170,7 @@ const BrainChip: React.FC<{
   );
 };
 
-/* ── Root composition (720 �- 440 @ 30fps, 150 frames = 5s loop) ── */
+/* ── Root composition (720 x 440 @ 30fps, 150 frames = 5s loop) ── */
 
 export const EAComposition: React.FC = () => {
   const frame = useCurrentFrame();

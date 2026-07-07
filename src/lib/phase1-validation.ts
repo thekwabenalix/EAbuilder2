@@ -373,7 +373,7 @@ export function runPhase1Validation(): Phase1Report {
   const allPass = passed === tests.length;
 
   const lines: string[] = [
-    "╔══════════════════════════════════════════════════════════�-",
+    "╔══════════════════════════════════════════════════════════x",
     "║         Phase 1: 4-Brain Architecture Validation        ║",
     "╚══════════════════════════════════════════════════════════╝",
     "",

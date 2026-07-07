@@ -138,7 +138,7 @@ export function TradeAuditPanel({
                     className="flex items-center justify-between gap-2 text-[11px] rounded border border-border/60 bg-background/30 px-2 py-1"
                   >
                     <span className="text-muted-foreground truncate">{block.reason}</span>
-                    <span className="font-mono text-amber-400 shrink-0">�-{block.count}</span>
+                    <span className="font-mono text-amber-400 shrink-0">x{block.count}</span>
                   </div>
                 ))}
               </div>

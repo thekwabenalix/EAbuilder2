@@ -110,7 +110,7 @@ export interface MtfExecutionConfig {
   rr: number;
 
   /**
-   * Move SL to breakeven when floating profit reaches N �- initial-risk.
+   * Move SL to breakeven when floating profit reaches N x initial-risk.
    * Set to 0 to disable breakeven management.
    */
   breakevenR: number;

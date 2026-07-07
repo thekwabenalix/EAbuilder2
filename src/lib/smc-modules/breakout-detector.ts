@@ -52,7 +52,7 @@
  * FILTERS (optional):
  *   Body size   - breaking candle body ≥ N points
  *   Min distance- close ≥ N points beyond level
- *   ATR filter  - close ≥ InpAtrMult �- ATR(14) beyond level
+ *   ATR filter  - close ≥ InpAtrMult x ATR(14) beyond level
  *
  * NO trading logic. Detection and visualisation only.
  */

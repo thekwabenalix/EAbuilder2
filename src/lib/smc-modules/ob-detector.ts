@@ -14,8 +14,8 @@
  *     → zone: High = OB candle high, Low = OB candle low
  *
  * DISPLACEMENT FILTER:
- *   Candle body ≥ InpDispMult �- ATR(InpAtrPeriod)
- *   Default: body ≥ 1.5 �- ATR(14)
+ *   Candle body ≥ InpDispMult x ATR(InpAtrPeriod)
+ *   Default: body ≥ 1.5 x ATR(14)
  *   ATR computed as SMA of True Range (self-contained, no indicator handle).
  *
  * LIFECYCLE:

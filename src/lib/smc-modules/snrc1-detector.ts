@@ -76,7 +76,7 @@ input int             InpDojiPoints    = 0;              // Doji body threshold 
 input double InpImpulseRatio   = 0.5;  // Leg   body/range ≥ this (impulse qualifier)
 input double InpBaseMaxRatio   = 0.5;  // Base  body/range ≤ this (base qualifier)
 input int    InpMaxBaseCandles = 6;    // Max candles in base
-input double InpLegBaseMult    = 1.3;  // Leg range ≥ N �- avg base range
+input double InpLegBaseMult    = 1.3;  // Leg range ≥ N x avg base range
 
 //--- Proximity - how close the zone must be to the broken Classic SNR level
 input double InpProxATR    = 2.0;  // Zone proximity in ATR multiples
@@ -364,7 +364,7 @@ void DetectBase(int sh)
 //|                                                                  |
 //| The zone must:                                                   |
 //|   • match direction (bull break → RBR / Gap-Sup; bear → DBD / Gap-Res)
-//|   • be within InpProxATR �- ATR of the broken level              |
+//|   • be within InpProxATR x ATR of the broken level              |
 //| Pick the closest match. BASE wins over GAP when equidistant.   |
 //+------------------------------------------------------------------+
 void TryMatchSnrc1(int snrIdx, int sh)
@@ -801,7 +801,7 @@ int OnInit()
          case C1_BROKEN:    nBr++; break;
          case C1_EXPIRED:   nEx++; break;
       }
-   PrintFormat("SNRC1_Detector v${SNRC1_DETECTOR_VERSION} ready | active=%d touched=%d confirmed=%d broken=%d expired=%d | prox=%.1f�-ATR(%d) | %s %s",
+   PrintFormat("SNRC1_Detector v${SNRC1_DETECTOR_VERSION} ready | active=%d touched=%d confirmed=%d broken=%d expired=%d | prox=%.1fxATR(%d) | %s %s",
       nA, nT, nC, nBr, nEx, InpProxATR, InpProxAtrPer, _Symbol, EnumToString(InpTF));
    return INIT_SUCCEEDED;
 }

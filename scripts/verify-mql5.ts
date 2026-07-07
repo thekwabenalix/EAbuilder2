@@ -420,7 +420,7 @@ function runAiTest(
     console.log(`[${lw.length ? "WARN" : "OK  "}] ${file}  (${code.split("\n").length} lines)`);
     for (const m of lw) console.log(`        • ${m}`);
     totalWarn += lw.length;
-    for (const [name, ok] of checks) console.log(`        ${ok ? "✓" : "�-"} ${name}`);
+    for (const [name, ok] of checks) console.log(`        ${ok ? "✓" : "x"} ${name}`);
     if (checks.some(([, ok]) => !ok)) totalWarn++;
   } catch (e) {
     console.log(`[FAIL] assembler threw: ${(e as Error).message}`);
@@ -1977,7 +1977,7 @@ function runModuleContractAudit() {
   ]);
 
   for (const [name, ok, detail] of checks) {
-    console.log(`        ${ok ? "✓" : "�-"} ${name}${!ok && detail ? ` (${detail})` : ""}`);
+    console.log(`        ${ok ? "✓" : "x"} ${name}${!ok && detail ? ` (${detail})` : ""}`);
   }
   if (checks.some(([, ok]) => !ok)) totalWarn++;
 }
@@ -2037,7 +2037,7 @@ function runStrategyFlowSchemaAudit() {
   checks.push(["validator rejects missing dependencies", !broken.ok]);
 
   for (const [name, ok, detail] of checks) {
-    console.log(`        ${ok ? "✓" : "�-"} ${name}${!ok && detail ? ` (${detail})` : ""}`);
+    console.log(`        ${ok ? "✓" : "x"} ${name}${!ok && detail ? ` (${detail})` : ""}`);
   }
   if (checks.some(([, ok]) => !ok)) totalWarn++;
 }

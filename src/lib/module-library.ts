@@ -679,7 +679,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     concept:
       "The last opposing candle before a strong ATR-displacement move. Represents institutional order flow. Tracks the zone through ACTIVE → RETESTED → CONFIRMED.",
     detectionLogic:
-      "Identifies displacement moves: candles where body >= dispMult �- candle range. Then looks back up to scanBack bars for the last candle moving in the opposite direction - this is the OB. Zone is UL = OB high, LL = OB low. Lifecycle mirrors FVG: ACTIVE until retested, CONFIRMED after close holds outside near edge, MITIGATED if close trades inside zone.",
+      "Identifies displacement moves: candles where body >= dispMult x candle range. Then looks back up to scanBack bars for the last candle moving in the opposite direction - this is the OB. Zone is UL = OB high, LL = OB low. Lifecycle mirrors FVG: ACTIVE until retested, CONFIRMED after close holds outside near edge, MITIGATED if close trades inside zone.",
     roles: [
       {
         role: "setup",
@@ -707,7 +707,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         type: "double",
         default: 0.6,
         range: [0.4, 0.9],
-        description: "Body must be >= dispMult �- candle range to count as displacement",
+        description: "Body must be >= dispMult x candle range to count as displacement",
         traderPhrases: [
           "strong displacement candles only",
           "use 70% body filter",
@@ -821,7 +821,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       "When a valid Order Block fails (price closes through the far edge), the zone flips polarity and becomes a Breaker Block. " +
       "The failed OB's range becomes a retest zone - bullish BB from bearish OB broken upward, bearish BB from bullish OB broken downward.",
     detectionLogic:
-      "Layer 1: ATR displacement detects OB (same as OB module but body >= dispMult �- ATR). " +
+      "Layer 1: ATR displacement detects OB (same as OB module but body >= dispMult x ATR). " +
       "Layer 2: Close through OB far edge creates BB. " +
       "Lifecycle: ACTIVE → RETESTED (wick enters zone) → CONFIRMED (close beyond near edge). " +
       "MITIGATED if close trades inside zone; INVALIDATED if close breaks opposite edge.",
@@ -1133,7 +1133,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         type: "double",
         default: 1.3,
         range: [1.0, 3.0],
-        description: "Leg range must exceed avg base range �- multiplier",
+        description: "Leg range must exceed avg base range x multiplier",
         traderPhrases: [],
       },
     ],
@@ -1284,7 +1284,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         type: "double",
         default: 1.3,
         range: [1.0, 3.0],
-        description: "Leg range must exceed avg base range �- multiplier",
+        description: "Leg range must exceed avg base range x multiplier",
         traderPhrases: [],
       },
     ],
@@ -1431,7 +1431,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         type: "double",
         default: 1.3,
         range: [1.0, 3.0],
-        description: "Leg range must exceed avg base range �- multiplier",
+        description: "Leg range must exceed avg base range x multiplier",
         traderPhrases: [],
       },
     ],
@@ -1683,7 +1683,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         type: "double",
         default: 1.5,
         range: [1.0, 3.0],
-        description: "Displacement body >= N �- ATR",
+        description: "Displacement body >= N x ATR",
         traderPhrases: [],
       },
       {
@@ -2497,7 +2497,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       "marked with a horizontal liquidity line.",
     detectionLogic:
       "Detects OB (displacement + opposing candle), BB (OB closed through → flip), and " +
-      "FVG (3-candle gap). Liquidity = wick within InpNearATR �- ATR of the body/gap edge " +
+      "FVG (3-candle gap). Liquidity = wick within InpNearATR x ATR of the body/gap edge " +
       "without crossing the edge. Touch kills the zone (rectangle + line removed).",
     roles: [
       {
@@ -2550,7 +2550,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         type: "double",
         default: 1.5,
         range: [0.5, 3.0],
-        description: "OB displacement body >= N �- ATR",
+        description: "OB displacement body >= N x ATR",
         traderPhrases: ["1.5 ATR displacement"],
       },
     ],
@@ -3339,7 +3339,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         type: "double",
         default: 0.6,
         range: [0.4, 0.8],
-        description: "Wick must be >= N �- candle range",
+        description: "Wick must be >= N x candle range",
         traderPhrases: [],
       },
       {
@@ -3347,7 +3347,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         type: "double",
         default: 0.35,
         range: [0.1, 0.5],
-        description: "Body must be <= N �- candle range",
+        description: "Body must be <= N x candle range",
         traderPhrases: [],
       },
     ],
@@ -3575,7 +3575,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
     },
     {
       key: "dispMult",
-      label: "Displacement (ATR �-)",
+      label: "Displacement (ATR x)",
       type: "number",
       default: 1.5,
       min: 0.8,
@@ -3695,7 +3695,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
       min: 1.0,
       max: 3.0,
       step: 0.1,
-      hint: "Leg range must exceed avg base range �- this value",
+      hint: "Leg range must exceed avg base range x this value",
     },
   ],
   qm_mef: [
@@ -3767,7 +3767,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
       min: 1.0,
       max: 3.0,
       step: 0.1,
-      hint: "Leg range must exceed avg base range �- this value",
+      hint: "Leg range must exceed avg base range x this value",
     },
   ],
   rbr_dbd: [
@@ -3829,7 +3829,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
       min: 1.0,
       max: 3.0,
       step: 0.1,
-      hint: "Leg range must exceed avg base range �- this value",
+      hint: "Leg range must exceed avg base range x this value",
     },
   ],
   liqsweep: [
@@ -3997,7 +3997,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
     },
     {
       key: "nearATR",
-      label: "Near Zone (ATR �-)",
+      label: "Near Zone (ATR x)",
       type: "number",
       default: 0.2,
       min: 0.05,
@@ -4025,7 +4025,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
       min: 0.4,
       max: 0.8,
       step: 0.05,
-      hint: "Wick must be >= N �- candle range (default 60%)",
+      hint: "Wick must be >= N x candle range (default 60%)",
     },
     {
       key: "bodyMaxRatio",
@@ -4035,7 +4035,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
       min: 0.1,
       max: 0.5,
       step: 0.05,
-      hint: "Body must be <= N �- candle range (default 35%)",
+      hint: "Body must be <= N x candle range (default 35%)",
     },
   ],
   bb: [
@@ -4135,7 +4135,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
       min: 1.0,
       max: 3.0,
       step: 0.1,
-      hint: "Displacement body must be >= N �- ATR",
+      hint: "Displacement body must be >= N x ATR",
     },
     {
       key: "pairWindow",
@@ -4269,7 +4269,7 @@ export function buildCompactModuleLibraryContext(): string {
  */
 export function buildModuleLibraryContext(): string {
   const lines: string[] = [
-    "╔══════════════════════════════════════════════════════════════════�-",
+    "╔══════════════════════════════════════════════════════════════════x",
     "║              MODULE LIBRARY - AI BUILDER VOCABULARY             ║",
     "╚══════════════════════════════════════════════════════════════════╝",
     "",
@@ -4337,7 +4337,7 @@ export function buildModuleLibraryContext(): string {
     lines.push("");
   }
 
-  lines.push("╔══════════════════════════════════════════════════════════════════�-");
+  lines.push("╔══════════════════════════════════════════════════════════════════x");
   lines.push("║                    END OF MODULE LIBRARY                        ║");
   lines.push("╚══════════════════════════════════════════════════════════════════╝");
 

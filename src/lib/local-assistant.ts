@@ -254,7 +254,7 @@ function buildTradeVerdict(
 
   if (entryStep && entryCount === 0) {
     verdict.push(
-      `**Entry never fired** (${entryStep.event}). Direction **${dirCount}�-** · Setup **${setupCount}�-** · Entry **0�-**.`,
+      `**Entry never fired** (${entryStep.event}). Direction **${dirCount}x** · Setup **${setupCount}x** · Entry **0x**.`,
       "The EA never passed the final gate - no order was sent.",
     );
     evidence.push(...buildTradeEvidence(expected, parsed, summary));
@@ -300,7 +300,7 @@ function buildTradeEvidence(
   if (byStep.size) {
     lines.push("", "**Events in log:**");
     for (const [name, count] of byStep) {
-      lines.push(`- ${name}: ${count}�-`);
+      lines.push(`- ${name}: ${count}x`);
     }
     const missing = expected.filter((s) => (byStep.get(s.name) ?? 0) === 0);
     if (missing.length) {
@@ -314,7 +314,7 @@ function buildTradeEvidence(
   if (parsed.gateBlocks.length) {
     lines.push("", "**Top gate blocks:**");
     for (const b of parsed.gateBlocks.slice(0, 5)) {
-      lines.push(`- ${b.reason}: ${b.count}�-`);
+      lines.push(`- ${b.reason}: ${b.count}x`);
     }
   }
 
@@ -448,7 +448,7 @@ export function answerLocalAssistant(input: LocalAssistantInput): string {
   }
 
   if (compact) {
-    lines.push("", "*Ask **“show strategy overview”** for full flow details.*");
+    lines.push("", "*Ask **-show strategy overview-** for full flow details.*");
   } else {
     lines.push(
       "",
