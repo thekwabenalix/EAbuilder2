@@ -35,15 +35,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   const companionOnline = Boolean(health.data?.ok);
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-background text-foreground">
+    <div className="min-h-screen flex flex-col md:block bg-background text-foreground">
       {/* Sidebar */}
-      <aside className="md:w-56 md:border-r border-b md:border-b-0 border-border bg-sidebar flex md:flex-col">
+      <aside className="border-b border-border bg-sidebar flex md:fixed md:inset-y-0 md:left-0 md:z-30 md:w-56 md:flex-col md:border-b-0 md:border-r">
         <div className="hidden md:flex items-center gap-2 px-4 h-14 border-b border-border">
           <TerminalSquare className="h-5 w-5 text-primary" />
           <span className="font-semibold text-sm tracking-tight flex-1">MT5 AI Builder</span>
           <ThemeToggleIcon />
         </div>
-        <nav className="flex md:flex-col flex-1 p-2 gap-1 overflow-x-auto">
+        <nav className="flex flex-1 gap-1 overflow-x-auto p-2 md:flex-col md:overflow-x-hidden md:overflow-y-auto">
           {NAV.map((item) => {
             const active = item.to === "/" ? path === "/" : path.startsWith(item.to);
             const Icon = item.icon;
@@ -84,7 +84,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Main */}
-      <main className="flex-1 min-w-0 flex flex-col">
+      <main className="flex-1 min-w-0 flex flex-col md:ml-56">
         <div className="md:hidden flex items-center gap-2 px-4 h-12 border-b border-border bg-card">
           <TerminalSquare className="h-4 w-4 text-primary shrink-0" />
           <span className="text-sm font-semibold truncate flex-1">MT5 AI Builder</span>
