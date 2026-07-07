@@ -1,5 +1,5 @@
 /**
- * SMC Module Library — Phase 1: Swing Structure Detector
+ * SMC Module Library - Phase 1: Swing Structure Detector
  *
  * Swing_Structure_Detector v1.0.0
  * ────────────────────────────────
@@ -29,7 +29,7 @@ export const SWING_STRUCTURE_DETECTOR_MODULE = "Swing_Structure_Detector";
 export function generateSwingStructureDetector(): string {
   return `//+------------------------------------------------------------------+
 //| Swing_Structure_Detector.mq5                                    |
-//| SMC Module Library v${SWING_STRUCTURE_DETECTOR_VERSION} — Phase 1: Detection Only  |
+//| SMC Module Library v${SWING_STRUCTURE_DETECTOR_VERSION} - Phase 1: Detection Only  |
 //|                                                                  |
 //| Detects confirmed pivot highs and pivot lows.                   |
 //| No BOS. No CHoCH. No trend classification.                      |
@@ -39,7 +39,7 @@ export function generateSwingStructureDetector(): string {
 //|                                                                  |
 //| NO trading logic. Detection and visualisation only.             |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SMC Module Library"
+#property copyright "EA Builder - SMC Module Library"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window
@@ -48,22 +48,22 @@ export function generateSwingStructureDetector(): string {
 #define SWING_HIGH  1
 #define SWING_LOW  -1
 
-//--- Inputs — Detection
+//--- Inputs - Detection
 input ENUM_TIMEFRAMES InpTF         = PERIOD_CURRENT; // Timeframe
 input int             InpLookback   = 500;             // Historical bars to scan on load
 input int             InpSwingLeft  = 3;               // Swing strength: left bars
 input int             InpSwingRight = 3;               // Swing strength: right bars
 
-//--- Inputs — Visibility
+//--- Inputs - Visibility
 input bool InpShowHighs = true; // Show swing high markers
 input bool InpShowLows  = true; // Show swing low markers
 
-//--- Inputs — Colours
+//--- Inputs - Colours
 input color InpHighClr = clrSilver; // Swing high marker colour
 input color InpLowClr  = clrSilver; // Swing low marker colour
 input int   InpOpacity = 70;        // Marker opacity 0-100
 
-//--- Inputs — Logging
+//--- Inputs - Logging
 input bool InpShowLog = true; // Print swing events to journal
 
 #define SWING_MAX 800

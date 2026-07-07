@@ -11,9 +11,9 @@ export const BOLL_DETECTOR_MODULE = "Bollinger_Detector";
 export function generateBollingerDetector(): string {
   return `//+------------------------------------------------------------------+
 //| Bollinger_Detector.mq5                                         |
-//| Bollinger Bands v${BOLL_DETECTOR_VERSION} — touch & breakout marks     |
+//| Bollinger Bands v${BOLL_DETECTOR_VERSION} - touch & breakout marks     |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — Indicator"
+#property copyright "EA Builder - Indicator"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window

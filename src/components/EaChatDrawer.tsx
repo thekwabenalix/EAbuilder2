@@ -77,8 +77,8 @@ export type EaAssistantAction =
 const QUICK_START_PROMPTS = [
   "Why did my backtest show zero trades?",
   "Explain my strategy flow in plain English.",
-  "Compare my prompt to the current blueprint — use a table.",
-  "Analyse my chart screenshot — are entries in the right sequence?",
+  "Compare my prompt to the current blueprint - use a table.",
+  "Analyse my chart screenshot - are entries in the right sequence?",
 ] as const;
 
 const PRIMARY_ACTIONS: EaAssistantAction[] = [
@@ -157,7 +157,7 @@ function handleChatFailure(
   });
 
   const body = offline
-    ? `${friendly ? `${friendly}\n\n` : ""}*Cloud AI offline — use **Apply now** below.*\n\n${offlineReply}`
+    ? `${friendly ? `${friendly}\n\n` : ""}*Cloud AI offline - use **Apply now** below.*\n\n${offlineReply}`
     : `${friendly}\n\n${offlineReply}`;
 
   ctx.setMessages((prev) => {
@@ -335,7 +335,7 @@ interface EaChatDrawerProps {
   onSafeAction?: (action: EaAssistantAction) => void;
   /**
    * When provided AND the current code is template-generated, "Apply fix" becomes
-   * "Regen from Template" — a deterministic regeneration instead of AI rewrite.
+   * "Regen from Template" - a deterministic regeneration instead of AI rewrite.
    * Pass a callback that calls generateMql5FromBlueprint and updates state.
    */
   onRegenTemplate?: () => void;
@@ -381,9 +381,9 @@ export function EaChatDrawer({
   const [pendingImages, setPendingImages] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
-  /** True when the last AI response contained [FIX_READY] — shows the Apply Fix banner. */
+  /** True when the last AI response contained [FIX_READY] - shows the Apply Fix banner. */
   const [fixReady, setFixReady] = useState(false);
-  /** True while /api/apply-fix is running — shows spinner in banner. */
+  /** True while /api/apply-fix is running - shows spinner in banner. */
   const [applyLoading, setApplyLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -516,7 +516,7 @@ export function EaChatDrawer({
         headers: { "Content-Type": "application/json" },
         signal: abortRef.current.signal,
         body: JSON.stringify({
-          // Strip base64 images from the message history — they're sent once via `images`.
+          // Strip base64 images from the message history - they're sent once via `images`.
           messages: nextMessages.map(({ images: _i, ...m }) => m),
           prompt: prompt ?? "",
           blueprint,
@@ -628,7 +628,7 @@ export function EaChatDrawer({
 
   // Template-generated code is detected by the fixed header the generator always emits.
   // For template code, "Apply fix" must regenerate from the template (deterministic, always
-  // correct) — NOT call the AI rewriter which may remove working features or reorder logic.
+  // correct) - NOT call the AI rewriter which may remove working features or reorder logic.
   const isRegenPreferred = prefersBlueprintRegen(code, blueprint);
 
   const handleSafeAction = (action: EaAssistantAction) => {
@@ -809,9 +809,9 @@ export function EaChatDrawer({
       onApplyCode(result.code);
       setFixReady(false);
       onOpenChange(false);
-      toast.success("Fix applied — remember to save and recompile");
+      toast.success("Fix applied - remember to save and recompile");
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Fix failed — please try again");
+      toast.error(e instanceof Error ? e.message : "Fix failed - please try again");
     } finally {
       setApplyLoading(false);
     }
@@ -1032,7 +1032,7 @@ export function EaChatDrawer({
           <div ref={bottomRef} />
         </div>
 
-        {/* ── APPLY FIX BANNER — visible when AI has a fix ready or is generating ── */}
+        {/* ── APPLY FIX BANNER - visible when AI has a fix ready or is generating ── */}
         {(fixReady || applyLoading) && !loading && (
           <div className="shrink-0 px-4 py-3 border-t border-emerald-500/30 bg-emerald-500/10 flex items-center gap-3">
             {applyLoading ? (
@@ -1047,8 +1047,8 @@ export function EaChatDrawer({
                 <Wrench className="h-4 w-4 text-emerald-400 shrink-0" />
                 <p className="text-xs text-emerald-300 flex-1 font-medium">
                   {isRegenPreferred && onRegenTemplate
-                    ? "Assembler EA — regenerate from blueprint (no AI rewrite)"
-                    : "Fix is ready — click Apply to generate the corrected code"}
+                    ? "Assembler EA - regenerate from blueprint (no AI rewrite)"
+                    : "Fix is ready - click Apply to generate the corrected code"}
                 </p>
                 <Button
                   size="sm"

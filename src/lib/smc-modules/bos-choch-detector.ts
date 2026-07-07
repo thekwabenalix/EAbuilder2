@@ -1,5 +1,5 @@
 /**
- * SMC Module Library — Phase 1: BOS / CHoCH Detector
+ * SMC Module Library - Phase 1: BOS / CHoCH Detector
  *
  * BOS_CHoCH_Detector v1.0.0
  * ────────────────────────────────
@@ -11,18 +11,18 @@
  *   Swing Low:  candle low  < N left candles AND M right candles.
  *   InpSwingLeft = N, InpSwingRight = M (defaults 3 / 3).
  *   A swing at shift s is confirmed when InpSwingRight bars to the right
- *   have closed — there is a built-in InpSwingRight-bar lag.
+ *   have closed - there is a built-in InpSwingRight-bar lag.
  *
  * STRUCTURE BIAS:
- *   BULL  — close above the most recent unbroken swing high.
- *   BEAR  — close below the most recent unbroken swing low.
- *   NEUTRAL — no break yet in the lookback window.
+ *   BULL  - close above the most recent unbroken swing high.
+ *   BEAR  - close below the most recent unbroken swing low.
+ *   NEUTRAL - no break yet in the lookback window.
  *
- * BOS (Break of Structure — trend continuation):
+ * BOS (Break of Structure - trend continuation):
  *   Bullish BOS : close > protected swing high   AND bias was BULL
  *   Bearish BOS : close < protected swing low    AND bias was BEAR
  *
- * CHoCH (Change of Character — potential reversal):
+ * CHoCH (Change of Character - potential reversal):
  *   Bullish CHoCH: close > protected swing high  AND bias was BEAR (or NEUTRAL)
  *   Bearish CHoCH: close < protected swing low   AND bias was BULL (or NEUTRAL)
  *
@@ -54,7 +54,7 @@ export const BOS_CHOCH_DETECTOR_MODULE = "BOS_CHoCH_Detector";
 export function generateBosChochDetector(): string {
   return `//+------------------------------------------------------------------+
 //| BOS_CHoCH_Detector.mq5                                          |
-//| SMC Module Library v${BOS_CHOCH_DETECTOR_VERSION} — Phase 1: Detection Only       |
+//| SMC Module Library v${BOS_CHOCH_DETECTOR_VERSION} - Phase 1: Detection Only       |
 //|                                                                  |
 //| Break of Structure (BOS) and Change of Character (CHoCH)        |
 //| detector using swing-based market structure analysis.           |
@@ -66,7 +66,7 @@ export function generateBosChochDetector(): string {
 //|                                                                  |
 //| NO trading logic. Detection and visualisation only.             |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SMC Module Library"
+#property copyright "EA Builder - SMC Module Library"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window
@@ -92,30 +92,30 @@ enum ENUM_CONFIRM_MODE
    CONFIRM_WICK  = 1  // Wick breach of level
 };
 
-//--- Inputs — Detection
+//--- Inputs - Detection
 input ENUM_TIMEFRAMES   InpTF          = PERIOD_CURRENT; // Timeframe to scan
 input int               InpLookback    = 500;             // Historical bars to scan on load
 input int               InpSwingLeft   = 3;               // Swing strength: left bars
 input int               InpSwingRight  = 3;               // Swing strength: right bars
 input ENUM_CONFIRM_MODE InpConfirmMode = CONFIRM_CLOSE;  // Structure break confirmation
 
-//--- Inputs — Visibility
+//--- Inputs - Visibility
 input bool InpShowBos    = true;  // Draw BOS markers
 input bool InpShowChoch  = true;  // Draw CHoCH markers
 input bool InpShowSwings = true;  // Draw swing high/low markers
 
-//--- Inputs — Colours
+//--- Inputs - Colours
 input color InpBullBosClr   = clrLimeGreen;   // Bullish BOS colour
 input color InpBearBosClr   = clrCrimson;     // Bearish BOS colour
 input color InpBullChochClr = clrDodgerBlue;  // Bullish CHoCH colour
 input color InpBearChochClr = clrOrange;      // Bearish CHoCH colour
 input color InpSwingClr     = clrGray;        // Swing marker colour
 
-//--- Inputs — Opacity
+//--- Inputs - Opacity
 input int InpLineOpacity  = 85; // BOS/CHoCH line opacity  0–100
 input int InpSwingOpacity = 50; // Swing marker opacity    0–100
 
-//--- Inputs — Logging
+//--- Inputs - Logging
 input bool InpShowLog = true; // Print lifecycle events to journal
 
 //--- Array capacities

@@ -1,5 +1,5 @@
 /**
- * Phase 2 — single source of truth for verified inline state-machine embedding.
+ * Phase 2 - single source of truth for verified inline state-machine embedding.
  *
  * Used by:
  *   - gen-ea.ts (blueprint + AI assembler)
@@ -479,7 +479,7 @@ export function emitStateMachineForModule(
   return emitStateMachine(meta.type, id, TF, id, params, meta.bosMode);
 }
 
-/** Tick argument for PREFIX_TF_Tick(...) — context differs between flow bar loop and assembler brains. */
+/** Tick argument for PREFIX_TF_Tick(...) - context differs between flow bar loop and assembler brains. */
 export function tickArgForSm(
   type: string,
   params: Params = {},
@@ -552,7 +552,7 @@ export function flowSupportsModuleRole(module: string, role: string): boolean {
   return false;
 }
 
-/** Modules without verified inline SMs — simple 4-Brain only (legacy heuristic path). */
+/** Modules without verified inline SMs - simple 4-Brain only (legacy heuristic path). */
 export const LEGACY_HEURISTIC_MODULE_IDS = new Set<string>([]);
 
 export function isFlowVerifiedModule(moduleId: string): boolean {

@@ -9,14 +9,14 @@
  *                   48 up for bull / down for bear). This arms the setup.
  *                   (Skipped when requireCross = false.)
  *     → ARMED     : after the cross, price RETESTS the slow EMA (within
- *                   retestPoints). The retest bar only arms — it never fires.
+ *                   retestPoints). The retest bar only arms - it never fires.
  *     → CONFIRMED : a LATER bar CLOSES outside the fast EMA in the bias
  *                   direction → entry next bar. SL = pullback swing.
  *   After a confirmation, the machine normally returns to CROSSED (same direction)
- *   and waits for the next slow-EMA retest + fast-EMA close — no new cross required
+ *   and waits for the next slow-EMA retest + fast-EMA close - no new cross required
  *   until an opposite cross flips bias (repeatAfterConfirmation=true, default).
  *   Set repeatAfterConfirmation=false to require a fresh cross after each trade.
- *   Invalidation: opposite fast/slow cross only — a close through the slow EMA
+ *   Invalidation: opposite fast/slow cross only - a close through the slow EMA
  *   during the test does NOT invalidate if price later closes beyond the fast EMA.
  *
  * Direction is supplied externally (the higher-TF gBias) so the lower-TF instance
@@ -24,7 +24,7 @@
  *
  * Roles → API:
  *   Direction : EMASM_{id}_Bias()
- *   Setup     : EMASM_{id}_SetupActive()  (cross happened — setup live)
+ *   Setup     : EMASM_{id}_SetupActive()  (cross happened - setup live)
  *   Execution : EMASM_{id}_JustConfirmed() (close outside fast after retest)
  *
  * EMAs are real iMA handles drawn via B4_MA, read with a GUARDED copy (never the
@@ -33,14 +33,14 @@
  * Full API:
  *   EMASM_{id}_Reset()
  *   EMASM_{id}_Tick(int bias)
- *   EMASM_{id}_Bias()           — own fast/slow alignment (Direction)
- *   EMASM_{id}_SetupActive()    — CROSSED or ARMED (Setup)
- *   EMASM_{id}_RetestActive()   — ARMED only (retest in progress)
- *   EMASM_{id}_ActiveDir()      — direction of the live setup
- *   EMASM_{id}_ActiveSL()       — swing SL hint while live
- *   EMASM_{id}_JustConfirmed()  — entry fired this bar (Execution)
- *   EMASM_{id}_ConfirmDir()     — direction of the confirmation
- *   EMASM_{id}_ConfirmSL()      — swing SL at confirmation
+ *   EMASM_{id}_Bias()           - own fast/slow alignment (Direction)
+ *   EMASM_{id}_SetupActive()    - CROSSED or ARMED (Setup)
+ *   EMASM_{id}_RetestActive()   - ARMED only (retest in progress)
+ *   EMASM_{id}_ActiveDir()      - direction of the live setup
+ *   EMASM_{id}_ActiveSL()       - swing SL hint while live
+ *   EMASM_{id}_JustConfirmed()  - entry fired this bar (Execution)
+ *   EMASM_{id}_ConfirmDir()     - direction of the confirmation
+ *   EMASM_{id}_ConfirmSL()      - swing SL at confirmation
  */
 
 export function genEmaSM(
@@ -114,7 +114,7 @@ int ${P}Bias()
 
   return `
 //+------------------------------------------------------------------+
-//| EMA Cross→Retest State Machine — ${tf} (${id})                  |
+//| EMA Cross→Retest State Machine - ${tf} (${id})                  |
 //| ${modeNote} retest=${retestPoints}pts requireCross=${RC} repeat=${REPEAT} |
 //| IDLE → CROSSED → ARMED (retest) → CONFIRMED (close outside fast) |
 //+------------------------------------------------------------------+
@@ -146,7 +146,7 @@ void ${P}Reset()
    ${P}consume = false; ${P}bootstrapUsed = false; ${P}lastBar = 0;
 }
 
-// Guarded EMA read — returns false (not 0.0) when the buffer is not ready.
+// Guarded EMA read - returns false (not 0.0) when the buffer is not ready.
 bool ${P}Val(int handle, int shift, double &out)
 {
    double _b[];
@@ -245,7 +245,7 @@ void ${P}Tick(int bias)
          else if(requireCross && bullCross)         // cross arms the setup
          { ${P}phase = ${P}CROSSED; ${P}activeDir = 1;
            B4_DebugMark("EMA_${tf}_BULL_CROSS", ${TF}, 1, lo, clrDodgerBlue, "BULL CROSS");
-           PrintFormat("[EMASM_${tf}] BULL cross — setup armed (12 over 48)");
+           PrintFormat("[EMASM_${tf}] BULL cross - setup armed (12 over 48)");
            if(bullRetestSlow)
            { ${P}phase = ${P}ARMED; ${P}swingLow = lo;
              if(cl > f1)
@@ -286,7 +286,7 @@ void ${P}Tick(int bias)
          { ${P}phase = ${P}ARMED; ${P}activeDir = -1; ${P}swingHigh = hi; }
          else if(requireCross && bearCross)
          { ${P}phase = ${P}CROSSED; ${P}activeDir = -1;
-           PrintFormat("[EMASM_${tf}] BEAR cross — setup armed (12 under 48)");
+           PrintFormat("[EMASM_${tf}] BEAR cross - setup armed (12 under 48)");
            if(bearRetestSlow)
            { ${P}phase = ${P}ARMED; ${P}swingHigh = hi;
              if(cl < f1)

@@ -132,7 +132,7 @@ const PRESETS: Preset[] = [
   {
     name: "Unicorn Pocket",
     tag: "SMC",
-    description: "ICT overlap pocket — zone-scoped rejection, enter next bar (Strategy Flow)",
+    description: "ICT overlap pocket - zone-scoped rejection, enter next bar (Strategy Flow)",
     setup: {
       modules: ["unicorn"],
       timeframe: "H1",
@@ -182,7 +182,7 @@ const PRESETS: Preset[] = [
   {
     name: "Execution Only",
     tag: "Scalp",
-    description: "No bias filter — H1 FVG retest entry, both directions",
+    description: "No bias filter - H1 FVG retest entry, both directions",
     direction: undefined,
     setup: undefined,
     execution: { modules: ["fvg"], timeframe: "H1" },
@@ -386,7 +386,7 @@ function ActiveConfluenceFilters({
     <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-3 space-y-2">
       <Label className="text-xs font-semibold text-sky-400">Confluence filters & indicators</Label>
       <p className="text-[10px] text-muted-foreground -mt-1">
-        Wired into EA compile — add more via Built-in indicator in any brain&apos;s module list.
+        Wired into EA compile - add more via Built-in indicator in any brain&apos;s module list.
       </p>
       <div className="flex flex-wrap gap-1.5">
         {filterRefs.map((f) => (
@@ -460,7 +460,7 @@ function AIParamExtractor({
       setExtractSummary(result.summary);
       toast.success("Params extracted");
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Extraction failed — try again");
+      toast.error(e instanceof Error ? e.message : "Extraction failed - try again");
     } finally {
       setExtracting(false);
     }
@@ -636,7 +636,7 @@ function BrainCard({
             </div>
           ) : (
             <p className="text-[11px] text-muted-foreground mt-0.5">
-              {optional ? "Skip or click to configure" : "Click to configure — required"}
+              {optional ? "Skip or click to configure" : "Click to configure - required"}
             </p>
           )}
         </div>
@@ -660,7 +660,7 @@ function BrainCard({
             </p>
             <p className="text-[10px] text-muted-foreground -mt-1">
               Use <span className="text-sky-400">Built-in indicator</span> for MACD, RSI, EMA, and
-              Bollinger — or pick structure modules below.
+              Bollinger - or pick structure modules below.
               {role === "execution" &&
                 setupModule &&
                 ZONE_SCOPED_SETUP_MODULES.has(setupModule) && (
@@ -668,7 +668,7 @@ function BrainCard({
                     {" "}
                     <span className="text-emerald-400/90">
                       SMC zone rejection uses the setup zone&apos;s Confirmed event in Strategy Flow
-                      — not SNR Rejection.
+                      - not SNR Rejection.
                     </span>
                   </>
                 )}
@@ -787,7 +787,7 @@ function BrainCard({
             />
           </div>
 
-          {/* AI param extraction — kept as optional advanced tool */}
+          {/* AI param extraction - kept as optional advanced tool */}
           {state?.modules && state.modules.length > 0 && (
             <AIParamExtractor role={role} state={state} onChange={onChange} />
           )}
@@ -1102,7 +1102,7 @@ function FourBrainBuilderPage() {
       if (builderMode === "advanced") {
         toast.error("Add at least one Entry step to your Strategy Flow.");
       } else {
-        toast.error("Execution Brain is required — select a module and timeframe.");
+        toast.error("Execution Brain is required - select a module and timeframe.");
       }
       return;
     }
@@ -1302,7 +1302,7 @@ function FourBrainBuilderPage() {
     <div className="min-h-screen flex flex-col">
       <PageHeader
         title="4-Brain Strategy Builder"
-        subtitle="Visual multi-timeframe EA builder — Direction · Setup · Execution · Management"
+        subtitle="Visual multi-timeframe EA builder - Direction · Setup · Execution · Management"
       />
 
       <div className="flex-1 p-6 space-y-6 max-w-7xl mx-auto w-full">
@@ -1328,7 +1328,7 @@ function FourBrainBuilderPage() {
           {/* ── Presets ── */}
           <div>
             <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">
-              Quick start — presets
+              Quick start - presets
             </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {PRESETS.map((p) => (
@@ -1379,7 +1379,7 @@ function FourBrainBuilderPage() {
                     : "text-muted-foreground hover:text-foreground",
                 ].join(" ")}
               >
-                Simple — 4-Brain preset
+                Simple - 4-Brain preset
               </button>
               <button
                 type="button"
@@ -1391,13 +1391,13 @@ function FourBrainBuilderPage() {
                     : "text-muted-foreground hover:text-foreground",
                 ].join(" ")}
               >
-                Advanced — Strategy Flow
+                Advanced - Strategy Flow
               </button>
             </div>
             <p className="text-[11px] text-muted-foreground max-w-2xl">
               {builderMode === "simple"
                 ? "Three brain slots (Direction · Setup · Execution). The compiler expands them into ordered steps automatically."
-                : "Build any number of ordered module steps from scratch — same Strategy Flow engine as AI output and the advanced editor on saved strategies."}
+                : "Build any number of ordered module steps from scratch - same Strategy Flow engine as AI output and the advanced editor on saved strategies."}
             </p>
           </div>
 
@@ -1406,7 +1406,7 @@ function FourBrainBuilderPage() {
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <GitBranch className="h-4 w-4 text-sky-400" />
-                  Ordered event chain — add, reorder, and configure each step
+                  Ordered event chain - add, reorder, and configure each step
                 </div>
                 <Button
                   type="button"
@@ -1608,12 +1608,12 @@ function FourBrainBuilderPage() {
             </div>
           </div>
 
-          {/* ── Strategy Rules — cross-brain conditions for AI ── */}
+          {/* ── Strategy Rules - cross-brain conditions for AI ── */}
           <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-5 py-4 space-y-2">
             <div>
               <Label className="text-xs font-semibold text-amber-400">Strategy Rules</Label>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Conditions that apply across the whole strategy — max SL distance, required
+                Conditions that apply across the whole strategy - max SL distance, required
                 sequences, invalidation rules, session filters. Claude reads this when generating
                 with AI.
               </p>
@@ -1624,8 +1624,8 @@ function FourBrainBuilderPage() {
               rows={3}
               className="text-xs font-mono resize-none"
               placeholder={`• If opposite EMA cross fires, reset direction and cancel all pending setups
-• Only enter after price retests either EMA — ignore any IFVGs that formed before
-• Max stop loss = 7 pips (70 points) — skip trade if SL distance exceeds this
+• Only enter after price retests either EMA - ignore any IFVGs that formed before
+• Max stop loss = 7 pips (70 points) - skip trade if SL distance exceeds this
 • Breakeven at 1.5R, keep original TP active`}
             />
           </div>

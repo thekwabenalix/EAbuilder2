@@ -64,7 +64,7 @@ function StrategyBuilders() {
     if (saved?.trim()) {
       setPrompt(saved);
       sessionStorage.removeItem(REINTERVIEW_KEY);
-      toast.message("Original strategy description restored — click Interview Strategy.");
+      toast.message("Original strategy description restored - click Interview Strategy.");
     }
   }, []);
 
@@ -169,7 +169,7 @@ function StrategyBuilders() {
     <div>
       <PageHeader
         title="Strategy Builders"
-        subtitle="Two ways to create an Expert Advisor — choose the one that fits your workflow"
+        subtitle="Two ways to create an Expert Advisor - choose the one that fits your workflow"
       />
 
       <div className="p-6 space-y-8 max-w-5xl mx-auto">
@@ -190,7 +190,7 @@ function StrategyBuilders() {
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   Configure Direction, Setup, Execution and Management brains visually. Each brain
-                  runs on its own timeframe — any module, any combination. Instant compilable MQL5
+                  runs on its own timeframe - any module, any combination. Instant compilable MQL5
                   output.
                 </p>
                 <ul className="text-[11px] text-muted-foreground space-y-0.5">
@@ -198,7 +198,7 @@ function StrategyBuilders() {
                     <CheckCircle2 className="h-3 w-3 text-primary" /> Visual brain config editor
                   </li>
                   <li className="flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3 w-3 text-primary" /> 14 modules — any brain, any TF
+                    <CheckCircle2 className="h-3 w-3 text-primary" /> 14 modules - any brain, any TF
                   </li>
                   <li className="flex items-center gap-1.5">
                     <CheckCircle2 className="h-3 w-3 text-primary" /> Guaranteed to compile, 0
@@ -467,7 +467,7 @@ function InterviewPanel({
             {flow.steps.map((step, i) =>
               step.enabled === false ? null : (
                 <p key={step.id} className="text-[11px] font-mono text-foreground/90">
-                  {i + 1}. {step.name || step.id} — {step.role} · {step.module} @ {step.timeframe} ·{" "}
+                  {i + 1}. {step.name || step.id} - {step.role} · {step.module} @ {step.timeframe} ·{" "}
                   {step.event}
                 </p>
               ),
@@ -495,7 +495,7 @@ function InterviewPanel({
           </div>
           <div>
             <p className="text-muted-foreground text-[10px] uppercase tracking-wide">Timeframe</p>
-            <p className="font-mono font-medium">{blueprint.execution?.setupTimeframe ?? "—"}</p>
+            <p className="font-mono font-medium">{blueprint.execution?.setupTimeframe ?? "-"}</p>
           </div>
           <div>
             <p className="text-muted-foreground text-[10px] uppercase tracking-wide">Risk</p>
@@ -543,7 +543,7 @@ function InterviewPanel({
               Optional clarifications ({clarifications.length})
             </p>
             <p className="text-[11px] text-amber-300/70 mt-0.5">
-              Answer any you want, or <strong>skip straight to Save</strong> — the EA will use
+              Answer any you want, or <strong>skip straight to Save</strong> - the EA will use
               sensible defaults.
             </p>
           </div>
@@ -630,7 +630,7 @@ function BuildStatusCard({ blueprint }: { blueprint: StrategyBlueprint }) {
         <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 space-y-2">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-medium text-destructive">
-              Interview mapped 4-Brain — generation blocked
+              Interview mapped 4-Brain - generation blocked
             </p>
             <span className="text-xs px-2 py-0.5 rounded-full border font-medium shrink-0 border-destructive/40 text-destructive bg-destructive/10">
               blocked
@@ -647,7 +647,7 @@ function BuildStatusCard({ blueprint }: { blueprint: StrategyBlueprint }) {
       <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-2">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <p className="text-xs font-medium">4-Brain ready — verified module path</p>
+            <p className="text-xs font-medium">4-Brain ready - verified module path</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">
               Review the compiler path and expected trade chain below, then Save to generate the EA
               from verified building blocks.
@@ -711,15 +711,15 @@ function BuildStatusCard({ blueprint }: { blueprint: StrategyBlueprint }) {
         <div>
           <p className="text-xs font-medium">
             {result.buildable && result.unsupportedCount === 0
-              ? "Template ready — all rules have implementations"
+              ? "Template ready - all rules have implementations"
               : result.buildable
-                ? "Partially buildable — some rules will be skipped"
-                : "Not buildable yet — no entry trigger has an implementation"}
+                ? "Partially buildable - some rules will be skipped"
+                : "Not buildable yet - no entry trigger has an implementation"}
           </p>
           <p className="text-[11px] text-muted-foreground mt-0.5">
             {result.unsupportedCount === 0
               ? "Click Save to generate a compilable EA from verified blocks."
-              : `${result.unsupportedCount} rule${result.unsupportedCount > 1 ? "s" : ""} don't map to a primitive — they'll be skipped.`}
+              : `${result.unsupportedCount} rule${result.unsupportedCount > 1 ? "s" : ""} don't map to a primitive - they'll be skipped.`}
           </p>
         </div>
         <span
@@ -767,7 +767,7 @@ function BuildStatusCard({ blueprint }: { blueprint: StrategyBlueprint }) {
             conditions.
           </p>
           <p>
-            2. Re-run <strong>Interview Strategy</strong> — the AI will reclassify into a supported
+            2. Re-run <strong>Interview Strategy</strong> - the AI will reclassify into a supported
             type.
           </p>
           <p>3. Or accept the skip: the EA will be generated without those rules.</p>

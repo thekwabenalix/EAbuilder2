@@ -1,10 +1,10 @@
 /**
- * Phase 2 State Modules — Order Block (OB) State Module
+ * Phase 2 State Modules - Order Block (OB) State Module
  *
  * OB_State_Module v1.0.0
  * ─────────────────────────────────────────────────────
  * Embeds OB detection and manages a full state machine per zone.
- * Direct adaptation of FVG_State_Module — same 4-buffer contract,
+ * Direct adaptation of FVG_State_Module - same 4-buffer contract,
  * same state lifecycle, OB-specific detection and zone boundaries.
  *
  * OB DETECTION (embedded):
@@ -12,7 +12,7 @@
  *     Zone: hi = OB candle high, lo = OB candle low
  *   Bearish OB: last BULLISH candle before a bearish displacement
  *     Zone: hi = OB candle high, lo = OB candle low
- *   Displacement: candle body ≥ InpDispMult × ATR(InpAtrPeriod)
+ *   Displacement: candle body ≥ InpDispMult �- ATR(InpAtrPeriod)
  *
  * STATE MACHINE:
  *   ACTIVE     → OB detected, displacement confirmed, zone untouched
@@ -58,7 +58,7 @@ export function generateObStateModule(): string {
 //| Phase 3 buffers 2/3: BullSL / BearSL price at confirm bar.     |
 //| NO trading logic. State tracking and visualisation only.        |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — Phase 2 State Module"
+#property copyright "EA Builder - Phase 2 State Module"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window
@@ -78,7 +78,7 @@ export function generateObStateModule(): string {
 #define STATE_EXPIRED      5   // terminal
 #define STATE_UNDRAWN     -1
 
-#define OB_MAX     500          // Slot pool — recycled; actual live cap = InpMaxZones
+#define OB_MAX     500          // Slot pool - recycled; actual live cap = InpMaxZones
 #define FAR_FUTURE ((datetime)4102444800)   // 2100-01-01 00:00 UTC
 
 //+------------------------------------------------------------------+
@@ -115,23 +115,23 @@ double BearConfirmBuf[];
 double BullSLBuf[];
 double BearSLBuf[];
 
-//--- Inputs — Timeframe & history
+//--- Inputs - Timeframe & history
 input ENUM_TIMEFRAMES InpTF        = PERIOD_CURRENT; // Timeframe
 input int             InpLookback  = 500;            // Historical bars to scan
 
-//--- Inputs — OB Detection
+//--- Inputs - OB Detection
 input int    InpAtrPeriod  = 14;   // ATR period for displacement filter
-input double InpDispMult   = 1.5;  // Displacement body ≥ N × ATR
+input double InpDispMult   = 1.5;  // Displacement body ≥ N �- ATR
 input int    InpObScanBack = 5;    // Bars before displacement to search for OB candle
 
-//--- Inputs — Lifecycle
+//--- Inputs - Lifecycle
 input bool InpShowBull      = true;  // Track bullish OB zones
 input bool InpShowBear      = true;  // Track bearish OB zones
 input int  InpExpiryBars    = 100;   // Bars until zone expires (0 = never)
 input bool InpRemoveTerminal = true; // Delete objects when zone reaches terminal state
 input int  InpMaxZones      = 50;   // Max live zones (oldest ACTIVE pruned when exceeded)
 
-//--- Inputs — Colours
+//--- Inputs - Colours
 input color InpBullColor    = clrRoyalBlue;   // ACTIVE bullish zone
 input color InpBearColor    = clrCrimson;      // ACTIVE bearish zone
 input color InpRetestColor  = clrGold;         // RETESTED zone
@@ -142,7 +142,7 @@ input color InpInvalidColor = clrDimGray;      // INVALIDATED / EXPIRED zone
 input int   InpActiveOpacity = 70;             // Live zone opacity  0-100
 input int   InpFadeOpacity   = 25;             // Terminal zone opacity 0-100
 
-//--- Inputs — Logging
+//--- Inputs - Logging
 input bool InpShowLog = true; // Print state transitions to journal
 
 ObRecord obList[OB_MAX];
@@ -170,7 +170,7 @@ color BlendWithBg(color base, int opacityPct)
 
 //+------------------------------------------------------------------+
 //| ATR = SMA of True Range over InpAtrPeriod bars at shift.        |
-//| Self-contained — no indicator handle.                            |
+//| Self-contained - no indicator handle.                            |
 //+------------------------------------------------------------------+
 double CalcATR(int shift, int period)
 {
@@ -189,7 +189,7 @@ double CalcATR(int shift, int period)
 
 //+------------------------------------------------------------------+
 //| Duplicate guard: same direction + same OB candle time            |
-//| Skip terminal zones — their slot may be recycled.               |
+//| Skip terminal zones - their slot may be recycled.               |
 //+------------------------------------------------------------------+
 bool OB_IsDuplicate(int dir, datetime obT)
 {
@@ -210,7 +210,7 @@ void OB_Add(int dir, datetime obT, datetime dispT, double hi, double lo)
    if(OB_IsDuplicate(dir, obT)) return;
 
    // Slot allocation: recycle a terminal zone before appending.
-   // Critical for long backtests — without recycling, obTotal hits
+   // Critical for long backtests - without recycling, obTotal hits
    // OB_MAX after heavy history and OB_Add silently returns, killing
    // all future zone detection.
    int idx = -1;
@@ -227,7 +227,7 @@ void OB_Add(int dir, datetime obT, datetime dispT, double hi, double lo)
    }
    if(idx < 0)
    {
-      if(obTotal >= OB_MAX) return;   // All slots live — hard pool cap reached
+      if(obTotal >= OB_MAX) return;   // All slots live - hard pool cap reached
       idx = obTotal++;
    }
    obList[idx].id          = nextObId++;
@@ -238,7 +238,7 @@ void OB_Add(int dir, datetime obT, datetime dispT, double hi, double lo)
    obList[idx].drawnState  = STATE_UNDRAWN;
    obList[idx].barsAlive   = 0;
    obList[idx].obTime      = obT;
-   obList[idx].dispTime    = dispT;    // lifecycle birth — used as detectedTime
+   obList[idx].dispTime    = dispT;    // lifecycle birth - used as detectedTime
    obList[idx].retestTime  = 0;
    obList[idx].retestHigh  = 0.0;
    obList[idx].retestLow   = 0.0;
@@ -254,7 +254,7 @@ void OB_Add(int dir, datetime obT, datetime dispT, double hi, double lo)
 
 //+------------------------------------------------------------------+
 //| Scan bar dispShift as a potential displacement candle.           |
-//| If displacement confirmed (body >= InpDispMult × ATR), look     |
+//| If displacement confirmed (body >= InpDispMult �- ATR), look     |
 //| back up to InpObScanBack bars for the last opposing candle.     |
 //| That opposing candle becomes the Order Block zone.               |
 //+------------------------------------------------------------------+
@@ -308,13 +308,13 @@ void OB_ScanBar(int dispShift)
 //| Lifecycle update for all live zones at bar sh.                   |
 //|                                                                  |
 //| Check priority (high → low):                                     |
-//|   1. EXPIRED     — barsAlive ≥ InpExpiryBars                    |
-//|   2. INVALIDATED — close beyond far edge                         |
+//|   1. EXPIRED     - barsAlive ≥ InpExpiryBars                    |
+//|   2. INVALIDATED - close beyond far edge                         |
 //|      Bull: close < lo   Bear: close > hi                         |
-//|   3. MITIGATED   — close inside zone  (lo ≤ close ≤ hi)         |
-//|   4. CONFIRMED   — (state==RETESTED) close exits from near edge  |
+//|   3. MITIGATED   - close inside zone  (lo ≤ close ≤ hi)         |
+//|   4. CONFIRMED   - (state==RETESTED) close exits from near edge  |
 //|      Bull: close > hi   Bear: close < lo                         |
-//|   5. RETESTED    — wick enters zone from correct side            |
+//|   5. RETESTED    - wick enters zone from correct side            |
 //|      Bull: barLow ≤ hi  Bear: barHigh ≥ lo                      |
 //+------------------------------------------------------------------+
 void UpdateObStates(int sh)
@@ -382,8 +382,8 @@ void UpdateObStates(int sh)
       }
 
       // ── 4. CONFIRMED: from RETESTED, close exits from near edge ───
-      //    Bull: close > hi (rejected up — zone held)
-      //    Bear: close < lo (rejected down — zone held)
+      //    Bull: close > hi (rejected up - zone held)
+      //    Bear: close < lo (rejected down - zone held)
       if(obList[i].state == STATE_RETESTED)
       {
          bool confirmed = isBull ? (barClose > hi) : (barClose < lo);
@@ -392,7 +392,7 @@ void UpdateObStates(int sh)
             obList[i].state       = STATE_CONFIRMED;
             obList[i].confirmTime = barT;
 
-            // Phase 3 signal buffers — live write during OnCalculate
+            // Phase 3 signal buffers - live write during OnCalculate
             // Historical backfill happens in OnCalculate(prev_calculated==0)
             if(sh >= 0)
             {
@@ -469,7 +469,7 @@ void EnforceMaxZones()
 }
 
 //+------------------------------------------------------------------+
-//| Draw (or redraw) one OB zone — delete + recreate on state change |
+//| Draw (or redraw) one OB zone - delete + recreate on state change |
 //+------------------------------------------------------------------+
 void OB_DrawOne(int idx)
 {
@@ -684,7 +684,7 @@ int OnCalculate(const int rates_total, const int prev_calculated,
    if(currentBar == lastBarTime) return rates_total;
    lastBarTime = currentBar;
 
-   // Bar 1 just closed — scan for new OBs, then update states
+   // Bar 1 just closed - scan for new OBs, then update states
    OB_ScanBar(1);
    UpdateObStates(1);
 

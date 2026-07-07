@@ -1,7 +1,7 @@
 /**
- * SMC Liquidity Detector — FVG Liquidity Build-up v1.1.0
+ * SMC Liquidity Detector - FVG Liquidity Build-up v1.1.0
  *
- * @deprecated Standalone visual only — superseded by Liquidity_Buildup.mq5 and
+ * @deprecated Standalone visual only - superseded by Liquidity_Buildup.mq5 and
  * the zone_liq / ZLSM brain module (unified OB+BB+FVG pool). Kept for compile regression.
  *
  * A candle or series of candles come close to a Fair Value Gap (FVG)
@@ -27,13 +27,13 @@ export const FVG_LIQUIDITY_DETECTOR_MODULE = "FVG_Liquidity_Detector";
 export function generateFvgLiquidityDetector(): string {
   return `//+------------------------------------------------------------------+
 //| FVG_Liquidity_Detector.mq5                                     |
-//| SMC Liquidity v${FVG_LIQUIDITY_DETECTOR_VERSION} — FVG Liquidity Build-up   |
+//| SMC Liquidity v${FVG_LIQUIDITY_DETECTOR_VERSION} - FVG Liquidity Build-up   |
 //|                                                                  |
 //| The FVG is drawn as a filled box. Price approaches it without   |
-//| entering — stops accumulate. Closest approach labeled "FLq".    |
+//| entering - stops accumulate. Closest approach labeled "FLq".    |
 //| Entering the gap removes the zone + label (liquidity consumed). |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SMC Liquidity"
+#property copyright "EA Builder - SMC Liquidity"
 #property version   "1.10"
 #property strict
 #property indicator_chart_window
@@ -66,8 +66,8 @@ struct LevelRec
    double   farEdge;      // opposite gap edge
    double   zoneTop;      // max(near,far)
    double   zoneBot;      // min(near,far)
-   datetime zoneStart;    // C1 time — left edge of the gap box
-   datetime levelTime;    // C3 close time — level valid after this
+   datetime zoneStart;    // C1 time - left edge of the gap box
+   datetime levelTime;    // C3 close time - level valid after this
    bool     dead;
    int      ageCounter;
    double   bestLiqDist;

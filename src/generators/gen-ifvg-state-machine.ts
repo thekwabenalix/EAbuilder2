@@ -2,7 +2,7 @@
  * Inline iFVG State Machine Generator
  *
  * Adapts the Phase 3 FVG_Inversion_State_Module directly into an EA.
- * No separate indicator file required — the state machine runs inside the EA.
+ * No separate indicator file required - the state machine runs inside the EA.
  *
  * Lifecycle (matches Phase 3 exactly):
  *   FVG detected → FVG inverted → iFVG ACTIVE
@@ -27,7 +27,7 @@ export function genFvgInversionSM(
 
   return `
 //+------------------------------------------------------------------+
-//| iFVG State Machine — ${tf} (instance: ${id})                     |
+//| iFVG State Machine - ${tf} (instance: ${id})                     |
 //| Inlined from Phase 3 FVG_Inversion_State_Module                 |
 //| Lifecycle: FVG → ACTIVE → RETESTED → CONFIRMED → terminal       |
 //+------------------------------------------------------------------+

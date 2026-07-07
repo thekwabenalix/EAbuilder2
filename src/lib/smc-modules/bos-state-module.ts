@@ -1,10 +1,10 @@
 // ─── BOS State Module ────────────────────────────────────────────────────────
-// Phase 2 Structural Bias Module — EAbuilder2
+// Phase 2 Structural Bias Module - EAbuilder2
 // Embeds Phase 1 swing + BOS detection and exposes 4 indicator buffers:
-//   [0] BullTrendBuf — 1.0 on every bar while trend is BULL
-//   [1] BearTrendBuf — 1.0 on every bar while trend is BEAR
-//   [2] BosUpBuf     — 1.0 at the bar where a bull BOS fired
-//   [3] BosDnBuf     — 1.0 at the bar where a bear BOS fired
+//   [0] BullTrendBuf - 1.0 on every bar while trend is BULL
+//   [1] BearTrendBuf - 1.0 on every bar while trend is BEAR
+//   [2] BosUpBuf     - 1.0 at the bar where a bull BOS fired
+//   [3] BosDnBuf     - 1.0 at the bar where a bear BOS fired
 //
 // Unlike FVG / OB / Breakout state modules (zone + retest pattern), BOS tracks
 // structural TREND STATE.  The persistent buffers [0] and [1] let an MTF
@@ -18,14 +18,14 @@ export function generateBosStateModule(): string {
   return `
 //+------------------------------------------------------------------+
 //| BOS_State_Module.mq5                                             |
-//| Phase 2 Structural Bias Module — EAbuilder2                      |
+//| Phase 2 Structural Bias Module - EAbuilder2                      |
 //| v${BOS_STATE_MODULE_VERSION}                                                         |
 //|                                                                  |
 //| Buffers (read via iCustom()):                                    |
-//|   0 : BullTrendBuf — 1.0 on every bar while trend is BULL       |
-//|   1 : BearTrendBuf — 1.0 on every bar while trend is BEAR       |
-//|   2 : BosUpBuf     — 1.0 at bull BOS event bar                  |
-//|   3 : BosDnBuf     — 1.0 at bear BOS event bar                  |
+//|   0 : BullTrendBuf - 1.0 on every bar while trend is BULL       |
+//|   1 : BearTrendBuf - 1.0 on every bar while trend is BEAR       |
+//|   2 : BosUpBuf     - 1.0 at bull BOS event bar                  |
+//|   3 : BosDnBuf     - 1.0 at bear BOS event bar                  |
 //+------------------------------------------------------------------+
 #property copyright   "EAbuilder2"
 #property version     "${BOS_STATE_MODULE_VERSION}"
@@ -166,7 +166,7 @@ void TryAddSwing(int sh)
 
    datetime pivotT = Tm(pivot);
 
-   // Dedup: skip consumed swings — their slot can be recycled
+   // Dedup: skip consumed swings - their slot can be recycled
    for(int k = 0; k < swingCount; k++)
      {
       if(swingList[k].consumed) continue;
@@ -240,7 +240,7 @@ void CheckBOS(int sh)
       bool isBearBos = (swingList[k].dir == DIR_LOW  && closeV < swingList[k].price);
       if(!isBullBos && !isBearBos) continue;
 
-      // Allocate slot — recycle oldest (drawn=1) when pool full.
+      // Allocate slot - recycle oldest (drawn=1) when pool full.
       // gTrend and buffer writes happen regardless of whether slot is available.
       int bIdx = bosCount < MAX_BOS ? bosCount++ : -1;
       if(bIdx < 0)
@@ -294,7 +294,7 @@ void StampTrendBuf(int sh)
 
 // ─── InvalidateBOSLines ───────────────────────────────────────────
 // Called every bar. Removes a BOS line when a body close trades back
-// through its level — that BOS is negated and no longer meaningful.
+// through its level - that BOS is negated and no longer meaningful.
 //   Bull BOS (broke above swing high): invalid when close < swingLevel
 //   Bear BOS (broke below swing low) : invalid when close > swingLevel
 void InvalidateBOSLines(int sh)
@@ -323,7 +323,7 @@ void DrawOne(int idx)
   {
    if(idx < 0 || idx >= bosCount) return;
    if(bosList[idx].drawn   == 1) return;  // already drawn
-   if(bosList[idx].invalid == 1) return;  // traded through — do not draw
+   if(bosList[idx].invalid == 1) return;  // traded through - do not draw
 
    bool   isBull = (bosList[idx].dir == DIR_HIGH);
    if( isBull && !InpShowBull) return;
@@ -387,7 +387,7 @@ void DrawAll()
    int drawn = 0;
    for(int i = bosCount - 1; i >= 0 && drawn < InpMaxLines; i--)
      {
-      if(bosList[i].invalid == 1) continue; // skip invalidated — don't waste a slot
+      if(bosList[i].invalid == 1) continue; // skip invalidated - don't waste a slot
       DrawOne(i);
       drawn++;
      }
@@ -437,7 +437,7 @@ int OnCalculate(const int rates_total,
                      (long)InpLookback);
       if(limit < 1) return(rates_total);
 
-      // Single chronological loop — oldest (limit) → newest (1).
+      // Single chronological loop - oldest (limit) → newest (1).
       // TryAddSwing at sh confirms a pivot at sh + InpSwingRight (older bar).
       // CheckBOS then tests all unconsumed swings against bar sh.
       // StampTrendBuf writes the current gTrend for this bar.

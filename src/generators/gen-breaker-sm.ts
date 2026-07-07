@@ -1,5 +1,5 @@
 /**
- * Inline Breaker Block State Machine Generator (SMC BB — not Bollinger Bands)
+ * Inline Breaker Block State Machine Generator (SMC BB - not Bollinger Bands)
  *
  * Two layers: OB detection (ATR displacement) → OB broken → Breaker Block born.
  * BB lifecycle: ACTIVE → RETESTED → CONFIRMED | MITIGATED | INVALIDATED | EXPIRED
@@ -27,7 +27,7 @@ export function genBreakerSM(
 
   return `
 //+------------------------------------------------------------------+
-//| Breaker Block State Machine — ${tf} (${id})                      |
+//| Breaker Block State Machine - ${tf} (${id})                      |
 //| Failed OB flips polarity → BB zone → retest → confirm           |
 //+------------------------------------------------------------------+
 #define ${P}ACTIVE       0

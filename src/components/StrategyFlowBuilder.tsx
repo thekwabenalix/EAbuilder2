@@ -367,7 +367,7 @@ function StepCard({
           value={step.notes ?? ""}
           onChange={(e) => onChange({ ...step, notes: e.target.value })}
           rows={2}
-          placeholder="Optional — describe timing or invalidation for this step"
+          placeholder="Optional - describe timing or invalidation for this step"
           className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-muted-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary resize-none"
         />
       </div>
@@ -416,10 +416,10 @@ export function StrategyFlowBuilder({
       <div className="rounded-lg border border-sky-500/25 bg-sky-500/5 p-3 space-y-2">
         <div className="flex items-center gap-2">
           <GitBranch className="h-4 w-4 text-sky-400" />
-          <p className="text-xs font-semibold text-sky-300">Strategy Flow — ordered event chain</p>
+          <p className="text-xs font-semibold text-sky-300">Strategy Flow - ordered event chain</p>
         </div>
         <p className="text-[11px] text-muted-foreground leading-relaxed">
-          Each step is a verified module event. Steps run in order — a trade fires only when every
+          Each step is a verified module event. Steps run in order - a trade fires only when every
           step in the chain has occurred (with timestamps). Use <strong>Setup</strong> for zone
           active, <strong>Confirmation</strong> for <strong>SMC zone rejection</strong> (wick into
           OB/FVG/Unicorn, close outside), then <strong>Entry</strong> or next-bar events. SNR
@@ -448,7 +448,7 @@ export function StrategyFlowBuilder({
               ? "Flow needs fixes before generation"
               : validation.flowEngineOk
                 ? "Ready for Strategy Flow engine"
-                : "Valid — may use blueprint assembler fallback"}
+                : "Valid - may use blueprint assembler fallback"}
           </p>
         </div>
         {validation.errors.map((error) => (

@@ -1,5 +1,5 @@
 /**
- * SMC Combination Detector — Unicorn (BB + FVG) v1.0.0
+ * SMC Combination Detector - Unicorn (BB + FVG) v1.0.0
  *
  * The ICT Unicorn model: a Breaker Block whose zone overlaps a Fair Value Gap
  * of the same (flipped) direction. The overlap is a high-probability entry pocket.
@@ -23,12 +23,12 @@ export const UNICORN_DETECTOR_MODULE = "Unicorn_Detector";
 export function generateUnicornDetector(): string {
   return `//+------------------------------------------------------------------+
 //| Unicorn_Detector.mq5                                           |
-//| SMC Combination v${UNICORN_DETECTOR_VERSION} — Unicorn (Breaker + FVG)   |
+//| SMC Combination v${UNICORN_DETECTOR_VERSION} - Unicorn (Breaker + FVG)   |
 //|                                                                  |
 //| A Breaker Block overlapping a same-direction FVG. The overlap   |
 //| pocket is the high-probability entry.                          |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SMC Combination"
+#property copyright "EA Builder - SMC Combination"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window

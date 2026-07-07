@@ -28,6 +28,7 @@ import {
   Monitor,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -65,7 +66,7 @@ function RunnerStartCard({ onRefresh }: { onRefresh: () => void }) {
           <p className="text-sm font-medium text-amber-300">Start the Desktop Companion</p>
           <p className="text-xs text-muted-foreground mt-1">
             A small Windows app that compiles your generated MQL5 code using MetaEditor on this PC.
-            No install required — just download and run.
+            No install required - just download and run.
           </p>
         </div>
       </div>
@@ -81,7 +82,7 @@ function RunnerStartCard({ onRefresh }: { onRefresh: () => void }) {
           Download and double-click <span className="font-mono">{COMPANION_FILENAME}</span>
         </li>
         <li>
-          A terminal window opens — open{" "}
+          A terminal window opens - open{" "}
           <a
             href={LOCAL_RUNNER_URL}
             target="_blank"
@@ -99,7 +100,7 @@ function RunnerStartCard({ onRefresh }: { onRefresh: () => void }) {
       <div className="rounded-md bg-muted/40 border border-border px-3 py-2 text-xs text-muted-foreground">
         <span className="font-medium text-foreground">Windows SmartScreen warning?</span> Click{" "}
         <span className="font-mono">"More info"</span> then{" "}
-        <span className="font-mono">"Run anyway"</span>. The exe is unsigned but safe — it only
+        <span className="font-mono">"Run anyway"</span>. The exe is unsigned but safe - it only
         listens on localhost and never touches live trades.
       </div>
 
@@ -139,7 +140,7 @@ function Phase1ValidationPanel() {
     <section className="rounded-md border border-border bg-card p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-xs uppercase tracking-wide text-muted-foreground">
-          Phase 1 — Generator Validation
+          Phase 1 - Generator Validation
         </h2>
         <Button size="sm" variant="outline" onClick={run} disabled={running}>
           {running ? "Running…" : "Run 5 Tests"}
@@ -231,17 +232,17 @@ function SettingsPage() {
                   ) : !runnerAuthenticated ? (
                     <>
                       <KeyRound className="h-4 w-4 text-amber-400" />
-                      <span>Connected — enter token</span>
+                      <span>Connected - enter token</span>
                     </>
                   ) : mt5Configured ? (
                     <>
                       <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                      <span>Ready — MetaEditor compile available</span>
+                      <span>Ready - MetaEditor compile available</span>
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="h-4 w-4 text-amber-400" />
-                      <span>Connected — select MT5 terminal</span>
+                      <span>Connected - select MT5 terminal</span>
                     </>
                   )}
                 </div>
@@ -458,7 +459,7 @@ function SettingsPage() {
           <section className="rounded-md border border-border bg-card p-4">
             <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Developer</h2>
             <p className="mt-2 text-xs text-muted-foreground">
-              Module catalog and detector downloads for internal testing — not required for normal
+              Module catalog and detector downloads for internal testing - not required for normal
               EA building.
             </p>
             <Link to="/modules" className="inline-block mt-3">

@@ -2,7 +2,7 @@
  * Deterministic 4-Brain wiring from a FourBrainConfig.
  *
  * Used by template mode so every trader blueprint compiles through the same
- * verified inline state machines as AI mode — not ad-hoc heuristics.
+ * verified inline state machines as AI mode - not ad-hoc heuristics.
  */
 
 import type { AiBrainWiring } from "@/lib/api-client";
@@ -453,7 +453,7 @@ export function buildBlueprintWiring(
     required_sms: [...new Set(requiredSms)],
     sm_configs: smConfigs,
     notes:
-      "Deterministic blueprint wiring — verified inline state machines embedded by gen-ea.ts assembler.",
+      "Deterministic blueprint wiring - verified inline state machines embedded by gen-ea.ts assembler.",
     semantics: {
       version: 1,
       source: "deterministic_adapter",

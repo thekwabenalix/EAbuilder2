@@ -1,9 +1,9 @@
 // ─── FVG Inversion State Module ──────────────────────────────────────────────
-// Phase 2 State Module — EAbuilder2
+// Phase 2 State Module - EAbuilder2
 //
 // Two-layer embedded detection:
-//   Layer 1 — FVG detection: 3-candle gap pattern (same as FVG State Module)
-//   Layer 2 — Inversion detection: FVG closed through on the far side → IFVG born
+//   Layer 1 - FVG detection: 3-candle gap pattern (same as FVG State Module)
+//   Layer 2 - Inversion detection: FVG closed through on the far side → IFVG born
 //
 // IFVG lifecycle is identical to FVG State Module:
 //   ACTIVE → RETESTED → CONFIRMED (Phase 3 signal)
@@ -12,11 +12,11 @@
 //
 // Bullish IFVG  (from inverted bearish FVG):
 //   Zone: UL = original C1.Low  LL = original C3.High
-//   Zone flipped to support — price should return and close above UL.
+//   Zone flipped to support - price should return and close above UL.
 //
 // Bearish IFVG  (from inverted bullish FVG):
 //   Zone: UL = original C3.Low  LL = original C1.High
-//   Zone flipped to resistance — price should return and close below LL.
+//   Zone flipped to resistance - price should return and close below LL.
 //
 // Standard 4-buffer Phase 3 contract:
 //   [0] BullConfirmBuf  [1] BearConfirmBuf  [2] BullSLBuf  [3] BearSLBuf
@@ -28,14 +28,14 @@ export function generateFvgInversionStateModule(): string {
   return `
 //+------------------------------------------------------------------+
 //| FVG_Inversion_State_Module.mq5                                   |
-//| Phase 2 FVG Inversion State Module — EAbuilder2                  |
+//| Phase 2 FVG Inversion State Module - EAbuilder2                  |
 //| v${FVG_INVERSION_STATE_MODULE_VERSION}                                               |
 //|                                                                  |
 //| Buffers (read via iCustom()):                                    |
-//|   0 : BullConfirmBuf — 1.0 at bull IFVG CONFIRMED bar           |
-//|   1 : BearConfirmBuf — 1.0 at bear IFVG CONFIRMED bar           |
-//|   2 : BullSLBuf      — retestLow at bull confirmation bar       |
-//|   3 : BearSLBuf      — retestHigh at bear confirmation bar      |
+//|   0 : BullConfirmBuf - 1.0 at bull IFVG CONFIRMED bar           |
+//|   1 : BearConfirmBuf - 1.0 at bear IFVG CONFIRMED bar           |
+//|   2 : BullSLBuf      - retestLow at bull confirmation bar       |
+//|   3 : BearSLBuf      - retestHigh at bear confirmation bar      |
 //+------------------------------------------------------------------+
 #property copyright   "EAbuilder2"
 #property version     "${FVG_INVERSION_STATE_MODULE_VERSION}"
@@ -84,7 +84,7 @@ struct FvgInternal
    int      dir;
    double   ul;
    double   ll;
-   datetime c1Time;    // C1 bar time — left edge, used for dedup and skip guard
+   datetime c1Time;    // C1 bar time - left edge, used for dedup and skip guard
    bool     inverted;
   };
 
@@ -179,7 +179,7 @@ void DetectFvg(int sh)
 
    datetime c1T = Tm(sh + 2);
 
-   // Dedup: skip inverted FVGs — their slot can be recycled
+   // Dedup: skip inverted FVGs - their slot can be recycled
    for(int k = 0; k < fvgCount; k++)
      {
       if(fvgList[k].inverted) continue;

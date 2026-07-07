@@ -1,5 +1,5 @@
 /**
- * Phase 1 + 5 — assistant hotfix and action-first offline UX smoke tests.
+ * Phase 1 + 5 - assistant hotfix and action-first offline UX smoke tests.
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";

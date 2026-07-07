@@ -1,5 +1,5 @@
 /**
- * Liquidity Buildup — combined OB + BB + FVG liquidity detector.
+ * Liquidity Buildup - combined OB + BB + FVG liquidity detector.
  *
  * Replaces the old Zone_Liquidity_Setup. All three zone types share a
  * single level array and a unified CheckLiquidity pass.
@@ -19,16 +19,16 @@ export const ZONE_LIQ_SETUP_MODULE = LIQUIDITY_BUILDUP_MODULE;
 export function generateLiquidityBuildup(): string {
   return `//+------------------------------------------------------------------+
 //| Liquidity_Buildup.mq5                                           |
-//| SMC Liquidity v${LIQUIDITY_BUILDUP_VERSION} — Combined OB + BB + FVG                  |
+//| SMC Liquidity v${LIQUIDITY_BUILDUP_VERSION} - Combined OB + BB + FVG                  |
 //|                                                                  |
 //| Each zone (OB / Breaker / FVG) is drawn as a filled rectangle.  |
 //| The closest wick that approaches the zone without entering is    |
-//| marked with a horizontal line — the liquidity build-up level.   |
+//| marked with a horizontal line - the liquidity build-up level.   |
 //| Entering the zone body removes both rect and line.              |
 //|                                                                  |
 //| Rectangle styles:  OB = solid | BB = dashed | FVG = dotted     |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SMC Liquidity"
+#property copyright "EA Builder - SMC Liquidity"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window

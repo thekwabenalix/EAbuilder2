@@ -80,7 +80,7 @@ export interface GenerateCodeResult {
 }
 
 /**
- * @deprecated Retired — server returns 410. Use `generateMql5FromBlueprintDetailed` locally.
+ * @deprecated Retired - server returns 410. Use `generateMql5FromBlueprintDetailed` locally.
  */
 export async function generateCode(
   blueprint: StrategyBlueprint,
@@ -126,7 +126,7 @@ export async function generateCode(
           accumulated += parsed.text;
           onChunk?.(accumulated);
         }
-        // done event has no code payload — use accumulated text directly.
+        // done event has no code payload - use accumulated text directly.
         if (parsed.done) finalCode = accumulated.trim();
         if (typeof parsed.error === "string") throw new Error(parsed.error);
       } catch (e) {
@@ -155,7 +155,7 @@ export async function generateCode(
     processChunk(decoder.decode(value, { stream: true }));
   }
 
-  if (!finalCode) throw new Error("Code generation incomplete — please try again");
+  if (!finalCode) throw new Error("Code generation incomplete - please try again");
   return { code: finalCode };
 }
 
@@ -169,7 +169,7 @@ export interface EaChatResult {
   fixReady: boolean;
 }
 
-/** EA assistant — Claude with full strategy context injected. */
+/** EA assistant - Claude with full strategy context injected. */
 export async function eaChat(
   messages: EaChatMessage[],
   blueprint: StrategyBlueprint,
@@ -193,7 +193,7 @@ export interface ApplyFixResult {
 /**
  * Apply the fix described in the chat conversation.
  * Generates the complete corrected MQL5 file and resolves with it.
- * Calls `onDone(code)` when the code is ready (no streaming to the UI — silent generation).
+ * Calls `onDone(code)` when the code is ready (no streaming to the UI - silent generation).
  */
 export async function applyFix(
   messages: EaChatMessage[],
@@ -235,7 +235,7 @@ export async function applyFix(
         const parsed = JSON.parse(part.slice(6)) as Record<string, unknown>;
         // Accumulate streamed text (server now streams chunks for apply-fix too)
         if (typeof parsed.text === "string") accumulated += parsed.text;
-        // done has no code payload — use accumulated text directly
+        // done has no code payload - use accumulated text directly
         if (parsed.done) finalCode = accumulated.trim();
         if (typeof parsed.error === "string") throw new Error(parsed.error);
       } catch (e) {
@@ -265,7 +265,7 @@ export async function applyFix(
     processChunk(decoder.decode(value, { stream: true }));
   }
 
-  if (!finalCode) throw new Error("Fix generation incomplete — please try again");
+  if (!finalCode) throw new Error("Fix generation incomplete - please try again");
   return { code: finalCode };
 }
 
@@ -463,7 +463,7 @@ export interface FixCompileErrorsResult {
 }
 
 /**
- * Fix compile errors directly — no chat loop, no intermediate step.
+ * Fix compile errors directly - no chat loop, no intermediate step.
  * Streams the complete corrected MQL5 file and resolves when done.
  * Pass `onChunk` to stream partial output to an editor for live preview.
  */
@@ -530,6 +530,6 @@ export async function fixCompileErrors(
     processChunk(decoder.decode(value, { stream: true }));
   }
 
-  if (!finalCode) throw new Error("Fix incomplete — please try again");
+  if (!finalCode) throw new Error("Fix incomplete - please try again");
   return { code: finalCode };
 }

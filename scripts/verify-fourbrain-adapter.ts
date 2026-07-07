@@ -1,5 +1,5 @@
 /**
- * Phase 3 — faithful 4-Brain → StrategyFlow adapter checks.
+ * Phase 3 - faithful 4-Brain → StrategyFlow adapter checks.
  */
 import {
   fourBrainToStrategyFlow,
@@ -44,7 +44,7 @@ assertEq(classic.steps[1]?.dependsOn?.[0]?.stepId, "step_direction", "setup afte
 assertEq(classic.steps[2]?.dependsOn?.[0]?.stepId, "step_setup", "entry after setup");
 assertOk(validateStrategyFlowSchema(classic).ok, "classic flow validates");
 
-// ── Multi-module execution (OR — parallel entry steps) ───────────────────────
+// ── Multi-module execution (OR - parallel entry steps) ───────────────────────
 const dualEntry = fourBrainToStrategyFlow({
   direction: { modules: ["bos"], timeframe: "H1" },
   setup: { modules: ["fvg"], timeframe: "H1" },

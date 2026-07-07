@@ -5,10 +5,10 @@
  * broken level as it flips polarity (RBS / SBR) and gets retested.
  *
  *   Bullish breakout: close above the recent range HIGH → the broken high
- *     becomes support (RBS — Resistance Becomes Support). Confirmed when price
+ *     becomes support (RBS - Resistance Becomes Support). Confirmed when price
  *     retests it from above and closes back up.
  *   Bearish breakout: close below the recent range LOW → the broken low becomes
- *     resistance (SBR — Support Becomes Resistance).
+ *     resistance (SBR - Support Becomes Resistance).
  *
  * Lifecycle:
  *   ACTIVE   → breakout close confirmed, flip level recorded
@@ -20,12 +20,12 @@
  * Standard API:
  *   BRKSM_{id}_Reset()
  *   BRKSM_{id}_Tick(lookback)
- *   BRKSM_{id}_BullJustConfirmed()  — RBS retest held (bullish entry)
- *   BRKSM_{id}_BearJustConfirmed()  — SBR retest held (bearish entry)
- *   BRKSM_{id}_BullConfirmSL()      — retestLow at last RBS confirmation
- *   BRKSM_{id}_BearConfirmSL()      — retestHigh at last SBR confirmation
- *   BRKSM_{id}_HasActiveBull()      — a live RBS level exists
- *   BRKSM_{id}_HasActiveBear()      — a live SBR level exists
+ *   BRKSM_{id}_BullJustConfirmed()  - RBS retest held (bullish entry)
+ *   BRKSM_{id}_BearJustConfirmed()  - SBR retest held (bearish entry)
+ *   BRKSM_{id}_BullConfirmSL()      - retestLow at last RBS confirmation
+ *   BRKSM_{id}_BearConfirmSL()      - retestHigh at last SBR confirmation
+ *   BRKSM_{id}_HasActiveBull()      - a live RBS level exists
+ *   BRKSM_{id}_HasActiveBear()      - a live SBR level exists
  */
 
 export function genBreakoutSM(
@@ -39,7 +39,7 @@ export function genBreakoutSM(
 
   return `
 //+------------------------------------------------------------------+
-//| Breakout State Machine — ${tf} (${id})                          |
+//| Breakout State Machine - ${tf} (${id})                          |
 //| Close beyond range → flip (RBS/SBR) → retest → CONFIRMED        |
 //+------------------------------------------------------------------+
 #define ${P}ACTIVE       0

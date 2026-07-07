@@ -132,7 +132,7 @@ function genModuleSignal(
       const fast = p(params, "fastPeriod", 21);
       const slow = p(params, "slowPeriod", 50);
       return `
-   // EMA: fast(${fast}) vs slow(${slow}) alignment — real iMA, drawn on chart
+   // EMA: fast(${fast}) vs slow(${slow}) alignment - real iMA, drawn on chart
    {
       int _hF = B4_MA(${TF}, ${fast}, MODE_EMA);
       int _hS = B4_MA(${TF}, ${slow}, MODE_EMA);
@@ -258,7 +258,7 @@ void Direction_Brain_Execute() {}
     const sigCode = genModuleSignal(mod, tf, TF, "_sig", brainParams);
     return `
 // ─── Direction Brain: ${mod.toUpperCase()} @ ${tf} ──────────────────────────────────────
-// gBias is PERSISTENT — only flips when opposite break detected.
+// gBias is PERSISTENT - only flips when opposite break detected.
 void Direction_Brain_Execute()
 {
    int _sig = 0;
@@ -293,7 +293,7 @@ ${sigCode}
 `;
   }
 
-  // Multiple modules: AND logic — all must agree on the same direction
+  // Multiple modules: AND logic - all must agree on the same direction
   const varDecls = modules.map((m, i) => `   int _sig${i} = 0;  // ${m}`).join("\n");
   const detections = modules
     .map((m, i) => genModuleSignal(m, tf, TF, `_sig${i}`, brainParams))
@@ -310,7 +310,7 @@ ${sigCode}
   return `
 // ─── Direction Brain: ${modules.map((m) => m.toUpperCase()).join(" + ")} @ ${tf} ─────────────
 // AND logic: ALL modules must confirm the SAME direction before gBias changes.
-// gBias is PERSISTENT — only flips when opposite break fires.
+// gBias is PERSISTENT - only flips when opposite break fires.
 void Direction_Brain_Execute()
 {
 ${varDecls}

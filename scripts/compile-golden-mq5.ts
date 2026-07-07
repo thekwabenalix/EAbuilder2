@@ -1,5 +1,5 @@
 /**
- * Phase 5 — optional MetaEditor compile smoke for golden EA fixtures.
+ * Phase 5 - optional MetaEditor compile smoke for golden EA fixtures.
  *
  *   npm run compile:golden
  *
@@ -82,7 +82,7 @@ function listGoldenMq5(): string[] {
 console.log("\nGolden MQL5 MetaEditor compile smoke (Phase 5)\n");
 
 if (process.platform !== "win32") {
-  const msg = "MetaEditor compile is Windows-only — skipped on this OS.";
+  const msg = "MetaEditor compile is Windows-only - skipped on this OS.";
   console.log(`[SKIP] ${msg}`);
   if (required()) {
     console.error(msg);
@@ -105,7 +105,7 @@ if (!metaEditor) {
 
 const sources = listGoldenMq5();
 if (sources.length === 0) {
-  console.error("No golden .mq5 files — run npm run verify:golden first.");
+  console.error("No golden .mq5 files - run npm run verify:golden first.");
   process.exit(1);
 }
 
@@ -139,19 +139,19 @@ for (const src of sources) {
   const ex5Ready = existsSync(ex5Path);
 
   if (proc.error) {
-    console.log(`[FAIL] ${name} — ${proc.error.message}`);
+    console.log(`[FAIL] ${name} - ${proc.error.message}`);
     failed++;
     continue;
   }
 
   if (issues.errors > 0 || !ex5Ready) {
-    console.log(`[FAIL] ${name} — ${issues.errors} error(s), ex5=${ex5Ready ? "yes" : "no"}`);
+    console.log(`[FAIL] ${name} - ${issues.errors} error(s), ex5=${ex5Ready ? "yes" : "no"}`);
     console.log(log.split("\n").slice(-12).join("\n"));
     failed++;
     continue;
   }
 
-  console.log(`[OK  ] ${name} — compiled (${issues.warnings} warning(s))`);
+  console.log(`[OK  ] ${name} - compiled (${issues.warnings} warning(s))`);
 }
 
 if (failed > 0) {

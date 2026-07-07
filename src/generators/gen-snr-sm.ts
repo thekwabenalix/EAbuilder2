@@ -18,12 +18,12 @@
  * Standard API:
  *   SNRSM_{id}_Reset()
  *   SNRSM_{id}_Tick(lookback)
- *   SNRSM_{id}_BullJustConfirmed()  — support held this bar (bullish entry)
- *   SNRSM_{id}_BearJustConfirmed()  — resistance held this bar (bearish entry)
- *   SNRSM_{id}_BullConfirmSL()      — retestLow at last support confirmation
- *   SNRSM_{id}_BearConfirmSL()      — retestHigh at last resistance confirmation
- *   SNRSM_{id}_HasActiveBull()      — a live support level exists
- *   SNRSM_{id}_HasActiveBear()      — a live resistance level exists
+ *   SNRSM_{id}_BullJustConfirmed()  - support held this bar (bullish entry)
+ *   SNRSM_{id}_BearJustConfirmed()  - resistance held this bar (bearish entry)
+ *   SNRSM_{id}_BullConfirmSL()      - retestLow at last support confirmation
+ *   SNRSM_{id}_BearConfirmSL()      - retestHigh at last resistance confirmation
+ *   SNRSM_{id}_HasActiveBull()      - a live support level exists
+ *   SNRSM_{id}_HasActiveBear()      - a live resistance level exists
  */
 
 export function genSnrSM(
@@ -37,7 +37,7 @@ export function genSnrSM(
 
   return `
 //+------------------------------------------------------------------+
-//| Classic SNR State Machine — ${tf} (${id})                      |
+//| Classic SNR State Machine - ${tf} (${id})                      |
 //| RESISTANCE: bull→bear pair · SUPPORT: bear→bull pair           |
 //| States: ACTIVE → RETESTED → CONFIRMED | BROKEN/EXPIRED         |
 //+------------------------------------------------------------------+
@@ -50,9 +50,9 @@ export function genSnrSM(
 struct ${P}LevelRec
 {
    int      dir;         //  1=support  -1=resistance
-   double   level;       // candle A close — the SNR price
+   double   level;       // candle A close - the SNR price
    datetime levelTime;   // candle A time (price origin)
-   datetime confirmTime; // candle B time — SNR valid only AFTER this bar
+   datetime confirmTime; // candle B time - SNR valid only AFTER this bar
    int      state;
    int      barsAlive;
    double   retestHigh;
@@ -141,7 +141,7 @@ void ${P}Advance(int sh)
    for(int _k = 0; _k < ${P}levelCount; _k++)
    {
       if(${P}levels[_k].state >= ${P}BROKEN) continue;
-      // SNR is a two-candle pattern — do not test it until AFTER candle B.
+      // SNR is a two-candle pattern - do not test it until AFTER candle B.
       if(bt <= ${P}levels[_k].confirmTime) continue;
       ${P}levels[_k].barsAlive++;
       ${P}levels[_k].justConfirmed = false;

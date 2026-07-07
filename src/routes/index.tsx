@@ -162,7 +162,7 @@ function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Middle: stats — different for 4-brain vs rules */}
+                  {/* Middle: stats - different for 4-brain vs rules */}
                   <div className="hidden md:flex items-center gap-3 shrink-0">
                     {isFourBrain && fourBrain ? (
                       <>

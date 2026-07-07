@@ -30,7 +30,7 @@ export function genMefSM(
 
   return `
 //+------------------------------------------------------------------+
-//| MEF State Machine — ${tf} main (${id})                           |
+//| MEF State Machine - ${tf} main (${id})                           |
 //| Engulfing + Gap SNR + RBR/DBD confluence                        |
 //+------------------------------------------------------------------+
 #define ${P}DIR_BULL  1

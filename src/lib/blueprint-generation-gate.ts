@@ -1,5 +1,5 @@
 /**
- * Phase 5 — validator gates all 4-Brain / strategy-flow generation.
+ * Phase 5 - validator gates all 4-Brain / strategy-flow generation.
  *
  * Every generate path must pass validateBlueprintForGeneration() before emitting MQL5.
  */
@@ -88,7 +88,7 @@ export function firstBlueprintGenerationError(bp: StrategyBlueprint): string | u
   return validateBlueprintForGeneration(bp).errors[0];
 }
 
-/** Stricter than execution-only check — includes flow schema validation. */
+/** Stricter than execution-only check - includes flow schema validation. */
 export function blueprintReadyForGeneration(bp: StrategyBlueprint): boolean {
   return validateBlueprintForGeneration(bp).ok;
 }

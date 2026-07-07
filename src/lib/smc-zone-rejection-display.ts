@@ -18,7 +18,7 @@ const ZONE_SHORT_LABEL: Partial<Record<BrainModuleType, string>> = {
 /** Standard event label prefix for zone touch + close-outside confirm. */
 export function smcZoneRejectionEventLabel(zoneModule: BrainModuleType): string {
   const short = ZONE_SHORT_LABEL[zoneModule] ?? zoneModule.replace(/_/g, " ");
-  return `SMC Zone Rejection — ${short}`;
+  return `SMC Zone Rejection - ${short}`;
 }
 
 export function isZoneScopedRejectionPair(
@@ -64,9 +64,9 @@ export function zoneScopedFlowChainDisplay(zoneModule: BrainModuleType): string[
   const events = ZONE_FLOW_EVENTS[zoneModule];
   if (!events) {
     return [
-      `Setup — ${ZONE_SHORT_LABEL[zoneModule] ?? zoneModule} zone active`,
+      `Setup - ${ZONE_SHORT_LABEL[zoneModule] ?? zoneModule} zone active`,
       smcZoneRejectionEventLabel(zoneModule),
-      "Entry — Next bar after confirm",
+      "Entry - Next bar after confirm",
     ];
   }
   const activeLabel = STRATEGY_EVENT_CONTRACTS[events.active]?.label ?? events.active;
@@ -77,7 +77,7 @@ export function zoneScopedFlowChainDisplay(zoneModule: BrainModuleType): string[
 
 export const UNICORN_POCKET_FLOW_CHAIN = zoneScopedFlowChainDisplay("unicorn");
 
-/** Module ids shown in brain / flow pickers — SNR Rejection hidden for SMC school. */
+/** Module ids shown in brain / flow pickers - SNR Rejection hidden for SMC school. */
 export function shouldHideSnrRejectionInPicker(
   family: import("@/lib/strategy-family").StrategyFamily | null | undefined,
   setupModules?: BrainModuleType[],

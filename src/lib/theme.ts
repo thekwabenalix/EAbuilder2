@@ -27,5 +27,5 @@ export function applyThemeClass(resolved: ResolvedTheme): void {
   else root.classList.remove("dark");
 }
 
-/** Inline in index.html before paint — keep in sync with readStoredTheme / resolveTheme. */
+/** Inline in index.html before paint - keep in sync with readStoredTheme / resolveTheme. */
 export const THEME_INIT_SCRIPT = `(function(){try{var k="eab-theme";var s=localStorage.getItem(k);var t=s==="light"||s==="dark"||s==="system"?s:"dark";var r=t==="system"?(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):t;if(r==="dark")document.documentElement.classList.add("dark");else document.documentElement.classList.remove("dark");}catch(e){document.documentElement.classList.add("dark");}})();`;

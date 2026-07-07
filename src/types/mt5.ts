@@ -90,7 +90,7 @@ export interface RunnerJobLog {
   lines: string[];
 }
 
-/** Shape returned by GET /jobs/:id — covers both compile and backtest jobs. */
+/** Shape returned by GET /jobs/:id - covers both compile and backtest jobs. */
 export interface RunnerJobResult {
   job: RunnerJob;
   success?: boolean;

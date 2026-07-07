@@ -33,7 +33,7 @@ const contractIds = Object.keys(MODULE_CONTRACTS);
 const admissionIds = Object.keys(MODULE_ADMISSION);
 const indicatorIds = INDICATOR_REGISTRY.map((indicator) => indicator.id);
 const builtinFilterIds = Object.keys(BUILTIN_FILTER_CONTRACTS);
-/** Standalone detectors emitted by verify:mql5 — not promoted to brain modules. */
+/** Standalone detectors emitted by verify:mql5 - not promoted to brain modules. */
 const emittedDetectorIds = ["seg"];
 
 function unique(values: string[]): string[] {

@@ -1,5 +1,5 @@
 /**
- * Phase 5 — static MQL5 lint for generated Experts and indicators.
+ * Phase 5 - static MQL5 lint for generated Experts and indicators.
  *
  * Not a compiler. Catches MQL4-isms and structural red flags before MetaEditor F7.
  */

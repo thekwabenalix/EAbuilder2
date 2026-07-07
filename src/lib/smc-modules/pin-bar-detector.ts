@@ -12,9 +12,9 @@ export function generatePinBarDetector(): string {
   return `//+------------------------------------------------------------------+
 //| Pin_Bar_Detector.mq5                                           |
 //| Pin Bar Detector v${PIN_BAR_DETECTOR_VERSION}                              |
-//| Long-wick rejection candle — hammer / shooting star.            |
+//| Long-wick rejection candle - hammer / shooting star.            |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — Candle Pattern"
+#property copyright "EA Builder - Candle Pattern"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window
@@ -23,8 +23,8 @@ export function generatePinBarDetector(): string {
 #define OBJ_PREFIX "SMCPIN_"
 
 input ENUM_TIMEFRAMES InpTF           = PERIOD_CURRENT;
-input double          InpWickRatio    = 0.6;   // Wick >= N × range
-input double          InpBodyMaxRatio = 0.35;  // Body <= N × range
+input double          InpWickRatio    = 0.6;   // Wick >= N �- range
+input double          InpBodyMaxRatio = 0.35;  // Body <= N �- range
 input bool            InpDraw          = true;
 input string          InpLabel         = "Pin";
 input int             InpFontSize      = 8;

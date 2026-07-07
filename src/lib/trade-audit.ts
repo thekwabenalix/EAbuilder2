@@ -1,5 +1,5 @@
 /**
- * Phase 8 — parse MT5 tester logs and blueprint flow into trade audit views.
+ * Phase 8 - parse MT5 tester logs and blueprint flow into trade audit views.
  *
  * Flow-engine EAs emit [EVENT], ===== TRADE AUDIT =====, and gLastGate strings.
  * Blueprint assembler EAs emit [GATE] BLOCKED and SIGNAL_BLOCKED lines.

@@ -99,9 +99,9 @@ installed. Skips cleanly when MetaEditor is missing unless
 
 Set repository variables for self-hosted CI:
 
-- `METAEDITOR_PATH` — path to `metaeditor64.exe`
-- `MT5_DATA_PATH` — terminal data folder containing `MQL5/`
-- `MQL5_COMPILE_REQUIRED=1` — fail the compile job when MetaEditor is absent
+- `METAEDITOR_PATH` - path to `metaeditor64.exe`
+- `MT5_DATA_PATH` - terminal data folder containing `MQL5/`
+- `MQL5_COMPILE_REQUIRED=1` - fail the compile job when MetaEditor is absent
 
 ## 7. Compile In MetaEditor
 

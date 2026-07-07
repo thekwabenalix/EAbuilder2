@@ -1,14 +1,14 @@
 /**
- * SNR Module Library — Phase 2: RSS / SRR State Module v4.0.0
+ * SNR Module Library - Phase 2: RSS / SRR State Module v4.0.0
  *
  * Same detection, visuals, and invalidation as RSS_SRR_Detector v4.
- * Plus 4 iCustom buffers — cleared when a setup is invalidated.
+ * Plus 4 iCustom buffers - cleared when a setup is invalidated.
  *
  * Phase 3 buffer contract:
- *   0 : SRRBuf    — 1.0 at SRR signal bar (cleared if S wick low broken)
- *   1 : RSSBuf    — 1.0 at RSS signal bar (cleared if R wick high broken)
- *   2 : SRRSLBuf  — driving Support wick low (SL for SRR buys)
- *   3 : RSSSLBuf  — driving Resistance wick high (SL for RSS sells)
+ *   0 : SRRBuf    - 1.0 at SRR signal bar (cleared if S wick low broken)
+ *   1 : RSSBuf    - 1.0 at RSS signal bar (cleared if R wick high broken)
+ *   2 : SRRSLBuf  - driving Support wick low (SL for SRR buys)
+ *   3 : RSSSLBuf  - driving Resistance wick high (SL for RSS sells)
  */
 
 export const RSS_SRR_STATE_MODULE_VERSION = "4.0.0";
@@ -17,11 +17,11 @@ export const RSS_SRR_STATE_MODULE = "RSS_SRR_State_Module";
 export function generateRssSrrStateModule(): string {
   return `//+------------------------------------------------------------------+
 //| RSS_SRR_State_Module.mq5                                       |
-//| SNR Module Library v${RSS_SRR_STATE_MODULE_VERSION} — Phase 2: State + Buffers|
+//| SNR Module Library v${RSS_SRR_STATE_MODULE_VERSION} - Phase 2: State + Buffers|
 //|                                                                  |
 //| Buffers cleared when price closes beyond the driving level wick.|
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SNR Module Library"
+#property copyright "EA Builder - SNR Module Library"
 #property version   "4.00"
 #property strict
 #property indicator_chart_window

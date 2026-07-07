@@ -1,15 +1,15 @@
 /**
- * SNRC2 Detector — Support & Resistance Continuation 2
+ * SNRC2 Detector - Support & Resistance Continuation 2
  *
  * A continuation pattern after a Classic SNR break, with a manipulation pullback
  * back across the broken level before continuation.
  *
  * BEARISH SNRC2 (5 swing points: L1 H1 L2 H2 L3):
- *   1. First Low (L1)            — the Classic SNR level
- *   2. Pullback high (H1)        — price rallies away from L1
- *   3. Second Low (L2 < L1)      — price breaks/closes below L1 (lower low)
- *   4. Manipulation high (H2)    — rally back ABOVE L1 (liquidity grab); SL ref
- *   5. Continuation low (L3 < L2)— price breaks below L2 → pattern confirmed
+ *   1. First Low (L1)            - the Classic SNR level
+ *   2. Pullback high (H1)        - price rallies away from L1
+ *   3. Second Low (L2 < L1)      - price breaks/closes below L1 (lower low)
+ *   4. Manipulation high (H2)    - rally back ABOVE L1 (liquidity grab); SL ref
+ *   5. Continuation low (L3 < L2)- price breaks below L2 → pattern confirmed
  *   Entry = L1 level · SL = manipulation high (H2) · Target = continuation lower
  *   Invalidation: close beyond the manipulation high (H2) → structure broken.
  *
@@ -18,7 +18,7 @@
  *   (below R1) → continuation higher high (R3 > R2).
  *   Entry = R1 level · SL = manipulation low · invalid on close beyond it.
  *
- * Detection only — no trade execution.
+ * Detection only - no trade execution.
  */
 
 export const SNRC2_DETECTOR_VERSION = "1.0.0";
@@ -26,7 +26,7 @@ export const SNRC2_DETECTOR_MODULE = "SNRC2_Detector";
 
 export function generateSnrc2Detector(): string {
   return `//+------------------------------------------------------------------+
-//| SNRC2_Detector.mq5 — Support & Resistance Continuation 2        |
+//| SNRC2_Detector.mq5 - Support & Resistance Continuation 2        |
 //| SNRC2 Detector v${SNRC2_DETECTOR_VERSION}                                |
 //|                                                                  |
 //| Continuation after a Classic SNR break with a manipulation       |
@@ -34,9 +34,9 @@ export function generateSnrc2Detector(): string {
 //|   Bearish: L1 → H1 → L2(<L1) → H2(>L1) → L3(<L2)               |
 //|   Bullish: R1 → L1 → R2(>R1) → ML(<R1) → R3(>R2)              |
 //|   Entry = first level · SL = manipulation extreme.             |
-//| Detection only — no trade logic.                                |
+//| Detection only - no trade logic.                                |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SNRC2"
+#property copyright "EA Builder - SNRC2"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window
@@ -173,7 +173,7 @@ void DrawRec(int i)
    if(!InpDraw) return;
    color c = (recs[i].dir == DIR_BULL) ? InpBullColor : InpBearColor;
 
-   // Entry level — SHORT line, grows until tapped then freezes.
+   // Entry level - SHORT line, grows until tapped then freezes.
    string e = ObjEntry(recs[i].id);
    if(ObjectCreate(0, e, OBJ_TREND, 0, recs[i].t1, recs[i].entry, recs[i].endT, recs[i].entry)) {
       ObjectSetInteger(0, e, OBJPROP_COLOR,      InpEntryColor);
@@ -187,7 +187,7 @@ void DrawRec(int i)
        recs[i].dir == DIR_BULL ? "SNRC2 Bull entry" : "SNRC2 Bear entry", InpEntryColor,
        recs[i].dir == DIR_BULL ? ANCHOR_LEFT_UPPER : ANCHOR_LEFT_LOWER);
 
-   // SL — red horizontal line at the manipulation extreme.
+   // SL - red horizontal line at the manipulation extreme.
    string sl = ObjSL(recs[i].id);
    if(ObjectCreate(0, sl, OBJ_TREND, 0, recs[i].tManip, recs[i].sl, recs[i].endT, recs[i].sl)) {
       ObjectSetInteger(0, sl, OBJPROP_COLOR,      InpSLColor);
@@ -200,7 +200,7 @@ void DrawRec(int i)
    Tag(recs[i].id, "sll", recs[i].tManip, recs[i].sl, "SL", InpSLColor,
        recs[i].dir == DIR_BEAR ? ANCHOR_LEFT_LOWER : ANCHOR_LEFT_UPPER);
 
-   // Resistance/support that created the 1st level — manipulation must stay inside it.
+   // Resistance/support that created the 1st level - manipulation must stay inside it.
    string rl = ObjTag(recs[i].id, "resln");
    if(ObjectCreate(0, rl, OBJ_TREND, 0, recs[i].tRes, recs[i].resLevel,
                    recs[i].tManip, recs[i].resLevel)) {
@@ -456,7 +456,7 @@ int OnCalculate(const int rates_total, const int prev_calculated,
       // Full rebuild each new bar: re-detect + replay every bar of the lookback.
       // This guarantees a setup whose SL was traded through (possibly several bars
       // before its final pivot confirmed, due to swing-confirmation lag) is always
-      // re-validated against the whole history and removed — never left extending.
+      // re-validated against the whole history and removed - never left extending.
       Rebuild();
    }
    return rates_total;

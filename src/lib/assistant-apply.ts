@@ -1,5 +1,5 @@
 /**
- * Structured "apply fix" payloads the assistant can emit — wired to real app actions.
+ * Structured "apply fix" payloads the assistant can emit - wired to real app actions.
  */
 
 import type { StrategyBlueprint } from "@/types/blueprint";

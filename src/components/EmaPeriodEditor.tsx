@@ -36,10 +36,10 @@ export function EmaPeriodEditor({
 
   const modeLabel =
     normalized.mode === "single"
-      ? "Single EMA — bias from price vs line; retest that EMA"
+      ? "Single EMA - bias from price vs line; retest that EMA"
       : normalized.mode === "dual"
-        ? "Dual EMA — cross, retest slower line, confirm beyond faster"
-        : "Multi EMA stack — all lines must align; cross uses shortest vs longest";
+        ? "Dual EMA - cross, retest slower line, confirm beyond faster"
+        : "Multi EMA stack - all lines must align; cross uses shortest vs longest";
 
   return (
     <div className="col-span-2 space-y-2 rounded-lg border border-border/60 bg-muted/10 p-3">

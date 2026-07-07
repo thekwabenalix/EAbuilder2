@@ -1,5 +1,5 @@
 /**
- * Strategy Flow module taxonomy — groups modules for the builder UI.
+ * Strategy Flow module taxonomy - groups modules for the builder UI.
  *
  * Roles stay compiler phases (direction → setup → confirmation → entry).
  * Taxonomy describes what the module *is*, not where it sits in the gate.
@@ -29,7 +29,7 @@ export const MODULE_TAXONOMY_GROUPS: ModuleTaxonomyGroup[] = [
   {
     id: "structure",
     label: "Price structure",
-    hint: "Bias and market structure — rarely the final entry alone.",
+    hint: "Bias and market structure - rarely the final entry alone.",
     typicalRoles: "Direction",
   },
   {
@@ -41,7 +41,7 @@ export const MODULE_TAXONOMY_GROUPS: ModuleTaxonomyGroup[] = [
   {
     id: "level",
     label: "Levels",
-    hint: "Reserved — reactive S/R modules live under Entry zones.",
+    hint: "Reserved - reactive S/R modules live under Entry zones.",
     typicalRoles: "Setup / Filter",
   },
   {

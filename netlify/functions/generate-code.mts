@@ -1,5 +1,5 @@
 /**
- * Phase 1 — /api/generate-code is retired (raw AI MQL5 violated verified-generator policy).
+ * Phase 1 - /api/generate-code is retired (raw AI MQL5 violated verified-generator policy).
  */
 const CORS = {
   "Access-Control-Allow-Origin": "*",

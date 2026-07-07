@@ -1,5 +1,5 @@
 /**
- * Phase 8 — trade audit parser and expected-path checks.
+ * Phase 8 - trade audit parser and expected-path checks.
  */
 import { generateFlowEA } from "../src/generators/gen-flow-ea";
 import { fourBrainToStrategyFlow } from "../src/lib/fourbrain-flow-adapter";

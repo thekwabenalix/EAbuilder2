@@ -1,5 +1,5 @@
 /**
- * SNR Module Library — Phase 1: Breakout Detector
+ * SNR Module Library - Phase 1: Breakout Detector
  *
  * Breakout_Detector v2.0.0
  * ────────────────────────────────────────────────
@@ -30,7 +30,7 @@
  *   EXPIRED    → InpExpiryBars bars elapsed without invalidation
  *
  * DRAWN ELEMENTS:
- *   OBJ_TREND  line at level — from SNR origin to breakout bar, extending right
+ *   OBJ_TREND  line at level - from SNR origin to breakout bar, extending right
  *   OBJ_TEXT   label at breakout bar:
  *     ACTIVE:              "Bull BO" / "Bear BO"
  *     CONFIRMED / RETESTED "RBS"     / "SBR"
@@ -46,13 +46,13 @@
  *   SBR_INVALIDATED      | id | snr_id | level | time
  *   RBS_EXPIRED          | id | snr_id | level | time
  *   SBR_EXPIRED          | id | snr_id | level | time
- *   BREAKOUT_INVALIDATED | id | snr_id | dir | level | time  (never confirmed — failed before flip)
- *   BREAKOUT_EXPIRED     | id | snr_id | dir | level | time  (never confirmed — aged before flip)
+ *   BREAKOUT_INVALIDATED | id | snr_id | dir | level | time  (never confirmed - failed before flip)
+ *   BREAKOUT_EXPIRED     | id | snr_id | dir | level | time  (never confirmed - aged before flip)
  *
  * FILTERS (optional):
- *   Body size   — breaking candle body ≥ N points
- *   Min distance— close ≥ N points beyond level
- *   ATR filter  — close ≥ InpAtrMult × ATR(14) beyond level
+ *   Body size   - breaking candle body ≥ N points
+ *   Min distance- close ≥ N points beyond level
+ *   ATR filter  - close ≥ InpAtrMult �- ATR(14) beyond level
  *
  * NO trading logic. Detection and visualisation only.
  */
@@ -63,7 +63,7 @@ export const BREAKOUT_DETECTOR_MODULE = "Breakout_Detector";
 export function generateBreakoutDetector(): string {
   return `//+------------------------------------------------------------------+
 //| Breakout_Detector.mq5                                          |
-//| SNR Module Library v${BREAKOUT_DETECTOR_VERSION} — Phase 1: Detection Only  |
+//| SNR Module Library v${BREAKOUT_DETECTOR_VERSION} - Phase 1: Detection Only  |
 //|                                                                  |
 //| Detects breakouts of Classic SNR levels (close confirmation).  |
 //| Classic SNR: candle-pair direction reversal; level = A close.  |
@@ -78,7 +78,7 @@ export function generateBreakoutDetector(): string {
 //|         → INVALIDATED / EXPIRED                                 |
 //| NO trading logic. Detection and visualisation only.            |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SNR Module Library"
+#property copyright "EA Builder - SNR Module Library"
 #property version   "2.00"
 #property strict
 #property indicator_chart_window
@@ -101,11 +101,11 @@ export function generateBreakoutDetector(): string {
 
 enum ENUM_CONFIRM_MODE
 {
-   CONFIRM_CLOSE = 0, // Candle close beyond level (default — recommended)
+   CONFIRM_CLOSE = 0, // Candle close beyond level (default - recommended)
    CONFIRM_WICK  = 1  // Wick breach of level
 };
 
-//--- Inputs — Detection
+//--- Inputs - Detection
 input ENUM_TIMEFRAMES   InpTF          = PERIOD_CURRENT; // Timeframe
 input int               InpLookback    = 500;            // Historical bars to scan
 input bool              InpShowBull    = true;           // Show bullish breakouts
@@ -113,22 +113,22 @@ input bool              InpShowBear    = true;           // Show bearish breakou
 input bool              InpIgnoreDoji  = true;           // Skip neutral candles (Classic SNR)
 input int               InpDojiPoints  = 0;              // Doji body threshold in points (0 = exact)
 
-//--- Inputs — Confirmation
+//--- Inputs - Confirmation
 input ENUM_CONFIRM_MODE InpConfirmMode = CONFIRM_CLOSE;  // Breakout confirmation method
 
-//--- Inputs — Filters
+//--- Inputs - Filters
 input int    InpMinBodyPts   = 0;     // Min body size of breakout candle (points, 0 = off)
 input int    InpMinBreakDist = 0;     // Min close distance beyond level (points, 0 = off)
 input bool   InpUseAtrFilt   = false; // Use ATR-based minimum distance filter
 input double InpAtrMult      = 0.5;   // ATR multiplier (used when InpUseAtrFilt = true)
 input int    InpAtrPeriod    = 14;    // ATR period
 
-//--- Inputs — Lifecycle
+//--- Inputs - Lifecycle
 input int  InpExpiryBars    = 100;   // Bars until breakout expires (0 = never)
 input bool InpRemoveInvalid = true;  // Remove invalidated / expired objects
 input int  InpMaxBreakouts  = 100;   // Max active breakouts visible
 
-//--- Inputs — Colours
+//--- Inputs - Colours
 input color InpBullColor    = clrDodgerBlue;     // Bullish breakout (ACTIVE) colour
 input color InpBearColor    = clrCrimson;         // Bearish breakout (ACTIVE) colour
 input color InpRetestColor  = clrGold;            // Retested level colour
@@ -136,12 +136,12 @@ input color InpInvalidColor = clrDimGray;         // Invalidated / expired colou
 input int   InpOpacity      = 85;                 // Active level opacity 0-100
 input int   InpFadeOpacity  = 35;                 // Invalidated level opacity 0-100
 
-//--- Inputs — RBS / SBR
+//--- Inputs - RBS / SBR
 input bool  InpShowRbsSbr   = true;               // Visualise confirmed zone as RBS / SBR
 input color InpRbsColor     = clrMediumSeaGreen;  // RBS (Resistance Becomes Support) colour
 input color InpSbrColor     = clrOrangeRed;        // SBR (Support Becomes Resistance) colour
 
-//--- Inputs — Logging
+//--- Inputs - Logging
 input bool InpShowLog = true; // Print lifecycle events to journal
 
 //+------------------------------------------------------------------+
@@ -222,7 +222,7 @@ int CandleDir(int sh)
 }
 
 //+------------------------------------------------------------------+
-//| Self-contained ATR — SMA of True Range over 'period' bars      |
+//| Self-contained ATR - SMA of True Range over 'period' bars      |
 //+------------------------------------------------------------------+
 double CalcATR(int sh, int period)
 {
@@ -279,7 +279,7 @@ void AddSnrLevel(int shA, int shB)
 
    int dirA = CandleDir(shA);
    int dirB = CandleDir(shB);
-   if(dirA == 0 || dirB == 0) return; // doji — skip
+   if(dirA == 0 || dirB == 0) return; // doji - skip
 
    int snrType = 0;
    if(dirA > 0 && dirB < 0) snrType = SNR_RESISTANCE; // Bull A → Bear B
@@ -514,7 +514,7 @@ color GetBoColor(int idx)
       return dir > 0 ? InpBullColor : InpBearColor;
    }
 
-   // BO_ACTIVE — pre-flip, original breakout colour
+   // BO_ACTIVE - pre-flip, original breakout colour
    return dir > 0 ? InpBullColor : InpBearColor;
 }
 

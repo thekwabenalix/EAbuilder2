@@ -1,11 +1,11 @@
 /**
- * Swing Structure State Module — Phase 2
+ * Swing Structure State Module - Phase 2
  *
  * Same detection as Swing_Structure_Detector plus 4-buffer iCustom contract:
- *   0 : BullConfirmBuf — 1.0 when a swing HIGH is confirmed
- *   1 : BearConfirmBuf — 1.0 when a swing LOW is confirmed
- *   2 : BullSLBuf      — last swing low (SL hint for longs)
- *   3 : BearSLBuf      — last swing high (SL hint for shorts)
+ *   0 : BullConfirmBuf - 1.0 when a swing HIGH is confirmed
+ *   1 : BearConfirmBuf - 1.0 when a swing LOW is confirmed
+ *   2 : BullSLBuf      - last swing low (SL hint for longs)
+ *   3 : BearSLBuf      - last swing high (SL hint for shorts)
  */
 
 import {
@@ -55,8 +55,8 @@ export function generateSwingStructureStateModule(): string {
       `//| ${SWING_STRUCTURE_STATE_MODULE}.mq5                               `,
     )
     .replace(
-      `//| SMC Module Library v${SWING_STRUCTURE_DETECTOR_VERSION} — Phase 1: Detection Only  `,
-      `//| Swing Structure State Module v${SWING_STRUCTURE_STATE_MODULE_VERSION} — Phase 2`,
+      `//| SMC Module Library v${SWING_STRUCTURE_DETECTOR_VERSION} - Phase 1: Detection Only  `,
+      `//| Swing Structure State Module v${SWING_STRUCTURE_STATE_MODULE_VERSION} - Phase 2`,
     )
     .replace(
       "#property indicator_plots 0",

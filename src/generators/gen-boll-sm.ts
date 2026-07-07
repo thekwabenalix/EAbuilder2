@@ -1,23 +1,23 @@
 /**
  * Inline Bollinger Bands State Machine Generator
  *
- * Prefix BOLLSM — NOT BBSM (SMC Breaker Block).
+ * Prefix BOLLSM - NOT BBSM (SMC Breaker Block).
  *
  * Modes (param mode):
- *   touch    — lower-band rejection = bull, upper-band rejection = bear (default execution)
- *   breakout — close above upper = bull, close below lower = bear
- *   midline  — bias from close vs midline (direction / setup)
+ *   touch    - lower-band rejection = bull, upper-band rejection = bear (default execution)
+ *   breakout - close above upper = bull, close below lower = bear
+ *   midline  - bias from close vs midline (direction / setup)
  *
  * iBands buffers: 0=mid, 1=upper, 2=lower
  *
  * Standard API:
  *   BOLLSM_{id}_Reset()
  *   BOLLSM_{id}_Tick(scanBack)
- *   BOLLSM_{id}_IsBull() / IsBear()           — midline bias (bar 1)
+ *   BOLLSM_{id}_IsBull() / IsBear()           - midline bias (bar 1)
  *   BOLLSM_{id}_HasActiveBull() / HasActiveBear()
  *   BOLLSM_{id}_BullJustConfirmed() / BearJustConfirmed()
  *   BOLLSM_{id}_BullConfirmSL() / BearConfirmSL()
- *   BOLLSM_{id}_ActiveBullSL() / ActiveBearSL() — midline SL hint
+ *   BOLLSM_{id}_ActiveBullSL() / ActiveBearSL() - midline SL hint
  */
 
 export type BollSmMode = "touch" | "breakout" | "midline";
@@ -42,7 +42,7 @@ export function genBollSm(
 
   return `
 //+------------------------------------------------------------------+
-//| Bollinger Bands SM — ${tf} (${id}) mode=${mode}                 |
+//| Bollinger Bands SM - ${tf} (${id}) mode=${mode}                 |
 //+------------------------------------------------------------------+
 int      ${P}hBands = INVALID_HANDLE;
 double   ${P}_mid = 0.0, ${P}_up = 0.0, ${P}_lo = 0.0;

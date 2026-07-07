@@ -1,5 +1,5 @@
 /**
- * MEF Candle Detector — Manipulation Entry Formula
+ * MEF Candle Detector - Manipulation Entry Formula
  *
  * A MEF candle is a multi-timeframe engulfing confluence (detection only):
  *
@@ -25,7 +25,7 @@
  * The Gap SNR level and the RBR/DBD base must fall within the engulfing candle's
  * time window and price range ("inside the engulfing candle").
  *
- * Detection only — NO trade execution, SL, TP, or breakeven.
+ * Detection only - NO trade execution, SL, TP, or breakeven.
  */
 
 export const MEF_DETECTOR_VERSION = "1.0.0";
@@ -33,16 +33,16 @@ export const MEF_DETECTOR_MODULE = "MEF_Detector";
 
 export function generateMefDetector(): string {
   return `//+------------------------------------------------------------------+
-//| MEF_Detector.mq5 — Manipulation Entry Formula                   |
+//| MEF_Detector.mq5 - Manipulation Entry Formula                   |
 //| MEF Candle Detector v${MEF_DETECTOR_VERSION}                             |
 //|                                                                  |
 //| MEF = strong engulfing (main TF) + Gap SNR (1 TF lower) +        |
 //|       RBR/DBD (2 TF lower), all inside the engulfing candle.    |
 //|   Bullish MEF = bull engulfing + Gap Support + RBR              |
 //|   Bearish MEF = bear engulfing + Gap Resistance + DBD          |
-//| Detection only — no trade logic.                                |
+//| Detection only - no trade logic.                                |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — MEF (Manipulation Entry Formula)"
+#property copyright "EA Builder - MEF (Manipulation Entry Formula)"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window

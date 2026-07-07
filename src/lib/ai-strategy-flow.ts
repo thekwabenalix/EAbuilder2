@@ -1,5 +1,5 @@
 /**
- * Phase 6 — normalize AI strategy_flow steps into StrategyFlowConfig.
+ * Phase 6 - normalize AI strategy_flow steps into StrategyFlowConfig.
  *
  * AI returns structured steps (not MQL5 brain bodies) when output_mode is
  * "strategy_flow". The flow engine compiles those steps via generateEaFromBlueprint.

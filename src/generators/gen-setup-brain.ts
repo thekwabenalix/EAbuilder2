@@ -1,7 +1,7 @@
 /**
  * Setup Brain Generator
  *
- * Generates Setup_Brain_Execute() — detects zones/setups that agree with gBias.
+ * Generates Setup_Brain_Execute() - detects zones/setups that agree with gBias.
  * Sets gSetupActive = true when a valid zone is found in the bias direction.
  * Also sets gSetupSLHint = far edge of zone for SL calculation.
  *
@@ -9,15 +9,15 @@
  * Once a zone is confirmed, gSetupActive stays true until a trade fires or price
  * invalidates the zone.
  *
- * Supported modules (OR logic — any detected zone activates setup):
- *   order_block   — ATR-displacement OB with price retesting zone
- *   fvg           — 3-candle imbalance zone retested
- *   liqsweep      — liquidity sweep + close-back
- *   bos / choch   — structure break in bias direction
- *   snr           — price at swing high/low zone
- *   engulfing     — strong candle in bias direction
- *   pin_bar       — wick rejection in bias direction
- *   ema           — price above/below EMA alignment
+ * Supported modules (OR logic - any detected zone activates setup):
+ *   order_block   - ATR-displacement OB with price retesting zone
+ *   fvg           - 3-candle imbalance zone retested
+ *   liqsweep      - liquidity sweep + close-back
+ *   bos / choch   - structure break in bias direction
+ *   snr           - price at swing high/low zone
+ *   engulfing     - strong candle in bias direction
+ *   pin_bar       - wick rejection in bias direction
+ *   ema           - price above/below EMA alignment
  */
 
 import type { BrainConfig } from "@/types/blueprint";
@@ -55,7 +55,7 @@ export function genSetupBrain(brain: BrainConfig | undefined): string {
   if (!brain) {
     return `
 // ─── Setup Brain: disabled ───────────────────────────────────────────────────
-// gSetupActive is passthrough — always true when bias is set.
+// gSetupActive is passthrough - always true when bias is set.
 void Setup_Brain_Execute()
 {
    gSetupActive = (gBias != 0);
@@ -78,7 +78,7 @@ void Setup_Brain_Execute()
         const obScanBack = p(brainParams, "scanBack", 5);
         const obDispMult = p(brainParams, "dispMult", 0.6);
         parts.push(`
-   // Order Block: detect OB zone — last opposing candle before a strong displacement
+   // Order Block: detect OB zone - last opposing candle before a strong displacement
    if(!gSetupActive)
    {
       // Check last 10 bars for a displacement candle (body >= ${obDispMult.toFixed(1)}x range)
@@ -126,10 +126,10 @@ void Setup_Brain_Execute()
       case "fvg_inversion": {
         // Reads from the inline Phase 3 state machine (IFVGSM_${tf}_*).
         // Setup is ACTIVE when ANY live iFVG exists in the bias direction
-        // (ACTIVE, RETESTED, or CONFIRMED — any non-terminal state).
+        // (ACTIVE, RETESTED, or CONFIRMED - any non-terminal state).
         // SLHint = zone boundary of the most recent live iFVG.
         parts.push(`
-   // iFVG Setup: use Phase 3 state machine — active when live iFVG in bias direction
+   // iFVG Setup: use Phase 3 state machine - active when live iFVG in bias direction
    if(!gSetupActive)
    {
       if((gBias == 0 || gBias == 1) && IFVGSM_${tf}_HasActiveBull())
@@ -244,7 +244,7 @@ void Setup_Brain_Execute()
 
       case "liqsweep": {
         parts.push(`
-   // Liq Sweep: price swept a recent extreme and closed back — active setup
+   // Liq Sweep: price swept a recent extreme and closed back - active setup
    if(!gSetupActive)
    {
       double swH = iHigh(InpSymbol, ${TF}, 2);
@@ -345,7 +345,7 @@ void Setup_Brain_Execute()
         // MES wick-based + multi-candle aware. Setup is ACTIVE when a live EG/EF
         // zone exists in the bias direction. SL hint = the zone's far boundary.
         parts.push(`
-   // Engulfing (MES) Setup: use verified EGSM — active when live EG/EF zone in bias direction
+   // Engulfing (MES) Setup: use verified EGSM - active when live EG/EF zone in bias direction
    if(!gSetupActive)
    {
       if((gBias == 0 || gBias == 1) && EGSM_${tf}_HasActiveBull())
@@ -492,7 +492,7 @@ void Setup_Brain_Execute()
       case "breakout": {
         const boLookback = p(brainParams, "lookback", 20);
         parts.push(`
-   // Breakout: price closed beyond ${boLookback}-bar range — momentum setup
+   // Breakout: price closed beyond ${boLookback}-bar range - momentum setup
    if(!gSetupActive)
    {
       double _boH = iHigh(InpSymbol, ${TF}, 2), _boL = iLow(InpSymbol, ${TF}, 2);
@@ -548,7 +548,7 @@ void Setup_Brain_Execute()
 void Setup_Brain_Execute()
 {
    bool _wasActive = gSetupActive;
-   gSetupActive = false;   // Reset — re-detect every bar
+   gSetupActive = false;   // Reset - re-detect every bar
    gSetupDir    = 0;
    // If setup just expired, remove stale zone rectangles
    if(_wasActive)

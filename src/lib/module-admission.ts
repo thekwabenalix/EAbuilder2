@@ -195,7 +195,7 @@ export const MODULE_ADMISSION: Record<string, ModuleAdmissionRecord> = {
     aiVocabulary: true,
     contractRequired: true,
     notes:
-      "Verified ICT Unicorn inline state machine (UNISMSM) — breaker block overlapping same-direction FVG.",
+      "Verified ICT Unicorn inline state machine (UNISMSM) - breaker block overlapping same-direction FVG.",
   },
   bos: {
     id: "bos",
@@ -323,7 +323,7 @@ export const MODULE_ADMISSION: Record<string, ModuleAdmissionRecord> = {
     status: "verified_state_machine",
     aiVocabulary: true,
     contractRequired: true,
-    notes: "Verified pin bar inline state machine (PINSM) — long-wick rejection candle.",
+    notes: "Verified pin bar inline state machine (PINSM) - long-wick rejection candle.",
   },
   swing_structure: {
     id: "swing_structure",
@@ -331,7 +331,7 @@ export const MODULE_ADMISSION: Record<string, ModuleAdmissionRecord> = {
     status: "verified_state_machine",
     aiVocabulary: true,
     contractRequired: true,
-    notes: "Verified swing pivot inline state machine (SWINGSM) — HH/HL or LH/LL bias.",
+    notes: "Verified swing pivot inline state machine (SWINGSM) - HH/HL or LH/LL bias.",
   },
   rbr_dbd: {
     id: "rbr_dbd",
@@ -348,7 +348,7 @@ export const MODULE_ADMISSION: Record<string, ModuleAdmissionRecord> = {
     aiVocabulary: true,
     contractRequired: true,
     notes:
-      "Verified Manipulation Entry Formula inline state machine (MEFSM) — engulfing + Gap SNR + RBR/DBD confluence.",
+      "Verified Manipulation Entry Formula inline state machine (MEFSM) - engulfing + Gap SNR + RBR/DBD confluence.",
   },
   qm_mef: {
     id: "qm_mef",
@@ -357,7 +357,7 @@ export const MODULE_ADMISSION: Record<string, ModuleAdmissionRecord> = {
     aiVocabulary: true,
     contractRequired: true,
     notes:
-      "Verified Quasimodo MEF inline state machine (QMMEFSM) — HTF engulfing-born QM with left-shoulder entry.",
+      "Verified Quasimodo MEF inline state machine (QMMEFSM) - HTF engulfing-born QM with left-shoulder entry.",
   },
   snrc2: {
     id: "snrc2",
@@ -374,6 +374,6 @@ export const MODULE_ADMISSION: Record<string, ModuleAdmissionRecord> = {
     aiVocabulary: false,
     contractRequired: false,
     notes:
-      "Standalone SEG detector for visual regression. Strategy Builder uses verified engulfing/EGSM instead — no separate SEG promotion planned.",
+      "Standalone SEG detector for visual regression. Strategy Builder uses verified engulfing/EGSM instead - no separate SEG promotion planned.",
   },
 };

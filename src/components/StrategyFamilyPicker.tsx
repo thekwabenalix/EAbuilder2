@@ -24,10 +24,10 @@ export function StrategyFamilyPicker({
       {!compact && (
         <div>
           <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-            Step 0 — Strategy family
+            Step 0 - Strategy family
           </p>
           <p className="text-[11px] text-muted-foreground mt-1 max-w-2xl">
-            Pick the trading school first. Module pickers show only modules that fit — SNR Rejection
+            Pick the trading school first. Module pickers show only modules that fit - SNR Rejection
             is separate from SMC zone touch/confirm on OB, FVG, or Unicorn pockets.
           </p>
         </div>
@@ -79,7 +79,7 @@ export function StrategyFamilyPicker({
       {value && !compact && (
         <p className="text-[10px] text-muted-foreground">
           Selected: <span className="text-foreground font-medium">{familyMeta(value).label}</span>
-          {value === "hybrid" && " — cross-family mixes show warnings at generate time."}
+          {value === "hybrid" && " - cross-family mixes show warnings at generate time."}
         </p>
       )}
     </div>

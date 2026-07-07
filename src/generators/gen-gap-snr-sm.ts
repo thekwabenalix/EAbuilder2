@@ -1,7 +1,7 @@
 /**
  * Inline Gap S/R (Gap SNR) State Machine Generator
  *
- * Identical lifecycle to Classic SNR — only the detection differs.
+ * Identical lifecycle to Classic SNR - only the detection differs.
  * Gap SNR uses candle-pair CONTINUATION instead of reversal:
  *   GAP SUPPORT:    Bullish candle A → Bullish candle B → A.close = support
  *   GAP RESISTANCE: Bearish candle A → Bearish candle B → A.close = resistance
@@ -12,12 +12,12 @@
  * Standard API:
  *   GSNRSM_{id}_Reset()
  *   GSNRSM_{id}_Tick(lookback)
- *   GSNRSM_{id}_BullJustConfirmed()  — gap support held this bar
- *   GSNRSM_{id}_BearJustConfirmed()  — gap resistance held this bar
- *   GSNRSM_{id}_BullConfirmSL()      — retestLow at last support confirmation
- *   GSNRSM_{id}_BearConfirmSL()      — retestHigh at last resistance confirmation
- *   GSNRSM_{id}_HasActiveBull()      — a live gap support level exists
- *   GSNRSM_{id}_HasActiveBear()      — a live gap resistance level exists
+ *   GSNRSM_{id}_BullJustConfirmed()  - gap support held this bar
+ *   GSNRSM_{id}_BearJustConfirmed()  - gap resistance held this bar
+ *   GSNRSM_{id}_BullConfirmSL()      - retestLow at last support confirmation
+ *   GSNRSM_{id}_BearConfirmSL()      - retestHigh at last resistance confirmation
+ *   GSNRSM_{id}_HasActiveBull()      - a live gap support level exists
+ *   GSNRSM_{id}_HasActiveBear()      - a live gap resistance level exists
  */
 
 export function genGapSnrSM(
@@ -31,7 +31,7 @@ export function genGapSnrSM(
 
   return `
 //+------------------------------------------------------------------+
-//| Gap SNR State Machine — ${tf} (${id})                          |
+//| Gap SNR State Machine - ${tf} (${id})                          |
 //| SUPPORT: bull→bull pair · RESISTANCE: bear→bear pair           |
 //| States: ACTIVE → RETESTED → CONFIRMED | BROKEN/EXPIRED         |
 //+------------------------------------------------------------------+
@@ -44,9 +44,9 @@ export function genGapSnrSM(
 struct ${P}LevelRec
 {
    int      dir;         //  1=support  -1=resistance
-   double   level;       // candle A close — the gap SNR price
+   double   level;       // candle A close - the gap SNR price
    datetime levelTime;   // candle A time (price origin)
-   datetime confirmTime; // candle B time — SNR valid only AFTER this bar
+   datetime confirmTime; // candle B time - SNR valid only AFTER this bar
    int      state;
    int      barsAlive;
    double   retestHigh;
@@ -132,7 +132,7 @@ void ${P}Advance(int sh)
    for(int _k = 0; _k < ${P}levelCount; _k++)
    {
       if(${P}levels[_k].state >= ${P}BROKEN) continue;
-      // SNR is a two-candle pattern — do not test it until AFTER candle B.
+      // SNR is a two-candle pattern - do not test it until AFTER candle B.
       if(bt <= ${P}levels[_k].confirmTime) continue;
       ${P}levels[_k].barsAlive++;
       ${P}levels[_k].justConfirmed = false;

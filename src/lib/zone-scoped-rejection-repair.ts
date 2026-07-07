@@ -126,7 +126,7 @@ export function repairZoneScopedRejectionConfig(
     description:
       config.setup?.description ||
       config.direction?.description ||
-      `${zoneMod} zone — SMC pocket/setup for zone-scoped rejection.`,
+      `${zoneMod} zone - SMC pocket/setup for zone-scoped rejection.`,
   };
 
   const nextExecution = {

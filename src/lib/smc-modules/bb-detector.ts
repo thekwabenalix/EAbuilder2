@@ -1,9 +1,9 @@
 /**
- * SMC Module Library — Phase 1: Breaker Block (BB) Detector
+ * SMC Module Library - Phase 1: Breaker Block (BB) Detector
  *
  * Breaker Block Detector v1.0.0
  * ──────────────────────────────
- * A Breaker Block forms when a valid Order Block FAILS — price closes
+ * A Breaker Block forms when a valid Order Block FAILS - price closes
  * through the OB zone, invalidating it and flipping its polarity.
  * The zone that was support becomes resistance and vice versa.
  *
@@ -51,7 +51,7 @@ export const BB_DETECTOR_MODULE = "BB_Detector";
 export function generateBbDetector(): string {
   return `//+------------------------------------------------------------------+
 //| BB_Detector.mq5                                                  |
-//| SMC Module Library v${BB_DETECTOR_VERSION} — Phase 1: Detection Only         |
+//| SMC Module Library v${BB_DETECTOR_VERSION} - Phase 1: Detection Only         |
 //|                                                                  |
 //| Detects Breaker Block (BB) zones.                                |
 //|                                                                  |
@@ -81,7 +81,7 @@ export function generateBbDetector(): string {
 //|                                                                  |
 //| NO trading logic. Detection and visualisation only.             |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SMC Module Library"
+#property copyright "EA Builder - SMC Module Library"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window
@@ -99,33 +99,33 @@ export function generateBbDetector(): string {
 #define BREAKER_INVALIDATED 2
 #define BREAKER_EXPIRED     3
 
-//--- Inputs — Detection (ATR-displacement filter, same as OB Detector)
+//--- Inputs - Detection (ATR-displacement filter, same as OB Detector)
 input ENUM_TIMEFRAMES InpTF         = PERIOD_CURRENT; // Timeframe to scan
 input int             InpLookback   = 500;             // Historical bars to scan on load
 input int             InpAtrPeriod  = 14;              // ATR period for displacement filter
 input double          InpDispMult   = 1.5;             // Displacement: body >= N x ATR
 input int             InpObScanBack = 5;               // Bars before displacement to search for OB
 
-//--- Inputs — Lifecycle
+//--- Inputs - Lifecycle
 input int  InpExpiryBars        = 100;  // Expire OB / Breaker after N bars (0 = never)
 input bool InpShowMitigated     = true; // Show mitigated breaker zones (faded)
 input bool InpRemoveInvalidated = true; // Remove invalidated/expired zones (false = dotted relic)
 
-//--- Inputs — Colours
+//--- Inputs - Colours
 input color InpBullBbClr = clrMediumSeaGreen; // Bullish Breaker zone colour
 input color InpBearBbClr = clrOrangeRed;       // Bearish Breaker zone colour
 input color InpBullObClr = clrRoyalBlue;       // Bullish OB colour (when InpShowOriginalOb = true)
 input color InpBearObClr = clrCrimson;         // Bearish OB colour (when InpShowOriginalOb = true)
 
-//--- Inputs — Opacity
+//--- Inputs - Opacity
 input int  InpBbActiveOpacity = 70;    // Breaker active zone opacity 0-100
 input int  InpBbMitOpacity    = 25;    // Breaker mitigated zone opacity 0-100
 input int  InpObOpacity       = 40;    // Original OB zone opacity (when shown)
 
-//--- Inputs — Visibility
+//--- Inputs - Visibility
 input bool InpShowOriginalOb = false; // Show underlying OB zones (false = Breakers only)
 
-//--- Inputs — Logging
+//--- Inputs - Logging
 input bool InpShowLog = true; // Print lifecycle events to journal
 
 #define OB_MAX 300
@@ -304,7 +304,7 @@ void BB_Create(int obIdx, datetime breakTime)
 
 //+------------------------------------------------------------------+
 //| ATR (SMA of True Range) at bar shift over InpAtrPeriod bars.    |
-//| Self-contained — no indicator handle needed.                    |
+//| Self-contained - no indicator handle needed.                    |
 //+------------------------------------------------------------------+
 double CalcATR(int shift, int period)
 {
@@ -390,7 +390,7 @@ bool OB_CheckMitigation(int idx, double barHigh, double barLow)
 //| Bearish OB (dir=-1): close > OB high  → Bullish Breaker (+1)   |
 //| Bullish OB (dir=+1): close < OB low   → Bearish Breaker (-1)   |
 //|                                                                  |
-//| Fires for both ACTIVE and MITIGATED OBs — a touched OB can     |
+//| Fires for both ACTIVE and MITIGATED OBs - a touched OB can     |
 //| still fail and become a breaker on the same or later bar.       |
 //+------------------------------------------------------------------+
 bool OB_CheckBreaker(int idx, double barClose, datetime breakTime)
@@ -552,7 +552,7 @@ void OB_UpdateObjectState(int idx)
 
    if(s == OB_INVALIDATED)
    {
-      // OB became a Breaker — remove OB zone; BB zone draws at same location
+      // OB became a Breaker - remove OB zone; BB zone draws at same location
       ObjectDelete(0, rect);
       ObjectDelete(0, lbl);
       return;
@@ -624,8 +624,8 @@ void BB_UpdateObjectState(int idx)
 //+------------------------------------------------------------------+
 //| Per-bar state machine for all zones.                             |
 //|                                                                  |
-//| Pass 1 — OBs:      expiry → mitigation → breaker check          |
-//| Pass 2 — Breakers: expiry → mitigation → invalidation           |
+//| Pass 1 - OBs:      expiry → mitigation → breaker check          |
+//| Pass 2 - Breakers: expiry → mitigation → invalidation           |
 //|                                                                  |
 //| OB breaker check fires for both ACTIVE and MITIGATED OBs:       |
 //| a touched OB that is then fully broken becomes a Breaker.       |
@@ -808,7 +808,7 @@ int OnInit()
          OB_CheckBreaker(i, cl, freezeAt); // may spawn a BreakerRecord
       }
 
-      // Breaker pass — check breakers created so far (including this bar's new ones)
+      // Breaker pass - check breakers created so far (including this bar's new ones)
       for(int i = 0; i < bbTotal; i++)
       {
          if(bbList[i].state == BREAKER_INVALIDATED ||

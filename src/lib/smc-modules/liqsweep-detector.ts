@@ -1,5 +1,5 @@
 /**
- * SMC Module Library — Phase 1: Liquidity Sweep Detector
+ * SMC Module Library - Phase 1: Liquidity Sweep Detector
  *
  * Liquidity Sweep Detector v1.0.0
  * ────────────────────────────────
@@ -27,7 +27,7 @@
  *
  *   InpMaxWaitBars (default 5) drives PENDING → EXPIRED.
  *   InpExpiryBars  (default 100) retires swings that are too old to be
- *   relevant — only swings within the last N bars are watched.
+ *   relevant - only swings within the last N bars are watched.
  *
  * JOURNAL:
  *   LIQUIDITY_SWEEP_CREATED   | id | dir | level | wick | bar
@@ -51,7 +51,7 @@ export const LIQSWEEP_DETECTOR_MODULE = "LiqSweep_Detector";
 export function generateLiqSweepDetector(): string {
   return `//+------------------------------------------------------------------+
 //| LiqSweep_Detector.mq5                                           |
-//| SMC Module Library v${LIQSWEEP_DETECTOR_VERSION} — Phase 1: Detection Only       |
+//| SMC Module Library v${LIQSWEEP_DETECTOR_VERSION} - Phase 1: Detection Only       |
 //|                                                                  |
 //| Detects Liquidity Sweeps.                                        |
 //|                                                                  |
@@ -78,7 +78,7 @@ export function generateLiqSweepDetector(): string {
 //|                                                                  |
 //| NO trading logic. Detection and visualisation only.             |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SMC Module Library"
+#property copyright "EA Builder - SMC Module Library"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window
@@ -94,23 +94,23 @@ export function generateLiqSweepDetector(): string {
 #define SWEEP_CONFIRMED 1   // close-back confirmed
 #define SWEEP_EXPIRED   2   // no close-back within InpMaxWaitBars
 
-//--- Inputs — Detection
+//--- Inputs - Detection
 input ENUM_TIMEFRAMES InpTF          = PERIOD_CURRENT; // Timeframe to scan
 input int             InpLookback    = 500;             // Historical bars to scan on load
 input int             InpSwingStr    = 3;               // Swing strength: N candles each side
 input int             InpMaxWaitBars = 5;               // Max bars to wait for close-back (0 = unlimited)
 input int             InpExpiryBars  = 100;             // Retire swings older than N bars  (0 = never)
 
-//--- Inputs — Colours
+//--- Inputs - Colours
 input color InpBullClr = clrDeepSkyBlue; // Bullish sweep colour
 input color InpBearClr = clrOrangeRed;   // Bearish sweep colour
 input int   InpOpacity = 80;             // Sweep marker opacity 0-100
 
-//--- Inputs — Visibility
+//--- Inputs - Visibility
 input bool InpShowBull = true; // Show bullish sweeps
 input bool InpShowBear = true; // Show bearish sweeps
 
-//--- Inputs — Logging
+//--- Inputs - Logging
 input bool InpShowLog = true; // Print lifecycle events to journal
 
 #define SWING_MAX 400

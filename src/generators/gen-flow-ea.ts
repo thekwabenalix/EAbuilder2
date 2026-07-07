@@ -1,5 +1,5 @@
 /**
- * Strategy Flow EA generator — config-driven INSTANCE RUNTIME over the VERIFIED SMs.
+ * Strategy Flow EA generator - config-driven INSTANCE RUNTIME over the VERIFIED SMs.
  *
  * State machines are embedded via sm-embed-registry.ts (shared with gen-ea.ts).
  */
@@ -290,7 +290,7 @@ function emitDetection(step: StrategyStepConfig, i: number, steps: StrategyStepC
       if(_l < _swL) _swL = _l;
    }`;
 
-  // DIRECTION — persistent bias (ema / bias_break only)
+  // DIRECTION - persistent bias (ema / bias_break only)
   if (role === "direction") {
     if (prof.family === "ema" && step.event === "EMA_CROSS") {
       const fast = pInt(step.params, "fastPeriod", 12);
@@ -313,7 +313,7 @@ function emitDetection(step: StrategyStepConfig, i: number, steps: StrategyStepC
     );
   }
 
-  // SETUP — arm in the bias direction (fires once per arming)
+  // SETUP - arm in the bias direction (fires once per arming)
   if (role === "setup" || role === "filter") {
     if (prof.family === "ema" && step.event === "EMA_RETEST") {
       const fast = pInt(step.params, "fastPeriod", 12);
@@ -391,7 +391,7 @@ ${clearDown}
    gPrevA[${i}] = _ab; gPrevB[${i}] = _bb;`,
       );
     }
-    // zone-without-active (liqsweep) or bias_break — arm on the discrete fired event
+    // zone-without-active (liqsweep) or bias_break - arm on the discrete fired event
     const bull = prof.family === "bias_break" ? `${P}_BullJustBroke()` : `${P}_BullJustConfirmed()`;
     const bear = prof.family === "bias_break" ? `${P}_BearJustBroke()` : `${P}_BearJustConfirmed()`;
     return wrap(
@@ -401,7 +401,7 @@ ${clearDown}
     );
   }
 
-  // CONFIRMATION — zone rejection / retest (registers event; does not open trades)
+  // CONFIRMATION - zone rejection / retest (registers event; does not open trades)
   if (isConfirmationRole(role)) {
     if (prof.family === "zone" && isZoneRejectionEvent(step.event)) {
       return emitZoneRejectionDetect(wrap, biasGuard, i, P, T1, C1, steps);
@@ -417,7 +417,7 @@ ${clearDown}
     return `void DetectStep_${i}() { /* ${m}/confirmation not supported */ }`;
   }
 
-  // ENTRY — discrete confirmation or next-bar entry; carries SL
+  // ENTRY - discrete confirmation or next-bar entry; carries SL
   if (isTradeEntry(role)) {
     if (step.event === "BAR_AFTER_CONFIRM") {
       const confIdx = priorConfirmationIndex(i, steps);
@@ -691,10 +691,10 @@ export function generateFlowEA(
       : "";
 
   return `//+------------------------------------------------------------------+
-//| ${eaName}.mq5  —  Strategy Flow runtime over verified SMs         |
+//| ${eaName}.mq5  -  Strategy Flow runtime over verified SMs         |
 //| ${n} instances; entries gated on ordered, timestamped events.     |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — Strategy Flow runtime"
+#property copyright "EA Builder - Strategy Flow runtime"
 #property version   "1.00"
 #property strict
 #include <Trade/Trade.mqh>

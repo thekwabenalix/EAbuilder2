@@ -28,7 +28,7 @@ export function genRbrDbdSM(
 
   return `
 //+------------------------------------------------------------------+
-//| RBR/DBD State Machine — ${tf} (${id})                              |
+//| RBR/DBD State Machine - ${tf} (${id})                              |
 //| Rally-Base-Rally demand / Drop-Base-Drop supply zones             |
 //+------------------------------------------------------------------+
 #define ${P}DIR_DEMAND  1

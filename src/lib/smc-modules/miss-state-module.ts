@@ -1,23 +1,23 @@
 /**
- * SNR Module Library — Phase 2: Miss State Module
+ * SNR Module Library - Phase 2: Miss State Module
  *
  * Miss_State_Module v2.0.0
  * ────────────────────────────────────────────────
  * Embeds Classic + Gap S/R level detection and fires a CONFIRMED signal when
  * any candle comes within InpNearPoints of a level without its wick touching
  * it. The candle with the MINIMUM wick distance gets the signal (buffers update
- * if a closer candle appears before any touch). Two-candle SNR guard — never
+ * if a closer candle appears before any touch). Two-candle SNR guard - never
  * reacts before Candle B closes.
  *
  * Phase 3 buffer contract (read via iCustom):
- *   0 : BullConfirmBuf — 1.0 at the closest bullish miss bar (off support)
- *   1 : BearConfirmBuf — 1.0 at the closest bearish miss bar (off resistance)
- *   2 : BullSLBuf      — the wick low of the closest miss (SL for bull entries)
- *   3 : BearSLBuf      — the wick high of the closest miss (SL for bear entries)
+ *   0 : BullConfirmBuf - 1.0 at the closest bullish miss bar (off support)
+ *   1 : BearConfirmBuf - 1.0 at the closest bearish miss bar (off resistance)
+ *   2 : BullSLBuf      - the wick low of the closest miss (SL for bull entries)
+ *   3 : BearSLBuf      - the wick high of the closest miss (SL for bear entries)
  *
  * Any wick touch of the level clears all buffers for that level and retires it.
  *
- * NO trading logic — state tracking, signal buffers, and visualisation only.
+ * NO trading logic - state tracking, signal buffers, and visualisation only.
  */
 
 export const MISS_STATE_MODULE_VERSION = "2.0.0";
@@ -26,13 +26,13 @@ export const MISS_STATE_MODULE = "Miss_State_Module";
 export function generateMissStateModule(): string {
   return `//+------------------------------------------------------------------+
 //| Miss_State_Module.mq5                                          |
-//| SNR Module Library v${MISS_STATE_MODULE_VERSION} — Phase 2: State + Buffers |
+//| SNR Module Library v${MISS_STATE_MODULE_VERSION} - Phase 2: State + Buffers |
 //|                                                                  |
 //| Any candle within InpNearPoints of an S/R level without touching |
 //| fires a signal. The CLOSEST approach updates the buffers.       |
 //| Wick contact retires the level and clears its buffers.          |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SNR Module Library"
+#property copyright "EA Builder - SNR Module Library"
 #property version   "2.00"
 #property strict
 #property indicator_chart_window
@@ -50,7 +50,7 @@ double BearSLBuf[];
 #define LVL_MAX           600
 #define OBJ_PREFIX        "SMCMISS_"
 
-//--- Inputs — Detection
+//--- Inputs - Detection
 input ENUM_TIMEFRAMES InpTF          = PERIOD_CURRENT; // Timeframe
 input int             InpLookback    = 500;            // Historical bars to scan
 input double          InpNearATR     = 0.20;           // Proximity as ATR fraction (auto-scales to any instrument)
@@ -59,7 +59,7 @@ input int             InpNearPoints  = 0;              // Override: fixed distan
 input int             InpExpiryBars  = 200;            // Bars until a level expires (0 = never)
 input bool            InpUseClassic  = true;           // Use Classic (reversal-pair) levels
 input bool            InpUseGap      = true;           // Use Gap (continuation-pair) levels
-//--- Inputs — Drawing
+//--- Inputs - Drawing
 input bool            InpDraw        = true;           // Draw labels
 input string          InpLabel       = "Ms";           // Label text
 input int             InpFontSize    = 8;              // Label font size
@@ -74,7 +74,7 @@ struct LevelRec
    int      type;           // TYPE_SUPPORT or TYPE_RESISTANCE
    double   level;          // Candle A close
    datetime levelTime;      // Candle A time
-   datetime confirmTime;    // Candle B time — valid only AFTER this bar
+   datetime confirmTime;    // Candle B time - valid only AFTER this bar
    bool     broken;
    int      ageCounter;
    double   bestMissDist;   // smallest wick distance so far (DBL_MAX = none)
@@ -218,7 +218,7 @@ void CheckMiss(int sh)
       {
          if(lo <= lvl)
          {
-            // Wick touched support — not a miss zone anymore
+            // Wick touched support - not a miss zone anymore
             ClearMissBuffers(i);
             ObjectDelete(0, MissLb(levList[i].id));
             levList[i].broken = true;
@@ -241,7 +241,7 @@ void CheckMiss(int sh)
       {
          if(hi >= lvl)
          {
-            // Wick touched resistance — not a miss zone anymore
+            // Wick touched resistance - not a miss zone anymore
             ClearMissBuffers(i);
             ObjectDelete(0, MissLb(levList[i].id));
             levList[i].broken = true;

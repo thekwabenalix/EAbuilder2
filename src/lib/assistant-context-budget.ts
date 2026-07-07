@@ -25,7 +25,7 @@ export function truncateText(text: string, maxChars: number, label: string): str
 const TESTER_AUDIT_LINE =
   /\[EVENT\]|TRADE AUDIT|\[GATE\]|SIGNAL_BLOCKED|BLOCKED:|TRADE_OPENED|EA_BUILDER_EQUITY|gLastGate|EvaluateEntry|flow_engine|SIGNAL_FIRED|ORDER_SEND|failed to/i;
 
-/** Audit-relevant tester lines only — drops tick spam and MT5 noise. */
+/** Audit-relevant tester lines only - drops tick spam and MT5 noise. */
 export function trimTesterLogForAssistant(log: string, maxChars = 36_000): string {
   const lines = log.split(/\r?\n/);
   const kept: string[] = [];
@@ -108,7 +108,7 @@ function contractsForSelectedModules(moduleIds: string[]): string {
       lines.push(`[${id}] (no contract registered)`);
       continue;
     }
-    lines.push(`[${c.id}] ${c.label} — roles: ${c.supportedRoles.join(", ")}`);
+    lines.push(`[${c.id}] ${c.label} - roles: ${c.supportedRoles.join(", ")}`);
     for (const ev of c.semanticEvents.slice(0, 6)) {
       lines.push(
         `  ${ev.id} (${ev.roles.join("/")}) → ${ev.queryFunctions.slice(0, 3).join(", ")}`,

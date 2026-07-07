@@ -1,5 +1,5 @@
 /**
- * SNR Module Library — Phase 1: Gap SNR Detector
+ * SNR Module Library - Phase 1: Gap SNR Detector
  *
  * Gap_SNR_Detector v1.0.0
  * ────────────────────────────────────────────────
@@ -36,7 +36,7 @@ export const GAP_SNR_DETECTOR_MODULE = "Gap_SNR_Detector";
 export function generateGapSnrDetector(): string {
   return `//+------------------------------------------------------------------+
 //| Gap_SNR_Detector.mq5                                           |
-//| SNR Module Library v${GAP_SNR_DETECTOR_VERSION} — Phase 1: Detection Only     |
+//| SNR Module Library v${GAP_SNR_DETECTOR_VERSION} - Phase 1: Detection Only     |
 //|                                                                  |
 //| Gap S/R from candle-pair direction continuation.               |
 //|   GAP SUPPORT:    Bullish candle A → Bullish candle B          |
@@ -46,7 +46,7 @@ export function generateGapSnrDetector(): string {
 //| States: ACTIVE → TOUCHED → BROKEN / EXPIRED                    |
 //| NO trading logic. Detection and visualisation only.            |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SNR Module Library"
+#property copyright "EA Builder - SNR Module Library"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window
@@ -62,7 +62,7 @@ export function generateGapSnrDetector(): string {
 
 #define SNR_MAX 600
 
-//--- Inputs — Detection
+//--- Inputs - Detection
 input ENUM_TIMEFRAMES InpTF             = PERIOD_CURRENT; // Timeframe
 input int             InpLookback       = 500;            // Historical bars to scan
 input bool            InpShowSupport    = true;           // Show gap support levels
@@ -73,14 +73,14 @@ input int             InpMaxLevels      = 100;            // Max active + touche
 input bool            InpIgnoreDoji     = true;           // Skip neutral candles
 input int             InpDojiPoints     = 0;              // Doji body size in points (0 = exact)
 
-//--- Inputs — Colours
+//--- Inputs - Colours
 input color InpSupportColor  = clrDodgerBlue;  // Gap support colour
 input color InpResistColor   = clrDarkOrange;  // Gap resistance colour
 input color InpBrokenColor   = clrSlateGray;   // Broken / expired colour
 input int   InpOpacity       = 85;             // Active level opacity 0-100
 input int   InpBrokenOpacity = 35;             // Broken level opacity 0-100
 
-//--- Inputs — Logging
+//--- Inputs - Logging
 input bool InpShowLog = true; // Print lifecycle events to journal
 
 //+------------------------------------------------------------------+
@@ -91,7 +91,7 @@ struct SnrRecord
    int      state;         // current lifecycle state
    int      drawnState;    // STATE_UNDRAWN or last drawn state
    int      ageCounter;    // bars elapsed since candleBTime
-   double   level;         // Candle A close — the S/R price
+   double   level;         // Candle A close - the S/R price
    datetime candleATime;
    datetime candleBTime;   // level confirmed when Candle B closes
    datetime endTime;       // time of break / expiry (0 = still live)
@@ -179,7 +179,7 @@ void CheckSnrPair(int shA, int shB)
 
    int dirA = CandleDir(shA);
    int dirB = CandleDir(shB);
-   if(dirA == 0 || dirB == 0) return; // doji / neutral — skip
+   if(dirA == 0 || dirB == 0) return; // doji / neutral - skip
 
    int snrType = 0;
    if(dirA > 0 && dirB > 0) snrType = TYPE_SUPPORT;    // Bull A → Bull B = Gap Support

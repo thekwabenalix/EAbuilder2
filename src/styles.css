@@ -5,7 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Design system — premium trading SaaS (light + dark).
+ * Design system - premium trading SaaS (light + dark).
  *
  * Primary: electric indigo. Use :root for light, .dark for dark.
  * Toggle via ThemeProvider / localStorage key eab-theme.
@@ -14,7 +14,7 @@
 @theme inline {
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
 
-  /* Custom easing curves — never use built-in CSS easings on deliberate UI */
+  /* Custom easing curves - never use built-in CSS easings on deliberate UI */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
@@ -73,7 +73,7 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.18 0.022 258);
 
-  /* ── Brand — electric indigo ──────────────── */
+  /* ── Brand - electric indigo ──────────────── */
   --primary: oklch(0.52 0.22 262);
   --primary-foreground: oklch(0.99 0.002 255);
 
@@ -156,7 +156,7 @@
     font-family: var(--font-sans);
   }
 
-  /* Button press feedback — confirms every pressable element immediately */
+  /* Button press feedback - confirms every pressable element immediately */
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     transition: transform 120ms var(--ease-out);
@@ -225,7 +225,7 @@
   animation: lp-pulse-dot 2.4s ease-in-out infinite;
 }
 
-/* Accessibility — reduced motion: keep opacity reveals, remove all movement */
+/* Accessibility - reduced motion: keep opacity reveals, remove all movement */
 @media (prefers-reduced-motion: reduce) {
   .lp-fade-up {
     animation: lp-fade-in 0.3s ease both;
@@ -264,4 +264,141 @@
 }
 .lp-d6 {
   animation-delay: 0.52s;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-height: 100vh;
+    background-image:
+      linear-gradient(180deg, color-mix(in oklch, var(--color-background) 94%, var(--color-primary) 6%) 0%, var(--color-background) 32rem),
+      linear-gradient(90deg, color-mix(in oklch, var(--color-border) 42%, transparent) 1px, transparent 1px),
+      linear-gradient(180deg, color-mix(in oklch, var(--color-border) 32%, transparent) 1px, transparent 1px);
+    background-size: auto, 42px 42px, 42px 42px;
+    background-attachment: fixed;
+  }
+
+  ::selection {
+    background: color-mix(in oklch, var(--color-primary) 28%, transparent);
+    color: var(--color-foreground);
+  }
+
+  a,
+  button,
+  input,
+  textarea,
+  select {
+    transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+    transition-duration: 160ms;
+    transition-timing-function: var(--ease-out);
+  }
+}
+
+@keyframes app-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes app-soft-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@layer utilities {
+  .app-page-in {
+    animation: app-page-in 360ms var(--ease-out) both;
+  }
+
+  .app-soft-pop {
+    animation: app-soft-pop 240ms var(--ease-out) both;
+  }
+
+  .app-panel {
+    border: 1px solid color-mix(in oklch, var(--color-border) 72%, transparent);
+    background: color-mix(in oklch, var(--color-card) 88%, transparent);
+    box-shadow:
+      0 1px 0 color-mix(in oklch, white 52%, transparent) inset,
+      0 14px 36px color-mix(in oklch, black 10%, transparent);
+    backdrop-filter: blur(18px);
+  }
+
+  .dark .app-panel {
+    box-shadow:
+      0 1px 0 color-mix(in oklch, white 6%, transparent) inset,
+      0 18px 46px color-mix(in oklch, black 32%, transparent);
+  }
+
+  .app-hover-lift {
+    transition: transform 180ms var(--ease-out), box-shadow 180ms var(--ease-out), border-color 180ms var(--ease-out), background-color 180ms var(--ease-out);
+  }
+
+  .app-hover-lift:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 16px 38px color-mix(in oklch, black 12%, transparent);
+  }
+
+  .dark .app-hover-lift:hover {
+    box-shadow: 0 20px 48px color-mix(in oklch, black 38%, transparent);
+  }
+
+  .app-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--color-muted-foreground) 34%, transparent) transparent;
+  }
+
+  .app-scrollbar::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+  }
+
+  .app-scrollbar::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in oklch, var(--color-muted-foreground) 28%, transparent);
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-page-in,
+  .app-soft-pop {
+    animation: none;
+  }
+
+  .app-hover-lift:hover {
+    transform: none;
+  }
+}
+
+@layer components {
+  main :where(.rounded-md.border, .rounded-lg.border, .rounded-xl.border) {
+    box-shadow: 0 1px 0 color-mix(in oklch, white 46%, transparent) inset, 0 10px 28px color-mix(in oklch, black 6%, transparent);
+  }
+
+  .dark main :where(.rounded-md.border, .rounded-lg.border, .rounded-xl.border) {
+    box-shadow: 0 1px 0 color-mix(in oklch, white 5%, transparent) inset, 0 14px 38px color-mix(in oklch, black 24%, transparent);
+  }
+
+  main :where(.rounded-md.border, .rounded-lg.border, .rounded-xl.border):where(:not(pre)):hover {
+    border-color: color-mix(in oklch, var(--color-primary) 34%, var(--color-border));
+  }
+
+  main :where(input, textarea, button, [role="tab"], [role="button"]):focus-visible {
+    box-shadow: 0 0 0 4px color-mix(in oklch, var(--color-primary) 14%, transparent);
+  }
 }

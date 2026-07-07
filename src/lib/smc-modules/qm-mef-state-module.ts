@@ -1,11 +1,11 @@
 /**
- * QM_MEF State Module — Phase 2
+ * QM_MEF State Module - Phase 2
  *
  * Same detection as QM_MEF_Detector plus 4-buffer iCustom contract:
- *   0 : BullConfirmBuf — 1.0 when bullish left shoulder is touched (entry)
- *   1 : BearConfirmBuf — 1.0 when bearish left shoulder is touched (entry)
- *   2 : BullSLBuf      — head level (SL beyond head for longs)
- *   3 : BearSLBuf      — head level (SL beyond head for shorts)
+ *   0 : BullConfirmBuf - 1.0 when bullish left shoulder is touched (entry)
+ *   1 : BearConfirmBuf - 1.0 when bearish left shoulder is touched (entry)
+ *   2 : BullSLBuf      - head level (SL beyond head for longs)
+ *   3 : BearSLBuf      - head level (SL beyond head for shorts)
  */
 
 import { QM_MEF_DETECTOR_VERSION, generateQmMefDetector } from "./qm-mef-detector";
@@ -42,16 +42,16 @@ export function generateQmMefStateModule(): string {
 
   code = code
     .replace(
-      "//| QM_MEF_Detector.mq5 — Quasimodo Manipulation Entry Formula      ",
-      `//| ${QM_MEF_STATE_MODULE}.mq5 — Quasimodo Manipulation Entry Formula `,
+      "//| QM_MEF_Detector.mq5 - Quasimodo Manipulation Entry Formula      ",
+      `//| ${QM_MEF_STATE_MODULE}.mq5 - Quasimodo Manipulation Entry Formula `,
     )
     .replace(
       `//| QM_MEF Detector v${QM_MEF_DETECTOR_VERSION}                              `,
-      `//| QM_MEF State Module v${QM_MEF_STATE_MODULE_VERSION} — Phase 2: State + Buffers`,
+      `//| QM_MEF State Module v${QM_MEF_STATE_MODULE_VERSION} - Phase 2: State + Buffers`,
     )
     .replace(
       "//| Quasimodo uses candle CLOSES, not wicks. Detection only.       ",
-      "//| Quasimodo + 4-buffer iCustom contract — detection only.        ",
+      "//| Quasimodo + 4-buffer iCustom contract - detection only.        ",
     )
     .replace(
       "#property indicator_plots 0",

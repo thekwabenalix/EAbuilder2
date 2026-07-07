@@ -1,5 +1,5 @@
 /**
- * Phase 5 — strict static syntax gate for golden + emitted MQL5 fixtures.
+ * Phase 5 - strict static syntax gate for golden + emitted MQL5 fixtures.
  *
  *   npm run verify:mql5-syntax
  *
@@ -117,7 +117,7 @@ ensureGoldenFixtures();
 ensureBlessedFlowFixtures();
 
 const files = collectMq5Files(MQL5_ROOT);
-assertOk(files.length > 0, `No .mq5 fixtures under ${MQL5_ROOT} — run npm run verify:mql5 first`);
+assertOk(files.length > 0, `No .mq5 fixtures under ${MQL5_ROOT} - run npm run verify:mql5 first`);
 
 const results = files.map((filePath) => {
   const rel = filePath.slice(MQL5_ROOT.length + 1).replace(/\\/g, "/");
@@ -142,7 +142,7 @@ const results = files.map((filePath) => {
 });
 
 const goldenCount = collectMq5Files(GOLDEN_DIR).length;
-assertOk(goldenCount >= 1, "golden compile anchors missing — expected verify/mql5/golden/*.mq5");
+assertOk(goldenCount >= 1, "golden compile anchors missing - expected verify/mql5/golden/*.mq5");
 
 const failed = results.filter((r) => !r.ok);
 if (failed.length > 0) {

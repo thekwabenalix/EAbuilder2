@@ -1,5 +1,5 @@
 /**
- * SNR Module Library — Strong SNR Detector
+ * SNR Module Library - Strong SNR Detector
  *
  * Strong_SNR_Detector v1.0.0
  * ────────────────────────────────────────────────
@@ -8,15 +8,15 @@
  * forms a sharp V; the bearish variant forms a sharp A.
  *
  * DETECTION:
- *   Step 1 — Classic SNR pair  (same as Classic_SNR_Detector):
+ *   Step 1 - Classic SNR pair  (same as Classic_SNR_Detector):
  *     STRONG RESISTANCE: Bullish Candle A → Bearish Candle B
  *     STRONG SUPPORT:    Bearish Candle A → Bullish Candle B
  *     Level = Candle A close.
  *
- *   Step 2 — Displacement strength qualifier:
+ *   Step 2 - Displacement strength qualifier:
  *     Sum the on-direction bodies across InpDispBars bars starting at
  *     Candle B (capped at bar[1] in live mode to avoid the live bar).
- *     If the cumulative displacement < InpDispMult × ATR → reject.
+ *     If the cumulative displacement < InpDispMult �- ATR → reject.
  *     During live OnCalculate this reduces to checking Candle B alone
  *     (bar[1]) which is sufficient for the sharp-move requirement.
  *
@@ -41,7 +41,7 @@ export const STRONG_SNR_DETECTOR_MODULE = "Strong_SNR_Detector";
 export function generateStrongSnrDetector(): string {
   return `//+------------------------------------------------------------------+
 //| Strong_SNR_Detector.mq5                                        |
-//| SNR Module Library v${STRONG_SNR_DETECTOR_VERSION} — Strong Displacement SNR  |
+//| SNR Module Library v${STRONG_SNR_DETECTOR_VERSION} - Strong Displacement SNR  |
 //|                                                                  |
 //| Classic S/R with strong displacement qualifier.                 |
 //|   STRONG RESISTANCE: Bullish A → strong bearish displacement    |
@@ -51,7 +51,7 @@ export function generateStrongSnrDetector(): string {
 //| States: ACTIVE → TOUCHED → BROKEN / EXPIRED                    |
 //| NO trading logic. Detection and visualisation only.            |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SNR Module Library"
+#property copyright "EA Builder - SNR Module Library"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window
@@ -101,7 +101,7 @@ struct SnrRecord
    int      state;         // current lifecycle state
    int      drawnState;    // STATE_UNDRAWN or last drawn state
    int      ageCounter;    // bars elapsed since candleBTime
-   double   level;         // Candle A close — the S/R price
+   double   level;         // Candle A close - the S/R price
    double   dispPts;       // measured displacement in points (log only)
    datetime candleATime;
    datetime candleBTime;
@@ -432,7 +432,7 @@ int OnInit()
 
    int limit = MathMin(InpLookback, avail - InpDispBars - 2);
 
-   // Pass 1 — create levels from candle pairs (oldest → newest)
+   // Pass 1 - create levels from candle pairs (oldest → newest)
    // shA ranges from limit down to 2; shB = shA - 1.
    // Displacement window needs InpDispBars bars more recent than shB,
    // so we need shB - InpDispBars + 1 >= 1 → shA >= InpDispBars + 1.
@@ -440,7 +440,7 @@ int OnInit()
    for(int sh = limit; sh >= startSh; sh--)
       CheckSnrPair(sh, sh - 1);
 
-   // Pass 2 — replay lifecycle bar-by-bar
+   // Pass 2 - replay lifecycle bar-by-bar
    for(int sh = limit - 1; sh >= 1; sh--)
       UpdateLifecycleAtBar(sh);
 

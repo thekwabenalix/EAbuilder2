@@ -29,7 +29,7 @@ if (existsSync(sourceRunner)) {
   }
   console.log(`[OK  ] source and public runner sizes match (${publicSize} bytes)`);
 } else {
-  console.log("[OK  ] source runner absent (dist/ is gitignored) — public asset verified only");
+  console.log("[OK  ] source runner absent (dist/ is gitignored) - public asset verified only");
 }
 
 console.log(`[OK  ] public download asset present (${publicSize} bytes)`);

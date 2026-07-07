@@ -1,4 +1,4 @@
-// Direct compile-error fixer — no chat, no intermediate steps.
+// Direct compile-error fixer - no chat, no intermediate steps.
 // Called when the user clicks "Fix with AI" after a failed compile.
 // Takes the broken code + compile log + blueprint, returns a complete fixed file via SSE.
 import Anthropic from "@anthropic-ai/sdk";
@@ -14,24 +14,24 @@ const CORS = {
 const SYSTEM = `You are an expert MQL5 developer. Fix compile errors in an Expert Advisor and return the COMPLETE fixed file.
 
 ═══════════════════════════════════════
-COMPLETENESS — NON-NEGOTIABLE
+COMPLETENESS - NON-NEGOTIABLE
 ═══════════════════════════════════════
-- Return THE ENTIRE .mq5 file — every single line, first header to last closing brace
-- NEVER truncate — do NOT write "..." or "// rest of code" or stop early
-- Every function must be FULLY implemented — no stubs, no empty bodies
+- Return THE ENTIRE .mq5 file - every single line, first header to last closing brace
+- NEVER truncate - do NOT write "..." or "// rest of code" or stop early
+- Every function must be FULLY implemented - no stubs, no empty bodies
 - OnInit(), OnDeinit(), and OnTick() MUST all be present and complete
 - Every { must have a matching }
 - Every string literal must be properly closed
 
 ═══════════════════════════════════════
-OUTPUT FORMAT — CRITICAL
+OUTPUT FORMAT - CRITICAL
 ═══════════════════════════════════════
-- Output ONLY raw .mq5 file content — no markdown, no code fences, no explanations
+- Output ONLY raw .mq5 file content - no markdown, no code fences, no explanations
 - Start directly with //+------------------------------------------------------------------+
 - End with the last closing brace of the file
 
 ═══════════════════════════════════════
-MQL5-ONLY SYNTAX — ENFORCE THESE
+MQL5-ONLY SYNTAX - ENFORCE THESE
 ═══════════════════════════════════════
   Ask, Bid                → SymbolInfoDouble(_Symbol, SYMBOL_ASK/BID)
   trade.SetMagicNumber()  → trade.SetExpertMagicNumber((ulong)InpMagic)
@@ -40,7 +40,7 @@ MQL5-ONLY SYNTAX — ENFORCE THESE
   OrderSend() MQL4-style  → trade.Buy() / trade.Sell() / trade.PositionClose()
 
 ═══════════════════════════════════════
-MANDATORY HELPERS — ADD IF MISSING
+MANDATORY HELPERS - ADD IF MISSING
 ═══════════════════════════════════════
 
 double NormalizeVolume(double volume, string symbol)
@@ -155,7 +155,7 @@ export default async (req: Request): Promise<Response> => {
     compileLog,
     "",
     "Fix ALL the compile errors listed above.",
-    "Return the COMPLETE corrected .mq5 file — every line, all functions fully implemented.",
+    "Return the COMPLETE corrected .mq5 file - every line, all functions fully implemented.",
     "Start with //+------------------------------------------------------------------+ on the very first line.",
     "Output ONLY the raw .mq5 code. No markdown. No explanation.",
   ].join("\n");

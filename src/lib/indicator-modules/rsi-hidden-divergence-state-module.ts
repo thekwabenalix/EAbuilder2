@@ -1,5 +1,5 @@
 /**
- * Indicator Module — RSI Hidden Divergence State Module (Phase 2) v1.0.0
+ * Indicator Module - RSI Hidden Divergence State Module (Phase 2) v1.0.0
  *
  * Same detection as the Phase 1 detector, plus the standard Phase 2 lifecycle
  * and 4-buffer iCustom contract so Phase 3 EAs / the Setup Brain can consume it.
@@ -7,16 +7,16 @@
  * Role: SETUP only (trend continuation). Does NOT determine direction.
  *
  * Lifecycle (Bullish HD example):
- *   ACTIVE      — divergence detected (price HL + RSI LL)
- *   CONFIRMED   — price closes ABOVE the swing high between the two lows
- *   INVALIDATED — price closes BELOW the second (newer) low
- *   EXPIRED     — InpExpiryBars pass without confirmation
+ *   ACTIVE      - divergence detected (price HL + RSI LL)
+ *   CONFIRMED   - price closes ABOVE the swing high between the two lows
+ *   INVALIDATED - price closes BELOW the second (newer) low
+ *   EXPIRED     - InpExpiryBars pass without confirmation
  *
  * Buffers (iCustom):
- *   0 : BullConfirmBuf — 1.0 at the bar a bullish HD CONFIRMS
- *   1 : BearConfirmBuf — 1.0 at the bar a bearish HD CONFIRMS
- *   2 : BullSLBuf      — second swing low  (SL for bull continuation)
- *   3 : BearSLBuf      — second swing high (SL for bear continuation)
+ *   0 : BullConfirmBuf - 1.0 at the bar a bullish HD CONFIRMS
+ *   1 : BearConfirmBuf - 1.0 at the bar a bearish HD CONFIRMS
+ *   2 : BullSLBuf      - second swing low  (SL for bull continuation)
+ *   3 : BearSLBuf      - second swing high (SL for bear continuation)
  */
 
 export const RSI_HD_STATE_MODULE_VERSION = "1.0.0";
@@ -25,13 +25,13 @@ export const RSI_HD_STATE_MODULE = "RSI_Hidden_Divergence_State_Module";
 export function generateRsiHiddenDivergenceStateModule(): string {
   return `//+------------------------------------------------------------------+
 //| RSI_Hidden_Divergence_State_Module.mq5                        |
-//| Indicator Module v${RSI_HD_STATE_MODULE_VERSION} — RSI Hidden Divergence State |
+//| Indicator Module v${RSI_HD_STATE_MODULE_VERSION} - RSI Hidden Divergence State |
 //|                                                                  |
 //| ACTIVE → CONFIRMED (close beyond intervening swing) →           |
 //| INVALIDATED (close beyond 2nd swing) / EXPIRED.                 |
 //| Buffers 0/1 confirm, 2/3 SL. SETUP role only.                  |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — Indicator Module"
+#property copyright "EA Builder - Indicator Module"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window
@@ -83,7 +83,7 @@ struct HDRec
    double   midLevel;     // intervening swing high (bull) / low (bear) = confirm threshold
    datetime t1;           // older swing time
    datetime t2;           // newer swing time
-   datetime confirmTime;  // detection bar time — react only on newer bars
+   datetime confirmTime;  // detection bar time - react only on newer bars
    bool     dead;
    int      ageCounter;
 };

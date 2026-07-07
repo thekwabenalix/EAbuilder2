@@ -58,7 +58,7 @@ struct FvgRec
    int      dir;           //  1=bull FVG  -1=bear FVG
    double   ul;            // upper limit of gap
    double   ll;            // lower limit of gap
-   datetime c1Time;        // C1 bar time — dedup key
+   datetime c1Time;        // C1 bar time - dedup key
    bool     inverted;
    datetime invTime;       // bar whose close caused the inversion
    double   invHigh;       // inversion bar high  (SL for sell)
@@ -235,7 +235,7 @@ void CheckInversions(int emaBias)
 //| Swing extreme that created the iFVG.                            |
 //| The SL anchors to the structure of the iFVG move:               |
 //|   SELL (bear iFVG): highest HIGH from the FVG's first candle    |
-//|                     up to the inversion bar — the swing high     |
+//|                     up to the inversion bar - the swing high     |
 //|                     price rejected from.                         |
 //|   BUY  (bull iFVG): lowest LOW over that same span.             |
 //| fvgC1Time = the FVG's C1 (oldest) bar; invTime = inversion bar. |
@@ -305,8 +305,8 @@ void ExecuteEntries(int currentBias)
       // Bull iFVG (was bear FVG, dir=-1) requires BULL bias (currentBias==1)
       // Bear iFVG (was bull FVG, dir==1) requires BEAR bias (currentBias==-1)
       bool needsBull = (fvg[k].dir == -1);  // bull iFVG needs bull EMA
-      if(needsBull  && currentBias != 1)  { PrintFormat("[SKIP] iFVG BULL invalidated — EMA now BEAR"); fvg[k].traded=true; continue; }
-      if(!needsBull && currentBias != -1) { PrintFormat("[SKIP] iFVG BEAR invalidated — EMA now BULL"); fvg[k].traded=true; continue; }
+      if(needsBull  && currentBias != 1)  { PrintFormat("[SKIP] iFVG BULL invalidated - EMA now BEAR"); fvg[k].traded=true; continue; }
+      if(!needsBull && currentBias != -1) { PrintFormat("[SKIP] iFVG BEAR invalidated - EMA now BULL"); fvg[k].traded=true; continue; }
 
       if(fvg[k].dir==-1)   // bearish FVG inverted → BUY
       {
@@ -425,7 +425,7 @@ int OnInit()
    { Print("[INIT] EMA handles failed"); return INIT_FAILED; }
    trade.SetExpertMagicNumber(InpMagic);
    trade.SetTypeFillingBySymbol(InpSymbol);
-   Print("[INIT] EMA_IFVG EA loaded  ★ BUILD v1.4 — iFVG-anchored swing SL + 7pip cap ★");
+   Print("[INIT] EMA_IFVG EA loaded  ★ BUILD v1.4 - iFVG-anchored swing SL + 7pip cap ★");
    PrintFormat("[CONFIG] EMA %d/%d | Risk %.1f%% | RR %.1f | Buf %dpts | BE %.1fR | MaxSL %d pips | SLLookback %d",
                InpEMAFast,InpEMASlow,InpRiskPercent,InpRewardRisk,InpStopBuffer,InpBEAtR,
                InpMaxSLPips,InpSLLookback);

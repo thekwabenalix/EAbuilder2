@@ -1,12 +1,12 @@
 /**
- * SMC Module Library — Phase 1: BOS Detector
+ * SMC Module Library - Phase 1: BOS Detector
  *
  * BOS_Detector v3.0.0
  * ────────────────────────────────────────────
  * Break of Structure: price closes beyond a previous swing
  * IN THE CURRENT trend direction (continuation).
  *
- * Single-swing tracking model — aligned with Pine Script reference:
+ * Single-swing tracking model - aligned with Pine Script reference:
  *   ONE swing high and ONE swing low tracked at a time.
  *   A new confirmed pivot OVERWRITES the previous variable.
  *   After a break the variable is ZEROED (consumed).
@@ -19,7 +19,7 @@
  *   Close < swing low  → if trend != +1 : BEAR BOS  → trend becomes -1
  *
  *   CHoCH events (counter-trend breaks) still update gTrend so the
- *   state machine stays accurate, but they are NOT drawn here —
+ *   state machine stays accurate, but they are NOT drawn here -
  *   CHoCH_Detector handles those.
  *
  * DRAWN ELEMENTS:
@@ -39,9 +39,9 @@ export const BOS_DETECTOR_MODULE = "BOS_Detector";
 export function generateBosDetector(): string {
   return `//+------------------------------------------------------------------+
 //| BOS_Detector.mq5                                                |
-//| SMC Module Library v${BOS_DETECTOR_VERSION} — Phase 1: Detection Only       |
+//| SMC Module Library v${BOS_DETECTOR_VERSION} - Phase 1: Detection Only       |
 //|                                                                  |
-//| Break of Structure — close beyond a previous swing              |
+//| Break of Structure - close beyond a previous swing              |
 //| IN the current trend direction (continuation).                  |
 //|                                                                  |
 //| Single-swing model (matches Pine Script):                       |
@@ -54,7 +54,7 @@ export function generateBosDetector(): string {
 //|                                                                  |
 //| NO trading logic. Detection and visualisation only.             |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SMC Module Library"
+#property copyright "EA Builder - SMC Module Library"
 #property version   "3.00"
 #property strict
 #property indicator_chart_window
@@ -70,19 +70,19 @@ enum ENUM_CONFIRM_MODE
    CONFIRM_WICK  = 1  // Wick breach of level
 };
 
-//--- Inputs — Detection
+//--- Inputs - Detection
 input ENUM_TIMEFRAMES   InpTF          = PERIOD_CURRENT; // Timeframe
 input int               InpLookback    = 500;             // Historical bars to scan on load
 input int               InpSwingLeft   = 5;               // Swing strength: left bars
 input int               InpSwingRight  = 5;               // Swing strength: right bars
 input ENUM_CONFIRM_MODE InpConfirmMode = CONFIRM_CLOSE;   // Break confirmation
 
-//--- Inputs — Colours
+//--- Inputs - Colours
 input color InpBullColor = clrLimeGreen; // Bull BOS colour
 input color InpBearColor = clrCrimson;   // Bear BOS colour
 input int   InpOpacity   = 85;           // Line opacity 0-100
 
-//--- Inputs — Logging
+//--- Inputs - Logging
 input bool InpShowLog = true; // Print BOS events to journal
 
 #define BOS_MAX 200
@@ -164,8 +164,8 @@ void SWING_ScanBar(int sh)
 //+------------------------------------------------------------------+
 //| Check bar sh for a structure break.                             |
 //|                                                                  |
-//| BOS  — break aligned with trend (or trend == UNKNOWN).          |
-//| CHoCH — break counter to trend; gTrend is updated but NOT drawn.|
+//| BOS  - break aligned with trend (or trend == UNKNOWN).          |
+//| CHoCH - break counter to trend; gTrend is updated but NOT drawn.|
 //+------------------------------------------------------------------+
 void CheckStructureBreak(int sh)
 {
@@ -187,7 +187,7 @@ void CheckStructureBreak(int sh)
       datetime swgT = gSwingHighTime;
 
       gTrend          = TREND_BULL;
-      gSwingHighPrice = 0.0;   // consume — Pine Script: swingHighPrice := na
+      gSwingHighPrice = 0.0;   // consume - Pine Script: swingHighPrice := na
       gSwingHighTime  = 0;
 
       if(isBos && bosTotal < BOS_MAX)
@@ -321,7 +321,7 @@ int OnInit()
    // ── Interleaved chronological scan (high shift = old → low shift = new) ─
    //
    // At bar position sh, the pivot at (sh + InpSwingRight) has just had its
-   // InpSwingRight-th right bar form — identical to Pine Script's
+   // InpSwingRight-th right bar form - identical to Pine Script's
    //   ta.pivothigh(InpSwingLeft, InpSwingRight)  with InpSwingRight-bar lag.
    //
    // Order: overwrite swing variable FIRST, then check break at sh.

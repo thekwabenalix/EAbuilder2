@@ -1,4 +1,4 @@
-# EAbuilder2 — Project Rules
+# EAbuilder2 - Project Rules
 
 A SaaS MT5 Expert Advisor builder. Traders describe strategies in plain English;
 the system generates one self-contained, compilable MQL5 EA they can backtest.
@@ -55,7 +55,7 @@ The same module can serve different roles depending on the trader's intent
 
 4. **Every state-machine function referenced must be embedded.**
    `reconcileStateMachines()` in `gen-ea.ts` auto-adds any sm_config the AI
-   forgot to declare. Keep this guardrail — it is what makes AI output compile.
+   forgot to declare. Keep this guardrail - it is what makes AI output compile.
 
 5. **Never run a freeform AI rewrite on a 4-Brain EA.**
    It rewrites 800+ lines and truncates. For 4-Brain EAs, fixes come from
@@ -63,7 +63,7 @@ The same module can serve different roles depending on the trader's intent
 
 6. **Keep detection, state, execution, and management logically separated.**
 
-7. **Extract configuration from the trader's words — never hardcode blindly.**
+7. **Extract configuration from the trader's words - never hardcode blindly.**
    EMA periods, lookback bars, expiry, pivot strength all come from the user
    (param inputs) or the description (AI extraction), not fixed defaults.
 
@@ -73,20 +73,20 @@ The same module can serve different roles depending on the trader's intent
 
 ## MQL5, not MQL4 (the inline state machines + generators)
 
-- Price data: `iClose/iOpen/iHigh/iLow/iTime(symbol, TF, shift)` — never `Close[]`, `High[]`
-- Current price: `SymbolInfoDouble(_Symbol, SYMBOL_ASK/BID)` — never bare `Ask`, `Bid`
-- `iMA(symbol, tf, period, ma_shift, method, applied_price)` — 6 params, handle pattern
-- Magic: `trade.SetExpertMagicNumber((ulong)magic)` — not `SetMagicNumber`
-- No `GetPointer()` on structs in arrays — use direct `arr[i].field` access
-- No struct definitions inside functions — declare structs at global scope
+- Price data: `iClose/iOpen/iHigh/iLow/iTime(symbol, TF, shift)` - never `Close[]`, `High[]`
+- Current price: `SymbolInfoDouble(_Symbol, SYMBOL_ASK/BID)` - never bare `Ask`, `Bid`
+- `iMA(symbol, tf, period, ma_shift, method, applied_price)` - 6 params, handle pattern
+- Magic: `trade.SetExpertMagicNumber((ulong)magic)` - not `SetMagicNumber`
+- No `GetPointer()` on structs in arrays - use direct `arr[i].field` access
+- No struct definitions inside functions - declare structs at global scope
 
 ---
 
 ## Two generation paths
 
-- **Template mode** — `gen-direction/setup/execution-brain.ts` switch-case
+- **Template mode** - `gen-direction/setup/execution-brain.ts` switch-case
   generators. Fast, offline, deterministic. Always compiles.
-- **AI mode** — `/api/gen-4brain-ai` (Codex + module library) returns wiring +
+- **AI mode** - `/api/gen-4brain-ai` (Codex + module library) returns wiring +
   sm_configs; `gen-ea.ts` reconciles and embeds the state machines.
 
 Both produce the same class of self-contained 4-Brain EA.

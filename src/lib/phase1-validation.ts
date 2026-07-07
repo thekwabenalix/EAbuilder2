@@ -59,7 +59,7 @@ function test1_ClassicICT(): TestResult {
   };
   const code = generateEA(params);
 
-  return runChecks("Test 1 — Classic ICT (CHoCH D1 → OB H4 → FVG M15)", code, [
+  return runChecks("Test 1 - Classic ICT (CHoCH D1 → OB H4 → FVG M15)", code, [
     { desc: "EA header present", test: code.includes("ClassicICT_Test.mq5") },
     { desc: "Trade.mqh included", test: code.includes("#include <Trade/Trade.mqh>") },
     { desc: "gBias declared", test: code.includes("int    gBias") },
@@ -132,7 +132,7 @@ function test2_MultiModuleDirection(): TestResult {
   };
   const code = generateEA(params);
 
-  return runChecks("Test 2 — Multi-module Direction: BOS + FVG_INVERSION AND logic", code, [
+  return runChecks("Test 2 - Multi-module Direction: BOS + FVG_INVERSION AND logic", code, [
     { desc: "AND logic: _allNonZero declared", test: code.includes("_allNonZero") },
     { desc: "AND logic: _allAgree declared", test: code.includes("_allAgree") },
     {
@@ -152,7 +152,7 @@ function test2_MultiModuleDirection(): TestResult {
     },
     { desc: "gBias set to _combined after AND", test: code.includes("gBias = _combined") },
     {
-      desc: "Setup disabled — passthrough active",
+      desc: "Setup disabled - passthrough active",
       test: code.includes("gSetupActive = (gBias != 0)"),
     },
     {
@@ -163,7 +163,7 @@ function test2_MultiModuleDirection(): TestResult {
 }
 
 // ─── Test 3: Execution-only config ───────────────────────────────────────────
-// No direction, no setup — only execution brain
+// No direction, no setup - only execution brain
 // Expected: direction bypass, setup bypass, confluence gate fires on exec signal alone
 function test3_ExecutionOnly(): TestResult {
   const config: FourBrainConfig = {
@@ -185,12 +185,12 @@ function test3_ExecutionOnly(): TestResult {
   };
   const code = generateEA(params);
 
-  return runChecks("Test 3 — Execution-only (no direction, no setup)", code, [
+  return runChecks("Test 3 - Execution-only (no direction, no setup)", code, [
     {
       desc: "Direction Brain disabled (empty function)",
       test: code.includes("Direction Brain: disabled"),
     },
-    { desc: "Setup Brain disabled — passthrough", test: code.includes("Setup Brain: disabled") },
+    { desc: "Setup Brain disabled - passthrough", test: code.includes("Setup Brain: disabled") },
     { desc: "Direction gate bypassed in OnTick", test: code.includes("Direction Brain disabled") },
     { desc: "Setup gate bypassed in OnTick", test: code.includes("Setup Brain disabled") },
     { desc: "Execution brain still fires", test: code.includes("Execution_Brain_Execute()") },
@@ -214,7 +214,7 @@ function test3_ExecutionOnly(): TestResult {
 // When fvg_inversion is in execution only, SM should be injected for exec TF only.
 // When not used at all, no SM code should appear.
 function test4_IfvgStateMachineScoping(): TestResult {
-  // 4a: iFVG in execution only — SM only for exec TF (M5)
+  // 4a: iFVG in execution only - SM only for exec TF (M5)
   const cfg_exec: FourBrainConfig = {
     direction: { modules: ["bos"], timeframe: "H4" },
     execution: { modules: ["fvg_inversion"], timeframe: "M5" },
@@ -229,7 +229,7 @@ function test4_IfvgStateMachineScoping(): TestResult {
   };
   const code_exec = generateEA({ eaName: "SM_Exec_Test", config: cfg_exec });
 
-  // 4b: No iFVG anywhere — no SM code at all
+  // 4b: No iFVG anywhere - no SM code at all
   const cfg_none: FourBrainConfig = {
     direction: { modules: ["bos"], timeframe: "H4" },
     execution: { modules: ["pin_bar"], timeframe: "M15" },
@@ -244,7 +244,7 @@ function test4_IfvgStateMachineScoping(): TestResult {
   };
   const code_none = generateEA({ eaName: "SM_None_Test", config: cfg_none });
 
-  // 4c: iFVG in both direction (H1) and execution (M5) — SM for both TFs
+  // 4c: iFVG in both direction (H1) and execution (M5) - SM for both TFs
   const cfg_both: FourBrainConfig = {
     direction: { modules: ["fvg_inversion"], timeframe: "H1" },
     execution: { modules: ["fvg_inversion"], timeframe: "M5" },
@@ -259,7 +259,7 @@ function test4_IfvgStateMachineScoping(): TestResult {
   };
   const code_both = generateEA({ eaName: "SM_Both_Test", config: cfg_both });
 
-  return runChecks("Test 4 — iFVG SM scoping (exec-only / none / both)", code_exec, [
+  return runChecks("Test 4 - iFVG SM scoping (exec-only / none / both)", code_exec, [
     {
       desc: "4a: IFVGSM_M5_ injected when exec=fvg_inversion",
       test: code_exec.includes("IFVGSM_M5_"),
@@ -313,7 +313,7 @@ function test5_TradeExecution(): TestResult {
   };
   const code = generateEA(params);
 
-  return runChecks("Test 5 — Break-even + risk/RR wired correctly", code, [
+  return runChecks("Test 5 - Break-even + risk/RR wired correctly", code, [
     { desc: "Risk 2.0% in inputs", test: code.includes("InpRiskPercent = 2") },
     { desc: "RR 3.0 in inputs", test: code.includes("InpRewardRisk  = 3") },
     { desc: "Stop buffer 15 pts in inputs", test: code.includes("InpStopBuffer  = 15") },
@@ -373,7 +373,7 @@ export function runPhase1Validation(): Phase1Report {
   const allPass = passed === tests.length;
 
   const lines: string[] = [
-    "╔══════════════════════════════════════════════════════════╗",
+    "╔══════════════════════════════════════════════════════════�-",
     "║         Phase 1: 4-Brain Architecture Validation        ║",
     "╚══════════════════════════════════════════════════════════╝",
     "",
@@ -389,10 +389,10 @@ export function runPhase1Validation(): Phase1Report {
   lines.push("");
   lines.push(`Result: ${passed}/${tests.length} tests passed`);
   if (allPass) {
-    lines.push("Phase 1 COMPLETE — 4-Brain architecture validated.");
+    lines.push("Phase 1 COMPLETE - 4-Brain architecture validated.");
     lines.push("Ready for Phase 2: live MT5 backtest on EURUSD H1.");
   } else {
-    lines.push("Phase 1 INCOMPLETE — fix failures above before proceeding.");
+    lines.push("Phase 1 INCOMPLETE - fix failures above before proceeding.");
   }
 
   return { allPass, tests, summary: lines.join("\n") };

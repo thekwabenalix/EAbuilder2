@@ -55,7 +55,7 @@ export function buildAssistantPlatformContext(blueprint: StrategyBlueprint): str
   const flowLines =
     flow?.steps?.map(
       (s, i) =>
-        `${i + 1}. ${s.name || s.id} — role=${s.role}, module=${s.module}, TF=${s.timeframe}, event=${s.event}${
+        `${i + 1}. ${s.name || s.id} - role=${s.role}, module=${s.module}, TF=${s.timeframe}, event=${s.event}${
           s.dependsOn?.length ? `, after=[${s.dependsOn.map((d) => d.stepId).join(", ")}]` : ""
         }`,
     ) ?? [];
@@ -65,9 +65,9 @@ export function buildAssistantPlatformContext(blueprint: StrategyBlueprint): str
     "",
     "GENERATION MODEL (current product):",
     "- Traders configure Strategy Flow (ordered module steps) or Simple 4-Brain preset.",
-    "- Click **Generate EA / Regen Template** — deterministic compiler picks flow_engine when all modules are verified.",
+    "- Click **Generate EA / Regen Template** - deterministic compiler picks flow_engine when all modules are verified.",
     "- flow_engine: ordered RegisterEvent timeline + EvaluateEntry gates + embedded state machines.",
-    "- EA **generation** is template/deterministic. The **AI Assistant** (this chat) helps interpret, debug, and suggest blueprint/code changes — not replace the compiler.",
+    "- EA **generation** is template/deterministic. The **AI Assistant** (this chat) helps interpret, debug, and suggest blueprint/code changes - not replace the compiler.",
     "",
     "STRATEGY FLOW (resolved):",
     flowLines.length ? flowLines.join("\n") : "(no strategy flow resolved)",
@@ -77,7 +77,7 @@ export function buildAssistantPlatformContext(blueprint: StrategyBlueprint): str
       ? expectedChain
           .map(
             (s) =>
-              `${s.order}. ${s.name} (${s.role}) — ${s.module} @ ${s.timeframe} → ${s.event}${s.isEntry ? " [ENTRY GATE]" : ""}`,
+              `${s.order}. ${s.name} (${s.role}) - ${s.module} @ ${s.timeframe} → ${s.event}${s.isEntry ? " [ENTRY GATE]" : ""}`,
           )
           .join("\n")
       : "(chain unavailable)",
@@ -97,7 +97,7 @@ export function buildAssistantPlatformContext(blueprint: StrategyBlueprint): str
     "DEBUGGING FLOW EAs:",
     "- [EVENT] lines in tester log = step fired (check order vs expected chain).",
     "- If only direction events appear but no setup/entry events, check direction→SM tick order (direction DetectStep runs before EMASM_Tick on each bar).",
-    "- External direction (e.g. BOS) must feed EMASM_Tick via gDir — direction step must fire on or before the EMA bar.",
+    "- External direction (e.g. BOS) must feed EMASM_Tick via gDir - direction step must fire on or before the EMA bar.",
     "- gLastGate strings explain why EvaluateEntry blocked a trade.",
     "- Zero trades with many direction events usually means downstream steps never fired or entry gate blocked (direction mismatch, same-bar timestamp, expiry).",
     "- Full module library/contracts are omitted here to save tokens; selected module contracts are attached separately when relevant.",

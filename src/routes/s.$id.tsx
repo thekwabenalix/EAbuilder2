@@ -351,11 +351,11 @@ function StrategyPage() {
             .then(() => {
               qc.invalidateQueries({ queryKey: ["strategy", data.id] });
               qc.invalidateQueries({ queryKey: ["strategies"] });
-              toast.success(`Blueprint EA generated — ${generationPathLabel(result.path)}`);
+              toast.success(`Blueprint EA generated - ${generationPathLabel(result.path)}`);
             })
             .catch((e: unknown) => {
               autoSavedCodeRef.current = null;
-              toast.error(e instanceof Error ? e.message : "Auto-save failed — save manually");
+              toast.error(e instanceof Error ? e.message : "Auto-save failed - save manually");
             });
         }
       } catch (e: unknown) {
@@ -446,7 +446,7 @@ function StrategyPage() {
     const fixed = generateMql5FromBlueprint(blueprint);
     setGeneratedCode(fixed);
     setDirty(true);
-    toast.success("Regenerated from blueprint — save and recompile");
+    toast.success("Regenerated from blueprint - save and recompile");
   };
 
   const handleAssistantAction = (action: EaAssistantAction) => {
@@ -497,7 +497,7 @@ function StrategyPage() {
     if (fix.type === "set_backtest_period") {
       setBacktestPeriodPatch(fix.period);
       setActiveTab("backtest");
-      toast.success(`Backtest period set to ${fix.period} — re-run backtest`);
+      toast.success(`Backtest period set to ${fix.period} - re-run backtest`);
       return;
     }
     if (fix.type === "save_strategy") {
@@ -643,7 +643,7 @@ function StrategyPage() {
                   const result = generateEaFromBlueprint(next);
                   setGeneratedCode(result.code);
                   setDirty(true);
-                  toast.success(`EA regenerated — ${generationPathLabel(result.path)}`);
+                  toast.success(`EA regenerated - ${generationPathLabel(result.path)}`);
                 } catch (e: unknown) {
                   toast.error(e instanceof EaGenerationError ? e.message : "Regeneration failed");
                 }
@@ -814,7 +814,7 @@ function StrategyPage() {
           setGeneratedCode(code);
           setDirty(true);
           setChatOpen(false);
-          toast.success("AI code applied — remember to save");
+          toast.success("AI code applied - remember to save");
         }}
         onSafeAction={handleAssistantAction}
         onRegenTemplate={regenFromTemplate}
@@ -1020,7 +1020,7 @@ const BRAIN_META: Record<
     label: "Execution Brain",
     icon: <Sparkles className="h-4 w-4" />,
     color: "text-emerald-400 border-emerald-500/30 bg-emerald-500/5",
-    hint: "Fires the entry trigger. LTF — required.",
+    hint: "Fires the entry trigger. LTF - required.",
   },
 };
 
@@ -1108,7 +1108,7 @@ function ActiveConfluenceFilters({
     <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-3 space-y-2">
       <Label className="text-xs font-semibold text-sky-400">Confluence filters & indicators</Label>
       <p className="text-[10px] text-muted-foreground -mt-1">
-        Wired into EA compile — add more via Built-in indicator in any brain&apos;s module list.
+        Wired into EA compile - add more via Built-in indicator in any brain&apos;s module list.
       </p>
       <div className="flex flex-wrap gap-1.5">
         {filterRefs.map((f) => (
@@ -1212,7 +1212,7 @@ function BrainCard({
             />
           </div>
 
-          {/* Per-module parameter inputs — e.g. EMA periods, lookback bars */}
+          {/* Per-module parameter inputs - e.g. EMA periods, lookback bars */}
           {config.modules.length > 0 && (
             <ModuleParamEditor
               modules={config.modules}
@@ -1221,12 +1221,12 @@ function BrainCard({
             />
           )}
 
-          {/* Optional notes for AI — describe any nuance Claude should know */}
+          {/* Optional notes for AI - describe any nuance Claude should know */}
           <div className="space-y-1">
             <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">
               Notes for AI{" "}
               <span className="normal-case font-normal">
-                (optional — describe any specific behaviour)
+                (optional - describe any specific behaviour)
               </span>
             </Label>
             <textarea
@@ -1366,20 +1366,20 @@ function FourBrainTab({
     [strategyFamily, direction, setup, execution, builderMode, flowConfig.steps],
   );
 
+  const strategyFlow = blueprint.strategyFlow;
   const strategyFlowSyncKey = [
-    blueprint.strategyFlow?.source ?? "",
-    blueprint.strategyFlow?.mode ?? "",
-    blueprint.strategyFlow?.steps?.length ?? 0,
-    blueprint.strategyFlow?.steps?.map((s) => s.id).join(",") ?? "",
+    strategyFlow?.source ?? "",
+    strategyFlow?.mode ?? "",
+    strategyFlow?.steps?.length ?? 0,
+    strategyFlow?.steps?.map((s) => s.id).join(",") ?? "",
   ].join("|");
 
   useEffect(() => {
-    const flow = blueprint.strategyFlow;
-    if (flow?.steps?.length) {
+    if (strategyFlow?.steps?.length) {
       setBuilderMode("advanced");
-      setFlowConfig(flow);
+      setFlowConfig(strategyFlow);
     }
-  }, [strategyFlowSyncKey]);
+  }, [strategyFlow, strategyFlowSyncKey]);
 
   function buildFourBrainConfig(): FourBrainConfig {
     return {
@@ -1489,7 +1489,7 @@ function FourBrainTab({
         </div>
       )}
 
-      {/* Builder mode — Simple 4-Brain vs Advanced Strategy Flow */}
+      {/* Builder mode - Simple 4-Brain vs Advanced Strategy Flow */}
       <div className="rounded-lg border border-border p-1 flex gap-1 bg-muted/20">
         <button
           type="button"
@@ -1501,7 +1501,7 @@ function FourBrainTab({
               : "text-muted-foreground hover:text-foreground",
           ].join(" ")}
         >
-          Simple — 4-Brain preset
+          Simple - 4-Brain preset
         </button>
         <button
           type="button"
@@ -1518,23 +1518,23 @@ function FourBrainTab({
               : "text-muted-foreground hover:text-foreground",
           ].join(" ")}
         >
-          Advanced — Strategy Flow
+          Advanced - Strategy Flow
         </button>
       </div>
       <p className="text-[11px] text-muted-foreground -mt-2">
         {builderMode === "simple"
           ? "Three brain slots (Direction · Setup · Execution). The compiler expands them into ordered steps automatically."
-          : "Build any number of ordered module steps. Each step must occur before the next — same compiler as AI strategy_flow output."}
+          : "Build any number of ordered module steps. Each step must occur before the next - same compiler as AI strategy_flow output."}
       </p>
 
       <TradeAuditPanel blueprint={buildUpdatedBp()} compact />
 
-      {/* Strategy-level notes — cross-brain conditions, filters, invalidation rules */}
+      {/* Strategy-level notes - cross-brain conditions, filters, invalidation rules */}
       <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
         <div>
           <Label className="text-xs font-semibold text-amber-400">Strategy Rules</Label>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Describe conditions that apply across the whole strategy — max SL distance, invalidation
+            Describe conditions that apply across the whole strategy - max SL distance, invalidation
             rules, required sequences (e.g. "must retest EMA before entry"), session filters. The AI
             assistant reads these when helping you debug or refine the strategy.
           </p>
@@ -1545,8 +1545,8 @@ function FourBrainTab({
           rows={4}
           placeholder={`Examples:
 • If opposite EMA cross fires, reset direction and cancel all pending setups
-• Only enter after price retests either EMA — ignore IFVGs that form before the retest
-• Max stop loss = 7 pips (70 points) — skip trade if SL distance exceeds this
+• Only enter after price retests either EMA - ignore IFVGs that form before the retest
+• Max stop loss = 7 pips (70 points) - skip trade if SL distance exceeds this
 • Breakeven at 1.5R, keep original TP active`}
           className="w-full rounded border border-amber-500/20 bg-background px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-amber-500/60 resize-none"
         />
@@ -1629,7 +1629,7 @@ function FourBrainTab({
             familyModules={brainPickerModules("setup")}
           />
 
-          {/* Execution brain — always on */}
+          {/* Execution brain - always on */}
           <BrainCard
             role="execution"
             config={execution}
@@ -1755,7 +1755,7 @@ function FourBrainTab({
 
       <AiWiringInsight wiring={aiWiring} />
 
-      {/* Generate EA — sticky footer */}
+      {/* Generate EA - sticky footer */}
       <div className="fixed bottom-0 left-0 right-0 md:left-56 z-20 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 sm:px-6 py-3">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 sm:flex-row sm:items-center">
           <p className="text-[11px] text-muted-foreground flex-1 hidden sm:block">
@@ -1848,7 +1848,7 @@ function CodeTab({
   code: string;
   onCodeChange: (code: string) => void;
   onAutoSave?: (code: string, nextBlueprint?: StrategyBlueprint) => Promise<void>;
-  /** Original user prompt from /new — enables AI generation from description */
+  /** Original user prompt from /new - enables AI generation from description */
   prompt?: string;
 }) {
   const [generating, setGenerating] = useState(false);
@@ -1878,10 +1878,10 @@ function CodeTab({
       const result = generateEaFromBlueprint(blueprint);
       if (onAutoSave) {
         await onAutoSave(result.code);
-        toast.success(`EA generated & saved — ${generationPathLabel(result.path)}`);
+        toast.success(`EA generated & saved - ${generationPathLabel(result.path)}`);
       } else {
         onCodeChange(result.code);
-        toast.success(`EA generated — ${generationPathLabel(result.path)}`);
+        toast.success(`EA generated - ${generationPathLabel(result.path)}`);
       }
     } catch (e: unknown) {
       toast.error(e instanceof EaGenerationError ? e.message : "Template generation failed");
@@ -1906,9 +1906,9 @@ function CodeTab({
       });
       setCompileLog(result.log);
       if (result.success) {
-        toast.success(`Compiled — ${result.errors} errors, ${result.warnings} warnings`);
+        toast.success(`Compiled - ${result.errors} errors, ${result.warnings} warnings`);
       } else {
-        toast.error(`Compile failed — ${result.errors} error(s). See log below.`);
+        toast.error(`Compile failed - ${result.errors} error(s). See log below.`);
       }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Compile failed");
@@ -1917,7 +1917,7 @@ function CodeTab({
     }
   };
 
-  // No code yet — run buildability check, then surface generate options
+  // No code yet - run buildability check, then surface generate options
   const filename = buildExportFilename(blueprint, "mq5");
 
   const copyCode = async () => {
@@ -2087,7 +2087,7 @@ function CodeTab({
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-medium">
               {build.buildable && build.unsupportedCount === 0
-                ? "All rules mapped — ready to generate"
+                ? "All rules mapped - ready to generate"
                 : build.buildable
                   ? `${build.supportedCount} of ${blueprint.rules.length} rules have primitives`
                   : "No entry trigger has an implementation yet"}
@@ -2118,7 +2118,7 @@ function CodeTab({
           )}
           {build.hasFvgMachine && (
             <p className="text-[11px] text-violet-400/80">
-              ⚙ FVG state machine active — retest, confirmation, invalidation, expiry, SL and
+              ⚙ FVG state machine active - retest, confirmation, invalidation, expiry, SL and
               break-even are all implemented.
             </p>
           )}
@@ -2196,7 +2196,7 @@ function CodeTab({
               variant="ghost"
               className="text-muted-foreground"
               onClick={() => openMetaEditor(filename).catch(() => {})}
-              title="Companion offline — open MetaEditor manually"
+              title="Companion offline - open MetaEditor manually"
               disabled
             >
               <WifiOff className="h-3.5 w-3.5 mr-1.5" />
@@ -2250,7 +2250,7 @@ function oneYearAgoDot() {
 }
 
 function fmt(n: number | null | undefined, decimals = 2) {
-  if (n === null || n === undefined) return "—";
+  if (n === null || n === undefined) return "-";
   return n.toFixed(decimals);
 }
 
@@ -2350,7 +2350,7 @@ function BacktestTab({
     onPeriodPatchApplied?.();
   }, [periodPatch, onPeriodPatchApplied]);
 
-  // Compile (async — server returns 202 immediately, job runs in background)
+  // Compile (async - server returns 202 immediately, job runs in background)
   const [fixingAi, setFixingAi] = useState(false);
   const [compileJobId, setCompileJobId] = useState<string | null>(null);
   const [compilePolling, setCompilePolling] = useState(false);
@@ -2402,9 +2402,9 @@ function BacktestTab({
       setCompileResult(result);
       onCompileLog?.(result.log ?? null);
       if (status === "succeeded" && result.success) {
-        toast.success(`Compiled — ${result.errors ?? 0}E ${result.warnings ?? 0}W`);
+        toast.success(`Compiled - ${result.errors ?? 0}E ${result.warnings ?? 0}W`);
       } else {
-        toast.error(`Compile failed — ${result.errors ?? "?"}E. See compile log.`);
+        toast.error(`Compile failed - ${result.errors ?? "?"}E. See compile log.`);
       }
     }
   }, [compileJobQuery.data, onCompileLog]);
@@ -2444,7 +2444,7 @@ function BacktestTab({
       if (status === "succeeded") {
         toast.success("Backtest report ready");
       } else {
-        toast.error("Backtest failed — " + (data.job.message || "see tester log"));
+        toast.error("Backtest failed - " + (data.job.message || "see tester log"));
       }
     }
   }, [backtestJobQuery.data, onBacktestLog, onBacktestSummary]);
@@ -2457,9 +2457,9 @@ function BacktestTab({
       processedJobIds.current.add(id);
       setVisualPolling(false);
       if (status === "succeeded") {
-        toast.success("Visual test launched — watch MT5");
+        toast.success("Visual test launched - watch MT5");
       } else {
-        toast.error("Visual test failed — " + (data.job.message || "see log"));
+        toast.error("Visual test failed - " + (data.job.message || "see log"));
       }
     }
   }, [visualJobQuery.data]);
@@ -2825,7 +2825,7 @@ function BacktestTab({
           <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
             <span>
               Strategy flow uses <strong>{suggestedPeriod}</strong> but tester is on{" "}
-              <strong>{config.period}</strong> — this often causes zero trades.
+              <strong>{config.period}</strong> - this often causes zero trades.
             </span>
             <Button
               size="sm"
@@ -2940,24 +2940,24 @@ function BacktestTab({
           (() => {
             // 4-Brain EAs are assembled from proven inline state machines + AI wiring.
             // A freeform AI rewrite would destroy the structure (it rewrites 800+ lines
-            // and truncates). The correct fix is to regenerate — template or AI Rebuild
-            // from the Brains tab — NOT a freeform rewrite.
+            // and truncates). The correct fix is to regenerate - template or AI Rebuild
+            // from the Brains tab - NOT a freeform rewrite.
             const isFourBrain = Boolean(blueprint.fourBrain);
             const isBlueprintCode = code.includes("(blueprint SM)");
-            const isLegacyTemplateCode = code.includes("template mode — always compiles");
+            const isLegacyTemplateCode = code.includes("template mode - always compiles");
             return (
               <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 flex items-start gap-3">
                 <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-destructive">
-                    {compileResult.errors} compile error{compileResult.errors !== 1 ? "s" : ""} —
+                    {compileResult.errors} compile error{compileResult.errors !== 1 ? "s" : ""} -
                     fix the code before backtesting
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {fixingAi
-                      ? "Generating fixed code — this takes 15–30 seconds…"
+                      ? "Generating fixed code - this takes 15–30 seconds…"
                       : isFourBrain
-                        ? "This is a 4-Brain EA. Regenerate from Blueprint (instant, verified SMs) or use AI Rebuild on the Brains tab. Do NOT use freeform AI fix — it rewrites the whole file."
+                        ? "This is a 4-Brain EA. Regenerate from Blueprint (instant, verified SMs) or use AI Rebuild on the Brains tab. Do NOT use freeform AI fix - it rewrites the whole file."
                         : isBlueprintCode || isLegacyTemplateCode
                           ? "This is blueprint-generated code. Regenerating from the blueprint is faster and safer than AI rewrite."
                           : "Click Fix with AI to automatically correct all errors in one step."}
@@ -2974,7 +2974,7 @@ function BacktestTab({
                         onClick={() => {
                           try {
                             onApplyCode(generateMql5FromBlueprint(blueprint));
-                            toast.success("Regenerated from blueprint — recompile to verify");
+                            toast.success("Regenerated from blueprint - recompile to verify");
                           } catch (e: unknown) {
                             toast.error(
                               e instanceof Error ? e.message : "Blueprint generation failed",
@@ -2985,7 +2985,7 @@ function BacktestTab({
                         <Hammer className="h-3.5 w-3.5 mr-1.5" /> Regen from Blueprint
                       </Button>
                     )}
-                    {/* Freeform AI fix — ONLY for non-4-brain, raw AI-generated code */}
+                    {/* Freeform AI fix - ONLY for non-4-brain, raw AI-generated code */}
                     {!isFourBrain && (
                       <Button
                         size="sm"
@@ -3001,10 +3001,10 @@ function BacktestTab({
                               compileResult.log,
                             );
                             onApplyCode(result.code);
-                            toast.success("AI fixed the code — recompile to verify");
+                            toast.success("AI fixed the code - recompile to verify");
                           } catch (e: unknown) {
                             toast.error(
-                              e instanceof Error ? e.message : "Fix failed — please try again",
+                              e instanceof Error ? e.message : "Fix failed - please try again",
                             );
                           } finally {
                             setFixingAi(false);
@@ -3038,13 +3038,13 @@ function BacktestTab({
 
         {visualRunning && (
           <p className="text-xs text-muted-foreground">
-            MT5 visual test is running — watch MetaTrader 5 for the strategy tester window. No
+            MT5 visual test is running - watch MetaTrader 5 for the strategy tester window. No
             report will be generated for visual tests.
           </p>
         )}
         {backtestRunning && (
           <p className="text-xs text-muted-foreground">
-            MT5 Strategy Tester running in background — report will appear below when complete.
+            MT5 Strategy Tester running in background - report will appear below when complete.
           </p>
         )}
       </div>
@@ -3154,7 +3154,7 @@ function BacktestTab({
               />
               <MetricCard
                 label="Win Rate"
-                value={summary.winRate !== null ? `${fmt(summary.winRate)}%` : "—"}
+                value={summary.winRate !== null ? `${fmt(summary.winRate)}%` : "-"}
                 positive={summary.winRate !== null ? summary.winRate >= 50 : undefined}
               />
               <MetricCard label="Total Trades" value={fmt(summary.totalTrades, 0)} />

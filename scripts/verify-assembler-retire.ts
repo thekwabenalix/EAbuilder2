@@ -1,5 +1,5 @@
 /**
- * Phase 4 — blessed patterns route through flow engine; assembler is deprecated.
+ * Phase 4 - blessed patterns route through flow engine; assembler is deprecated.
  */
 import { buildBlessedAdapterWiring } from "../src/lib/blessed-ema-adapters";
 import {

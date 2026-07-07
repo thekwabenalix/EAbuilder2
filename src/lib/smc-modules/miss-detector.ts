@@ -1,5 +1,5 @@
 /**
- * SNR Module Library — Phase 1: Miss Detector
+ * SNR Module Library - Phase 1: Miss Detector
  *
  * Miss_Detector v2.0.0
  * ────────────────────────────────────────────────
@@ -8,7 +8,7 @@
  * (across all bars after formation) receives the "Ms" label.
  *
  * Rules:
- *   - Any wick TOUCH kills the level immediately — no miss is possible
+ *   - Any wick TOUCH kills the level immediately - no miss is possible
  *     for a level price has already contacted.
  *   - Every bar (not just swing pivots) is evaluated.
  *   - The closest-approach candle is shown. The label updates in-place
@@ -28,13 +28,13 @@ export const MISS_DETECTOR_MODULE = "Miss_Detector";
 export function generateMissDetector(): string {
   return `//+------------------------------------------------------------------+
 //| Miss_Detector.mq5                                              |
-//| SNR Module Library v${MISS_DETECTOR_VERSION} — Phase 1: Detection Only  |
+//| SNR Module Library v${MISS_DETECTOR_VERSION} - Phase 1: Detection Only  |
 //|                                                                  |
 //| Price fails to reach an S/R level. The candle with the minimum  |
 //| wick-to-level distance gets the "Ms" label.                     |
-//| Any wick touch kills the level — label is removed.             |
+//| Any wick touch kills the level - label is removed.             |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SNR Module Library"
+#property copyright "EA Builder - SNR Module Library"
 #property version   "2.00"
 #property strict
 #property indicator_chart_window
@@ -45,7 +45,7 @@ export function generateMissDetector(): string {
 #define LVL_MAX           600
 #define OBJ_PREFIX        "SMCMISS_"
 
-//--- Inputs — Detection
+//--- Inputs - Detection
 input ENUM_TIMEFRAMES InpTF         = PERIOD_CURRENT; // Timeframe
 input int             InpLookback   = 500;            // Historical bars to scan
 input double          InpNearATR    = 0.20;           // Proximity as ATR fraction (auto-scales to any instrument)
@@ -54,7 +54,7 @@ input int             InpNearPoints = 0;              // Override: fixed distanc
 input int             InpExpiryBars = 200;            // Bars until a level expires (0 = never)
 input bool            InpUseClassic = true;           // Use Classic (reversal-pair) levels
 input bool            InpUseGap     = true;           // Use Gap (continuation-pair) levels
-//--- Inputs — Drawing
+//--- Inputs - Drawing
 input bool            InpDraw       = true;           // Draw labels
 input string          InpLabel      = "Ms";           // Label text
 input int             InpFontSize   = 8;              // Label font size
@@ -69,7 +69,7 @@ struct LevelRec
    int      type;           // TYPE_SUPPORT or TYPE_RESISTANCE
    double   level;          // Candle A close
    datetime levelTime;      // Candle A time
-   datetime confirmTime;    // Candle B time — level valid only AFTER this bar
+   datetime confirmTime;    // Candle B time - level valid only AFTER this bar
    bool     dead;
    int      ageCounter;
    double   bestMissDist;   // smallest wick distance so far (DBL_MAX = no miss yet)
@@ -81,7 +81,7 @@ int      nextId      = 0;
 datetime lastBarTime = 0;
 
 //+------------------------------------------------------------------+
-// Each level has exactly ONE label object — named by level ID.
+// Each level has exactly ONE label object - named by level ID.
 // Re-creating it replaces the old one automatically.
 string MissLb(int lvId) { return OBJ_PREFIX + IntegerToString(lvId) + "_lb"; }
 
@@ -207,7 +207,7 @@ void CheckMiss(int sh)
       {
          if(lo <= lvl)
          {
-            // Wick reached the support — this is a contact, not a miss
+            // Wick reached the support - this is a contact, not a miss
             ObjectDelete(0, MissLb(levList[i].id));
             levList[i].dead = true;
             continue;
@@ -226,7 +226,7 @@ void CheckMiss(int sh)
       {
          if(hi >= lvl)
          {
-            // Wick reached the resistance — contact, not a miss
+            // Wick reached the resistance - contact, not a miss
             ObjectDelete(0, MissLb(levList[i].id));
             levList[i].dead = true;
             continue;

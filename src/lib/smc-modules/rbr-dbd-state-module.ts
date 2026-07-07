@@ -1,11 +1,11 @@
 /**
- * RBR / DBD State Module — Phase 2
+ * RBR / DBD State Module - Phase 2
  *
  * Same detection as RBR_DBD_Detector plus 4-buffer iCustom contract:
- *   0 : BullConfirmBuf — 1.0 at RBR (demand) zone confirmation bar
- *   1 : BearConfirmBuf — 1.0 at DBD (supply) zone confirmation bar
- *   2 : BullSLBuf      — demand zone low (SL below base)
- *   3 : BearSLBuf      — supply zone high (SL above base)
+ *   0 : BullConfirmBuf - 1.0 at RBR (demand) zone confirmation bar
+ *   1 : BearConfirmBuf - 1.0 at DBD (supply) zone confirmation bar
+ *   2 : BullSLBuf      - demand zone low (SL below base)
+ *   3 : BearSLBuf      - supply zone high (SL above base)
  */
 
 import { RBR_DBD_DETECTOR_VERSION, generateRbrDbdDetector } from "./rbr-dbd-detector";
@@ -42,12 +42,12 @@ export function generateRbrDbdStateModule(): string {
 
   code = code
     .replace(
-      "//| RBR_DBD_Detector.mq5 — Supply & Demand base zones               ",
-      `//| ${RBR_DBD_STATE_MODULE}.mq5 — Supply & Demand base zones          `,
+      "//| RBR_DBD_Detector.mq5 - Supply & Demand base zones               ",
+      `//| ${RBR_DBD_STATE_MODULE}.mq5 - Supply & Demand base zones          `,
     )
     .replace(
       `//| RBR/DBD Detector v${RBR_DBD_DETECTOR_VERSION}                            `,
-      `//| RBR/DBD State Module v${RBR_DBD_STATE_MODULE_VERSION} — Phase 2: State + Buffers`,
+      `//| RBR/DBD State Module v${RBR_DBD_STATE_MODULE_VERSION} - Phase 2: State + Buffers`,
     )
     .replace(
       "#property indicator_plots 0",

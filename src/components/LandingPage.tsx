@@ -169,7 +169,7 @@ const BRAINS = [
     badge: "gSetupActive",
     badgeColor: "text-blue-400 bg-blue-950/50",
     title: "Setup brain",
-    body: "Identifies high-probability zones — FVG, OB, liquidity sweeps — on the setup timeframe. Resets every bar.",
+    body: "Identifies high-probability zones - FVG, OB, liquidity sweeps - on the setup timeframe. Resets every bar.",
   },
   {
     icon: Zap,
@@ -180,7 +180,7 @@ const BRAINS = [
     badge: "gExecSignal",
     badgeColor: "text-red-400 bg-red-950/50",
     title: "Execution brain",
-    body: "Fires the precise entry — BOS, engulfing candle, or divergence — on the fastest timeframe. Resets every bar.",
+    body: "Fires the precise entry - BOS, engulfing candle, or divergence - on the fastest timeframe. Resets every bar.",
   },
   {
     icon: ShieldCheck,
@@ -191,7 +191,7 @@ const BRAINS = [
     badge: "Deterministic",
     badgeColor: "text-amber-400 bg-amber-950/50",
     title: "Management brain",
-    body: "Risk %, R:R ratio, break-even, trailing stop. Fully deterministic — never AI-invented. Numbers come from your description.",
+    body: "Risk %, R:R ratio, break-even, trailing stop. Fully deterministic - never AI-invented. Numbers come from your description.",
   },
 ] as const;
 
@@ -199,7 +199,7 @@ const FEATURES = [
   {
     icon: BarChart2,
     title: "Verified modules only",
-    body: "EMA, FVG, BOS, OB, Liquidity Sweep, RSI Divergence. Each is a battle-tested inline state machine — not generated on the fly.",
+    body: "EMA, FVG, BOS, OB, Liquidity Sweep, RSI Divergence. Each is a battle-tested inline state machine - not generated on the fly.",
   },
   {
     icon: Code2,
@@ -214,7 +214,7 @@ const FEATURES = [
   {
     icon: SlidersHorizontal,
     title: "Visual 4-Brain builder",
-    body: "Assign modules to brains visually. Set timeframes and parameters through a UI — no need to touch any code.",
+    body: "Assign modules to brains visually. Set timeframes and parameters through a UI - no need to touch any code.",
   },
   {
     icon: Play,
@@ -263,7 +263,7 @@ const STEPS = [
   },
 ] as const;
 
-/* ── Remotion Player wrapper — client-only ─────────────────── */
+/* ── Remotion Player wrapper - client-only ─────────────────── */
 
 function HeroPlayer() {
   const [mounted, setMounted] = useState(false);
@@ -350,14 +350,14 @@ export function LandingPage() {
         />
 
         <div className="relative max-w-7xl mx-auto px-6 py-24 lg:py-32 grid grid-cols-1 lg:grid-cols-2 gap-14 lg:gap-20 items-center">
-          {/* ── Left — copy ──────────────────────────── */}
+          {/* ── Left - copy ──────────────────────────── */}
           <div>
             {/* Eyebrow */}
             <div className="lp-fade-in inline-flex items-center gap-2 text-[11px] font-mono tracking-widest uppercase text-primary/80 bg-primary/8 border border-primary/20 rounded-full px-3.5 py-1.5 mb-8">
               MT5 Expert Advisor Builder
             </div>
 
-            {/* H1 — font-black for impact */}
+            {/* H1 - font-black for impact */}
             <h1 className="lp-fade-up lp-d1 text-5xl md:text-6xl lg:text-[3.75rem] xl:text-[4.25rem] font-black leading-[1.06] tracking-tight mb-6">
               Build trading EAs{" "}
               <span
@@ -408,7 +408,7 @@ export function LandingPage() {
             </div>
           </div>
 
-          {/* ── Right — Remotion animation ───────────── */}
+          {/* ── Right - Remotion animation ───────────── */}
           <div className="lp-fade-in lp-d3 w-full">
             {/* Glow ring behind the player */}
             <div className="relative">
@@ -459,7 +459,7 @@ export function LandingPage() {
 
           {/* Steps with connectors */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
-            {/* Connector line — desktop only */}
+            {/* Connector line - desktop only */}
             <div
               className="hidden md:block absolute top-8 left-[calc(33.33%+1rem)] right-[calc(33.33%+1rem)] h-px"
               style={{
@@ -543,7 +543,7 @@ export function LandingPage() {
               )}
             </div>
             <p className="text-xs text-primary/80 font-mono">
-              ConfluenceGate() — trade fires only when all active brains agree
+              ConfluenceGate() - trade fires only when all active brains agree
             </p>
           </div>
         </div>
@@ -573,7 +573,7 @@ export function LandingPage() {
           </p>
         </div>
 
-        {/* Infinite ticker — duplicated for seamless loop */}
+        {/* Infinite ticker - duplicated for seamless loop */}
         <div className="flex gap-3 lp-ticker w-max">
           {[...MODULES, ...MODULES].map((m, i) => (
             <div
@@ -663,7 +663,7 @@ export function LandingPage() {
         <div className="max-w-7xl mx-auto flex items-center justify-between text-xs text-muted-foreground/60">
           <div className="flex items-center gap-2">
             <TerminalSquare className="h-3.5 w-3.5 text-primary/50" />
-            <span>EAbuilder — MT5 Expert Advisor Generator</span>
+            <span>EAbuilder - MT5 Expert Advisor Generator</span>
           </div>
           <span>2026</span>
         </div>

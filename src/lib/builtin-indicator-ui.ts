@@ -1,5 +1,5 @@
 /**
- * Built-in indicator picker — maps trader-friendly choices to compile-time wiring.
+ * Built-in indicator picker - maps trader-friendly choices to compile-time wiring.
  *
  * Trend / oscillator categories → verified filterRefs or brain modules (never raw iX() guesses).
  */
@@ -39,7 +39,7 @@ export const INDICATOR_PICKER_CATEGORIES: IndicatorPickerCategoryDef[] = [
   {
     id: "bill_williams",
     label: "Bill Williams",
-    hint: "Coming soon — catalog reference only for now",
+    hint: "Coming soon - catalog reference only for now",
   },
 ];
 
@@ -66,7 +66,7 @@ export const INDICATOR_PICKER_OPTIONS: IndicatorPickerOption[] = [
     wiring: "brain_module",
     wiringLabel: "Brain module",
     brainModule: "ema",
-    description: "Verified EMA state machine — bias, cross, retest, confirm.",
+    description: "Verified EMA state machine - bias, cross, retest, confirm.",
   },
   {
     id: "bb_module",
@@ -132,7 +132,7 @@ export const INDICATOR_PICKER_OPTIONS: IndicatorPickerOption[] = [
     wiringLabel: "Reference only",
     catalogIndicatorId: "stochastic",
     description:
-      "Recognized in your blueprint — full wiring not available yet. Use RSI/MACD filters or describe in notes.",
+      "Recognized in your blueprint - full wiring not available yet. Use RSI/MACD filters or describe in notes.",
   },
   {
     id: "ichimoku_catalog",
@@ -141,7 +141,7 @@ export const INDICATOR_PICKER_OPTIONS: IndicatorPickerOption[] = [
     wiring: "catalog",
     wiringLabel: "Reference only",
     catalogIndicatorId: "ichimoku",
-    description: "Catalog reference only — not compiled into EAs yet.",
+    description: "Catalog reference only - not compiled into EAs yet.",
   },
 ];
 

@@ -59,7 +59,7 @@ const CodeLine: React.FC<{
 };
 
 /**
- * Typewriter comment — uses string slicing per Remotion best practices,
+ * Typewriter comment - uses string slicing per Remotion best practices,
  * never per-character opacity.
  */
 const TypewriterComment: React.FC<{ text: string; charsPerFrame: number }> = ({
@@ -96,7 +96,7 @@ const TypewriterComment: React.FC<{ text: string; charsPerFrame: number }> = ({
 };
 
 /**
- * Brain status chip — uses global frame + startFrame prop so all
+ * Brain status chip - uses global frame + startFrame prop so all
  * chips stay in the flex row from frame 0 (just invisible/scaled down).
  * Pops in with playful overshoot easing per the timing rules.
  */
@@ -170,7 +170,7 @@ const BrainChip: React.FC<{
   );
 };
 
-/* ── Root composition (720 × 440 @ 30fps, 150 frames = 5s loop) ── */
+/* ── Root composition (720 �- 440 @ 30fps, 150 frames = 5s loop) ── */
 
 export const EAComposition: React.FC = () => {
   const frame = useCurrentFrame();

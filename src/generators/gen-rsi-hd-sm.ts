@@ -27,7 +27,7 @@ export function genRsiHdSM(
 
   return `
 //+------------------------------------------------------------------+
-//| RSI Hidden Divergence State Machine — ${tf} (${id})              |
+//| RSI Hidden Divergence State Machine - ${tf} (${id})              |
 //| Same lifecycle as RSI_Hidden_Divergence_State_Module.           |
 //| ACTIVE on HD detection; CONFIRMED on close beyond mid swing.    |
 //+------------------------------------------------------------------+

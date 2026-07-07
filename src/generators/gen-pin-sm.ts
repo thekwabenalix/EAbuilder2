@@ -2,15 +2,15 @@
  * Inline Pin Bar State Machine Generator
  *
  * Point-in-time rejection candle on the just-closed bar (shift 1):
- *   Bull pin: lower wick >= wickRatio × range, body <= bodyMaxRatio × range
- *   Bear pin: upper wick >= wickRatio × range, body <= bodyMaxRatio × range
+ *   Bull pin: lower wick >= wickRatio �- range, body <= bodyMaxRatio �- range
+ *   Bear pin: upper wick >= wickRatio �- range, body <= bodyMaxRatio �- range
  *
  * Standard API:
  *   PINSM_{id}_Reset()
  *   PINSM_{id}_Tick(scanBack)
  *   PINSM_{id}_BullJustConfirmed() / BearJustConfirmed()
  *   PINSM_{id}_BullConfirmSL() / BearConfirmSL()
- *   PINSM_{id}_HasActiveBull() / HasActiveBear()  — same bar as JustConfirmed (point-in-time)
+ *   PINSM_{id}_HasActiveBull() / HasActiveBear()  - same bar as JustConfirmed (point-in-time)
  */
 
 export function genPinSM(
@@ -24,8 +24,8 @@ export function genPinSM(
 
   return `
 //+------------------------------------------------------------------+
-//| Pin Bar State Machine — ${tf} (${id})                            |
-//| Long-wick rejection — hammer / shooting star.                  |
+//| Pin Bar State Machine - ${tf} (${id})                            |
+//| Long-wick rejection - hammer / shooting star.                  |
 //+------------------------------------------------------------------+
 bool      ${P}_bullConfirmed = false;
 bool      ${P}_bearConfirmed = false;

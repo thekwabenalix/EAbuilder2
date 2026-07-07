@@ -1,5 +1,5 @@
 /**
- * Offline assistant — action-first replies from blueprint, flow, and tester logs.
+ * Offline assistant - action-first replies from blueprint, flow, and tester logs.
  */
 
 import type { StrategyBlueprint } from "@/types/blueprint";
@@ -85,7 +85,7 @@ function strategyOverview(blueprint: StrategyBlueprint, prompt?: string): string
     for (const [i, s] of flow.steps.entries()) {
       if (s.enabled === false) continue;
       lines.push(
-        `${i + 1}. **${s.name || s.id}** — ${s.role} · ${s.module} @ ${s.timeframe} · ${s.event}`,
+        `${i + 1}. **${s.name || s.id}** - ${s.role} · ${s.module} @ ${s.timeframe} · ${s.event}`,
       );
     }
   } else if (fb) {
@@ -118,7 +118,7 @@ function strategyOverview(blueprint: StrategyBlueprint, prompt?: string): string
       lines.push(`**Warnings:** ${preview.validationWarnings.join("; ")}`);
     }
   } catch {
-    lines.push("", "**Compiler path:** blocked — fix validation errors in Configure first.");
+    lines.push("", "**Compiler path:** blocked - fix validation errors in Configure first.");
   }
 
   return lines;
@@ -238,7 +238,7 @@ function buildTradeVerdict(
 
   if (typeof trades === "number" && trades > 0) {
     verdict.push(
-      `**Trades opened: ${trades}.** Review R:R, period, and sample size — compiler path looks alive.`,
+      `**Trades opened: ${trades}.** Review R:R, period, and sample size - compiler path looks alive.`,
     );
     return { verdict, evidence: buildTradeEvidence(expected, parsed, summary) };
   }
@@ -246,7 +246,7 @@ function buildTradeVerdict(
   if (parsed.dominantBlock) {
     verdict.push(
       `**Signals fired, but entry was blocked:** ${parsed.dominantBlock}.`,
-      "Chart markers can appear without **OpenTrade()** — check the gate line in the tester log.",
+      "Chart markers can appear without **OpenTrade()** - check the gate line in the tester log.",
     );
     evidence.push(...buildTradeEvidence(expected, parsed, summary));
     return { verdict, evidence };
@@ -254,8 +254,8 @@ function buildTradeVerdict(
 
   if (entryStep && entryCount === 0) {
     verdict.push(
-      `**Entry never fired** (${entryStep.event}). Direction **${dirCount}×** · Setup **${setupCount}×** · Entry **0×**.`,
-      "The EA never passed the final gate — no order was sent.",
+      `**Entry never fired** (${entryStep.event}). Direction **${dirCount}�-** · Setup **${setupCount}�-** · Entry **0�-**.`,
+      "The EA never passed the final gate - no order was sent.",
     );
     evidence.push(...buildTradeEvidence(expected, parsed, summary));
     return { verdict, evidence };
@@ -300,7 +300,7 @@ function buildTradeEvidence(
   if (byStep.size) {
     lines.push("", "**Events in log:**");
     for (const [name, count] of byStep) {
-      lines.push(`- ${name}: ${count}×`);
+      lines.push(`- ${name}: ${count}�-`);
     }
     const missing = expected.filter((s) => (byStep.get(s.name) ?? 0) === 0);
     if (missing.length) {
@@ -314,7 +314,7 @@ function buildTradeEvidence(
   if (parsed.gateBlocks.length) {
     lines.push("", "**Top gate blocks:**");
     for (const b of parsed.gateBlocks.slice(0, 5)) {
-      lines.push(`- ${b.reason}: ${b.count}×`);
+      lines.push(`- ${b.reason}: ${b.count}�-`);
     }
   }
 
@@ -326,7 +326,7 @@ function cloudOfflineVerdict(): string[] {
     "",
     "## Verdict",
     "",
-    "**Cloud AI is unavailable** — server could not reach Anthropic (key, credits, or timeout).",
+    "**Cloud AI is unavailable** - server could not reach Anthropic (key, credits, or timeout).",
     "Offline diagnosis below still works from your blueprint and tester log.",
     "",
     "## Why offline?",
@@ -352,7 +352,7 @@ function compileVerdict(compileLog?: string | null): { verdict: string[]; eviden
     .filter((l) => /error/i.test(l))
     .slice(0, 8);
   if (errors.length) {
-    verdict.push(`**Compile failed** — ${errors.length} error line(s) in the last log.`);
+    verdict.push(`**Compile failed** - ${errors.length} error line(s) in the last log.`);
     evidence.push("", "## Evidence", "", ...errors.map((e) => `- ${e.trim()}`));
   } else {
     verdict.push("**No compile errors** in the last log snippet.");
@@ -393,8 +393,8 @@ export function answerLocalAssistant(input: LocalAssistantInput): string {
 
   const lines: string[] = [
     compact
-      ? "*(Offline assistant — verdict from your log and blueprint. Use **Apply now** below.)*"
-      : "*(Offline assistant — built from your blueprint, code, and tester logs.)*",
+      ? "*(Offline assistant - verdict from your log and blueprint. Use **Apply now** below.)*"
+      : "*(Offline assistant - built from your blueprint, code, and tester logs.)*",
   ];
 
   if (wantsCloudOfflineHelp(msg)) {
@@ -431,7 +431,7 @@ export function answerLocalAssistant(input: LocalAssistantInput): string {
       "",
       "## Verdict",
       "",
-      "Ask about **no trades**, **compile errors**, or **cloud offline** — or run a backtest with **InpAudit=true**.",
+      "Ask about **no trades**, **compile errors**, or **cloud offline** - or run a backtest with **InpAudit=true**.",
     );
     lines.push(...offlineApplyFixes(input.blueprint, parsed, input.testerLog));
   }

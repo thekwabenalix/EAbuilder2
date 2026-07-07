@@ -116,7 +116,7 @@ double EMAVal(int handle, int shift)
 }
 
 //+------------------------------------------------------------------+
-//| Swing detection — 3 bars each side                              |
+//| Swing detection - 3 bars each side                              |
 //| sh = candidate bar shift. Needs shifts sh-3..sh+3 all closed.   |
 //| We check at sh=4 each bar-open: right side = shifts 1,2,3       |
 //|                                  left side  = shifts 5,6,7      |
@@ -246,7 +246,7 @@ void CheckInversions()
 }
 
 //+------------------------------------------------------------------+
-//| Entry execution — fires on the bar AFTER the inversion close    |
+//| Entry execution - fires on the bar AFTER the inversion close    |
 //+------------------------------------------------------------------+
 void ExecuteEntries(double emaFast, double emaSlow)
 {
@@ -342,7 +342,7 @@ void ExecuteEntries(double emaFast, double emaSlow)
 }
 
 //+------------------------------------------------------------------+
-//| Break-even — move SL to entry price at InpBEAtR × initial risk  |
+//| Break-even - move SL to entry price at InpBEAtR × initial risk  |
 //+------------------------------------------------------------------+
 void ManageBreakEven()
 {
@@ -418,7 +418,7 @@ void DrawSwing(bool isBull, double price, datetime t)
 }
 
 //+------------------------------------------------------------------+
-//| Historical swing init — scans last 200 bars on startup          |
+//| Historical swing init - scans last 200 bars on startup          |
 //| Ensures gSellReady/gBuyReady are set before first tick.         |
 //+------------------------------------------------------------------+
 void InitSwingState()
@@ -523,7 +523,7 @@ void OnTick()
    if(totalBars < 8) return;
 
    //-------------------------------------------------------------------
-   // 1. Swing detection — scan shifts 4..25 (wider range than just 4)
+   // 1. Swing detection - scan shifts 4..25 (wider range than just 4)
    //    Stops at the FIRST (most recent) qualifying swing each direction.
    //    A swing at shift N is confirmed by 3 newer bars (N-3..N-1) AND
    //    3 older bars (N+1..N+3) all having lower highs / higher lows.

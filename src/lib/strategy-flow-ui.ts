@@ -1,5 +1,5 @@
 /**
- * Phase 7 — Strategy Flow Builder UI helpers.
+ * Phase 7 - Strategy Flow Builder UI helpers.
  *
  * Converts between 4-Brain presets and user-authored advanced step chains.
  */
@@ -220,7 +220,7 @@ export function validateFlowForBuilder(flow: StrategyFlowConfig): FlowBuilderVal
   const warnings = [...schema.warnings];
   if (schema.ok && !flowEngineOk) {
     warnings.push(
-      "Some steps use modules the Strategy Flow engine does not cover yet — generation will fall back to the blueprint assembler.",
+      "Some steps use modules the Strategy Flow engine does not cover yet - generation will fall back to the blueprint assembler.",
     );
   }
   return {

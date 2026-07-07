@@ -1,5 +1,5 @@
 /**
- * Phase 4 — convert blessed deterministic adapters into StrategyFlow steps.
+ * Phase 4 - convert blessed deterministic adapters into StrategyFlow steps.
  *
  * Lets EMA+IFVG and EMA CTC compile through the ordered event engine instead of
  * the deprecated 4-Brain boolean assembler path.

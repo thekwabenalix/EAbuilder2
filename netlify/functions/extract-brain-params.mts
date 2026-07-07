@@ -77,7 +77,7 @@ Your job is to extract ONLY the concrete numerical or boolean parameters and ret
 When multiple modules are selected, extract parameters that apply to their shared logic.
 
 RULES:
-- Return ONLY valid JSON matching the schema below — no prose, no markdown fences.
+- Return ONLY valid JSON matching the schema below - no prose, no markdown fences.
 - Only include keys explicitly mentioned or clearly implied by the description.
 - If a value is not mentioned, omit that key entirely (use defaults at runtime).
 - Never invent parameters not in the schema.
@@ -145,7 +145,7 @@ export default async (req: Request): Promise<Response> => {
 
   if (description.length < 5) {
     return Response.json(
-      { error: "Description too short — add more detail" },
+      { error: "Description too short - add more detail" },
       { status: 400, headers: CORS },
     );
   }
@@ -158,7 +158,7 @@ export default async (req: Request): Promise<Response> => {
       messages: [
         {
           role: "user",
-          content: `${role} brain (${modules.join(" + ")} @ ${timeframe}) — extract params from:\n"${description}"`,
+          content: `${role} brain (${modules.join(" + ")} @ ${timeframe}) - extract params from:\n"${description}"`,
         },
         {
           role: "assistant",

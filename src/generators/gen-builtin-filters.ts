@@ -115,7 +115,7 @@ export function buildAssemblerFilterCode(
     .join("\n");
 }
 
-/** Strategy Flow entry gate — block trade when filter fails. */
+/** Strategy Flow entry gate - block trade when filter fails. */
 export function emitFlowEntryFilterCheck(filter: BuiltinFilterRef, index: number): string {
   const tf = tfConst(filter.timeframe || "M5");
   const suffix = filterSuffix(filter, index);

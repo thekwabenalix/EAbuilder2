@@ -1,10 +1,10 @@
 /**
- * Bollinger State Module — Phase 2
+ * Bollinger State Module - Phase 2
  *
- *   0 : BullConfirmBuf — 1.0 at lower-band touch rejection or upper breakout (bull)
- *   1 : BearConfirmBuf — 1.0 at upper-band touch rejection or lower breakout (bear)
- *   2 : BullSLBuf      — bar low
- *   3 : BearSLBuf      — bar high
+ *   0 : BullConfirmBuf - 1.0 at lower-band touch rejection or upper breakout (bull)
+ *   1 : BearConfirmBuf - 1.0 at upper-band touch rejection or lower breakout (bear)
+ *   2 : BullSLBuf      - bar low
+ *   3 : BearSLBuf      - bar high
  */
 
 import { BOLL_DETECTOR_VERSION, generateBollingerDetector } from "./bollinger-detector";
@@ -46,8 +46,8 @@ export function generateBollingerStateModule(): string {
       `//| ${BOLL_STATE_MODULE}.mq5                                       `,
     )
     .replace(
-      `//| Bollinger Bands v${BOLL_DETECTOR_VERSION} — touch & breakout marks     `,
-      `//| Bollinger State Module v${BOLL_STATE_MODULE_VERSION} — Phase 2: State + Buffers`,
+      `//| Bollinger Bands v${BOLL_DETECTOR_VERSION} - touch & breakout marks     `,
+      `//| Bollinger State Module v${BOLL_STATE_MODULE_VERSION} - Phase 2: State + Buffers`,
     )
     .replace(
       "#property indicator_plots 0",

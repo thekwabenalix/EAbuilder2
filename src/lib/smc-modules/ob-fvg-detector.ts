@@ -1,8 +1,8 @@
 /**
- * SMC Combination Detector — OB + FVG v2.0.0
+ * SMC Combination Detector - OB + FVG v2.0.0
  *
  * An OB+FVG is simply a Fair Value Gap whose FIRST candle is the opposite
- * colour to the gap direction — that first candle IS the order block.
+ * colour to the gap direction - that first candle IS the order block.
  *
  *   Bullish OB+FVG: a BULLISH FVG whose first candle (C1) is BEARISH.
  *   Bearish OB+FVG: a BEARISH FVG whose first candle (C1) is BULLISH.
@@ -23,13 +23,13 @@ export const OB_FVG_DETECTOR_MODULE = "OB_FVG_Detector";
 export function generateObFvgDetector(): string {
   return `//+------------------------------------------------------------------+
 //| OB_FVG_Detector.mq5                                            |
-//| SMC Combination v${OB_FVG_DETECTOR_VERSION} — Order Block + FVG          |
+//| SMC Combination v${OB_FVG_DETECTOR_VERSION} - Order Block + FVG          |
 //|                                                                  |
 //| An FVG whose first candle is the opposite colour = the OB.     |
 //| Bull OB+FVG: bullish FVG, bearish C1. Bear: bearish FVG, bull C1.|
 //| Entry at the OB (C1) body.                                     |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SMC Combination"
+#property copyright "EA Builder - SMC Combination"
 #property version   "2.00"
 #property strict
 #property indicator_chart_window
@@ -65,7 +65,7 @@ struct ComboRec
    double   fvgTop;
    double   fvgBot;
    datetime obTime;       // C1 time (box left edge)
-   datetime confirmTime;  // C3 time — valid only after this
+   datetime confirmTime;  // C3 time - valid only after this
    bool     dead;
    int      ageCounter;
 };

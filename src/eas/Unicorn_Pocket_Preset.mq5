@@ -1,8 +1,8 @@
 //+------------------------------------------------------------------+
-//| Unicorn_Pocket_Preset.mq5  —  Strategy Flow runtime over verified SMs         |
+//| Unicorn_Pocket_Preset.mq5  -  Strategy Flow runtime over verified SMs         |
 //| 3 instances; entries gated on ordered, timestamped events.     |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — Strategy Flow runtime"
+#property copyright "EA Builder - Strategy Flow runtime"
 #property version   "1.00"
 #property strict
 #include <Trade/Trade.mqh>
@@ -174,8 +174,8 @@ bool OpenTrade(int entryIdx, int dir)
 // ── Embedded verified state machines ──────────────────────────────────────────
 
 //+------------------------------------------------------------------+
-//| Unicorn State Machine — H1 (H1)                           |
-//| Breaker Block overlapping same-direction FVG — overlap pocket. |
+//| Unicorn State Machine - H1 (H1)                           |
+//| Breaker Block overlapping same-direction FVG - overlap pocket. |
 //+------------------------------------------------------------------+
 #define UNISMSM_H1_PHASE_OB  0
 #define UNISMSM_H1_PHASE_BB  1

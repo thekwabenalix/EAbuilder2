@@ -1,6 +1,6 @@
 // ─── MTF Types ───────────────────────────────────────────────────────────────
-// Multi-Timeframe Orchestration Layer — EAbuilder2
-// Types only — no generation logic in this file.
+// Multi-Timeframe Orchestration Layer - EAbuilder2
+// Types only - no generation logic in this file.
 
 export const MTF_ORCHESTRATOR_VERSION = "1.0.0";
 
@@ -8,9 +8,9 @@ export const MTF_ORCHESTRATOR_VERSION = "1.0.0";
 
 export type MtfStepStatus =
   | "WAITING" // awaiting prior step to reach CONFIRMED
-  | "ACTIVE" // dependency satisfied — monitoring for own signal
-  | "CONFIRMED" // signal received — acts as dependency for next step
-  | "EXPIRED"; // barsAlive exceeded expiryBars — full chain resets
+  | "ACTIVE" // dependency satisfied - monitoring for own signal
+  | "CONFIRMED" // signal received - acts as dependency for next step
+  | "EXPIRED"; // barsAlive exceeded expiryBars - full chain resets
 
 // ── Strategy direction ────────────────────────────────────────────────────────
 
@@ -100,7 +100,7 @@ export interface MtfExecutionConfig {
    */
   slBufIdx: number;
 
-  /** EA magic number — identifies this strategy's open positions */
+  /** EA magic number - identifies this strategy's open positions */
   magic: number;
 
   /** Risk per trade as a percentage of account balance (e.g. 1.0 = 1%) */
@@ -110,7 +110,7 @@ export interface MtfExecutionConfig {
   rr: number;
 
   /**
-   * Move SL to breakeven when floating profit reaches N × initial-risk.
+   * Move SL to breakeven when floating profit reaches N �- initial-risk.
    * Set to 0 to disable breakeven management.
    */
   breakevenR: number;

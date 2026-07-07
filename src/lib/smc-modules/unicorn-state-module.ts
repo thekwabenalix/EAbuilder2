@@ -1,11 +1,11 @@
 /**
- * Unicorn State Module — Phase 2
+ * Unicorn State Module - Phase 2
  *
  * Same detection as Unicorn_Detector plus 4-buffer iCustom contract:
- *   0 : BullConfirmBuf — 1.0 when a bullish Unicorn (BB + FVG overlap) forms
- *   1 : BearConfirmBuf — 1.0 when a bearish Unicorn forms
- *   2 : BullSLBuf      — breaker zone low (invalidation for longs)
- *   3 : BearSLBuf      — breaker zone high (invalidation for shorts)
+ *   0 : BullConfirmBuf - 1.0 when a bullish Unicorn (BB + FVG overlap) forms
+ *   1 : BearConfirmBuf - 1.0 when a bearish Unicorn forms
+ *   2 : BullSLBuf      - breaker zone low (invalidation for longs)
+ *   3 : BearSLBuf      - breaker zone high (invalidation for shorts)
  */
 
 import { UNICORN_DETECTOR_VERSION, generateUnicornDetector } from "./unicorn-detector";
@@ -46,8 +46,8 @@ export function generateUnicornStateModule(): string {
       `//| ${UNICORN_STATE_MODULE}.mq5                                      `,
     )
     .replace(
-      `//| SMC Combination v${UNICORN_DETECTOR_VERSION} — Unicorn (Breaker + FVG)   `,
-      `//| Unicorn State Module v${UNICORN_STATE_MODULE_VERSION} — Phase 2: State + Buffers`,
+      `//| SMC Combination v${UNICORN_DETECTOR_VERSION} - Unicorn (Breaker + FVG)   `,
+      `//| Unicorn State Module v${UNICORN_STATE_MODULE_VERSION} - Phase 2: State + Buffers`,
     )
     .replace(
       "#property indicator_plots 0",

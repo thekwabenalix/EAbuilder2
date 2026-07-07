@@ -1,7 +1,7 @@
 /**
- * SMC Liquidity Detector — OB Liquidity Build-up v1.1.0
+ * SMC Liquidity Detector - OB Liquidity Build-up v1.1.0
  *
- * @deprecated Standalone visual only — superseded by Liquidity_Buildup.mq5 and
+ * @deprecated Standalone visual only - superseded by Liquidity_Buildup.mq5 and
  * the zone_liq / ZLSM brain module. Kept for compile regression.
  *
  * A candle or series of candles come close to an Order Block (OB) without
@@ -21,7 +21,7 @@
  *   Bearish OB (resistance above): body bottom = OB candle OPEN
  *   → near edge = OB candle OPEN in both cases.
  *
- * TOUCH (kills the level — body entered):
+ * TOUCH (kills the level - body entered):
  *   Bullish OB: wick low  <= obOpen
  *   Bearish OB: wick high >= obOpen
  */
@@ -32,13 +32,13 @@ export const OB_LIQUIDITY_DETECTOR_MODULE = "OB_Liquidity_Detector";
 export function generateObLiquidityDetector(): string {
   return `//+------------------------------------------------------------------+
 //| OB_Liquidity_Detector.mq5                                      |
-//| SMC Liquidity v${OB_LIQUIDITY_DETECTOR_VERSION} — OB Liquidity Build-up    |
+//| SMC Liquidity v${OB_LIQUIDITY_DETECTOR_VERSION} - OB Liquidity Build-up    |
 //|                                                                  |
 //| The OB body is drawn as a filled box. Price approaches it       |
-//| without touching the body — stops accumulate. Closest approach  |
+//| without touching the body - stops accumulate. Closest approach  |
 //| labeled "OLq". Body entry removes the zone + label.             |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SMC Liquidity"
+#property copyright "EA Builder - SMC Liquidity"
 #property version   "1.10"
 #property strict
 #property indicator_chart_window
@@ -70,12 +70,12 @@ struct LevelRec
 {
    int      id;
    int      dir;          // DIR_BULL or DIR_BEAR
-   double   bodyEdge;     // OB candle OPEN — the body edge price approaches
-   double   bodyFar;      // OB candle CLOSE — opposite body edge (for the box)
+   double   bodyEdge;     // OB candle OPEN - the body edge price approaches
+   double   bodyFar;      // OB candle CLOSE - opposite body edge (for the box)
    double   zoneTop;      // max(open,close)
    double   zoneBot;      // min(open,close)
    datetime obTime;       // OB candle time (dedup key + box left edge)
-   datetime confirmTime;  // displacement candle time — valid only after this
+   datetime confirmTime;  // displacement candle time - valid only after this
    bool     dead;
    int      ageCounter;
    double   bestLiqDist;

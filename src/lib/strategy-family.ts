@@ -1,5 +1,5 @@
 /**
- * Strategy family gate — groups modules by trading school before 4-Brain wiring.
+ * Strategy family gate - groups modules by trading school before 4-Brain wiring.
  *
  * Families filter the builder module pickers and warn on cross-family mixes
  * (e.g. Unicorn pocket + SNR Rejection off unrelated levels).
@@ -40,7 +40,7 @@ export const STRATEGY_FAMILIES: StrategyFamilyMeta[] = [
     id: "indicators",
     label: "Indicators",
     shortLabel: "Ind",
-    description: "EMA, Bollinger, RSI divergence — rule-based bias and triggers.",
+    description: "EMA, Bollinger, RSI divergence - rule-based bias and triggers.",
     examples: "EMA cross bias · BB touch · RSI hidden divergence",
   },
   {
@@ -48,7 +48,7 @@ export const STRATEGY_FAMILIES: StrategyFamilyMeta[] = [
     label: "Hybrid",
     shortLabel: "Mix",
     description:
-      "All modules — combine schools when you know the wiring (cross-family warnings still apply).",
+      "All modules - combine schools when you know the wiring (cross-family warnings still apply).",
     examples: "HTF EMA filter + OB setup · Any custom chain",
   },
 ];
@@ -108,7 +108,7 @@ export function modulesForFamily(family: StrategyFamily): BrainModuleDef[] {
   return ALL_BRAIN_MODULES.filter((m) => moduleAllowedInFamily(m.id, family));
 }
 
-/** Brain / flow picker list — hides SNR Rejection for SMC and when a zone setup is selected. */
+/** Brain / flow picker list - hides SNR Rejection for SMC and when a zone setup is selected. */
 export function pickerModulesForBrain(
   family: StrategyFamily | null | undefined,
   role: "direction" | "setup" | "execution",
@@ -160,12 +160,12 @@ export function crossFamilyWarnings(
 
   if (selectedFamily !== "hybrid") {
     for (const id of ids) {
-      // Unicorn/FVG+OB presets keep execution id `rejection` for flow remap — not SNR REJSM.
+      // Unicorn/FVG+OB presets keep execution id `rejection` for flow remap - not SNR REJSM.
       if (id === "rejection" && zoneScopedRejection) continue;
       if (!moduleAllowedInFamily(id, selectedFamily)) {
         const label = MODULE_BY_ID[id]?.label ?? id;
         warnings.push(
-          `${label} belongs to a different strategy family — switch to Hybrid or remove it.`,
+          `${label} belongs to a different strategy family - switch to Hybrid or remove it.`,
         );
       }
     }
@@ -178,7 +178,7 @@ export function crossFamilyWarnings(
     const smcNames = smcIds.map((id) => MODULE_BY_ID[id]?.label ?? id).join(", ");
     const snrNames = snrIds.map((id) => MODULE_BY_ID[id]?.label ?? id).join(", ");
     warnings.push(
-      `Mixing SMC/ICT (${smcNames}) with S/R & SnD (${snrNames}) — zone-scoped rejection is not wired yet; steps may not share the same level.`,
+      `Mixing SMC/ICT (${smcNames}) with S/R & SnD (${snrNames}) - zone-scoped rejection is not wired yet; steps may not share the same level.`,
     );
   }
 
@@ -201,7 +201,7 @@ export function filterModulesForFamily(
   return moduleIds.filter((id) => moduleAllowedInFamily(id, family));
 }
 
-/** Ensures every BrainModuleType is mapped — call from verify scripts. */
+/** Ensures every BrainModuleType is mapped - call from verify scripts. */
 export function assertCompleteModuleFamilyMap(): void {
   for (const mod of ALL_BRAIN_MODULES) {
     if (!MODULE_STRATEGY_FAMILIES[mod.id]?.length) {

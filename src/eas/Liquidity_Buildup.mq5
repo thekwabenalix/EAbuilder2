@@ -1,15 +1,15 @@
 //+------------------------------------------------------------------+
 //| Liquidity_Buildup.mq5                                           |
-//| SMC Liquidity v1.0.0 — Combined OB + BB + FVG                  |
+//| SMC Liquidity v1.0.0 - Combined OB + BB + FVG                  |
 //|                                                                  |
 //| Each zone (OB / Breaker / FVG) is drawn as a filled rectangle.  |
 //| The closest wick that approaches the zone without entering is    |
-//| marked with a horizontal line — the liquidity build-up level.   |
+//| marked with a horizontal line - the liquidity build-up level.   |
 //| Entering the zone body removes both rect and line.              |
 //|                                                                  |
 //| Rectangle styles:  OB = solid | BB = dashed | FVG = dotted     |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SMC Liquidity"
+#property copyright "EA Builder - SMC Liquidity"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window

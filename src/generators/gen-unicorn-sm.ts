@@ -7,11 +7,11 @@
  * Standard API:
  *   UNISMSM_{id}_Reset()
  *   UNISMSM_{id}_Tick(lookback)
- *   UNISMSM_{id}_HasActiveBull() / HasActiveBear()   — live overlap pocket (SETUP)
- *   UNISMSM_{id}_BullJustRetested() / BearJustRetested() — wick into pocket (SETUP/CONFIRM)
- *   UNISMSM_{id}_BullJustConfirmed() / BearJustConfirmed() — close outside after retest (ZONE REJECTION)
- *   UNISMSM_{id}_BullConfirmSL() / BearConfirmSL()   — wick extreme at rejection (SL)
- *   UNISMSM_{id}_ActiveBullSL() / ActiveBearSL()     — setup SL hint (breaker invalidation)
+ *   UNISMSM_{id}_HasActiveBull() / HasActiveBear()   - live overlap pocket (SETUP)
+ *   UNISMSM_{id}_BullJustRetested() / BearJustRetested() - wick into pocket (SETUP/CONFIRM)
+ *   UNISMSM_{id}_BullJustConfirmed() / BearJustConfirmed() - close outside after retest (ZONE REJECTION)
+ *   UNISMSM_{id}_BullConfirmSL() / BearConfirmSL()   - wick extreme at rejection (SL)
+ *   UNISMSM_{id}_ActiveBullSL() / ActiveBearSL()     - setup SL hint (breaker invalidation)
  */
 
 export function genUnicornSM(
@@ -69,8 +69,8 @@ void ${P}DrawUni(int dir, datetime obT, double brkHi, double brkLo, double ovTop
 
   return `
 //+------------------------------------------------------------------+
-//| Unicorn State Machine — ${tf} (${id})                           |
-//| Breaker Block overlapping same-direction FVG — overlap pocket. |
+//| Unicorn State Machine - ${tf} (${id})                           |
+//| Breaker Block overlapping same-direction FVG - overlap pocket. |
 //+------------------------------------------------------------------+
 #define ${P}PHASE_OB  0
 #define ${P}PHASE_BB  1

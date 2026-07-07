@@ -1,5 +1,5 @@
 /**
- * Phase 0 — generation policy helpers.
+ * Phase 0 - generation policy helpers.
  *
  * Centralizes rules for which codegen paths are allowed and when AI surgical
  * fixes may touch assembler-generated EAs.
@@ -10,7 +10,7 @@ import type { StrategyBlueprint } from "@/types/blueprint";
 export type EaCodegenKind = "fourbrain_assembler" | "flow_engine" | "legacy_flat_rules" | "unknown";
 
 export const BLUEPRINT_ASSEMBLER_DEPRECATION =
-  "Blueprint assembler (4-Brain boolean gate) is deprecated. Prefer Strategy Flow — this path will be removed when all admitted modules compile through the flow engine.";
+  "Blueprint assembler (4-Brain boolean gate) is deprecated. Prefer Strategy Flow - this path will be removed when all admitted modules compile through the flow engine.";
 
 export const LEGACY_FLAT_RULES_MESSAGE =
   "Legacy flat-rules EAs are deprecated for new strategies. Use the 4-Brain / Strategy Flow builder, or open /build to configure modules.";
@@ -37,7 +37,7 @@ export function detectEaCodegenKind(code: string, blueprint?: StrategyBlueprint)
     code.includes("4-Brain Architecture") ||
     code.includes("(blueprint SM)") ||
     code.includes("(AI mode)") ||
-    code.includes("template mode — always compiles")
+    code.includes("template mode - always compiles")
   ) {
     return "fourbrain_assembler";
   }

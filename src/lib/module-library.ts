@@ -1,5 +1,5 @@
 /**
- * Module Library — The AI builder's vocabulary.
+ * Module Library - The AI builder's vocabulary.
  *
  * This is NOT a user-facing file list.
  * This is what the AI reads to understand what can be built and how.
@@ -12,9 +12,9 @@
  *   - What the module outputs and how to wire it into the confluence gate
  *
  * DESIGN PRINCIPLES:
- *   1. Modules are never installed by the user — logic is always inlined in the EA.
+ *   1. Modules are never installed by the user - logic is always inlined in the EA.
  *   2. The same module can serve different roles depending on context.
- *   3. The AI configures parameters from the description — never hardcodes defaults blindly.
+ *   3. The AI configures parameters from the description - never hardcodes defaults blindly.
  *   4. The final EA is always one self-contained file.
  */
 
@@ -106,7 +106,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     concept:
       "Detects when price closes beyond a confirmed swing high or low, signalling continuation of the current trend.",
     detectionLogic:
-      "Identifies swing pivots (price must be higher/lower than N bars on both sides). When a candle CLOSES beyond an unconsumed pivot, a BOS fires and the trend state updates persistently. Each pivot can generate exactly one BOS — consumed pivots are never re-used.",
+      "Identifies swing pivots (price must be higher/lower than N bars on both sides). When a candle CLOSES beyond an unconsumed pivot, a BOS fires and the trend state updates persistently. Each pivot can generate exactly one BOS - consumed pivots are never re-used.",
     roles: [
       {
         role: "direction",
@@ -116,12 +116,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         role: "setup",
         fit: "secondary",
-        usage: "Fresh BOS in bias direction means momentum is active — valid setup zone.",
+        usage: "Fresh BOS in bias direction means momentum is active - valid setup zone.",
       },
       {
         role: "execution",
         fit: "possible",
-        usage: "Enter on the BOS bar itself if risk allows — break-and-go entry.",
+        usage: "Enter on the BOS bar itself if risk allows - break-and-go entry.",
       },
     ],
     lifecycle:
@@ -158,12 +158,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         name: "BullJustBroke()",
         meaning: "BOS BULL fired on this exact bar",
-        tradingImplication: "Fresh momentum — immediate entry or start watching for setup",
+        tradingImplication: "Fresh momentum - immediate entry or start watching for setup",
       },
       {
         name: "BearJustBroke()",
         meaning: "BOS BEAR fired on this exact bar",
-        tradingImplication: "Fresh momentum — immediate entry or start watching for setup",
+        tradingImplication: "Fresh momentum - immediate entry or start watching for setup",
       },
     ],
     inlineApi: {
@@ -206,7 +206,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       "Derives bias from the last two highs and two lows: HH+HL = bull, LH+LL = bear.",
     detectionLogic:
       "Swing high: bar high exceeds N left and M right neighbors. Swing low: bar low is lower than neighbors. " +
-      "No BOS/CHoCH — pure pivot tracking and HH/HL classification only.",
+      "No BOS/CHoCH - pure pivot tracking and HH/HL classification only.",
     roles: [
       {
         role: "direction",
@@ -216,7 +216,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         role: "setup",
         fit: "secondary",
-        usage: "Recent swing level as reference — SL at last opposing pivot.",
+        usage: "Recent swing level as reference - SL at last opposing pivot.",
       },
     ],
     lifecycle: "Pivot confirms after M right bars → bias updates when 2 highs + 2 lows exist",
@@ -284,7 +284,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       "Higher highs and higher lows on H4 for bias",
       "Enter when a new swing low forms in an uptrend",
     ],
-    notSuitedFor: ["Traders wanting BOS/CHoCH break signals — use bos or choch instead"],
+    notSuitedFor: ["Traders wanting BOS/CHoCH break signals - use bos or choch instead"],
     combinesWith: ["bos", "choch", "fvg", "order_block", "engulfing"],
   },
 
@@ -304,7 +304,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "counter-trend break" },
     ],
     concept:
-      "Fires ONLY when price breaks structure AGAINST the current trend — a signal that the trend may be reversing.",
+      "Fires ONLY when price breaks structure AGAINST the current trend - a signal that the trend may be reversing.",
     detectionLogic:
       "Same swing pivot detection as BOS. But CHoCH fires ONLY on counter-trend breaks: in a BEAR trend, a close above a swing high = Bull CHoCH. In a BULL trend, a close below a swing low = Bear CHoCH. With-trend breaks are silently consumed (not drawn). This filters noise and highlights genuine reversals.",
     roles: [
@@ -334,18 +334,18 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     outputStates: [
       {
         name: "IsBull()",
-        meaning: "After bull CHoCH — now looking for buys",
+        meaning: "After bull CHoCH - now looking for buys",
         tradingImplication: "Bias is BULL",
       },
       {
         name: "IsBear()",
-        meaning: "After bear CHoCH — now looking for sells",
+        meaning: "After bear CHoCH - now looking for sells",
         tradingImplication: "Bias is BEAR",
       },
       {
         name: "BullJustBroke()",
         meaning: "Bull CHoCH fired this bar",
-        tradingImplication: "Trend just flipped bullish — start fresh",
+        tradingImplication: "Trend just flipped bullish - start fresh",
       },
       {
         name: "BearJustBroke()",
@@ -431,7 +431,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         name: "HasActiveBull()",
         meaning: "A bull FVG zone exists and has not been mitigated/invalidated",
-        tradingImplication: "Setup zone present — watch for retest",
+        tradingImplication: "Setup zone present - watch for retest",
       },
       {
         name: "HasActiveBear()",
@@ -441,7 +441,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         name: "BullJustConfirmed()",
         meaning: "Bull FVG retested and confirmed this bar",
-        tradingImplication: "ENTRY SIGNAL — price respected the gap and bounced",
+        tradingImplication: "ENTRY SIGNAL - price respected the gap and bounced",
       },
       {
         name: "BearJustConfirmed()",
@@ -467,12 +467,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         {
           fn: "FVGSM_{id}_BullJustConfirmed()",
           returns: "bool",
-          meaning: "Bull FVG confirmed — entry signal",
+          meaning: "Bull FVG confirmed - entry signal",
         },
         {
           fn: "FVGSM_{id}_BearJustConfirmed()",
           returns: "bool",
-          meaning: "Bear FVG confirmed — entry signal",
+          meaning: "Bear FVG confirmed - entry signal",
         },
         { fn: "FVGSM_{id}_BullConfirmSL()", returns: "double", meaning: "SL for bull entries" },
         { fn: "FVGSM_{id}_BearConfirmSL()", returns: "double", meaning: "SL for bear entries" },
@@ -508,7 +508,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "bearish inversion FVG" },
     ],
     concept:
-      "A FVG that price closes THROUGH — flipping its polarity. A bullish FVG that gets closed below becomes a bearish iFVG (resistance). A bearish FVG closed above becomes a bullish iFVG (support).",
+      "A FVG that price closes THROUGH - flipping its polarity. A bullish FVG that gets closed below becomes a bearish iFVG (resistance). A bearish FVG closed above becomes a bullish iFVG (support).",
     detectionLogic:
       "First detects all FVGs. Then monitors for close-through events: bull FVG closed below LL → bear iFVG born. Bear FVG closed above UL → bull iFVG born. The inverted zone then tracks ACTIVE → RETESTED → CONFIRMED as the price returns to it from the new direction.",
     roles: [
@@ -544,7 +544,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         name: "HasActiveBull()",
         meaning: "A bull iFVG zone is live",
-        tradingImplication: "Polarity support zone present — wait for retest",
+        tradingImplication: "Polarity support zone present - wait for retest",
       },
       {
         name: "HasActiveBear()",
@@ -554,17 +554,17 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         name: "BullJustConfirmed()",
         meaning: "Bull iFVG retested and confirmed",
-        tradingImplication: "ENTRY — zone held after polarity flip",
+        tradingImplication: "ENTRY - zone held after polarity flip",
       },
       { name: "BearJustConfirmed()", meaning: "Bear iFVG confirmed", tradingImplication: "ENTRY" },
       {
         name: "BullConfirmSL()",
-        meaning: "Retest low — use as SL",
+        meaning: "Retest low - use as SL",
         tradingImplication: "Tight SL at zone boundary",
       },
       {
         name: "BearConfirmSL()",
-        meaning: "Retest high — use as SL",
+        meaning: "Retest high - use as SL",
         tradingImplication: "Tight SL at zone boundary",
       },
     ],
@@ -606,12 +606,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         {
           fn: "IFVGSM_{id}_BullJustConfirmed()",
           returns: "bool",
-          meaning: "Bull iFVG confirmed — entry",
+          meaning: "Bull iFVG confirmed - entry",
         },
         {
           fn: "IFVGSM_{id}_BearJustConfirmed()",
           returns: "bool",
-          meaning: "Bear iFVG confirmed — entry",
+          meaning: "Bear iFVG confirmed - entry",
         },
         { fn: "IFVGSM_{id}_BullConfirmSL()", returns: "double", meaning: "SL for bull entries" },
         { fn: "IFVGSM_{id}_BearConfirmSL()", returns: "double", meaning: "SL for bear entries" },
@@ -679,7 +679,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     concept:
       "The last opposing candle before a strong ATR-displacement move. Represents institutional order flow. Tracks the zone through ACTIVE → RETESTED → CONFIRMED.",
     detectionLogic:
-      "Identifies displacement moves: candles where body >= dispMult × candle range. Then looks back up to scanBack bars for the last candle moving in the opposite direction — this is the OB. Zone is UL = OB high, LL = OB low. Lifecycle mirrors FVG: ACTIVE until retested, CONFIRMED after close holds outside near edge, MITIGATED if close trades inside zone.",
+      "Identifies displacement moves: candles where body >= dispMult �- candle range. Then looks back up to scanBack bars for the last candle moving in the opposite direction - this is the OB. Zone is UL = OB high, LL = OB low. Lifecycle mirrors FVG: ACTIVE until retested, CONFIRMED after close holds outside near edge, MITIGATED if close trades inside zone.",
     roles: [
       {
         role: "setup",
@@ -707,7 +707,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         type: "double",
         default: 0.6,
         range: [0.4, 0.9],
-        description: "Body must be >= dispMult × candle range to count as displacement",
+        description: "Body must be >= dispMult �- candle range to count as displacement",
         traderPhrases: [
           "strong displacement candles only",
           "use 70% body filter",
@@ -745,12 +745,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         name: "BullJustConfirmed()",
         meaning: "Bull OB retested and confirmed",
-        tradingImplication: "ENTRY — institutional demand held",
+        tradingImplication: "ENTRY - institutional demand held",
       },
       {
         name: "BearJustConfirmed()",
         meaning: "Bear OB confirmed",
-        tradingImplication: "ENTRY — institutional supply held",
+        tradingImplication: "ENTRY - institutional supply held",
       },
       {
         name: "BullConfirmSL()",
@@ -771,12 +771,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         {
           fn: "OBSM_{id}_BullJustConfirmed()",
           returns: "bool",
-          meaning: "Bull OB confirmed — entry",
+          meaning: "Bull OB confirmed - entry",
         },
         {
           fn: "OBSM_{id}_BearJustConfirmed()",
           returns: "bool",
-          meaning: "Bear OB confirmed — entry",
+          meaning: "Bear OB confirmed - entry",
         },
         { fn: "OBSM_{id}_BullConfirmSL()", returns: "double", meaning: "SL for bull entries" },
         { fn: "OBSM_{id}_BearConfirmSL()", returns: "double", meaning: "SL for bear entries" },
@@ -805,7 +805,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     combinesWith: ["bos", "choch", "fvg", "liqsweep"],
   },
 
-  // ─── Breaker Block (SMC — failed OB flip) ───────────────────────────────────
+  // ─── Breaker Block (SMC - failed OB flip) ───────────────────────────────────
   {
     id: "breaker_block",
     label: "Breaker Block",
@@ -819,9 +819,9 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     ],
     concept:
       "When a valid Order Block fails (price closes through the far edge), the zone flips polarity and becomes a Breaker Block. " +
-      "The failed OB's range becomes a retest zone — bullish BB from bearish OB broken upward, bearish BB from bullish OB broken downward.",
+      "The failed OB's range becomes a retest zone - bullish BB from bearish OB broken upward, bearish BB from bullish OB broken downward.",
     detectionLogic:
-      "Layer 1: ATR displacement detects OB (same as OB module but body >= dispMult × ATR). " +
+      "Layer 1: ATR displacement detects OB (same as OB module but body >= dispMult �- ATR). " +
       "Layer 2: Close through OB far edge creates BB. " +
       "Lifecycle: ACTIVE → RETESTED (wick enters zone) → CONFIRMED (close beyond near edge). " +
       "MITIGATED if close trades inside zone; INVALIDATED if close breaks opposite edge.",
@@ -834,7 +834,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         role: "execution",
         fit: "primary",
-        usage: "BB CONFIRMED = retest held — entry signal with SL at retest extreme.",
+        usage: "BB CONFIRMED = retest held - entry signal with SL at retest extreme.",
       },
     ],
     lifecycle:
@@ -853,7 +853,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         type: "double",
         default: 1.5,
         range: [0.8, 3.0],
-        description: "ATR multiplier — minimum displacement body size",
+        description: "ATR multiplier - minimum displacement body size",
         traderPhrases: ["1.5 ATR displacement", "strong displacement only"],
       },
       {
@@ -923,7 +923,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       "Setup is breaker block, entry on confirmation",
       "BOS bias, breaker block setup, engulfing entry",
     ],
-    notSuitedFor: ["Bollinger Band strategies — use bb module instead"],
+    notSuitedFor: ["Bollinger Band strategies - use bb module instead"],
     combinesWith: ["order_block", "bos", "fvg", "engulfing"],
   },
 
@@ -942,8 +942,8 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "support rallies resistances" },
     ],
     concept:
-      "Classic SNR sweep counter. RSS: a Resistance R accumulates close-breaks of Supports below it — fires a sell when count ≥ minBreaks. " +
-      "SRR: a Support S accumulates close-breaks of Resistances above it — fires a buy when count ≥ minBreaks.",
+      "Classic SNR sweep counter. RSS: a Resistance R accumulates close-breaks of Supports below it - fires a sell when count ≥ minBreaks. " +
+      "SRR: a Support S accumulates close-breaks of Resistances above it - fires a buy when count ≥ minBreaks.",
     detectionLogic:
       "Detects Classic SNR pairs (bull→bear = R, bear→bull = S). Levels break on CLOSE only. " +
       "When a broken Support credits R levels above, or broken Resistance credits S levels below, sweep counters increment. " +
@@ -952,12 +952,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         role: "setup",
         fit: "secondary",
-        usage: "Active RSS/SRR after signal — driving level still valid until wick invalidation.",
+        usage: "Active RSS/SRR after signal - driving level still valid until wick invalidation.",
       },
       {
         role: "execution",
         fit: "primary",
-        usage: "RSS/SRR fires when minBreaks threshold reached — entry at driving level.",
+        usage: "RSS/SRR fires when minBreaks threshold reached - entry at driving level.",
       },
     ],
     lifecycle:
@@ -1021,12 +1021,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         {
           fn: "RSSSRRSM_{id}_BullConfirmSL()",
           returns: "double",
-          meaning: "S wick low — SL for longs",
+          meaning: "S wick low - SL for longs",
         },
         {
           fn: "RSSSRRSM_{id}_BearConfirmSL()",
           returns: "double",
-          meaning: "R wick high — SL for shorts",
+          meaning: "R wick high - SL for shorts",
         },
         { fn: "RSSSRRSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live SRR setup" },
         { fn: "RSSSRRSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live RSS setup" },
@@ -1045,7 +1045,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     },
     examplePhrases: [
       "Enter when resistance sweeps two supports (RSS)",
-      "SRR setup on H4 — support breaks two resistances",
+      "SRR setup on H4 - support breaks two resistances",
       "Trade repeated support sweep on daily",
       "Classic SNR RSS for short entry",
     ],
@@ -1078,7 +1078,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         role: "setup",
         fit: "primary",
-        usage: "Active RBR/DBD zone in bias direction — wait for retest of the base.",
+        usage: "Active RBR/DBD zone in bias direction - wait for retest of the base.",
       },
       {
         role: "execution",
@@ -1133,7 +1133,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         type: "double",
         default: 1.3,
         range: [1.0, 3.0],
-        description: "Leg range must exceed avg base range × multiplier",
+        description: "Leg range must exceed avg base range �- multiplier",
         traderPhrases: [],
       },
     ],
@@ -1141,17 +1141,17 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         name: "BullJustConfirmed()",
         meaning: "RBR demand zone confirmed this bar",
-        tradingImplication: "Buy-side base formed — retest demand zone",
+        tradingImplication: "Buy-side base formed - retest demand zone",
       },
       {
         name: "BearJustConfirmed()",
         meaning: "DBD supply zone confirmed this bar",
-        tradingImplication: "Sell-side base formed — retest supply zone",
+        tradingImplication: "Sell-side base formed - retest supply zone",
       },
       {
         name: "HasActiveBull() / HasActiveBear()",
         meaning: "Live demand/supply zone not invalidated",
-        tradingImplication: "Setup armed — retest the base",
+        tradingImplication: "Setup armed - retest the base",
       },
       {
         name: "BullConfirmSL() / BearConfirmSL()",
@@ -1175,12 +1175,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         {
           fn: "RBRDBDSM_{id}_BullConfirmSL()",
           returns: "double",
-          meaning: "Demand zone low — SL for longs",
+          meaning: "Demand zone low - SL for longs",
         },
         {
           fn: "RBRDBDSM_{id}_BearConfirmSL()",
           returns: "double",
-          meaning: "Supply zone high — SL for shorts",
+          meaning: "Supply zone high - SL for shorts",
         },
         { fn: "RBRDBDSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live RBR demand zone" },
         { fn: "RBRDBDSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live DBD supply zone" },
@@ -1229,7 +1229,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         role: "setup",
         fit: "primary",
-        usage: "Active MEF confluence armed — wait for retest or lower-TF entry trigger.",
+        usage: "Active MEF confluence armed - wait for retest or lower-TF entry trigger.",
       },
       {
         role: "execution",
@@ -1284,7 +1284,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         type: "double",
         default: 1.3,
         range: [1.0, 3.0],
-        description: "Leg range must exceed avg base range × multiplier",
+        description: "Leg range must exceed avg base range �- multiplier",
         traderPhrases: [],
       },
     ],
@@ -1292,12 +1292,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         name: "BullJustConfirmed() / BearJustConfirmed()",
         meaning: "MEF confirmed this bar",
-        tradingImplication: "Multi-TF engulfing confluence complete — entry at engulf close",
+        tradingImplication: "Multi-TF engulfing confluence complete - entry at engulf close",
       },
       {
         name: "HasActiveBull() / HasActiveBear()",
         meaning: "Live MEF mark not yet expired",
-        tradingImplication: "Setup armed — seek retest or LTF trigger",
+        tradingImplication: "Setup armed - seek retest or LTF trigger",
       },
       {
         name: "BullConfirmSL() / BearConfirmSL()",
@@ -1313,12 +1313,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         {
           fn: "MEFSM_{id}_BullConfirmSL()",
           returns: "double",
-          meaning: "Engulfing low — SL for longs",
+          meaning: "Engulfing low - SL for longs",
         },
         {
           fn: "MEFSM_{id}_BearConfirmSL()",
           returns: "double",
-          meaning: "Engulfing high — SL for shorts",
+          meaning: "Engulfing high - SL for shorts",
         },
         { fn: "MEFSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live bull MEF" },
         { fn: "MEFSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live bear MEF" },
@@ -1367,12 +1367,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         role: "setup",
         fit: "primary",
-        usage: "Active QM_MEF awaiting left-shoulder retest — HasActive while LS not yet touched.",
+        usage: "Active QM_MEF awaiting left-shoulder retest - HasActive while LS not yet touched.",
       },
       {
         role: "execution",
         fit: "primary",
-        usage: "Fire when left shoulder is touched (BullJustConfirmed) — right-shoulder entry.",
+        usage: "Fire when left shoulder is touched (BullJustConfirmed) - right-shoulder entry.",
       },
     ],
     lifecycle:
@@ -1431,7 +1431,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         type: "double",
         default: 1.3,
         range: [1.0, 3.0],
-        description: "Leg range must exceed avg base range × multiplier",
+        description: "Leg range must exceed avg base range �- multiplier",
         traderPhrases: [],
       },
     ],
@@ -1439,12 +1439,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         name: "BullJustConfirmed() / BearJustConfirmed()",
         meaning: "Left shoulder touched this bar",
-        tradingImplication: "Right-shoulder entry at LS level — SL beyond head",
+        tradingImplication: "Right-shoulder entry at LS level - SL beyond head",
       },
       {
         name: "HasActiveBull() / HasActiveBear()",
         meaning: "Live QM_MEF awaiting LS retest",
-        tradingImplication: "Setup armed — wait for price to return to left shoulder",
+        tradingImplication: "Setup armed - wait for price to return to left shoulder",
       },
       {
         name: "BullConfirmSL() / BearConfirmSL()",
@@ -1468,12 +1468,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         {
           fn: "QMMEFSM_{id}_BullConfirmSL()",
           returns: "double",
-          meaning: "Head level — SL for longs",
+          meaning: "Head level - SL for longs",
         },
         {
           fn: "QMMEFSM_{id}_BearConfirmSL()",
           returns: "double",
-          meaning: "Head level — SL for shorts",
+          meaning: "Head level - SL for shorts",
         },
         {
           fn: "QMMEFSM_{id}_HasActiveBull()",
@@ -1501,7 +1501,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     examplePhrases: [
       "Enter on Quasimodo MEF left shoulder retest on H4",
       "HTF engulfing-born QM setup with M15 engulfing entry",
-      "QM MEF on H4 — SL beyond the head",
+      "QM MEF on H4 - SL beyond the head",
       "Strong QM MEF with gap SNR confluence at left shoulder",
     ],
     notSuitedFor: ["General Quasimodo without HTF engulfing context"],
@@ -1522,9 +1522,9 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "high probability order block" },
     ],
     concept:
-      "A high-probability confluence: a Fair Value Gap whose FIRST candle is the opposite colour to the gap — that first candle is the order block. Entry is at the OB body.",
+      "A high-probability confluence: a Fair Value Gap whose FIRST candle is the opposite colour to the gap - that first candle is the order block. Entry is at the OB body.",
     detectionLogic:
-      "Scans 3-candle FVGs (C1 oldest, C3 newest). A bullish OB+FVG is a bullish gap (high(C1) < low(C3)) where C1 is bearish; a bearish OB+FVG is a bearish gap (low(C1) > high(C3)) where C1 is bullish. The OB = C1's body. Only FRESH zones count — a zone is consumed the instant price tests the OB body (a wick into it). Entry fires on that tap; SL = the OB candle's low (bull) / high (bear).",
+      "Scans 3-candle FVGs (C1 oldest, C3 newest). A bullish OB+FVG is a bullish gap (high(C1) < low(C3)) where C1 is bearish; a bearish OB+FVG is a bearish gap (low(C1) > high(C3)) where C1 is bullish. The OB = C1's body. Only FRESH zones count - a zone is consumed the instant price tests the OB body (a wick into it). Entry fires on that tap; SL = the OB candle's low (bull) / high (bear).",
     roles: [
       {
         role: "setup",
@@ -1554,12 +1554,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         name: "HasActiveBull()",
         meaning: "A fresh bullish OB+FVG zone exists",
-        tradingImplication: "Setup armed — watch for a tap of the OB body",
+        tradingImplication: "Setup armed - watch for a tap of the OB body",
       },
       {
         name: "HasActiveBear()",
         meaning: "A fresh bearish OB+FVG zone exists",
-        tradingImplication: "Setup armed — watch for a tap of the OB body",
+        tradingImplication: "Setup armed - watch for a tap of the OB body",
       },
       {
         name: "BullJustConfirmed()",
@@ -1598,12 +1598,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         {
           fn: "OBFVGSM_{id}_BullJustConfirmed()",
           returns: "bool",
-          meaning: "OB body tapped — long entry",
+          meaning: "OB body tapped - long entry",
         },
         {
           fn: "OBFVGSM_{id}_BearJustConfirmed()",
           returns: "bool",
-          meaning: "OB body tapped — short entry",
+          meaning: "OB body tapped - short entry",
         },
         {
           fn: "OBFVGSM_{id}_BullConfirmSL()",
@@ -1634,7 +1634,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       "BOS on H4, OB+FVG entry on M15",
       "High probability order block that has an FVG",
     ],
-    notSuitedFor: ["Direction bias — it is a setup/entry zone, not a trend signal"],
+    notSuitedFor: ["Direction bias - it is a setup/entry zone, not a trend signal"],
     combinesWith: ["bos", "choch", "ema", "liqsweep"],
   },
 
@@ -1652,14 +1652,14 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "breaker overlap fvg" },
     ],
     concept:
-      "The ICT Unicorn — a Breaker Block (failed OB flipped polarity) whose zone overlaps a Fair Value Gap of the same direction. The overlap pocket is the high-probability entry.",
+      "The ICT Unicorn - a Breaker Block (failed OB flipped polarity) whose zone overlaps a Fair Value Gap of the same direction. The overlap pocket is the high-probability entry.",
     detectionLogic:
       "Detect OB via displacement → track until price closes through → flips to Breaker. Detect FVGs independently. When a Breaker and same-direction FVG overlap in price within pairWindow bars → Unicorn forms. Entry on overlap pocket retest. Invalidated when price closes back through the breaker zone.",
     roles: [
       {
         role: "setup",
         fit: "primary",
-        usage: "HasActiveBull/Bear when overlap pocket is live — watch for retest.",
+        usage: "HasActiveBull/Bear when overlap pocket is live - watch for retest.",
       },
       {
         role: "execution",
@@ -1683,7 +1683,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         type: "double",
         default: 1.5,
         range: [1.0, 3.0],
-        description: "Displacement body >= N × ATR",
+        description: "Displacement body >= N �- ATR",
         traderPhrases: [],
       },
       {
@@ -1707,7 +1707,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         name: "HasActiveBull() / HasActiveBear()",
         meaning: "Live Unicorn overlap pocket in bias direction",
-        tradingImplication: "Setup armed — watch for overlap retest",
+        tradingImplication: "Setup armed - watch for overlap retest",
       },
       {
         name: "BullJustConfirmed() / BearJustConfirmed()",
@@ -1746,22 +1746,22 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         {
           fn: "UNISMSM_{id}_BullJustConfirmed()",
           returns: "bool",
-          meaning: "Close outside pocket after retest — long zone rejection",
+          meaning: "Close outside pocket after retest - long zone rejection",
         },
         {
           fn: "UNISMSM_{id}_BearJustConfirmed()",
           returns: "bool",
-          meaning: "Close outside pocket after retest — short zone rejection",
+          meaning: "Close outside pocket after retest - short zone rejection",
         },
         {
           fn: "UNISMSM_{id}_BullConfirmSL()",
           returns: "double",
-          meaning: "Retest wick low — SL for longs",
+          meaning: "Retest wick low - SL for longs",
         },
         {
           fn: "UNISMSM_{id}_BearConfirmSL()",
           returns: "double",
-          meaning: "Retest wick high — SL for shorts",
+          meaning: "Retest wick high - SL for shorts",
         },
         {
           fn: "UNISMSM_{id}_ActiveBullSL()",
@@ -1778,11 +1778,11 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     },
     examplePhrases: [
       "Enter at the Unicorn overlap on H4",
-      "ICT Unicorn setup — breaker block with FVG overlap",
+      "ICT Unicorn setup - breaker block with FVG overlap",
       "BOS on D1, Unicorn entry on M15",
       "Wait for the BB and FVG overlap pocket",
     ],
-    notSuitedFor: ["OB+FVG confluence (different pattern — use ob_fvg module instead)"],
+    notSuitedFor: ["OB+FVG confluence (different pattern - use ob_fvg module instead)"],
     combinesWith: ["bos", "choch", "engulfing", "pin_bar", "ema"],
   },
 
@@ -1807,7 +1807,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     concept:
       "Price wicks beyond a swing extreme (sweeping liquidity/stops), then closes back inside. The close-back IS the confirmation signal.",
     detectionLogic:
-      "Confirms swing pivots. When a candle's wick pierces a swing level AND the SAME candle closes back on the correct side, a CONFIRMED sweep fires immediately. The wick extreme becomes the SL. No waiting for a separate retest candle — the close-back is the entry signal.",
+      "Confirms swing pivots. When a candle's wick pierces a swing level AND the SAME candle closes back on the correct side, a CONFIRMED sweep fires immediately. The wick extreme becomes the SL. No waiting for a separate retest candle - the close-back is the entry signal.",
     roles: [
       {
         role: "execution",
@@ -1817,7 +1817,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         role: "setup",
         fit: "secondary",
-        usage: "Sweep sets context that liquidity has been cleared — setup for continuation.",
+        usage: "Sweep sets context that liquidity has been cleared - setup for continuation.",
       },
     ],
     lifecycle:
@@ -1844,22 +1844,22 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         name: "BullJustConfirmed()",
         meaning: "Bull sweep: wick below swing low + close above it",
-        tradingImplication: "ENTRY LONG — stops hunted, now go up",
+        tradingImplication: "ENTRY LONG - stops hunted, now go up",
       },
       {
         name: "BearJustConfirmed()",
         meaning: "Bear sweep: wick above swing high + close below it",
-        tradingImplication: "ENTRY SHORT — stops hunted, now go down",
+        tradingImplication: "ENTRY SHORT - stops hunted, now go down",
       },
       {
         name: "BullConfirmSL()",
         meaning: "Wick low of the sweep candle",
-        tradingImplication: "Tight SL — place just below the wick",
+        tradingImplication: "Tight SL - place just below the wick",
       },
       {
         name: "BearConfirmSL()",
         meaning: "Wick high of the sweep candle",
-        tradingImplication: "Tight SL — place just above the wick",
+        tradingImplication: "Tight SL - place just above the wick",
       },
     ],
     inlineApi: {
@@ -1955,21 +1955,21 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         name: "BullJustConfirmed()",
         meaning: "Support held this bar",
-        tradingImplication: "ENTRY LONG — buyers defended the level",
+        tradingImplication: "ENTRY LONG - buyers defended the level",
       },
       {
         name: "BearJustConfirmed()",
         meaning: "Resistance held this bar",
-        tradingImplication: "ENTRY SHORT — sellers defended the level",
+        tradingImplication: "ENTRY SHORT - sellers defended the level",
       },
       {
         name: "BullConfirmSL()",
-        meaning: "Retest low — SL below support",
+        meaning: "Retest low - SL below support",
         tradingImplication: "SL just under the level",
       },
       {
         name: "BearConfirmSL()",
-        meaning: "Retest high — SL above resistance",
+        meaning: "Retest high - SL above resistance",
         tradingImplication: "SL just above the level",
       },
     ],
@@ -1978,11 +1978,11 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       signals: [
         { fn: "SNRSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live support level" },
         { fn: "SNRSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live resistance level" },
-        { fn: "SNRSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Support held — entry" },
+        { fn: "SNRSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Support held - entry" },
         {
           fn: "SNRSM_{id}_BearJustConfirmed()",
           returns: "bool",
-          meaning: "Resistance held — entry",
+          meaning: "Resistance held - entry",
         },
         { fn: "SNRSM_{id}_BullConfirmSL()", returns: "double", meaning: "SL below support" },
         { fn: "SNRSM_{id}_BearConfirmSL()", returns: "double", meaning: "SL above resistance" },
@@ -2072,12 +2072,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       },
       {
         name: "BullConfirmSL()",
-        meaning: "Retest low — SL below support",
+        meaning: "Retest low - SL below support",
         tradingImplication: "SL under the level",
       },
       {
         name: "BearConfirmSL()",
-        meaning: "Retest high — SL above resistance",
+        meaning: "Retest high - SL above resistance",
         tradingImplication: "SL above the level",
       },
     ],
@@ -2093,12 +2093,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         {
           fn: "GSNRSM_{id}_BullJustConfirmed()",
           returns: "bool",
-          meaning: "Gap support held — entry",
+          meaning: "Gap support held - entry",
         },
         {
           fn: "GSNRSM_{id}_BearJustConfirmed()",
           returns: "bool",
-          meaning: "Gap resistance held — entry",
+          meaning: "Gap resistance held - entry",
         },
         { fn: "GSNRSM_{id}_BullConfirmSL()", returns: "double", meaning: "SL below gap support" },
         {
@@ -2133,7 +2133,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "respected the level" },
     ],
     concept:
-      "A candle whose wick pierces an S/R level but CLOSES BACK on the origin side — the level held. (Reactive SNR Rule 2.)",
+      "A candle whose wick pierces an S/R level but CLOSES BACK on the origin side - the level held. (Reactive SNR Rule 2.)",
     detectionLogic:
       "Embeds Classic + Gap S/R level detection. A bullish rejection fires when a candle's low pierces a support but the close stays above it, with a long lower wick (≥ minWickRatio of range). A bearish rejection fires when the high pierces a resistance but the close stays below it. SL = the rejection candle's wick extreme.",
     roles: [
@@ -2148,7 +2148,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         usage: "A rejection validates the level as an active setup zone.",
       },
     ],
-    lifecycle: "Point-in-time — fires on the bar a rejection completes at a live S/R level",
+    lifecycle: "Point-in-time - fires on the bar a rejection completes at a live S/R level",
     params: [
       {
         name: "lookback",
@@ -2179,12 +2179,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         name: "BullJustConfirmed()",
         meaning: "Bullish rejection off support",
-        tradingImplication: "ENTRY LONG — support held with a wick",
+        tradingImplication: "ENTRY LONG - support held with a wick",
       },
       {
         name: "BearJustConfirmed()",
         meaning: "Bearish rejection off resistance",
-        tradingImplication: "ENTRY SHORT — resistance held with a wick",
+        tradingImplication: "ENTRY SHORT - resistance held with a wick",
       },
       {
         name: "BullConfirmSL()",
@@ -2205,12 +2205,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         {
           fn: "REJSM_{id}_BullJustConfirmed()",
           returns: "bool",
-          meaning: "Bullish rejection — entry",
+          meaning: "Bullish rejection - entry",
         },
         {
           fn: "REJSM_{id}_BearJustConfirmed()",
           returns: "bool",
-          meaning: "Bearish rejection — entry",
+          meaning: "Bearish rejection - entry",
         },
         { fn: "REJSM_{id}_BullConfirmSL()", returns: "double", meaning: "SL below rejection wick" },
         { fn: "REJSM_{id}_BearConfirmSL()", returns: "double", meaning: "SL above rejection wick" },
@@ -2223,7 +2223,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       "Use rejection candles at key levels for entry",
       "S/R for setup, rejection candle for execution",
     ],
-    notSuitedFor: ["Direction bias — this is a reactive entry trigger"],
+    notSuitedFor: ["Direction bias - this is a reactive entry trigger"],
     combinesWith: ["snr", "gap_snr", "bos", "ema"],
   },
 
@@ -2240,14 +2240,14 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "near miss" },
     ],
     concept:
-      "Price turns away NEAR an S/R level without touching it — the level is respected/validated and the miss leaves liquidity behind. (Reactive SNR, Slide 27.)",
+      "Price turns away NEAR an S/R level without touching it - the level is respected/validated and the miss leaves liquidity behind. (Reactive SNR, Slide 27.)",
     detectionLogic:
       "Embeds Classic + Gap S/R level detection and swing-pivot detection. A bullish miss fires when a confirmed swing LOW forms within nearPoints ABOVE a support without its low reaching the level. A bearish miss fires when a swing HIGH forms within nearPoints BELOW a resistance without its high reaching the level. SL = the missed swing extreme.",
     roles: [
       {
         role: "execution",
         fit: "primary",
-        usage: "A miss is a strong reversal entry — price respected the level without testing it.",
+        usage: "A miss is a strong reversal entry - price respected the level without testing it.",
       },
       {
         role: "setup",
@@ -2256,7 +2256,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       },
     ],
     lifecycle:
-      "Point-in-time — fires when a swing pivot is confirmed near (but not touching) a live level",
+      "Point-in-time - fires when a swing pivot is confirmed near (but not touching) a live level",
     params: [
       {
         name: "lookback",
@@ -2295,12 +2295,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         name: "BullJustConfirmed()",
         meaning: "Swing low missed support (stayed above)",
-        tradingImplication: "ENTRY LONG — strong demand respected the level",
+        tradingImplication: "ENTRY LONG - strong demand respected the level",
       },
       {
         name: "BearJustConfirmed()",
         meaning: "Swing high missed resistance (stayed below)",
-        tradingImplication: "ENTRY SHORT — strong supply respected the level",
+        tradingImplication: "ENTRY SHORT - strong supply respected the level",
       },
       {
         name: "BullConfirmSL()",
@@ -2318,8 +2318,8 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       signals: [
         { fn: "MISSSM_{id}_HasActiveBull()", returns: "bool", meaning: "Live support level" },
         { fn: "MISSSM_{id}_HasActiveBear()", returns: "bool", meaning: "Live resistance level" },
-        { fn: "MISSSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Bullish miss — entry" },
-        { fn: "MISSSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "Bearish miss — entry" },
+        { fn: "MISSSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Bullish miss - entry" },
+        { fn: "MISSSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "Bearish miss - entry" },
         {
           fn: "MISSSM_{id}_BullConfirmSL()",
           returns: "double",
@@ -2339,7 +2339,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       "Buy the near-miss of a key level",
       "S/R miss on H4 for entry",
     ],
-    notSuitedFor: ["Direction bias — reactive entry trigger"],
+    notSuitedFor: ["Direction bias - reactive entry trigger"],
     combinesWith: ["snr", "gap_snr", "bos", "ema"],
   },
 
@@ -2364,7 +2364,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         role: "setup",
         fit: "primary",
-        usage: "Active SNRC2 entry level — wait for retest of the first level after confirmation.",
+        usage: "Active SNRC2 entry level - wait for retest of the first level after confirmation.",
       },
       {
         role: "execution",
@@ -2421,7 +2421,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         name: "HasActiveBull() / HasActiveBear()",
         meaning: "Live SNRC2 setup awaiting entry tap",
-        tradingImplication: "Setup armed — retest the first level",
+        tradingImplication: "Setup armed - retest the first level",
       },
       {
         name: "BullConfirmSL() / BearConfirmSL()",
@@ -2491,13 +2491,13 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       { phrase: "bb liquidity buildup" },
     ],
     concept:
-      "Combined OB, Breaker Block, and FVG liquidity detector — supersedes the legacy " +
+      "Combined OB, Breaker Block, and FVG liquidity detector - supersedes the legacy " +
       "standalone FVG/OB/BB Liquidity Detector files. Each zone is drawn as a " +
       "rectangle; the closest wick that approaches the zone edge without entering is " +
       "marked with a horizontal liquidity line.",
     detectionLogic:
       "Detects OB (displacement + opposing candle), BB (OB closed through → flip), and " +
-      "FVG (3-candle gap). Liquidity = wick within InpNearATR × ATR of the body/gap edge " +
+      "FVG (3-candle gap). Liquidity = wick within InpNearATR �- ATR of the body/gap edge " +
       "without crossing the edge. Touch kills the zone (rectangle + line removed).",
     roles: [
       {
@@ -2550,14 +2550,14 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         type: "double",
         default: 1.5,
         range: [0.5, 3.0],
-        description: "OB displacement body >= N × ATR",
+        description: "OB displacement body >= N �- ATR",
         traderPhrases: ["1.5 ATR displacement"],
       },
     ],
     outputStates: [
       {
         name: "HasActiveBull()",
-        meaning: "Bull zone with liquidity built — wick approached edge without entering",
+        meaning: "Bull zone with liquidity built - wick approached edge without entering",
         tradingImplication: "SETUP LONG context active",
       },
       {
@@ -2603,7 +2603,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     },
     examplePhrases: [
       "Wait for liquidity to build near the FVG without entering the gap",
-      "OB liquidity buildup on H4 — wick near the block edge",
+      "OB liquidity buildup on H4 - wick near the block edge",
       "Combined OB BB FVG liquidity buildup detector",
     ],
     notSuitedFor: ["Pure direction bias without a zone"],
@@ -2753,8 +2753,8 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       "H4 BOS direction, M15 hidden divergence setup, M5 IFVG entry",
     ],
     notSuitedFor: [
-      "Direction bias — it assumes a trend already exists",
-      "Reversal trading — it is a continuation signal",
+      "Direction bias - it assumes a trend already exists",
+      "Reversal trading - it is a continuation signal",
     ],
     combinesWith: ["bos", "choch", "ema", "fvg_inversion", "order_block"],
   },
@@ -2778,7 +2778,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     concept:
       "Detects a candle-close break of a recent range, then tracks the broken level flipping polarity (RBS/SBR) and being retested.",
     detectionLogic:
-      "When a candle closes above the recent range high, the broken high flips to support (RBS — Resistance Becomes Support). When a candle closes below the range low, the broken low flips to resistance (SBR). The flipped level is then watched: RETESTED when price wicks back to it, CONFIRMED when a close holds on the breakout side, INVALIDATED when a close pushes back through.",
+      "When a candle closes above the recent range high, the broken high flips to support (RBS - Resistance Becomes Support). When a candle closes below the range low, the broken low flips to resistance (SBR). The flipped level is then watched: RETESTED when price wicks back to it, CONFIRMED when a close holds on the breakout side, INVALIDATED when a close pushes back through.",
     roles: [
       {
         role: "setup",
@@ -2830,21 +2830,21 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         name: "BullJustConfirmed()",
         meaning: "RBS retest held this bar",
-        tradingImplication: "ENTRY LONG — break-and-retest",
+        tradingImplication: "ENTRY LONG - break-and-retest",
       },
       {
         name: "BearJustConfirmed()",
         meaning: "SBR retest held this bar",
-        tradingImplication: "ENTRY SHORT — break-and-retest",
+        tradingImplication: "ENTRY SHORT - break-and-retest",
       },
       {
         name: "BullConfirmSL()",
-        meaning: "Retest low — SL below the flip",
+        meaning: "Retest low - SL below the flip",
         tradingImplication: "SL under the flipped level",
       },
       {
         name: "BearConfirmSL()",
-        meaning: "Retest high — SL above the flip",
+        meaning: "Retest high - SL above the flip",
         tradingImplication: "SL above the flipped level",
       },
     ],
@@ -2856,12 +2856,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         {
           fn: "BRKSM_{id}_BullJustConfirmed()",
           returns: "bool",
-          meaning: "RBS retest held — entry",
+          meaning: "RBS retest held - entry",
         },
         {
           fn: "BRKSM_{id}_BearJustConfirmed()",
           returns: "bool",
-          meaning: "SBR retest held — entry",
+          meaning: "SBR retest held - entry",
         },
         { fn: "BRKSM_{id}_BullConfirmSL()", returns: "double", meaning: "SL below RBS" },
         { fn: "BRKSM_{id}_BearConfirmSL()", returns: "double", meaning: "SL above SBR" },
@@ -2902,7 +2902,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     concept:
       "One or more EMA periods. Single EMA: price above/below the line for bias, retest that line. Dual EMA: fast/slow cross → retest slower → confirm beyond faster. Multi EMA (3+): all lines must stack in order; cross-retest uses shortest vs longest.",
     detectionLogic:
-      "Real iMA handles (drawn on the chart via B4_MA). TWO usage modes: (1) SIMPLE CROSS for Direction — fast vs slow alignment checked inline every bar, persistent (no state machine). (2) CROSS→RETEST SEQUENCE for Setup+Execution — the verified EMASM state machine persists IDLE → CROSSED (fast/slow CROSS in the bias direction arms the setup) → ARMED (price retests the slow EMA within tolerance; the retest bar only arms) → CONFIRMED (a LATER bar closes outside the fast EMA → entry next bar, SL = swing). After a confirmation a NEW cross is required. Use EMASM for any multi-bar 'cross then retest then close outside' rule — never hand-write it inline (the phases collapse onto one bar).",
+      "Real iMA handles (drawn on the chart via B4_MA). TWO usage modes: (1) SIMPLE CROSS for Direction - fast vs slow alignment checked inline every bar, persistent (no state machine). (2) CROSS→RETEST SEQUENCE for Setup+Execution - the verified EMASM state machine persists IDLE → CROSSED (fast/slow CROSS in the bias direction arms the setup) → ARMED (price retests the slow EMA within tolerance; the retest bar only arms) → CONFIRMED (a LATER bar closes outside the fast EMA → entry next bar, SL = swing). After a confirmation a NEW cross is required. Use EMASM for any multi-bar 'cross then retest then close outside' rule - never hand-write it inline (the phases collapse onto one bar).",
     roles: [
       {
         role: "direction",
@@ -2989,8 +2989,8 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       },
       {
         name: "SetupActive()",
-        meaning: "Aligned cross occurred — setup live",
-        tradingImplication: "Setup armed — await retest+confirmation",
+        meaning: "Aligned cross occurred - setup live",
+        tradingImplication: "Setup armed - await retest+confirmation",
       },
       {
         name: "JustConfirmed()",
@@ -3005,7 +3005,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         {
           fn: "EMASM_{id}_SetupActive()",
           returns: "bool",
-          meaning: "Aligned cross occurred — setup live (CROSSED or ARMED)",
+          meaning: "Aligned cross occurred - setup live (CROSSED or ARMED)",
         },
         {
           fn: "EMASM_{id}_RetestActive()",
@@ -3056,18 +3056,18 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     ],
     concept:
       "Malaysian Engulfing Strategy (MES) zones. " +
-      "EG (Engulfing): C2 closes beyond C1's full wick — zone = C1 wick range (hi=C1.High, lo=C1.Low). " +
-      "EF (Engulfing Failed): a failed EG — price closes through the EG zone (bearish close below a bull EG's lower wick, or bullish close above a bear EG's upper wick). " +
+      "EG (Engulfing): C2 closes beyond C1's full wick - zone = C1 wick range (hi=C1.High, lo=C1.Low). " +
+      "EF (Engulfing Failed): a failed EG - price closes through the EG zone (bearish close below a bull EG's lower wick, or bullish close above a bear EG's upper wick). " +
       "The EF is the same C1 wick zone, now acting in the opposite direction. " +
-      "EF is NOT a Breaker Block — it needs no BOS or displacement context. It is simply an EG that price closed through. " +
+      "EF is NOT a Breaker Block - it needs no BOS or displacement context. It is simply an EG that price closed through. " +
       "Both EG and EF are tracked in one SM with the same ACTIVE → RETESTED → CONFIRMED lifecycle.",
     detectionLogic:
       "Scans C1 (engulfed candle) and C2 (engulfing candle). " +
       "Bullish EG: C1 bearish, C2 bullish and close > C1.High (upper wick). " +
       "Bearish EG: C1 bullish, C2 bearish and close < C1.Low (lower wick). " +
       "Zone = C1 full wick range (hi=C1.High, lo=C1.Low). " +
-      "EF flip: bull EG zone — a bearish candle closes below C1.Low → zone becomes bear EF. " +
-      "Bear EG zone — a bullish candle closes above C1.High → zone becomes bull EF. " +
+      "EF flip: bull EG zone - a bearish candle closes below C1.Low → zone becomes bear EF. " +
+      "Bear EG zone - a bullish candle closes above C1.High → zone becomes bull EF. " +
       "CONFIRMED fires when price retests the EG or EF zone and closes back outside it in the zone's direction.",
     roles: [
       {
@@ -3117,22 +3117,22 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         name: "HasActiveBull()",
         meaning: "A live bull EG or bull EF zone exists",
-        tradingImplication: "Setup armed — watch for zone to be retested and confirmed",
+        tradingImplication: "Setup armed - watch for zone to be retested and confirmed",
       },
       {
         name: "HasActiveBear()",
         meaning: "A live bear EG or bear EF zone exists",
-        tradingImplication: "Setup armed — watch for zone to be retested and confirmed",
+        tradingImplication: "Setup armed - watch for zone to be retested and confirmed",
       },
       {
         name: "BullJustConfirmed()",
-        meaning: "Bull EG or EF confirmed this bar — zone held as support",
-        tradingImplication: "ENTRY LONG — SL from BullConfirmSL()",
+        meaning: "Bull EG or EF confirmed this bar - zone held as support",
+        tradingImplication: "ENTRY LONG - SL from BullConfirmSL()",
       },
       {
         name: "BearJustConfirmed()",
-        meaning: "Bear EG or EF confirmed this bar — zone held as resistance",
-        tradingImplication: "ENTRY SHORT — SL from BearConfirmSL()",
+        meaning: "Bear EG or EF confirmed this bar - zone held as resistance",
+        tradingImplication: "ENTRY SHORT - SL from BearConfirmSL()",
       },
     ],
     inlineApi: {
@@ -3141,12 +3141,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         {
           fn: "EGSM_{id}_BullJustConfirmed()",
           returns: "bool",
-          meaning: "Bull EG/EF confirmed — long entry",
+          meaning: "Bull EG/EF confirmed - long entry",
         },
         {
           fn: "EGSM_{id}_BearJustConfirmed()",
           returns: "bool",
-          meaning: "Bear EG/EF confirmed — short entry",
+          meaning: "Bear EG/EF confirmed - short entry",
         },
         {
           fn: "EGSM_{id}_BullConfirmSL()",
@@ -3198,13 +3198,13 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       "H4 EG or EF as my setup zone",
       "Enter on M30 engulfing after H4 setup",
       "Trade the EF zone when the EG fails",
-      "Malaysian engulfing strategy — EG for direction, EF for continuation",
+      "Malaysian engulfing strategy - EG for direction, EF for continuation",
       "Bullish engulfing failed on H4 is my buy zone",
       "Enter when price retests the engulfing zone",
       "Direction from weekly EG, setup from daily EF, entry on H4 confirm",
       "MES strategy with EG and EF zones",
     ],
-    notSuitedFor: ["Strategies needing FVG-style gap detection — use fvg or fvg_inversion instead"],
+    notSuitedFor: ["Strategies needing FVG-style gap detection - use fvg or fvg_inversion instead"],
     combinesWith: ["bos", "ema", "liqsweep", "snr", "fvg"],
   },
 
@@ -3237,7 +3237,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         usage: "BullJustConfirmed on lower-band touch rejection (touch mode).",
       },
     ],
-    lifecycle: "Point-in-time on the just-closed bar — recalculated each tick",
+    lifecycle: "Point-in-time on the just-closed bar - recalculated each tick",
     params: [
       {
         name: "period",
@@ -3288,11 +3288,11 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         },
         { fn: "BOLLSM_{id}_IsBull()", returns: "bool", meaning: "Close above midline" },
         { fn: "BOLLSM_{id}_IsBear()", returns: "bool", meaning: "Close below midline" },
-        { fn: "BOLLSM_{id}_BullConfirmSL()", returns: "double", meaning: "Bar low — SL for longs" },
+        { fn: "BOLLSM_{id}_BullConfirmSL()", returns: "double", meaning: "Bar low - SL for longs" },
         {
           fn: "BOLLSM_{id}_BearConfirmSL()",
           returns: "double",
-          meaning: "Bar high — SL for shorts",
+          meaning: "Bar high - SL for shorts",
         },
       ],
       reset: "BOLLSM_{id}_Reset()",
@@ -3303,7 +3303,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       "Bollinger breakout entry above the upper band",
       "Trade in direction of the Bollinger midline",
     ],
-    notSuitedFor: ["SMC Breaker Block strategies — use breaker_block (BBSM) instead"],
+    notSuitedFor: ["SMC Breaker Block strategies - use breaker_block (BBSM) instead"],
     combinesWith: ["ema", "rsi_hd", "engulfing", "pin_bar", "fvg"],
   },
 
@@ -3332,14 +3332,14 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         usage: "Pin bar at key level aligned with bias = rejection entry. SL at wick tip.",
       },
     ],
-    lifecycle: "Point-in-time — fires on the bar the pattern completes",
+    lifecycle: "Point-in-time - fires on the bar the pattern completes",
     params: [
       {
         name: "wickRatio",
         type: "double",
         default: 0.6,
         range: [0.4, 0.8],
-        description: "Wick must be >= N × candle range",
+        description: "Wick must be >= N �- candle range",
         traderPhrases: [],
       },
       {
@@ -3347,7 +3347,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
         type: "double",
         default: 0.35,
         range: [0.1, 0.5],
-        description: "Body must be <= N × candle range",
+        description: "Body must be <= N �- candle range",
         traderPhrases: [],
       },
     ],
@@ -3355,12 +3355,12 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       {
         name: "BullJustConfirmed()",
         meaning: "Bullish pin bar on the just-closed bar",
-        tradingImplication: "ENTRY LONG — SL at wick low",
+        tradingImplication: "ENTRY LONG - SL at wick low",
       },
       {
         name: "BearJustConfirmed()",
         meaning: "Bearish pin bar on the just-closed bar",
-        tradingImplication: "ENTRY SHORT — SL at wick high",
+        tradingImplication: "ENTRY SHORT - SL at wick high",
       },
     ],
     inlineApi: {
@@ -3368,11 +3368,11 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       signals: [
         { fn: "PINSM_{id}_BullJustConfirmed()", returns: "bool", meaning: "Bull pin bar this bar" },
         { fn: "PINSM_{id}_BearJustConfirmed()", returns: "bool", meaning: "Bear pin bar this bar" },
-        { fn: "PINSM_{id}_BullConfirmSL()", returns: "double", meaning: "Bar low — SL for longs" },
+        { fn: "PINSM_{id}_BullConfirmSL()", returns: "double", meaning: "Bar low - SL for longs" },
         {
           fn: "PINSM_{id}_BearConfirmSL()",
           returns: "double",
-          meaning: "Bar high — SL for shorts",
+          meaning: "Bar high - SL for shorts",
         },
         {
           fn: "PINSM_{id}_HasActiveBull()",
@@ -3394,7 +3394,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
       "Pin bar rejection at support/resistance",
       "Shooting star at the supply zone",
     ],
-    notSuitedFor: ["Direction bias or setup zones — purely an entry trigger"],
+    notSuitedFor: ["Direction bias or setup zones - purely an entry trigger"],
     combinesWith: ["fvg", "order_block", "bos", "choch"],
   },
 ];
@@ -3427,7 +3427,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
       min: 2,
       max: 200,
       step: 1,
-      hint: "e.g. 9, 12, 21 — shorter = faster response",
+      hint: "e.g. 9, 12, 21 - shorter = faster response",
     },
     {
       key: "slowPeriod",
@@ -3437,7 +3437,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
       min: 5,
       max: 500,
       step: 1,
-      hint: "e.g. 48, 50, 200 — longer = stronger trend filter",
+      hint: "e.g. 48, 50, 200 - longer = stronger trend filter",
     },
   ],
   bos: [
@@ -3575,7 +3575,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
     },
     {
       key: "dispMult",
-      label: "Displacement (ATR ×)",
+      label: "Displacement (ATR �-)",
       type: "number",
       default: 1.5,
       min: 0.8,
@@ -3695,7 +3695,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
       min: 1.0,
       max: 3.0,
       step: 0.1,
-      hint: "Leg range must exceed avg base range × this value",
+      hint: "Leg range must exceed avg base range �- this value",
     },
   ],
   qm_mef: [
@@ -3767,7 +3767,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
       min: 1.0,
       max: 3.0,
       step: 0.1,
-      hint: "Leg range must exceed avg base range × this value",
+      hint: "Leg range must exceed avg base range �- this value",
     },
   ],
   rbr_dbd: [
@@ -3829,7 +3829,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
       min: 1.0,
       max: 3.0,
       step: 0.1,
-      hint: "Leg range must exceed avg base range × this value",
+      hint: "Leg range must exceed avg base range �- this value",
     },
   ],
   liqsweep: [
@@ -3951,7 +3951,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
       min: 1,
       max: 5,
       step: 1,
-      hint: "Fractal strength — bars each side of pivot confirmation",
+      hint: "Fractal strength - bars each side of pivot confirmation",
     },
     {
       key: "htfLookback",
@@ -3997,7 +3997,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
     },
     {
       key: "nearATR",
-      label: "Near Zone (ATR ×)",
+      label: "Near Zone (ATR �-)",
       type: "number",
       default: 0.2,
       min: 0.05,
@@ -4025,7 +4025,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
       min: 0.4,
       max: 0.8,
       step: 0.05,
-      hint: "Wick must be >= N × candle range (default 60%)",
+      hint: "Wick must be >= N �- candle range (default 60%)",
     },
     {
       key: "bodyMaxRatio",
@@ -4035,7 +4035,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
       min: 0.1,
       max: 0.5,
       step: 0.05,
-      hint: "Body must be <= N × candle range (default 35%)",
+      hint: "Body must be <= N �- candle range (default 35%)",
     },
   ],
   bb: [
@@ -4135,7 +4135,7 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
       min: 1.0,
       max: 3.0,
       step: 0.1,
-      hint: "Displacement body must be >= N × ATR",
+      hint: "Displacement body must be >= N �- ATR",
     },
     {
       key: "pairWindow",
@@ -4215,14 +4215,14 @@ export const MODULE_UI_PARAMS: Record<string, UIParam[]> = {
 // ─── Context builders for Claude ─────────────────────────────────────────────
 
 /**
- * COMPACT version — ~40% fewer tokens, same critical data.
+ * COMPACT version - ~40% fewer tokens, same critical data.
  * Used in the generation prompt where latency matters.
  * Keeps: aliases, primary roles, inline API, 2 example phrases.
  * Drops: verbose descriptions, full role breakdowns, notSuitedFor, combinesWith.
  */
 export function buildCompactModuleLibraryContext(): string {
   const lines: string[] = [
-    "MODULE LIBRARY — map trader language to these modules and their APIs.",
+    "MODULE LIBRARY - map trader language to these modules and their APIs.",
     "Replace {id} with the TF label (H4, D1, M15, etc.) in every function name.",
     "",
   ];
@@ -4231,7 +4231,7 @@ export function buildCompactModuleLibraryContext(): string {
     // Header: id, label, concept in one line
     lines.push(`[${m.id}] ${m.label}`);
     lines.push(`  Concept: ${m.concept}`);
-    // Aliases — most critical for phrase matching
+    // Aliases - most critical for phrase matching
     lines.push(
       `  Trader calls it: ${m.aliases
         .slice(0, 8)
@@ -4265,12 +4265,12 @@ export function buildCompactModuleLibraryContext(): string {
 
 /**
  * Builds the FULL system-prompt context block injected into Claude.
- * This is the AI builder's vocabulary — not user documentation.
+ * This is the AI builder's vocabulary - not user documentation.
  */
 export function buildModuleLibraryContext(): string {
   const lines: string[] = [
-    "╔══════════════════════════════════════════════════════════════════╗",
-    "║              MODULE LIBRARY — AI BUILDER VOCABULARY             ║",
+    "╔══════════════════════════════════════════════════════════════════�-",
+    "║              MODULE LIBRARY - AI BUILDER VOCABULARY             ║",
     "╚══════════════════════════════════════════════════════════════════╝",
     "",
     "You are the AI brain of a professional MT5 EA builder SaaS.",
@@ -4280,13 +4280,13 @@ export function buildModuleLibraryContext(): string {
     "the user's words, and generate correct MQL5 wiring code.",
     "",
     "KEY PRINCIPLES:",
-    "1. Modules are YOUR vocabulary — users never see or install them.",
+    "1. Modules are YOUR vocabulary - users never see or install them.",
     "2. The same module can serve different roles depending on context.",
-    "3. Always extract configuration intent from the description — never hardcode defaults blindly.",
-    "4. Generated EA must be self-contained — all module logic embedded inline.",
+    "3. Always extract configuration intent from the description - never hardcode defaults blindly.",
+    "4. Generated EA must be self-contained - all module logic embedded inline.",
     "5. Think like a professional trader: understand WHAT the trader wants, THEN choose HOW.",
     "6. When a phrase is ambiguous, pick the most common trader interpretation.",
-    "7. Multiple modules can be combined — e.g. FVG for setup AND engulfing for execution.",
+    "7. Multiple modules can be combined - e.g. FVG for setup AND engulfing for execution.",
     "",
     "AVAILABLE MODULES:",
     "",
@@ -4307,7 +4307,7 @@ export function buildModuleLibraryContext(): string {
         m.roles
           .filter((r) => r.fit !== "primary")
           .map((r) => `${r.role} (${r.fit})`)
-          .join(", ") || "—"
+          .join(", ") || "-"
       }`,
     );
     lines.push(`  Role usage:`);
@@ -4337,7 +4337,7 @@ export function buildModuleLibraryContext(): string {
     lines.push("");
   }
 
-  lines.push("╔══════════════════════════════════════════════════════════════════╗");
+  lines.push("╔══════════════════════════════════════════════════════════════════�-");
   lines.push("║                    END OF MODULE LIBRARY                        ║");
   lines.push("╚══════════════════════════════════════════════════════════════════╝");
 

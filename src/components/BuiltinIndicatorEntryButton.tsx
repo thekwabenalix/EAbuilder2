@@ -21,7 +21,7 @@ export function BuiltinIndicatorEntryButton({
         <span className="text-xs font-semibold text-sky-300 block">Built-in indicator</span>
         {!compact && (
           <span className="text-[10px] text-muted-foreground">
-            Trend or oscillator — MACD, RSI, EMA, Bollinger
+            Trend or oscillator - MACD, RSI, EMA, Bollinger
           </span>
         )}
       </span>

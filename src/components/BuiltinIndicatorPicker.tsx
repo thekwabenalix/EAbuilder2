@@ -85,7 +85,7 @@ export function BuiltinIndicatorPicker({
       onApply({
         kind: "brain_module",
         brainModule: selected.brainModule,
-        message: `${selected.name} added as a brain module — regenerate EA to compile.`,
+        message: `${selected.name} added as a brain module - regenerate EA to compile.`,
       });
       close();
       return;
@@ -96,7 +96,7 @@ export function BuiltinIndicatorPicker({
         onApply({
           kind: "filter",
           filterRef,
-          message: `${selected.name} filter added — gates ${appliesTo} on ${timeframe}.`,
+          message: `${selected.name} filter added - gates ${appliesTo} on ${timeframe}.`,
         });
         close();
       }
@@ -108,7 +108,7 @@ export function BuiltinIndicatorPicker({
         kind: "catalog",
         indicatorRef: catalog ?? undefined,
         catalogNote: catalog?.name ?? selected.name,
-        message: `${selected.name} saved as reference — not compiled yet. Use RSI/MACD/EMA wired options for live EAs.`,
+        message: `${selected.name} saved as reference - not compiled yet. Use RSI/MACD/EMA wired options for live EAs.`,
       });
       close();
     }
@@ -120,7 +120,7 @@ export function BuiltinIndicatorPicker({
         <DialogHeader>
           <DialogTitle className="text-base">Built-in indicator</DialogTitle>
           <DialogDescription className="text-xs leading-relaxed">
-            Pick trend or oscillator — the builder wires verified filters or modules into your EA.
+            Pick trend or oscillator - the builder wires verified filters or modules into your EA.
             No need to describe MACD/RSI in notes unless you want custom thresholds.
           </DialogDescription>
         </DialogHeader>
@@ -223,7 +223,7 @@ export function BuiltinIndicatorPicker({
                   ))}
                 </div>
                 <p className="text-[10px] text-muted-foreground">
-                  Filters never create trades alone — they only allow/block when your modules fire.
+                  Filters never create trades alone - they only allow/block when your modules fire.
                 </p>
               </div>
             )}

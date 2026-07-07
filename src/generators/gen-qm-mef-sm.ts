@@ -7,9 +7,9 @@
  * Standard API:
  *   QMMEFSM_{id}_Reset()
  *   QMMEFSM_{id}_Tick(lookback)
- *   QMMEFSM_{id}_BullJustConfirmed() / BearJustConfirmed()  — LS touched this bar
- *   QMMEFSM_{id}_BullConfirmSL() / BearConfirmSL()          — beyond head
- *   QMMEFSM_{id}_HasActiveBull() / HasActiveBear()        — live QM awaiting LS retest
+ *   QMMEFSM_{id}_BullJustConfirmed() / BearJustConfirmed()  - LS touched this bar
+ *   QMMEFSM_{id}_BullConfirmSL() / BearConfirmSL()          - beyond head
+ *   QMMEFSM_{id}_HasActiveBull() / HasActiveBear()        - live QM awaiting LS retest
  *   QMMEFSM_{id}_ActiveBullSL() / ActiveBearSL()
  */
 
@@ -31,7 +31,7 @@ export function genQmMefSM(
 
   return `
 //+------------------------------------------------------------------+
-//| QM_MEF State Machine — ${tf} HTF (${id})                           |
+//| QM_MEF State Machine - ${tf} HTF (${id})                           |
 //| HTF engulfing → LTF Quasimodo → left shoulder entry             |
 //+------------------------------------------------------------------+
 #define ${P}DIR_BULL  1

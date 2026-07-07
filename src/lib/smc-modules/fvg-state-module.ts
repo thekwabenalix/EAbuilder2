@@ -1,5 +1,5 @@
 /**
- * Phase 2 State Modules — FVG State Module
+ * Phase 2 State Modules - FVG State Module
  *
  * FVG_State_Module v1.1.0
  * ─────────────────────────────────────────────
@@ -22,10 +22,10 @@
  *   ACTIVE → RETESTED → CONFIRMED → (re-RETESTED → CONFIRMED ...)*
  *   Any live state → MITIGATED / INVALIDATED / EXPIRED
  *
- * RECORDS — per zone:
+ * RECORDS - per zone:
  *   id · direction · UL · LL · state
- *   leftTime (candle 1 — zone visual left edge)
- *   detectedTime (candle 3 — lifecycle birth)
+ *   leftTime (candle 1 - zone visual left edge)
+ *   detectedTime (candle 3 - lifecycle birth)
  *   retestTime · retestHigh · retestLow
  *   confirmTime · barsAlive · endTime
  *
@@ -68,7 +68,7 @@ export function generateFvgStateModule(): string {
 //| Phase 3 buffers 0/1: BullConfirm / BearConfirm signal bars.   |
 //| NO trading logic. State tracking and visualisation only.       |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — Phase 2 State Module"
+#property copyright "EA Builder - Phase 2 State Module"
 #property version   "1.10"
 #property strict
 #property indicator_chart_window
@@ -88,7 +88,7 @@ export function generateFvgStateModule(): string {
 #define STATE_EXPIRED      5   // terminal
 #define STATE_UNDRAWN     -1
 
-#define FVG_MAX    500          // Slot pool — recycled; actual live cap = InpMaxZones
+#define FVG_MAX    500          // Slot pool - recycled; actual live cap = InpMaxZones
 #define FAR_FUTURE ((datetime)4102444800)   // 2100-01-01 00:00 UTC
 
 //+------------------------------------------------------------------+
@@ -103,8 +103,8 @@ struct FvgRecord
    int      state;
    int      drawnState;    // last rendered state (STATE_UNDRAWN = never drawn)
    int      barsAlive;     // incremented every bar after detection
-   datetime leftTime;      // candle 1 time — visual left edge of zone
-   datetime detectedTime;  // candle 3 time — lifecycle birth (skip guard)
+   datetime leftTime;      // candle 1 time - visual left edge of zone
+   datetime detectedTime;  // candle 3 time - lifecycle birth (skip guard)
    datetime retestTime;    // time of most recent retest candle
    double   retestHigh;    // retest candle high
    double   retestLow;     // retest candle low
@@ -124,20 +124,20 @@ double BearConfirmBuf[];
 double BullSLBuf[];
 double BearSLBuf[];
 
-//--- Inputs — Detection
+//--- Inputs - Detection
 input ENUM_TIMEFRAMES InpTF        = PERIOD_CURRENT; // Timeframe
 input int             InpLookback  = 500;            // Historical bars to scan
 
-//--- Inputs — Filter
+//--- Inputs - Filter
 input bool InpShowBull = true; // Track bullish FVG zones
 input bool InpShowBear = true; // Track bearish FVG zones
 
-//--- Inputs — Lifecycle
+//--- Inputs - Lifecycle
 input int  InpExpiryBars     = 100;  // Bars until zone expires (0 = never)
 input bool InpRemoveTerminal = true; // Delete objects on MITIGATED / INVALIDATED / EXPIRED
 input int  InpMaxZones       = 50;   // Max live zones (oldest ACTIVE pruned when exceeded)
 
-//--- Inputs — Colours
+//--- Inputs - Colours
 input color InpBullColor    = clrForestGreen;  // ACTIVE bullish zone
 input color InpBearColor    = clrCrimson;       // ACTIVE bearish zone
 input color InpRetestColor  = clrGold;          // RETESTED zone (both directions)
@@ -148,7 +148,7 @@ input color InpInvalidColor = clrDimGray;       // INVALIDATED / EXPIRED zone
 input int   InpActiveOpacity = 70;              // Live zone opacity  0-100
 input int   InpFadeOpacity   = 25;              // Terminal zone opacity 0-100
 
-//--- Inputs — Logging
+//--- Inputs - Logging
 input bool InpShowLog = true; // Print state transitions to journal
 
 FvgRecord fvgList[FVG_MAX];
@@ -200,8 +200,8 @@ void DetectFvg(int sh)
    int      dir     = bullFvg ? FVG_BULL : FVG_BEAR;
    double   ul      = bullFvg ? c3Low  : c1Low;    // Bull UL=C3.Low  | Bear UL=C1.Low
    double   ll      = bullFvg ? c1High : c3High;   // Bull LL=C1.High | Bear LL=C3.High
-   datetime leftT   = iTime(_Symbol, InpTF, sh + 2); // candle 1 — left edge
-   datetime detectT = iTime(_Symbol, InpTF, sh);      // candle 3 — birth
+   datetime leftT   = iTime(_Symbol, InpTF, sh + 2); // candle 1 - left edge
+   datetime detectT = iTime(_Symbol, InpTF, sh);      // candle 3 - birth
 
    // Dedup: same candle-1 time + direction (live zones only)
    for(int i = 0; i < fvgTotal; i++)
@@ -212,7 +212,7 @@ void DetectFvg(int sh)
    }
 
    // ── Slot allocation: recycle a terminal zone before appending ─────
-   // Critical for long backtests — without recycling, fvgTotal hits
+   // Critical for long backtests - without recycling, fvgTotal hits
    // FVG_MAX after ~month of H1 data and DetectFvg returns early
    // for every subsequent bar, silently killing all future signals.
    int idx = -1;
@@ -229,7 +229,7 @@ void DetectFvg(int sh)
    }
    if(idx < 0)
    {
-      if(fvgTotal >= FVG_MAX) return;   // All slots live — hard pool cap reached
+      if(fvgTotal >= FVG_MAX) return;   // All slots live - hard pool cap reached
       idx = fvgTotal++;
    }
 
@@ -258,11 +258,11 @@ void DetectFvg(int sh)
 //| Lifecycle update for all live zones at bar sh.                 |
 //|                                                                  |
 //| Check order (priority high → low):                             |
-//|   1. EXPIRED    — age-based cutoff                             |
-//|   2. INVALIDATED — close beyond far edge                       |
-//|   3. MITIGATED  — close inside zone                            |
-//|   4. CONFIRMED  — (state==RETESTED) close back outside         |
-//|   5. RETESTED   — wick enters zone                             |
+//|   1. EXPIRED    - age-based cutoff                             |
+//|   2. INVALIDATED - close beyond far edge                       |
+//|   3. MITIGATED  - close inside zone                            |
+//|   4. CONFIRMED  - (state==RETESTED) close back outside         |
+//|   5. RETESTED   - wick enters zone                             |
 //+------------------------------------------------------------------+
 void UpdateFvgStates(int sh)
 {
@@ -328,8 +328,8 @@ void UpdateFvgStates(int sh)
       }
 
       // ── 4. CONFIRMED: RETESTED → close back outside near edge ────
-      //    Bull: close > UL (price left zone upward — zone held)
-      //    Bear: close < LL (price left zone downward — zone held)
+      //    Bull: close > UL (price left zone upward - zone held)
+      //    Bear: close < LL (price left zone downward - zone held)
       if(fvgList[i].state == STATE_RETESTED)
       {
          bool confirmed = isBull ? (barClose > ul) : (barClose < ll);
@@ -338,7 +338,7 @@ void UpdateFvgStates(int sh)
             fvgList[i].state       = STATE_CONFIRMED;
             fvgList[i].confirmTime = barT;
 
-            // Phase 3 signal buffers — live write during OnCalculate
+            // Phase 3 signal buffers - live write during OnCalculate
             // Historical backfill happens in OnCalculate when prev_calculated==0
             if(sh >= 0)
             {
@@ -414,7 +414,7 @@ void EnforceMaxZones()
 }
 
 //+------------------------------------------------------------------+
-//| Draw (or redraw) one zone — delete + recreate on state change  |
+//| Draw (or redraw) one zone - delete + recreate on state change  |
 //+------------------------------------------------------------------+
 void FVG_DrawOne(int idx)
 {
@@ -557,10 +557,10 @@ int OnInit()
    //
    // sh = candle 3 bar shift.  Oldest → newest (high shift → low shift).
    //
-   // DetectFvg(sh)       — creates FVG record when candles sh+2,sh+1,sh qualify.
+   // DetectFvg(sh)       - creates FVG record when candles sh+2,sh+1,sh qualify.
    //                        detectedTime = iTime(sh); lifecycle skip guard ensures
    //                        the new zone is not processed on the same bar.
-   // UpdateFvgStates(sh) — advances states for all zones with detectedTime < barTime.
+   // UpdateFvgStates(sh) - advances states for all zones with detectedTime < barTime.
    for(int sh = limit; sh >= 1; sh--)
    {
       DetectFvg(sh);

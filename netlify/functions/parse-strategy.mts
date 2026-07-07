@@ -15,13 +15,13 @@ const CORS = {
 };
 
 // ─── Stage 1-4: Blueprint extraction prompt ───────────────────────────────────
-// This prompt is large and static — cache it to save tokens on repeat calls.
+// This prompt is large and static - cache it to save tokens on repeat calls.
 const BLUEPRINT_SYSTEM = `You are a professional forex strategy architect and MQL5 system designer.
 
-Your job is to understand a trader's natural-language strategy description and extract a structured StrategyBlueprint in a SINGLE PASS — no follow-up questions unless absolutely necessary.
+Your job is to understand a trader's natural-language strategy description and extract a structured StrategyBlueprint in a SINGLE PASS - no follow-up questions unless absolutely necessary.
 
 ══════════════════════════════════════════════
-PRIME DIRECTIVE — DECIDE, DON'T ASK
+PRIME DIRECTIVE - DECIDE, DON'T ASK
 ══════════════════════════════════════════════
 
 You are building Version 1 of the EA. Be decisive. Apply defaults. Move fast.
@@ -37,9 +37,9 @@ NEVER ask about:
 
 ONLY raise a clarification (max 2 total) if the answer changes WHICH CODE PATH to generate.
 Examples of valid clarification triggers:
-  - "You mentioned both BOS and FVG — is FVG the entry trigger or just context?"
+  - "You mentioned both BOS and FVG - is FVG the entry trigger or just context?"
   - "Should this trade both buy and sell, or only buy?"
-  - "The entry candle — should it close back outside the FVG, or is a wick touch enough?"
+  - "The entry candle - should it close back outside the FVG, or is a wick touch enough?"
 
 If in doubt: make the most logical assumption, note it in the summary, and move on.
 
@@ -58,14 +58,14 @@ ABSOLUTE RULES
    ("strong", "clean", "obvious", "good", "nice") = not compilable, add a subjectiveNote.
 
 4. pendingClarifications: MAXIMUM 2 items. Leave empty [] when possible.
-   Use defaults for everything else — do not ask about optional configuration.
+   Use defaults for everything else - do not ask about optional configuration.
 
-5. FVG CONSOLIDATION — CRITICAL:
+5. FVG CONSOLIDATION - CRITICAL:
    When the strategy uses Fair Value Gaps (FVGs), generate EXACTLY TWO rules:
      { "type": "fair_value_gap_bullish", ... }
      { "type": "fair_value_gap_bearish", ... }
 
-   DO NOT create separate rules for these FVG sub-mechanics — the code engine
+   DO NOT create separate rules for these FVG sub-mechanics - the code engine
    implements them automatically from the two FVG rules above:
      - FVG retest detection (wick entering zone)
      - FVG confirmation (close back outside zone)
@@ -85,7 +85,7 @@ ABSOLUTE RULES
      }
 
    The same FVG rule consolidation applies to Order Blocks: use
-   "order_block_bullish" / "order_block_bearish" only — do not add separate
+   "order_block_bullish" / "order_block_bearish" only - do not add separate
    rules for "retest OB", "invalidate OB", etc.
 
 ══════════════════════════════════════════════
@@ -137,7 +137,7 @@ OUTPUT FORMAT
 
 Return ONLY valid JSON. No prose. No markdown code fences. No explanation.
 
-CRITICAL JSON RULES — the parser is strict:
+CRITICAL JSON RULES - the parser is strict:
 - Every string value must be on a single line. NEVER embed a raw newline inside a string value.
 - Use only plain ASCII characters in all string values. No box-drawing characters (═ ─ ║ │), no arrows (→ ←), no special Unicode.
 - Escape backslashes (\\) and double-quotes (\") inside strings.
@@ -229,7 +229,7 @@ Match this exact TypeScript interface:
 - Direction is optional. Use it for higher-timeframe bias only when the trader describes trend, bias, structure, EMA alignment, BOS, CHoCH, etc.
 - Setup is optional. Use it for zones/context such as FVG, order block, Unicorn overlap pocket, support/resistance, sweep context, or other pre-entry setup.
 - Execution is required. It is the precise trigger: FVG confirmation, liquidity sweep, engulfing, pin bar, breakout, EMA trigger, etc.
-- Unicorn (ICT unicorn, breaker+FVG overlap pocket): module id \`unicorn\` — use as SETUP, never direction. When the trader says reject the pocket / wick into overlap / close outside and enter next candle, use setup=unicorn and execution=rejection (the compiler remaps SNR rejection to zone-scoped confirm + next bar). Do NOT use module rejection for Unicorn pocket rejection in setup — only as execution trigger id for the remap.
+- Unicorn (ICT unicorn, breaker+FVG overlap pocket): module id \`unicorn\` - use as SETUP, never direction. When the trader says reject the pocket / wick into overlap / close outside and enter next candle, use setup=unicorn and execution=rejection (the compiler remaps SNR rejection to zone-scoped confirm + next bar). Do NOT use module rejection for Unicorn pocket rejection in setup - only as execution trigger id for the remap.
 - Pure classic/gap SNR wick rejection (no FVG/OB/Unicorn zone) may use setup=gap_snr or snr with execution=rejection.
 - If timeframes are specified, use them exactly. If missing, default to D1 direction, H4 setup, M15 execution.
 - Put any cross-brain notes in strategyNotes, not in invented modules.
@@ -470,7 +470,7 @@ function extractEmaRetestTargetFromText(
   fastPeriod: number,
   slowPeriod: number,
 ): "fast" | "slow" | "either" | undefined {
-  const hay = text.toLowerCase().replace(/[–—]/g, "-");
+  const hay = text.toLowerCase().replace(/[–-]/g, "-");
   if (/\b(either|any|both)\b.{0,40}\bema\b/.test(hay)) return "either";
   const fastOnly = [
     new RegExp(`\\bonly\\s+(?:the\\s+)?${fastPeriod}\\s*(?:period\\s*)?ema\\b`),

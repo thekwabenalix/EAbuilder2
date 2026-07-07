@@ -1,5 +1,5 @@
 /**
- * Phase 3 — unified AI wiring resolution.
+ * Phase 3 - unified AI wiring resolution.
  *
  * Priority: strategy_flow → blessed deterministic adapter → legacy brain_bodies.
  */

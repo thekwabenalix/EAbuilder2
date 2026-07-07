@@ -1,17 +1,17 @@
 // ─── Breaker Block State Module ──────────────────────────────────────────────
-// Phase 2 State Module — EAbuilder2
+// Phase 2 State Module - EAbuilder2
 //
 // Two-layer embedded detection:
-//   Layer 1 — OB detection: ATR displacement → find last opposing candle (= OB)
-//   Layer 2 — BB creation:  OB broken in opposite direction → Breaker Block born
+//   Layer 1 - OB detection: ATR displacement → find last opposing candle (= OB)
+//   Layer 2 - BB creation:  OB broken in opposite direction → Breaker Block born
 //
 // BB lifecycle mirrors OB State exactly:
 //   ACTIVE → RETESTED → CONFIRMED (Phase 3 signal)
 //   ACTIVE → MITIGATED | INVALIDATED | EXPIRED (terminal)
 //
-// Bullish BB (buy zone): from BEARISH OB broken upward — price should return
+// Bullish BB (buy zone): from BEARISH OB broken upward - price should return
 //                        to zone and close above OB high.
-// Bearish BB (sell zone): from BULLISH OB broken downward — price should return
+// Bearish BB (sell zone): from BULLISH OB broken downward - price should return
 //                         to zone and close below OB low.
 //
 // Standard 4-buffer Phase 3 contract:
@@ -24,14 +24,14 @@ export function generateBbStateModule(): string {
   return `
 //+------------------------------------------------------------------+
 //| BB_State_Module.mq5                                              |
-//| Phase 2 Breaker Block State Module — EAbuilder2                  |
+//| Phase 2 Breaker Block State Module - EAbuilder2                  |
 //| v${BB_STATE_MODULE_VERSION}                                                          |
 //|                                                                  |
 //| Buffers (read via iCustom()):                                    |
-//|   0 : BullConfirmBuf — 1.0 at bull BB CONFIRMED bar             |
-//|   1 : BearConfirmBuf — 1.0 at bear BB CONFIRMED bar             |
-//|   2 : BullSLBuf      — retestLow at bull confirmation bar       |
-//|   3 : BearSLBuf      — retestHigh at bear confirmation bar      |
+//|   0 : BullConfirmBuf - 1.0 at bull BB CONFIRMED bar             |
+//|   1 : BearConfirmBuf - 1.0 at bear BB CONFIRMED bar             |
+//|   2 : BullSLBuf      - retestLow at bull confirmation bar       |
+//|   3 : BearSLBuf      - retestHigh at bear confirmation bar      |
 //+------------------------------------------------------------------+
 #property copyright   "EAbuilder2"
 #property version     "${BB_STATE_MODULE_VERSION}"
@@ -206,7 +206,7 @@ void DetectOb(int sh)
       bool found = (isBullDisp && isBearCandle) || (!isBullDisp && isBullCandle);
       if(!found) continue;
 
-      // Dedup: OB at this time already registered? (skip broken — their slot can be recycled)
+      // Dedup: OB at this time already registered? (skip broken - their slot can be recycled)
       datetime obT = Tm(j);
       bool dup = false;
       for(int k = 0; k < obCount; k++)
@@ -218,7 +218,7 @@ void DetectOb(int sh)
 
       // Slot allocation: recycle a broken OB slot before appending.
       // Without recycling, obCount hits MAX_OBS during long backtests
-      // and DetectOb silently stops registering new OBs — no BBs born.
+      // and DetectOb silently stops registering new OBs - no BBs born.
       int idx = -1;
       for(int k = 0; k < obCount; k++)
         {
@@ -226,7 +226,7 @@ void DetectOb(int sh)
         }
       if(idx < 0)
         {
-         if(obCount >= MAX_OBS) return;  // All slots live — hard pool cap
+         if(obCount >= MAX_OBS) return;  // All slots live - hard pool cap
          idx = obCount++;
         }
 
@@ -483,7 +483,7 @@ void DrawOne(int idx)
    int     st     = bbList[idx].state;
    bool    terminal = (st == STATE_MITIGATED || st == STATE_INVALIDATED || st == STATE_EXPIRED);
 
-   // Delete existing objects unconditionally when terminal — prevents stale rectangles
+   // Delete existing objects unconditionally when terminal - prevents stale rectangles
    // from persisting on screen. Without this, the active zone rectangle never gets removed.
    if(terminal)
      {
@@ -492,7 +492,7 @@ void DrawOne(int idx)
       ObjectDelete(0, _nm);
       ObjectDelete(0, _lnm);
       bbList[idx].drawnState = st;
-      if(!InpShowTerminal) return;  // deleted, not recreated — zone is gone
+      if(!InpShowTerminal) return;  // deleted, not recreated - zone is gone
      }
    if( isBull  && !InpShowBull)     return;
    if(!isBull  && !InpShowBear)     return;

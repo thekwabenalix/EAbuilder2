@@ -1,11 +1,11 @@
 /**
- * Pin Bar State Module — Phase 2
+ * Pin Bar State Module - Phase 2
  *
  * Same detection as Pin_Bar_Detector plus 4-buffer iCustom contract:
- *   0 : BullConfirmBuf — 1.0 at bullish pin bar bar
- *   1 : BearConfirmBuf — 1.0 at bearish pin bar bar
- *   2 : BullSLBuf      — bar low (SL for longs)
- *   3 : BearSLBuf      — bar high (SL for shorts)
+ *   0 : BullConfirmBuf - 1.0 at bullish pin bar bar
+ *   1 : BearConfirmBuf - 1.0 at bearish pin bar bar
+ *   2 : BullSLBuf      - bar low (SL for longs)
+ *   3 : BearSLBuf      - bar high (SL for shorts)
  */
 
 import { PIN_BAR_DETECTOR_VERSION, generatePinBarDetector } from "./pin-bar-detector";
@@ -48,7 +48,7 @@ export function generatePinBarStateModule(): string {
     )
     .replace(
       `//| Pin Bar Detector v${PIN_BAR_DETECTOR_VERSION}                              `,
-      `//| Pin Bar State Module v${PIN_BAR_STATE_MODULE_VERSION} — Phase 2: State + Buffers`,
+      `//| Pin Bar State Module v${PIN_BAR_STATE_MODULE_VERSION} - Phase 2: State + Buffers`,
     )
     .replace(
       "#property indicator_plots 0",

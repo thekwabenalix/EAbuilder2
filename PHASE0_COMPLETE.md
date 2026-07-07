@@ -1,4 +1,4 @@
-# Phase 0: Code Generation Restructuring — COMPLETE ✅
+# Phase 0: Code Generation Restructuring - COMPLETE ✅
 
 ## Overview
 
@@ -166,11 +166,11 @@ Generated Classic ICT EA contains:
 
 Once Phase 0 backtest confirms tester visibility:
 
-1. **Test 1**: Classic ICT (CHoCH + OB + Engulfing) — 2 weeks, EURUSD H1
-2. **Test 2**: Minimal (Direction only, no Setup) — 1 week, EURUSD H4
-3. **Test 3**: Extended (CHoCH + FVG + LiqSweep) — 2 weeks, GBP/USD H1
-4. **Test 4**: Multi-module Setup (OB + FVG in same brain) — 1 week, EURUSD H1
-5. **Test 5**: Stress test (max config: all modules enabled) — 1 week, random pair
+1. **Test 1**: Classic ICT (CHoCH + OB + Engulfing) - 2 weeks, EURUSD H1
+2. **Test 2**: Minimal (Direction only, no Setup) - 1 week, EURUSD H4
+3. **Test 3**: Extended (CHoCH + FVG + LiqSweep) - 2 weeks, GBP/USD H1
+4. **Test 4**: Multi-module Setup (OB + FVG in same brain) - 1 week, EURUSD H1
+5. **Test 5**: Stress test (max config: all modules enabled) - 1 week, random pair
 
 ## Code Quality
 
@@ -182,8 +182,8 @@ Once Phase 0 backtest confirms tester visibility:
 
 ## Commits
 
-1. **Commit 1**: Phase 0 Steps 0a & 0b — Core modular architecture
-2. **Commit 2**: Phase 0 Steps 0c & 0d — Integration tests
+1. **Commit 1**: Phase 0 Steps 0a & 0b - Core modular architecture
+2. **Commit 2**: Phase 0 Steps 0c & 0d - Integration tests
 
 ## Summary
 

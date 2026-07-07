@@ -2,7 +2,7 @@
  * Inline Miss State Machine Generator
  *
  * Playbook definition (Reactive/Malaysian SNR, Slide 27):
- *   "A miss is when price fails to touch a support/resistance — it comes close
+ *   "A miss is when price fails to touch a support/resistance - it comes close
  *    but doesn't touch it. The miss strengthens/validates the level and serves
  *    as liquidity. Very effective on higher timeframes."
  *
@@ -17,12 +17,12 @@
  * Standard API:
  *   MISSSM_{id}_Reset()
  *   MISSSM_{id}_Tick(lookback)
- *   MISSSM_{id}_BullJustConfirmed()  — bullish miss above support this bar
- *   MISSSM_{id}_BearJustConfirmed()  — bearish miss below resistance this bar
- *   MISSSM_{id}_BullConfirmSL()      — the missed swing low (SL for longs)
- *   MISSSM_{id}_BearConfirmSL()      — the missed swing high (SL for shorts)
- *   MISSSM_{id}_HasActiveBull()      — a live support level exists
- *   MISSSM_{id}_HasActiveBear()      — a live resistance level exists
+ *   MISSSM_{id}_BullJustConfirmed()  - bullish miss above support this bar
+ *   MISSSM_{id}_BearJustConfirmed()  - bearish miss below resistance this bar
+ *   MISSSM_{id}_BullConfirmSL()      - the missed swing low (SL for longs)
+ *   MISSSM_{id}_BearConfirmSL()      - the missed swing high (SL for shorts)
+ *   MISSSM_{id}_HasActiveBull()      - a live support level exists
+ *   MISSSM_{id}_HasActiveBear()      - a live resistance level exists
  */
 
 export function genMissSM(
@@ -38,16 +38,16 @@ export function genMissSM(
 
   return `
 //+------------------------------------------------------------------+
-//| Miss State Machine — ${tf} (${id})                              |
+//| Miss State Machine - ${tf} (${id})                              |
 //| Swing pivot lands NEAR a level without touching = miss          |
 //| Levels: Classic (reversal pair) + Gap (continuation pair)       |
 //+------------------------------------------------------------------+
 struct ${P}LevelRec
 {
    int      dir;         //  1=support  -1=resistance
-   double   level;       // candle A close — the SNR price
+   double   level;       // candle A close - the SNR price
    datetime levelTime;   // candle A time
-   datetime confirmTime; // candle B time — SNR valid only AFTER this
+   datetime confirmTime; // candle B time - SNR valid only AFTER this
    bool     dead;
    int      barsAlive;
 };
@@ -88,7 +88,7 @@ void ${P}AddLevel(int dir, double level, datetime tA, datetime tB)
    ${P}levels[idx].dir         = dir;
    ${P}levels[idx].level       = level;
    ${P}levels[idx].levelTime   = tA;
-   ${P}levels[idx].confirmTime = tB;   // candle B — valid only after this
+   ${P}levels[idx].confirmTime = tB;   // candle B - valid only after this
    ${P}levels[idx].dead        = false;
    ${P}levels[idx].barsAlive   = 0;
 }

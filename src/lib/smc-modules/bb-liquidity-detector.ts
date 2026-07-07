@@ -1,7 +1,7 @@
 /**
- * SMC Liquidity Detector — BB (Breaker Block) Liquidity Build-up v1.1.0
+ * SMC Liquidity Detector - BB (Breaker Block) Liquidity Build-up v1.1.0
  *
- * @deprecated Standalone visual only — superseded by Liquidity_Buildup.mq5 and
+ * @deprecated Standalone visual only - superseded by Liquidity_Buildup.mq5 and
  * the zone_liq / ZLSM brain module. Kept for compile regression.
  *
  * Price does not touch the BODY of a Breaker Block but builds up around it.
@@ -30,13 +30,13 @@ export const BB_LIQUIDITY_DETECTOR_MODULE = "BB_Liquidity_Detector";
 export function generateBbLiquidityDetector(): string {
   return `//+------------------------------------------------------------------+
 //| BB_Liquidity_Detector.mq5                                      |
-//| SMC Liquidity v${BB_LIQUIDITY_DETECTOR_VERSION} — Breaker Block Liquidity  |
+//| SMC Liquidity v${BB_LIQUIDITY_DETECTOR_VERSION} - Breaker Block Liquidity  |
 //|                                                                  |
 //| The breaker body is drawn as a filled box once the OB flips.    |
-//| Price approaches the body without touching — stops accumulate.  |
+//| Price approaches the body without touching - stops accumulate.  |
 //| Closest approach labeled "BLq". Body entry removes zone+label.  |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SMC Liquidity"
+#property copyright "EA Builder - SMC Liquidity"
 #property version   "1.10"
 #property strict
 #property indicator_chart_window
@@ -45,7 +45,7 @@ export function generateBbLiquidityDetector(): string {
 #define DIR_BULL    1
 #define DIR_BEAR   -1
 #define PHASE_OB    0   // tracking an OB, waiting for it to break
-#define PHASE_BB    1   // active breaker — liquidity tracking
+#define PHASE_BB    1   // active breaker - liquidity tracking
 #define LVL_MAX    400
 #define OBJ_PREFIX "SMCBBLIQ_"
 
@@ -299,7 +299,7 @@ void AgeLevels()
       {
          if(InpObExpiry <= 0) continue;
          levList[i].obAge++;
-         if(levList[i].obAge >= InpObExpiry) levList[i].dead = true;  // never broke — discard (no objects drawn yet)
+         if(levList[i].obAge >= InpObExpiry) levList[i].dead = true;  // never broke - discard (no objects drawn yet)
       }
       else
       {

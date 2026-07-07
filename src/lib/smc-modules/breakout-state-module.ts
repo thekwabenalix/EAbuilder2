@@ -1,5 +1,5 @@
 /**
- * Phase 2 State Modules — Breakout / RBS / SBR State Module
+ * Phase 2 State Modules - Breakout / RBS / SBR State Module
  *
  * Breakout_State_Module v1.0.0
  * ─────────────────────────────────────────────────────────────────
@@ -13,16 +13,16 @@
  *   Wick breaks do NOT count (close-only confirmation by default).
  *
  * STATE MACHINE (7 internal states):
- *   STATE_ACTIVE     (0) — breakout bar fired, waiting for flip confirmation
- *   STATE_FLIP       (6) — first hold confirmed → RBS / SBR zone is live
- *   STATE_RETESTED   (1) — price wicked back to the level from correct side
+ *   STATE_ACTIVE     (0) - breakout bar fired, waiting for flip confirmation
+ *   STATE_FLIP       (6) - first hold confirmed → RBS / SBR zone is live
+ *   STATE_RETESTED   (1) - price wicked back to the level from correct side
  *                          Bull (RBS): barLow  ≤ level
  *                          Bear (SBR): barHigh ≥ level
- *   STATE_CONFIRMED  (2) — retest held → close back on correct side
+ *   STATE_CONFIRMED  (2) - retest held → close back on correct side
  *                          Bull: close > level  |  Bear: close < level
  *                          ← Phase 3 buffer written here
- *   STATE_INVALIDATED(4) — close back through broken level [terminal]
- *   STATE_EXPIRED    (5) — barsAlive ≥ InpExpiryBars [terminal]
+ *   STATE_INVALIDATED(4) - close back through broken level [terminal]
+ *   STATE_EXPIRED    (5) - barsAlive ≥ InpExpiryBars [terminal]
  *
  * State cycle:
  *   ACTIVE → FLIP → RETESTED → CONFIRMED → (re-RETESTED → CONFIRMED ...)*
@@ -71,7 +71,7 @@ export function generateBreakoutStateModule(): string {
 //| Buffer 2/3: BullSL / BearSL (retest wick price).               |
 //| NO trading logic. State tracking and visualisation only.        |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — Phase 2 State Module"
+#property copyright "EA Builder - Phase 2 State Module"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window
@@ -84,9 +84,9 @@ export function generateBreakoutStateModule(): string {
 
 // ── Lifecycle states ──────────────────────────────────────────────
 #define STATE_ACTIVE       0   // breakout bar, waiting for flip confirmation
-#define STATE_FLIP         6   // flip confirmed (RBS / SBR live) — internal
+#define STATE_FLIP         6   // flip confirmed (RBS / SBR live) - internal
 #define STATE_RETESTED     1   // price wicked to level from correct side
-#define STATE_CONFIRMED    2   // retest held — Phase 3 signal fires
+#define STATE_CONFIRMED    2   // retest held - Phase 3 signal fires
 #define STATE_INVALIDATED  4   // close back through level [terminal]
 #define STATE_EXPIRED      5   // aged out [terminal]
 #define STATE_UNDRAWN     -1
@@ -120,7 +120,7 @@ struct BoStateRecord
    int      drawnState;
    int      barsAlive;
    double   level;           // broken S/R price
-   datetime snrOriginTime;   // Classic SNR candle A — left anchor of line
+   datetime snrOriginTime;   // Classic SNR candle A - left anchor of line
    datetime breakoutTime;    // bar when breakout fired
    datetime retestTime;
    double   retestHigh;
@@ -137,29 +137,29 @@ double BearConfirmBuf[];
 double BullSLBuf[];
 double BearSLBuf[];
 
-//--- Inputs — Timeframe & history
+//--- Inputs - Timeframe & history
 input ENUM_TIMEFRAMES InpTF       = PERIOD_CURRENT; // Timeframe
 input int             InpLookback = 500;            // Historical bars to scan
 
-//--- Inputs — Classic SNR / Breakout Detection
+//--- Inputs - Classic SNR / Breakout Detection
 input bool InpIgnoreDoji  = true;   // Skip doji / neutral candles
 input int  InpDojiPoints  = 0;      // Doji body threshold in points (0 = exact)
 input bool InpShowBull    = true;   // Track bullish breakouts (RBS)
 input bool InpShowBear    = true;   // Track bearish breakouts (SBR)
 
-//--- Inputs — Breakout Filters
+//--- Inputs - Breakout Filters
 input int    InpMinBodyPts   = 0;     // Min breakout candle body (points, 0 = off)
 input int    InpMinBreakDist = 0;     // Min close distance beyond level (points, 0 = off)
 input bool   InpUseAtrFilt   = false; // Use ATR-based minimum distance filter
 input double InpAtrMult      = 0.5;   // ATR multiplier (when InpUseAtrFilt = true)
 input int    InpAtrPeriod    = 14;    // ATR period
 
-//--- Inputs — Lifecycle
+//--- Inputs - Lifecycle
 input int  InpExpiryBars    = 100;   // Bars until expired (0 = never)
 input bool InpRemoveTerminal = true; // Delete objects on terminal state
 input int  InpMaxZones      = 100;   // Max live breakouts
 
-//--- Inputs — Colours
+//--- Inputs - Colours
 input color InpBullColor   = clrDodgerBlue;      // ACTIVE bull breakout
 input color InpBearColor   = clrCrimson;          // ACTIVE bear breakout
 input color InpRbsColor    = clrMediumSeaGreen;   // FLIP: RBS zone
@@ -171,7 +171,7 @@ input color InpInvalidColor = clrDimGray;          // INVALIDATED / EXPIRED
 input int   InpActiveOpacity = 85;                 // Active line opacity 0-100
 input int   InpFadeOpacity   = 30;                 // Terminal line opacity 0-100
 
-//--- Inputs — Logging
+//--- Inputs - Logging
 input bool InpShowLog = true;
 
 SnrLevel      snrList[SNR_MAX];
@@ -248,7 +248,7 @@ bool BreakoutFilter(int sh, double level, int dir)
 }
 
 //+------------------------------------------------------------------+
-//| Classic SNR detection — candle-pair direction reversal          |
+//| Classic SNR detection - candle-pair direction reversal          |
 //| shA = older candle (A), shB = newer candle (B)                  |
 //+------------------------------------------------------------------+
 void AddSnrLevel(int shA, int shB)
@@ -269,7 +269,7 @@ void AddSnrLevel(int shA, int shB)
    datetime timeA = iTime (_Symbol, InpTF, shA);
    datetime timeB = iTime (_Symbol, InpTF, shB);
 
-   // Dedup: skip broken levels — their slot can be recycled
+   // Dedup: skip broken levels - their slot can be recycled
    for(int i = 0; i < snrTotal; i++)
    {
       if(snrList[i].broken) continue;
@@ -388,8 +388,8 @@ void UpdateBoStates(int sh)
       bool   wasRbs = (st >= STATE_FLIP); // STATE_FLIP=6, STATE_RETESTED=1, STATE_CONFIRMED=2
                                           // Only 6,1,2 are post-flip; 0 is pre-flip
       // Note: wasRbs for logging prefix
-      // States 6, 1, 2 are all "post flip" — use ZoneName prefix in logs
-      // State 0 is pre-flip — use BREAKOUT_ prefix
+      // States 6, 1, 2 are all "post flip" - use ZoneName prefix in logs
+      // State 0 is pre-flip - use BREAKOUT_ prefix
 
       // ── 1. EXPIRED ────────────────────────────────────────────────
       if(InpExpiryBars > 0 && boList[i].barsAlive >= InpExpiryBars)
@@ -444,7 +444,7 @@ void UpdateBoStates(int sh)
             PrintFormat("%s_FLIP | id=%d | snr_id=%d | level=%.5f | time=%s",
                ZoneName(boList[i].dir), boList[i].id, boList[i].snrId, lvl,
                TimeToString(barT, TIME_DATE|TIME_MINUTES));
-         // Fall through — state is now STATE_FLIP, check for immediate retest
+         // Fall through - state is now STATE_FLIP, check for immediate retest
       }
 
       // Re-read updated state
@@ -589,7 +589,7 @@ void BO_DrawOne(int idx)
    color clr = BlendWithBg(rawClr, opacity);
    double lvl = boList[idx].level;
 
-   // OBJ_TREND line at the level — RAY_RIGHT extends to far future while live
+   // OBJ_TREND line at the level - RAY_RIGHT extends to far future while live
    if(ObjectCreate(0, ObjLine(boList[idx].id), OBJ_TREND, 0, tLeft, lvl, tRight, lvl))
    {
       ObjectSetInteger(0, ObjLine(boList[idx].id), OBJPROP_COLOR,      clr);

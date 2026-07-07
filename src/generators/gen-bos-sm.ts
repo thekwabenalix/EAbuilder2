@@ -6,11 +6,11 @@
  *
  * Standard API:
  *   BOSSM_{id}_Reset()
- *   BOSSM_{id}_Tick(lookback)          — call once per bar-open
- *   BOSSM_{id}_IsBull()                — trend is currently BULL
- *   BOSSM_{id}_IsBear()                — trend is currently BEAR
- *   BOSSM_{id}_BullJustBroke()         — BOS/CHoCH BULL fired this bar
- *   BOSSM_{id}_BearJustBroke()         — BOS/CHoCH BEAR fired this bar
+ *   BOSSM_{id}_Tick(lookback)          - call once per bar-open
+ *   BOSSM_{id}_IsBull()                - trend is currently BULL
+ *   BOSSM_{id}_IsBear()                - trend is currently BEAR
+ *   BOSSM_{id}_BullJustBroke()         - BOS/CHoCH BULL fired this bar
+ *   BOSSM_{id}_BearJustBroke()         - BOS/CHoCH BEAR fired this bar
  */
 
 export type BosSmMode = "bos" | "choch" | "both";
@@ -28,7 +28,7 @@ export function genBosSM(
 
   return `
 //+------------------------------------------------------------------+
-//| ${modeLabel} State Machine — ${tf} (${id})                     |
+//| ${modeLabel} State Machine - ${tf} (${id})                     |
 //| Persistent trend bias: 1=BULL, -1=BEAR, 0=UNKNOWN              |
 //+------------------------------------------------------------------+
 struct ${P}SwingRec

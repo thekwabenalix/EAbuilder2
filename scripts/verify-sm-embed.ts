@@ -1,5 +1,5 @@
 /**
- * Phase 2 — shared SM embed registry checks.
+ * Phase 2 - shared SM embed registry checks.
  */
 import { generateEA } from "../src/generators/gen-ea";
 import { generateFlowEA } from "../src/generators/gen-flow-ea";

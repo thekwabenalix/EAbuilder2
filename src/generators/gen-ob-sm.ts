@@ -7,14 +7,14 @@
  * Standard API:
  *   OBSM_{id}_Reset()
  *   OBSM_{id}_Tick(lookback)
- *   OBSM_{id}_BullJustConfirmed()   — bull OB confirmed this bar
- *   OBSM_{id}_BearJustConfirmed()   — bear OB confirmed this bar
- *   OBSM_{id}_BullConfirmSL()       — retestLow at last bull confirmation
- *   OBSM_{id}_BearConfirmSL()       — retestHigh at last bear confirmation
- *   OBSM_{id}_HasActiveBull()       — any live bull OB
- *   OBSM_{id}_HasActiveBear()       — any live bear OB
- *   OBSM_{id}_LatestBullLL()        — lower limit of most recent bull OB
- *   OBSM_{id}_LatestBearUL()        — upper limit of most recent bear OB
+ *   OBSM_{id}_BullJustConfirmed()   - bull OB confirmed this bar
+ *   OBSM_{id}_BearJustConfirmed()   - bear OB confirmed this bar
+ *   OBSM_{id}_BullConfirmSL()       - retestLow at last bull confirmation
+ *   OBSM_{id}_BearConfirmSL()       - retestHigh at last bear confirmation
+ *   OBSM_{id}_HasActiveBull()       - any live bull OB
+ *   OBSM_{id}_HasActiveBear()       - any live bear OB
+ *   OBSM_{id}_LatestBullLL()        - lower limit of most recent bull OB
+ *   OBSM_{id}_LatestBearUL()        - upper limit of most recent bear OB
  */
 
 export function genObSM(
@@ -29,7 +29,7 @@ export function genObSM(
 
   return `
 //+------------------------------------------------------------------+
-//| OB State Machine — ${tf} (${id})                               |
+//| OB State Machine - ${tf} (${id})                               |
 //| States: ACTIVE → RETESTED → CONFIRMED | MITIGATED/INVALID/EXPIRED|
 //+------------------------------------------------------------------+
 #define ${P}ACTIVE       0

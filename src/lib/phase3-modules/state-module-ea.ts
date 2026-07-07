@@ -3,15 +3,15 @@
 //
 // Generates a Phase 3 Expert Advisor that can consume ANY Phase 2 State Module
 // via a simplified iCustom() call that passes only (InpTimeframe, InpLookback).
-// Display / colour inputs in the state module use their compiled defaults — they
+// Display / colour inputs in the state module use their compiled defaults - they
 // have no effect on buffer values, so the EA signal logic is unaffected.
 //
 // All Phase 2 state modules that expose the standard 4-buffer contract are
 // compatible:
-//   Buffer 0 — BullConfirmBuf  (1.0 at bull CONFIRMED bar)
-//   Buffer 1 — BearConfirmBuf  (1.0 at bear CONFIRMED bar)
-//   Buffer 2 — BullSLBuf       (price — SL for bull entries)
-//   Buffer 3 — BearSLBuf       (price — SL for bear entries)
+//   Buffer 0 - BullConfirmBuf  (1.0 at bull CONFIRMED bar)
+//   Buffer 1 - BearConfirmBuf  (1.0 at bear CONFIRMED bar)
+//   Buffer 2 - BullSLBuf       (price - SL for bull entries)
+//   Buffer 3 - BearSLBuf       (price - SL for bear entries)
 //
 // NOT compatible: BOS_State_Module and CHoCH_State_Module, which expose
 // persistent trend buffers (not event-based confirms) and have no SL price.
@@ -28,7 +28,7 @@ export interface Phase3EaConfig {
   description: string;
   /** Default Phase 2 state module name (no .mq5 extension) */
   defaultModuleName: string;
-  /** Default magic number — must be unique per running EA instance */
+  /** Default magic number - must be unique per running EA instance */
   magic: number;
   /** Default risk per trade as % of account balance */
   riskPct: number;
@@ -51,14 +51,14 @@ export function generatePhase3Ea(cfg: Phase3EaConfig): string {
   return `
 //+------------------------------------------------------------------+
 //| ${cfg.eaName}.mq5
-//| Phase 3 Execution EA — EAbuilder2 v${ver}
+//| Phase 3 Execution EA - EAbuilder2 v${ver}
 //|
 //| ${cfg.description}
 //|
 //| Compatible with ANY Phase 2 State Module that exposes the
 //| standard 4-buffer contract:
-//|   Buffer 0 — BullConfirmBuf  Buffer 2 — BullSLBuf
-//|   Buffer 1 — BearConfirmBuf  Buffer 3 — BearSLBuf
+//|   Buffer 0 - BullConfirmBuf  Buffer 2 - BullSLBuf
+//|   Buffer 1 - BearConfirmBuf  Buffer 3 - BearSLBuf
 //|
 //| SIGNAL (evaluated on first tick after each bar close):
 //|   BullConfirmBuf[1] == 1.0 AND BullSLBuf[1] > 0 → BUY at open
@@ -67,36 +67,36 @@ export function generatePhase3Ea(cfg: Phase3EaConfig): string {
 //| ⚠  Place in MQL5/Experts/
 //| ⚠  State module .mq5 must be compiled in MQL5/Indicators/
 //+------------------------------------------------------------------+
-#property copyright "EAbuilder2 — Phase 3 Execution Module"
+#property copyright "EAbuilder2 - Phase 3 Execution Module"
 #property version   "${ver.replace(".", "").padStart(3, "0").slice(0, 3)}"
 #property strict
 
 #include <Trade\\Trade.mqh>
 #include <Trade\\PositionInfo.mqh>
 
-// ─── Buffer indices — standard Phase 2 contract ───────────────────
+// ─── Buffer indices - standard Phase 2 contract ───────────────────
 #define BUF_BULL_CONFIRM  0
 #define BUF_BEAR_CONFIRM  1
 #define BUF_BULL_SL       2
 #define BUF_BEAR_SL       3
 
-//=== Inputs — State module =========================================
+//=== Inputs - State module =========================================
 input string          InpModuleName     = "${cfg.defaultModuleName}"; // State module filename (no .mq5)
-input ENUM_TIMEFRAMES InpModuleTF       = PERIOD_CURRENT;             // Timeframe — match state module
-input int             InpModuleLookback = 500;                        // Lookback  — match state module
+input ENUM_TIMEFRAMES InpModuleTF       = PERIOD_CURRENT;             // Timeframe - match state module
+input int             InpModuleLookback = 500;                        // Lookback  - match state module
 
-//=== Inputs — Trade direction ======================================
+//=== Inputs - Trade direction ======================================
 input bool   InpTradeBull  = true;   // Enable bull signals
 input bool   InpTradeBear  = true;   // Enable bear signals
 
-//=== Inputs — Risk management ======================================
+//=== Inputs - Risk management ======================================
 input int    InpMagic      = ${cfg.magic}; // Magic number (unique per EA instance)
 input double InpRiskPct    = ${cfg.riskPct.toFixed(1)};  // Risk per trade (% of account balance)
 input double InpRR         = ${cfg.rr.toFixed(1)};        // Reward-to-risk ratio
-input double InpBreakevenR = ${cfg.breakevenR.toFixed(1)}; // Breakeven trigger (× initial risk, 0=off)
+input double InpBreakevenR = ${cfg.breakevenR.toFixed(1)}; // Breakeven trigger (�- initial risk, 0=off)
 input int    InpSlippage   = ${cfg.slippage};              // Max entry slippage in points
 
-//=== Inputs — Filters ==============================================
+//=== Inputs - Filters ==============================================
 input int    InpMaxTrades    = ${cfg.maxTrades};    // Max concurrent positions (0 = unlimited)
 input int    InpMaxSpreadPts = ${cfg.maxSpreadPts}; // Max spread in points    (0 = off)
 
@@ -113,7 +113,7 @@ int OnInit()
    trade.SetDeviationInPoints(InpSlippage);
    trade.LogLevel(LOG_LEVEL_ERRORS);
 
-   // Simplified iCustom() — passes only the two universal inputs:
+   // Simplified iCustom() - passes only the two universal inputs:
    //   InpTimeframe  (position 0 in every Phase 2 state module)
    //   InpLookback   (position 1 in every Phase 2 state module)
    // All display/colour inputs use the state module's compiled defaults.

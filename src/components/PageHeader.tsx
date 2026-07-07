@@ -9,20 +9,22 @@ export function PageHeader({
   title: ReactNode;
   subtitle?: ReactNode;
   actions?: ReactNode;
-  /** Optional strip below title row (e.g. workflow stepper). */
+  /** Optional strip below title row, such as a workflow stepper. */
   below?: ReactNode;
 }) {
   return (
-    <div className="border-b border-border bg-card/40">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 sm:px-6 py-4">
+    <div className="app-panel border-b border-border/70 bg-card/75 shadow-sm">
+      <div className="app-page-in flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div className="min-w-0 flex-1">
-          <h1 className="text-lg font-semibold tracking-tight truncate">{title}</h1>
-          {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
+          <h1 className="truncate text-xl font-semibold tracking-tight text-foreground">{title}</h1>
+          {subtitle && (
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{subtitle}</p>
+          )}
         </div>
-        {actions && <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>}
+        {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
       </div>
       {below && (
-        <div className="px-4 sm:px-6 pb-3 pt-0 border-t border-border/50 bg-muted/10">{below}</div>
+        <div className="border-t border-border/50 bg-muted/20 px-4 pb-3 pt-0 sm:px-6">{below}</div>
       )}
     </div>
   );

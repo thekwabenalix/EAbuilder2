@@ -1,8 +1,8 @@
 /**
  * Inline Engulfing + Engulfing Failed State Machine Generator
  *
- * EG  (Engulfing)        — C2 closes beyond C1's full wick → zone = C1 wick range
- * EF  (Engulfing Failed) — an EG that price closed through; zone stays, direction flips
+ * EG  (Engulfing)        - C2 closes beyond C1's full wick → zone = C1 wick range
+ * EF  (Engulfing Failed) - an EG that price closed through; zone stays, direction flips
  *
  * Based on the Malaysian Engulfing Strategy (MES) definition:
  *   • Bullish EG : C1 bearish,  C2 bullish and closes ABOVE C1.High (upper wick)
@@ -11,7 +11,7 @@
  *   • Bull EG fails → a bearish candle closes BELOW C1.Low  → becomes Bear EF zone
  *   • Bear EG fails → a bullish candle closes ABOVE C1.High → becomes Bull EF zone
  *
- * EF is NOT a Breaker Block. It is simply a failed EG — price closed through the
+ * EF is NOT a Breaker Block. It is simply a failed EG - price closed through the
  * zone. No BOS or displacement context is required. The same C1 wick boundaries
  * are reused as the EF zone, now acting as a zone in the opposite direction.
  *
@@ -20,18 +20,18 @@
  * Standard API (mirrors OB SM):
  *   EGSM_{id}_Reset()
  *   EGSM_{id}_Tick(lookback)
- *   EGSM_{id}_BullJustConfirmed()   — bull zone confirmed this bar (EG or EF)
- *   EGSM_{id}_BearJustConfirmed()   — bear zone confirmed this bar (EG or EF)
- *   EGSM_{id}_BullConfirmSL()       — retestLow at last bull confirmation
- *   EGSM_{id}_BearConfirmSL()       — retestHigh at last bear confirmation
- *   EGSM_{id}_HasActiveBull()       — any live bull zone (EG or EF)
- *   EGSM_{id}_HasActiveBear()       — any live bear zone (EG or EF)
- *   EGSM_{id}_LatestBullUL()        — upper limit of most recent bull zone
- *   EGSM_{id}_LatestBullLL()        — lower limit of most recent bull zone
- *   EGSM_{id}_LatestBearUL()        — upper limit of most recent bear zone
- *   EGSM_{id}_LatestBearLL()        — lower limit of most recent bear zone
- *   EGSM_{id}_LatestBullZoneTime()  — C1 time of most recent bull zone (for drawing)
- *   EGSM_{id}_LatestBearZoneTime()  — C1 time of most recent bear zone (for drawing)
+ *   EGSM_{id}_BullJustConfirmed()   - bull zone confirmed this bar (EG or EF)
+ *   EGSM_{id}_BearJustConfirmed()   - bear zone confirmed this bar (EG or EF)
+ *   EGSM_{id}_BullConfirmSL()       - retestLow at last bull confirmation
+ *   EGSM_{id}_BearConfirmSL()       - retestHigh at last bear confirmation
+ *   EGSM_{id}_HasActiveBull()       - any live bull zone (EG or EF)
+ *   EGSM_{id}_HasActiveBear()       - any live bear zone (EG or EF)
+ *   EGSM_{id}_LatestBullUL()        - upper limit of most recent bull zone
+ *   EGSM_{id}_LatestBullLL()        - lower limit of most recent bull zone
+ *   EGSM_{id}_LatestBearUL()        - upper limit of most recent bear zone
+ *   EGSM_{id}_LatestBearLL()        - lower limit of most recent bear zone
+ *   EGSM_{id}_LatestBullZoneTime()  - C1 time of most recent bull zone (for drawing)
+ *   EGSM_{id}_LatestBearZoneTime()  - C1 time of most recent bear zone (for drawing)
  */
 
 export function genEgSM(
@@ -46,9 +46,9 @@ export function genEgSM(
 
   return `
 //+------------------------------------------------------------------+
-//| EG+EF State Machine — ${tf} (instance: ${id})
+//| EG+EF State Machine - ${tf} (instance: ${id})
 //| EG: C2 closes beyond C1 wick → zone = C1 full wick range
-//| EF: a failed EG — price closed through zone → same zone, direction flipped
+//| EF: a failed EG - price closed through zone → same zone, direction flipped
 //| States: ACTIVE → RETESTED → CONFIRMED | EF flip | MITIGATED/EXPIRED
 //+------------------------------------------------------------------+
 #define ${P}ACTIVE      0
@@ -187,7 +187,7 @@ void ${P}Detect(int c2)
       if(!firstBreak) continue;
 
       ${P}AddZone(c1, c2, isBullEG, c1H, c1L, c1T);
-      return;  // nearest qualifying C1 only — one engulfing per completing candle
+      return;  // nearest qualifying C1 only - one engulfing per completing candle
    }
 }
 
@@ -305,7 +305,7 @@ void ${P}Advance(int sh)
    }
 }
 
-// ── Main tick — call once per bar (assembler calls this, not AI wiring) ───────
+// ── Main tick - call once per bar (assembler calls this, not AI wiring) ───────
 void ${P}Tick(int lookback)
 {
    ${P}_bullConfirmed = false;

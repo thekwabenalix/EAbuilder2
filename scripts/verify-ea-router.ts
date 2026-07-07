@@ -1,5 +1,5 @@
 /**
- * Phase 1 — single generate router checks (flow vs blueprint vs legacy).
+ * Phase 1 - single generate router checks (flow vs blueprint vs legacy).
  */
 import {
   generateEaFromBlueprint,

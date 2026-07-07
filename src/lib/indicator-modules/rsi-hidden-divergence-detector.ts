@@ -1,5 +1,5 @@
 /**
- * Indicator Module — RSI Hidden Divergence Detector (Phase 1) v1.1.0
+ * Indicator Module - RSI Hidden Divergence Detector (Phase 1) v1.1.0
  *
  * Trend-CONTINUATION setup. SETUP role only (does not decide direction).
  *
@@ -11,9 +11,9 @@
  * line on the main chart so both legs are visible (as in the playbook).
  *
  * Buffers (iCustom):
- *   0 : RSIPlotBuf       — the RSI line (plotted)
- *   1 : BullHiddenDivBuf — 1.0 at the second (newer) swing low
- *   2 : BearHiddenDivBuf — 1.0 at the second (newer) swing high
+ *   0 : RSIPlotBuf       - the RSI line (plotted)
+ *   1 : BullHiddenDivBuf - 1.0 at the second (newer) swing low
+ *   2 : BearHiddenDivBuf - 1.0 at the second (newer) swing high
  */
 
 export const RSI_HD_DETECTOR_VERSION = "1.1.0";
@@ -22,12 +22,12 @@ export const RSI_HD_DETECTOR_MODULE = "RSI_Hidden_Divergence_Detector";
 export function generateRsiHiddenDivergenceDetector(): string {
   return `//+------------------------------------------------------------------+
 //| RSI_Hidden_Divergence_Detector.mq5                            |
-//| Indicator Module v${RSI_HD_DETECTOR_VERSION} — RSI Hidden Divergence (Setup)|
+//| Indicator Module v${RSI_HD_DETECTOR_VERSION} - RSI Hidden Divergence (Setup)|
 //|                                                                  |
 //| Separate window: plots RSI + draws divergence on BOTH panes.   |
 //| Bullish HD: price HL + RSI LL. Bearish HD: price LH + RSI HH.   |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — Indicator Module"
+#property copyright "EA Builder - Indicator Module"
 #property version   "1.10"
 #property strict
 #property indicator_separate_window

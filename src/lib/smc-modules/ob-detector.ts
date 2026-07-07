@@ -1,5 +1,5 @@
 /**
- * SMC Module Library — Phase 1: Order Block (OB) Detector
+ * SMC Module Library - Phase 1: Order Block (OB) Detector
  *
  * OB Detector v1.0.0
  * ──────────────────────────────
@@ -14,8 +14,8 @@
  *     → zone: High = OB candle high, Low = OB candle low
  *
  * DISPLACEMENT FILTER:
- *   Candle body ≥ InpDispMult × ATR(InpAtrPeriod)
- *   Default: body ≥ 1.5 × ATR(14)
+ *   Candle body ≥ InpDispMult �- ATR(InpAtrPeriod)
+ *   Default: body ≥ 1.5 �- ATR(14)
  *   ATR computed as SMA of True Range (self-contained, no indicator handle).
  *
  * LIFECYCLE:
@@ -43,7 +43,7 @@ export const OB_DETECTOR_MODULE = "OB_Detector";
 export function generateObDetector(): string {
   return `//+------------------------------------------------------------------+
 //| OB_Detector.mq5                                                  |
-//| SMC Module Library v${OB_DETECTOR_VERSION} — Phase 1: Detection Only         |
+//| SMC Module Library v${OB_DETECTOR_VERSION} - Phase 1: Detection Only         |
 //|                                                                  |
 //| Detects Order Block (OB) zones.                                  |
 //|                                                                  |
@@ -71,7 +71,7 @@ export function generateObDetector(): string {
 //|                                                                  |
 //| NO trading logic. Detection and visualisation only.             |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SMC Module Library"
+#property copyright "EA Builder - SMC Module Library"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window
@@ -83,27 +83,27 @@ export function generateObDetector(): string {
 #define OB_INVALIDATED 2
 #define OB_EXPIRED     3
 
-//--- Inputs — Detection
+//--- Inputs - Detection
 input ENUM_TIMEFRAMES InpTF         = PERIOD_CURRENT; // Timeframe to scan
 input int             InpLookback   = 500;             // Historical bars to scan on load
 input int             InpAtrPeriod  = 14;              // ATR period for displacement filter
 input double          InpDispMult   = 1.5;             // Displacement: body >= N x ATR
 input int             InpObScanBack = 5;               // Bars to look back from displacement for OB candle
 
-//--- Inputs — Lifecycle
+//--- Inputs - Lifecycle
 input int  InpExpiryBars        = 100;  // Expire OB after N bars (0 = never)
 input bool InpShowMitigated     = true; // Show mitigated zones (faded)
 input bool InpRemoveInvalidated = true; // Remove invalidated/expired zones (false = dotted relic)
 
-//--- Inputs — Colours
+//--- Inputs - Colours
 input color InpBullObClr = clrRoyalBlue; // Bullish OB zone colour
 input color InpBearObClr = clrCrimson;   // Bearish OB zone colour
 
-//--- Inputs — Opacity
+//--- Inputs - Opacity
 input int InpActiveOpacity = 70; // Active zone opacity 0-100
 input int InpMitOpacity    = 25; // Mitigated zone opacity 0-100
 
-//--- Inputs — Logging
+//--- Inputs - Logging
 input bool InpShowLog = true; // Print lifecycle events to journal
 
 #define OB_MAX 300
@@ -206,7 +206,7 @@ void OB_Add(int dir, datetime obT, datetime dispT, double hi, double lo)
 
 //+------------------------------------------------------------------+
 //| ATR (SMA of True Range) at bar shift over InpAtrPeriod bars.    |
-//| Self-contained — no indicator handle needed.                    |
+//| Self-contained - no indicator handle needed.                    |
 //| Returns 0 if not enough history is available.                   |
 //+------------------------------------------------------------------+
 double CalcATR(int shift, int period)
@@ -269,7 +269,7 @@ void OB_ScanBar(int dispShift)
                 iTime(_Symbol, InpTF, dispShift),  // displacement candle time
                 iHigh(_Symbol, InpTF, j),
                 iLow (_Symbol, InpTF, j));
-         break; // last bearish candle found — stop
+         break; // last bearish candle found - stop
       }
       // Bearish displacement → look for last bullish candle (close > open)
       if(dispDir == -1 && jCls > jOpn)
@@ -279,7 +279,7 @@ void OB_ScanBar(int dispShift)
                 iTime(_Symbol, InpTF, dispShift),
                 iHigh(_Symbol, InpTF, j),
                 iLow (_Symbol, InpTF, j));
-         break; // last bullish candle found — stop
+         break; // last bullish candle found - stop
       }
    }
 }

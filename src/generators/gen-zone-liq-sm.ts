@@ -1,5 +1,5 @@
 /**
- * Inline Liquidity Buildup State Machine — OB + BB + FVG
+ * Inline Liquidity Buildup State Machine - OB + BB + FVG
  *
  * Matches Liquidity_Buildup indicator semantics:
  *   detect zone → wick approaches edge (liquidity built) → edge touch consumes zone
@@ -7,10 +7,10 @@
  * Standard API:
  *   ZLSM_{id}_Reset()
  *   ZLSM_{id}_Tick(lookback)
- *   ZLSM_{id}_BullJustConfirmed()  — new liquidity buildup this bar
+ *   ZLSM_{id}_BullJustConfirmed()  - new liquidity buildup this bar
  *   ZLSM_{id}_BearJustConfirmed()
  *   ZLSM_{id}_BullConfirmSL() / BearConfirmSL()
- *   ZLSM_{id}_HasActiveBull() / HasActiveBear() — zone with liquidity built
+ *   ZLSM_{id}_HasActiveBull() / HasActiveBear() - zone with liquidity built
  *   ZLSM_{id}_ActiveBullSL() / ActiveBearSL()
  */
 
@@ -35,7 +35,7 @@ export function genZoneLiqSM(
 
   return `
 //+------------------------------------------------------------------+
-//| Liquidity Buildup SM — ${tf} (${id})                            |
+//| Liquidity Buildup SM - ${tf} (${id})                            |
 //| OB/BB/FVG → wick near edge (liquidity built) → touch kills       |
 //+------------------------------------------------------------------+
 #define ${P}DIR_BULL    1

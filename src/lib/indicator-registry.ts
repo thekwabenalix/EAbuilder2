@@ -2,7 +2,7 @@
  * Built-in MT5 Indicator Registry
  *
  * MT5 ships these indicators natively. We do NOT rebuild them as custom detection
- * modules — instead the AI/generator references them through MQL5's built-in
+ * modules - instead the AI/generator references them through MQL5's built-in
  * indicator functions (handle + CopyBuffer). This file is the declarative
  * vocabulary the AI may reference: function name, parameters, output buffers,
  * category, and typical applications.
@@ -12,8 +12,8 @@
  *   double v; CopyBuffer(h, 0, shift, 1, ...);          // read buffer 0
  *
  * `via`:
- *   "builtin" — a native iX() function (iMA, iRSI, ...).
- *   "icustom" — ships in MetaTrader's Indicators\Examples folder; referenced via
+ *   "builtin" - a native iX() function (iMA, iRSI, ...).
+ *   "icustom" - ships in MetaTrader's Indicators\Examples folder; referenced via
  *               iCustom(symbol, tf, "Examples\\Name", ...). Params vary per .ex5.
  *
  * Custom modules are only built for concepts MT5 does NOT understand natively
@@ -120,7 +120,7 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     buffers: [{ index: 0, name: "AMA line" }],
     subWindow: false,
     aliases: ["ama", "adaptive moving average", "kaufman"],
-    description: "Kaufman adaptive MA — speeds up in trends, slows in chop.",
+    description: "Kaufman adaptive MA - speeds up in trends, slows in chop.",
     applications: ["Trend filter", "Direction Brain"],
   },
   {
@@ -244,7 +244,7 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     buffers: [{ index: 0, name: "StdDev value" }],
     subWindow: true,
     aliases: ["stddev", "standard deviation", "sd"],
-    description: "Statistical dispersion of price — a volatility gauge.",
+    description: "Statistical dispersion of price - a volatility gauge.",
     applications: ["Volatility filter", "Squeeze detection"],
   },
 
@@ -302,7 +302,7 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     buffers: [{ index: 0, name: "CCI value" }],
     subWindow: true,
     aliases: ["cci", "commodity channel index"],
-    description: "Deviation from average — overbought/oversold beyond ±100.",
+    description: "Deviation from average - overbought/oversold beyond ±100.",
     applications: ["Overbought/oversold", "Divergence"],
   },
   {
@@ -652,7 +652,7 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     buffers: [{ index: 0, name: "TEMA line" }],
     subWindow: false,
     aliases: ["tema", "triple ema"],
-    description: "Ships in Indicators\\Examples — referenced via iCustom. Low-lag MA.",
+    description: "Ships in Indicators\\Examples - referenced via iCustom. Low-lag MA.",
     applications: ["Trend filter"],
   },
   {
@@ -672,7 +672,7 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     buffers: [{ index: 0, name: "VIDYA line" }],
     subWindow: false,
     aliases: ["vidya", "variable index dynamic average"],
-    description: "Ships in Indicators\\Examples — referenced via iCustom. Volatility-adaptive MA.",
+    description: "Ships in Indicators\\Examples - referenced via iCustom. Volatility-adaptive MA.",
     applications: ["Trend filter"],
   },
   {
@@ -686,7 +686,7 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     buffers: [{ index: 0, name: "ZeroLag line" }],
     subWindow: false,
     aliases: ["zero lag", "zerolag", "zlma"],
-    description: "Ships in Indicators\\Examples — referenced via iCustom. Reduced-lag MA.",
+    description: "Ships in Indicators\\Examples - referenced via iCustom. Reduced-lag MA.",
     applications: ["Trend filter"],
   },
   {
@@ -700,7 +700,7 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     buffers: [{ index: 0, name: "Fisher value" }],
     subWindow: true,
     aliases: ["fisher", "fisher transform"],
-    description: "Ships in Indicators\\Examples — referenced via iCustom. Sharpens turning points.",
+    description: "Ships in Indicators\\Examples - referenced via iCustom. Sharpens turning points.",
     applications: ["Reversal", "Overbought/oversold"],
   },
   {
@@ -719,7 +719,7 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     buffers: [{ index: 0, name: "RSI-of-RSI value" }],
     subWindow: true,
     aliases: ["rsi of rsi", "double rsi"],
-    description: "Ships in Indicators\\Examples — referenced via iCustom. Smoothed momentum.",
+    description: "Ships in Indicators\\Examples - referenced via iCustom. Smoothed momentum.",
     applications: ["Momentum filter"],
   },
   {
@@ -740,7 +740,7 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     ],
     subWindow: true,
     aliases: ["smi", "stochastic momentum index"],
-    description: "Ships in Indicators\\Examples — referenced via iCustom. Refined stochastic.",
+    description: "Ships in Indicators\\Examples - referenced via iCustom. Refined stochastic.",
     applications: ["Overbought/oversold", "Reversal"],
   },
   {
@@ -762,7 +762,7 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     ],
     subWindow: false,
     aliases: ["keltner", "keltner channel"],
-    description: "Ships in Indicators\\Examples — referenced via iCustom. ATR-based channel.",
+    description: "Ships in Indicators\\Examples - referenced via iCustom. ATR-based channel.",
     applications: ["Volatility expansion", "Squeeze (with Bollinger)"],
   },
   {
@@ -780,7 +780,7 @@ export const INDICATOR_REGISTRY: BuiltinIndicator[] = [
     ],
     subWindow: false,
     aliases: ["donchian", "donchian channel", "price channel"],
-    description: "Ships in Indicators\\Examples — referenced via iCustom. N-bar high/low channel.",
+    description: "Ships in Indicators\\Examples - referenced via iCustom. N-bar high/low channel.",
     applications: ["Breakout", "Range bounds", "Trailing stop"],
   },
 ];

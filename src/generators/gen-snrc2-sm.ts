@@ -1,7 +1,7 @@
 /**
  * Inline SNRC2 State Machine Generator
  *
- * Support & Resistance Continuation 2 — continuation after Classic SNR break
+ * Support & Resistance Continuation 2 - continuation after Classic SNR break
  * with manipulation pullback across the broken level.
  *
  * Standard API:
@@ -42,7 +42,7 @@ export function genSnrc2SM(
 
   return `
 //+------------------------------------------------------------------+
-//| SNRC2 State Machine — ${tf} (${id})                              |
+//| SNRC2 State Machine - ${tf} (${id})                              |
 //| Classic SNR continuation with HTF engulfing filter              |
 //+------------------------------------------------------------------+
 ${core}

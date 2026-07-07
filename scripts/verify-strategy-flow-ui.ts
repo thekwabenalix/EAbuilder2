@@ -1,5 +1,5 @@
 /**
- * Phase 7 — Strategy Flow Builder UI helper checks.
+ * Phase 7 - Strategy Flow Builder UI helper checks.
  */
 import {
   attachUserFlowToBlueprint,

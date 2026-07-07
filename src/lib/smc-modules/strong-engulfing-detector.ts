@@ -4,10 +4,10 @@
  * Detector-only reference tooling. Strategy Builder uses engulfing / EGSM for
  * EA wiring (includes strong 2-candle engulfings plus EF lifecycle).
  *
- * A STRONG engulfing is a 2-candle engulfing — the decisive case where the
+ * A STRONG engulfing is a 2-candle engulfing - the decisive case where the
  * SECOND candle alone breaks and closes beyond the wick of the FIRST candle.
  * (Contrast with the general engulfing, which may take several candles to close
- *  through the wick — that weaker, multi-candle form is the ENG detector's job.)
+ *  through the wick - that weaker, multi-candle form is the ENG detector's job.)
  *
  * Bullish SEG : C1 bearish, C2 bullish and C2 closes ABOVE C1's high (upper wick)
  * Bearish SEG : C1 bullish, C2 bearish and C2 closes BELOW C1's low  (lower wick)
@@ -22,7 +22,7 @@ export const SEG_DETECTOR_MODULE = "SEG_Detector";
 
 export function generateStrongEngulfingDetector(): string {
   return `//+------------------------------------------------------------------+
-//| SEG_Detector.mq5 — Strong Engulfing (2-candle)                  |
+//| SEG_Detector.mq5 - Strong Engulfing (2-candle)                  |
 //| Strong Engulfing Detector v${SEG_DETECTOR_VERSION}                       |
 //|                                                                  |
 //| A strong engulfing is a 2-candle engulfing: the 2nd candle alone |
@@ -31,7 +31,7 @@ export function generateStrongEngulfingDetector(): string {
 //|   Bearish SEG: C1 bullish, C2 bearish, C2.close < C1.low        |
 //| Zone = C1 full wick range. Bull = blue, Bear = red.             |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — Strong Engulfing"
+#property copyright "EA Builder - Strong Engulfing"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window

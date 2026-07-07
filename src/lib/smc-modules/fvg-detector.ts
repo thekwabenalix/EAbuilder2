@@ -1,5 +1,5 @@
 /**
- * SMC Module Library — Phase 1: Detection + Lifecycle Management
+ * SMC Module Library - Phase 1: Detection + Lifecycle Management
  *
  * FVG (Fair Value Gap) Detector v3
  * ─────────────────────────────────
@@ -55,7 +55,7 @@ export const FVG_DETECTOR_MODULE = "FVG_Detector";
 export function generateFvgDetector(): string {
   return `//+------------------------------------------------------------------+
 //| FVG_Detector.mq5                                                 |
-//| SMC Module Library v${FVG_DETECTOR_VERSION} — Phase 1: Detection + Lifecycle   |
+//| SMC Module Library v${FVG_DETECTOR_VERSION} - Phase 1: Detection + Lifecycle   |
 //|                                                                  |
 //| Detects Fair Value Gaps and manages their full lifecycle.        |
 //|                                                                  |
@@ -82,7 +82,7 @@ export function generateFvgDetector(): string {
 //|                                                                  |
 //| NO trading logic. Detection and visualisation only.             |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SMC Module Library"
+#property copyright "EA Builder - SMC Module Library"
 #property version   "3.00"
 #property strict
 #property indicator_chart_window
@@ -108,26 +108,26 @@ enum ENUM_INVALIDATION_MODE
    INV_WICK_BREAK   = 1, // Any wick beyond zone (aggressive)
 };
 
-//--- Inputs — Detection
+//--- Inputs - Detection
 input ENUM_TIMEFRAMES InpTF       = PERIOD_CURRENT; // Timeframe to scan
 input int             InpLookback = 500;             // Historical bars to scan on load
 
-//--- Inputs — Colour
+//--- Inputs - Colour
 input color InpBullClr = clrDodgerBlue; // Bullish FVG base colour
 input color InpBearClr = clrOrangeRed;  // Bearish FVG base colour
 
-//--- Inputs — Lifecycle
+//--- Inputs - Lifecycle
 input ENUM_MITIGATION_MODE   InpMitigationMode   = MIT_TOUCH_EDGE;    // Mitigation trigger
 input ENUM_INVALIDATION_MODE InpInvalidationMode = INV_CANDLE_CLOSE;  // Invalidation trigger
 input int                    InpExpiryBars        = 50;                // Expire after N bars (0 = off)
 
-//--- Inputs — Visualization
+//--- Inputs - Visualization
 input int  InpActiveOpacity     = 70;   // Active zone opacity 0-100
 input int  InpMitigatedOpacity  = 25;   // Mitigated zone opacity 0-100
 input bool InpShowMitigated     = true; // Show mitigated zones
 input bool InpRemoveInvalidated = true; // Remove invalidated / expired zones
 
-//--- Inputs — Logging
+//--- Inputs - Logging
 input bool InpShowLog = true; // Print lifecycle events to journal
 
 //--- Zone storage

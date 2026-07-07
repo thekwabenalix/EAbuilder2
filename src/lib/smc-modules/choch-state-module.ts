@@ -1,7 +1,7 @@
 // ─── CHoCH State Module ───────────────────────────────────────────────────────
-// Phase 2 Structural Reversal Module — EAbuilder2
+// Phase 2 Structural Reversal Module - EAbuilder2
 //
-// Change of Character — fires when price breaks structure AGAINST the current
+// Change of Character - fires when price breaks structure AGAINST the current
 // trend, signalling a potential reversal.  Structurally mirrors BOS State Module
 // but with an inverted fire condition:
 //
@@ -20,14 +20,14 @@
 // creates a CHoCH and sets gTrend.  This matches Phase 1 CHoCH Detector behavior
 // where BOS events internally update the trend state.
 //
-// Visuals: dashed OBJ_TREND lines (not solid — distinguishes from BOS lines).
+// Visuals: dashed OBJ_TREND lines (not solid - distinguishes from BOS lines).
 // Object prefix: SMCCHOCHS_ (distinct from Phase 1's SMCCHOCH_).
 //
-// Buffer layout (matches BOS State Module pattern — trend module, not zone module):
-//   [0] BullTrendBuf  — 1.0 on every bar while CHoCH-based trend is BULL
-//   [1] BearTrendBuf  — 1.0 on every bar while CHoCH-based trend is BEAR
-//   [2] ChochUpBuf    — 1.0 at the bar where bull CHoCH fired (event)
-//   [3] ChochDnBuf    — 1.0 at the bar where bear CHoCH fired (event)
+// Buffer layout (matches BOS State Module pattern - trend module, not zone module):
+//   [0] BullTrendBuf  - 1.0 on every bar while CHoCH-based trend is BULL
+//   [1] BearTrendBuf  - 1.0 on every bar while CHoCH-based trend is BEAR
+//   [2] ChochUpBuf    - 1.0 at the bar where bull CHoCH fired (event)
+//   [3] ChochDnBuf    - 1.0 at the bar where bear CHoCH fired (event)
 
 export const CHOCH_STATE_MODULE_VERSION = "1.00";
 export const CHOCH_STATE_MODULE = "CHoCH_State_Module";
@@ -36,14 +36,14 @@ export function generateChochStateModule(): string {
   return `
 //+------------------------------------------------------------------+
 //| CHoCH_State_Module.mq5                                           |
-//| Phase 2 Change of Character State Module — EAbuilder2            |
+//| Phase 2 Change of Character State Module - EAbuilder2            |
 //| v${CHOCH_STATE_MODULE_VERSION}                                                       |
 //|                                                                  |
 //| Buffers (read via iCustom()):                                    |
-//|   0 : BullTrendBuf — 1.0 on every bar while trend is BULL       |
-//|   1 : BearTrendBuf — 1.0 on every bar while trend is BEAR       |
-//|   2 : ChochUpBuf   — 1.0 at bar where bull CHoCH fired (event)  |
-//|   3 : ChochDnBuf   — 1.0 at bar where bear CHoCH fired (event)  |
+//|   0 : BullTrendBuf - 1.0 on every bar while trend is BULL       |
+//|   1 : BearTrendBuf - 1.0 on every bar while trend is BEAR       |
+//|   2 : ChochUpBuf   - 1.0 at bar where bull CHoCH fired (event)  |
+//|   3 : ChochDnBuf   - 1.0 at bar where bear CHoCH fired (event)  |
 //|                                                                  |
 //| Fires ONLY on counter-trend breaks (reversal signal).            |
 //| For with-trend breaks (continuation), use BOS_State_Module.      |
@@ -182,7 +182,7 @@ void TryAddSwing(int sh)
    if(pivot + InpSwingLeft >= totalBars) return;
 
    datetime pivotT = Tm(pivot);
-   // Dedup: skip consumed swings — their slot can be recycled
+   // Dedup: skip consumed swings - their slot can be recycled
    for(int k = 0; k < swingCount; k++)
      {
       if(swingList[k].consumed) continue;
@@ -257,7 +257,7 @@ void CheckCHoCH(int sh)
          // CHoCH if trend was BEAR or UNKNOWN; plain BOS if trend already BULL.
          if(gTrend != TREND_BULL)
            {
-            // Allocate slot — recycle oldest drawn slot when pool full
+            // Allocate slot - recycle oldest drawn slot when pool full
             int cIdx = chochCount < MAX_CHOCHS ? chochCount++ : -1;
             if(cIdx < 0)
               {
@@ -330,7 +330,7 @@ void StampTrendBuf(int sh)
 
 // ─── InvalidateCHoCHs ─────────────────────────────────────────────
 // Called every bar. When price closes back through a CHoCH level the
-// line has been "traded through" — remove it from the chart.
+// line has been "traded through" - remove it from the chart.
 //   Bull CHoCH (broke above swing high): invalid when close < swingLevel
 //   Bear CHoCH (broke below swing low) : invalid when close > swingLevel
 void InvalidateCHoCHs(int sh)
@@ -359,7 +359,7 @@ void DrawOne(int idx)
   {
    if(idx < 0 || idx >= chochCount) return;
    if(chochList[idx].drawn    == 1) return;
-   if(chochList[idx].invalid  == 1) return; // already traded through — do not draw
+   if(chochList[idx].invalid  == 1) return; // already traded through - do not draw
 
    bool   isBull = (chochList[idx].dir == DIR_HIGH);
    if( isBull && !InpShowBull) return;
@@ -422,7 +422,7 @@ void DrawAll()
    int drawn = 0;
    for(int i = chochCount - 1; i >= 0 && drawn < InpMaxLines; i--)
      {
-      if(chochList[i].invalid == 1) continue; // skip invalidated — don't waste a slot
+      if(chochList[i].invalid == 1) continue; // skip invalidated - don't waste a slot
       DrawOne(i);
       drawn++;
      }

@@ -138,7 +138,7 @@ function downloadMql5(filename: string, content: string) {
 
 type ModuleStatus = "ready" | "pending" | "planned" | "builtin";
 
-/** How this file is meant to be used — not the same as Strategy Builder brain slots. */
+/** How this file is meant to be used - not the same as Strategy Builder brain slots. */
 type ModuleCatalogKind = "standalone_indicator" | "state_module" | "full_ea" | "brain_composable";
 
 interface ModuleEntry {
@@ -180,7 +180,7 @@ const TRADING_MODULES: ModuleCategory[] = [
     description:
       "Institutional price-action concepts: FVGs, Order Blocks, Breaker Blocks, " +
       "Liquidity Sweeps, BOS/CHoCH, and more. Phase 1 = detection and visualisation " +
-      "only — no execution logic.",
+      "only - no execution logic.",
     modules: [
       {
         id: "fvg",
@@ -237,13 +237,13 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "OB_Detector.mq5",
         name: "Order Block Detector",
         description:
-          "Detects Order Block zones — the last opposing candle before a strong " +
+          "Detects Order Block zones - the last opposing candle before a strong " +
           "ATR-filtered displacement move. Full ACTIVE → MITIGATED → INVALIDATED / " +
           "EXPIRED lifecycle.",
         rules: [
           "Bullish OB: last BEARISH candle before a bullish displacement",
           "Bearish OB: last BULLISH candle before a bearish displacement",
-          "Displacement: candle body ≥ InpDispMult × ATR(InpAtrPeriod) (default 1.5 × ATR14)",
+          "Displacement: candle body ≥ InpDispMult �- ATR(InpAtrPeriod) (default 1.5 �- ATR14)",
           "Mitigation: barLow ≤ OB high (bull) or barHigh ≥ OB low (bear)",
           "Invalidation: close < OB low (bull) or close > OB high (bear)",
         ],
@@ -262,7 +262,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "BB_Detector.mq5",
         name: "Breaker Block Detector",
         description:
-          "Detects Breaker Blocks — Order Blocks that failed and flipped polarity. " +
+          "Detects Breaker Blocks - Order Blocks that failed and flipped polarity. " +
           "When price closes through an OB zone, it is recycled as a Breaker of the " +
           "opposite direction with its own lifecycle.",
         rules: [
@@ -287,7 +287,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "LiqSweep_Detector.mq5",
         name: "Liquidity Sweep Detector",
         description:
-          "Detects liquidity sweeps — candles whose wick pierces a confirmed swing " +
+          "Detects liquidity sweeps - candles whose wick pierces a confirmed swing " +
           "high/low and then close back inside. Sweeps move through " +
           "PENDING → CONFIRMED / EXPIRED with a configurable confirmation window.",
         rules: [
@@ -318,7 +318,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Swing High: high > N left bars AND M right bars (InpSwingLeft / InpSwingRight)",
           "Swing Low:  low  < N left bars AND M right bars",
           "A swing at shift s is confirmed when M right-side bars have closed",
-          "Dedup by time — same candle cannot produce duplicate swing records",
+          "Dedup by time - same candle cannot produce duplicate swing records",
         ],
         output: [
           "▼ OBJ_ARROW (code 234, width 1) at each swing high price",
@@ -343,9 +343,9 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Each swing can only generate one BOS (consumed flag prevents duplicates)",
           "BOS REMOVED when close goes back through the level (self-cleaning)",
           "Pivot filter: InpPivotLen=5 bars each side (reduces minor pivot noise)",
-          "Distance filter: InpMinSwingPts — new swing must differ by N points from previous (0=off)",
-          "ATR filter: InpUseAtrFilt=true → use InpAtrMult × ATR instead of fixed points",
-          "Max lines: InpMaxBosLines=20 — oldest active BOS removed when limit exceeded",
+          "Distance filter: InpMinSwingPts - new swing must differ by N points from previous (0=off)",
+          "ATR filter: InpUseAtrFilt=true → use InpAtrMult �- ATR instead of fixed points",
+          "Max lines: InpMaxBosLines=20 - oldest active BOS removed when limit exceeded",
         ],
         output: [
           "STYLE_SOLID horizontal line from swing candle → break bar",
@@ -362,9 +362,9 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "CHoCH_Detector.mq5",
         name: "CHoCH Detector",
         description:
-          "Change of Character — price closes beyond a previous swing AGAINST the " +
+          "Change of Character - price closes beyond a previous swing AGAINST the " +
           "current trend, signalling a potential reversal. Shares the same trend " +
-          "state machine as BOS Detector — run both for the complete structure picture.",
+          "state machine as BOS Detector - run both for the complete structure picture.",
         rules: [
           "Trend state: 0 = unknown, 1 = bullish, −1 = bearish",
           "Bullish CHoCH: close > last swing high  AND trend == −1 (was bearish)",
@@ -386,7 +386,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "MB_Detector.mq5",
         name: "Mitigation Block",
         description:
-          "Detects Mitigation Blocks — price returns to a previously broken swing " +
+          "Detects Mitigation Blocks - price returns to a previously broken swing " +
           "high or low to mitigate unfilled orders before continuing in the original " +
           "direction. Tracks the mitigation target and confirmation.",
         rules: [
@@ -405,14 +405,14 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "Liquidity_Buildup.mq5",
         name: "Liquidity Buildup (OB + BB + FVG)",
         description:
-          "Combined liquidity detector — runs Order Block, Breaker Block, and FVG detectors " +
+          "Combined liquidity detector - runs Order Block, Breaker Block, and FVG detectors " +
           "in a single unified level pool. Each zone is drawn as a filled rectangle; the " +
           "closest wick that approaches the zone edge without entering is marked with a " +
           "horizontal line showing exactly where stops are accumulating.",
         rules: [
-          "OB: last opposing candle before a displacement move — solid rectangle",
-          "BB: OB that is closed through (polarity flip) — dashed rectangle",
-          "FVG: 3-candle gap (C1 high < C3 low or C1 low > C3 high) — dotted rectangle",
+          "OB: last opposing candle before a displacement move - solid rectangle",
+          "BB: OB that is closed through (polarity flip) - dashed rectangle",
+          "FVG: 3-candle gap (C1 high < C3 low or C1 low > C3 high) - dotted rectangle",
           "Liquidity line: flat horizontal line from zone origin to the closest-wick bar",
           "Zone consumed (rect + line deleted) when price closes through the body edge",
           "Toggle InpEnableOB / InpEnableBB / InpEnableFVG to enable each detector",
@@ -432,16 +432,16 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "FVG_Liquidity_Detector.mq5",
         name: "FVG Liquidity Detector",
         description:
-          "Liquidity build-up around a Fair Value Gap — one or more candles come " +
+          "Liquidity build-up around a Fair Value Gap - one or more candles come " +
           "close to an FVG but fail to enter it. The resting stops that accumulate " +
           "turn the gap into a higher-probability reaction level. The closest-approach " +
           "candle is labeled 'FLq'; entering the gap kills the level.",
         rules: [
-          "FVG: 3-candle gap — Bullish C1.high<C3.low (near edge=C3.low), Bearish C1.low>C3.high (near edge=C3.high)",
-          "Proximity auto-scales: InpNearATR × ATR(14), or fixed InpNearPoints override",
+          "FVG: 3-candle gap - Bullish C1.high<C3.low (near edge=C3.low), Bearish C1.low>C3.high (near edge=C3.high)",
+          "Proximity auto-scales: InpNearATR �- ATR(14), or fixed InpNearPoints override",
           "Liquidity = wick within proximity of the gap edge WITHOUT entering the gap",
           "Touch (wick low<=gap top for bull / high>=gap bottom for bear) kills the level",
-          "Closest approach wins — label moves to a nearer candle if one appears",
+          "Closest approach wins - label moves to a nearer candle if one appears",
           "Levels expire after InpExpiryBars bars (0 = never)",
         ],
         output: [
@@ -455,7 +455,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         catalogKind: "standalone_indicator",
         supersededBy: {
           name: "Liquidity Buildup + ZLSM",
-          hint: "Use Liquidity_Buildup.mq5 or the zone_liq brain module — unified OB+BB+FVG pool",
+          hint: "Use Liquidity_Buildup.mq5 or the zone_liq brain module - unified OB+BB+FVG pool",
         },
       },
       {
@@ -463,16 +463,16 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "OB_Liquidity_Detector.mq5",
         name: "OB Liquidity Detector",
         description:
-          "Liquidity build-up around an Order Block — candles approach the OB but " +
+          "Liquidity build-up around an Order Block - candles approach the OB but " +
           "fail to touch its BODY. The accumulated liquidity makes the OB a stronger " +
           "reaction level. The closest-approach candle is labeled 'OLq'; touching the " +
           "OB body kills the level.",
         rules: [
-          "OB: displacement-based (body>=InpDispMult×ATR); Bull OB=last bearish candle, Bear OB=last bullish candle",
+          "OB: displacement-based (body>=InpDispMult�-ATR); Bull OB=last bearish candle, Bear OB=last bullish candle",
           "Body near-edge = the OB candle's OPEN (body top for bull OB, body bottom for bear OB)",
           "Liquidity = wick within proximity of the body edge WITHOUT touching the body",
           "Touch (wick low<=obOpen for bull / high>=obOpen for bear) kills the level",
-          "Proximity = InpNearATR × ATR(14), or fixed InpNearPoints override",
+          "Proximity = InpNearATR �- ATR(14), or fixed InpNearPoints override",
           "Levels expire after InpExpiryBars bars (0 = never)",
         ],
         output: [
@@ -486,7 +486,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         catalogKind: "standalone_indicator",
         supersededBy: {
           name: "Liquidity Buildup + ZLSM",
-          hint: "Use Liquidity_Buildup.mq5 or the zone_liq brain module — unified OB+BB+FVG pool",
+          hint: "Use Liquidity_Buildup.mq5 or the zone_liq brain module - unified OB+BB+FVG pool",
         },
       },
       {
@@ -494,7 +494,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "BB_Liquidity_Detector.mq5",
         name: "BB Liquidity Detector",
         description:
-          "Liquidity build-up around a Breaker Block — price does not touch the " +
+          "Liquidity build-up around a Breaker Block - price does not touch the " +
           "breaker's BODY but accumulates around it. An OB that gets closed through " +
           "flips polarity into a breaker; liquidity then builds on its flipped body. " +
           "The closest-approach candle is labeled 'BLq'; touching the body kills it.",
@@ -517,7 +517,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         catalogKind: "standalone_indicator",
         supersededBy: {
           name: "Liquidity Buildup + ZLSM",
-          hint: "Use Liquidity_Buildup.mq5 or the zone_liq brain module — unified OB+BB+FVG pool",
+          hint: "Use Liquidity_Buildup.mq5 or the zone_liq brain module - unified OB+BB+FVG pool",
         },
       },
       {
@@ -525,7 +525,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "OB_FVG_Detector.mq5",
         name: "OB + FVG",
         description:
-          "Combination setup — a Fair Value Gap whose FIRST candle is the opposite " +
+          "Combination setup - a Fair Value Gap whose FIRST candle is the opposite " +
           "colour to the gap. That first candle IS the order block. A bullish OB+FVG " +
           "is a bullish FVG with a bearish first candle; a bearish OB+FVG is a bearish " +
           "FVG with a bullish first candle. Entry at the OB (first candle) body.",
@@ -534,7 +534,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Bullish OB+FVG: high(C1) < low(C3) (bullish gap) AND C1 is bearish",
           "Bearish OB+FVG: low(C1) > high(C3) (bearish gap) AND C1 is bullish",
           "The OB = C1's body; entry zone = OB body",
-          "FRESH zones only — the setup is removed the instant price tests the OB body (wick into it) or trades through",
+          "FRESH zones only - the setup is removed the instant price tests the OB body (wick into it) or trades through",
         ],
         output: [
           "Solid filled box on the OB (C1) body + dotted box on the FVG (extend to live bar)",
@@ -550,7 +550,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "Unicorn_Detector.mq5",
         name: "Unicorn (BB + FVG)",
         description:
-          "The ICT Unicorn — a Breaker Block whose zone overlaps a Fair Value Gap of " +
+          "The ICT Unicorn - a Breaker Block whose zone overlaps a Fair Value Gap of " +
           "the same (flipped) direction. The breaker∩FVG overlap is a high-probability " +
           "entry pocket. Combines Order Block → Breaker tracking with FVG detection.",
         rules: [
@@ -582,7 +582,7 @@ const TRADING_MODULES: ModuleCategory[] = [
     phaseActive: true,
     description:
       "Classic and advanced support/resistance concepts. Each module detects, " +
-      "visualises, and tracks the lifecycle of a specific S/R behaviour — " +
+      "visualises, and tracks the lifecycle of a specific S/R behaviour - " +
       "from raw horizontal levels to complex polarity-flip and rejection patterns.",
     modules: [
       {
@@ -599,8 +599,8 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Doji filter: InpIgnoreDoji=true skips neutral candles (exact or body threshold)",
           "Touched: wick reaches level (low ≤ level for support / high ≥ level for resistance)",
           "Broken:  close through level (close < level for support / close > level for resistance)",
-          "Expiry: InpExpiryBars=100 bars — ageCounter increments each bar after confirmation",
-          "Max visible: InpMaxLevels=100 — oldest active level pruned when exceeded",
+          "Expiry: InpExpiryBars=100 bars - ageCounter increments each bar after confirmation",
+          "Max visible: InpMaxLevels=100 - oldest active level pruned when exceeded",
         ],
         output: [
           "ACTIVE / TOUCHED: solid OBJ_TREND line + 'C-Sup' / 'C-Res' label, RAY_RIGHT=true",
@@ -626,8 +626,8 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Doji filter: InpIgnoreDoji=true skips neutral candles (exact or body threshold)",
           "Touched: wick reaches level (low ≤ level for support / high ≥ level for resistance)",
           "Broken:  close through level (close < level for support / close > level for resistance)",
-          "Expiry: InpExpiryBars=100 bars — ageCounter increments each bar after confirmation",
-          "Max visible: InpMaxLevels=100 — oldest active level pruned when exceeded",
+          "Expiry: InpExpiryBars=100 bars - ageCounter increments each bar after confirmation",
+          "Max visible: InpMaxLevels=100 - oldest active level pruned when exceeded",
         ],
         output: [
           "ACTIVE / TOUCHED: solid OBJ_TREND line + 'G-Sup' / 'G-Res' label, RAY_RIGHT=true",
@@ -646,19 +646,19 @@ const TRADING_MODULES: ModuleCategory[] = [
         description:
           "Detects Classic S/R levels that are followed by a strong displacement move. " +
           "Same candle-pair logic as Classic SNR (direction reversal), but Candle B " +
-          "must deliver a displacement of at least InpDispMult × ATR to qualify. " +
+          "must deliver a displacement of at least InpDispMult �- ATR to qualify. " +
           "On a line chart: bullish = sharp V-shape, bearish = sharp A-shape. " +
           "Full ACTIVE → TOUCHED → BROKEN / EXPIRED lifecycle.",
         rules: [
           "STRONG RESISTANCE: Bullish Candle A → Bearish Candle B  (A close = resistance)",
           "STRONG SUPPORT:    Bearish Candle A → Bullish Candle B  (A close = support)",
-          "Displacement qualifier: sum of on-direction bodies across InpDispBars bars (starting at B) ≥ InpDispMult × ATR",
+          "Displacement qualifier: sum of on-direction bodies across InpDispBars bars (starting at B) ≥ InpDispMult �- ATR",
           "Live detection uses Candle B only (InpDispBars ≥ 1); history scan uses the full window",
           "Doji filter: InpIgnoreDoji=true skips neutral candles (exact or body threshold)",
           "Touched: wick reaches level (low ≤ level for support / high ≥ level for resistance)",
           "Broken:  close through level (close < level for support / close > level for resistance)",
-          "Expiry: InpExpiryBars=100 bars — ageCounter increments each bar after confirmation",
-          "Max visible: InpMaxLevels=100 — oldest active level pruned when exceeded",
+          "Expiry: InpExpiryBars=100 bars - ageCounter increments each bar after confirmation",
+          "Max visible: InpMaxLevels=100 - oldest active level pruned when exceeded",
         ],
         output: [
           "ACTIVE / TOUCHED: solid OBJ_TREND line (width 2) + 'S-Sup' / 'S-Res' label, RAY_RIGHT=true",
@@ -675,7 +675,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "SNRC1_Detector.mq5",
         name: "SNRC1 Detector",
         description:
-          "Strong SNR Continuation 1 — a trend-continuation setup. " +
+          "Strong SNR Continuation 1 - a trend-continuation setup. " +
           "A Strong SNR (displaced reversal pair with ATR-filtered momentum candle) " +
           "gets broken by price, while on the pre-breakout side there is an RBR " +
           "(bullish) / DBD (bearish) demand/supply base OR a Gap SNR level within " +
@@ -683,9 +683,9 @@ const TRADING_MODULES: ModuleCategory[] = [
           "after the breakout. On a line chart: the breakout shows as a clean push " +
           "through the A/V-shaped strong SNR, then a pullback to the base for re-entry.",
         rules: [
-          "BULLISH SNRC1: Strong Resistance broken UP (close > level) + RBR demand base OR Bullish Gap SNR within InpProxATR × ATR",
-          "BEARISH SNRC1: Strong Support broken DOWN (close < level) + DBD supply base OR Bearish Gap SNR within InpProxATR × ATR",
-          "Strong SNR qualifier: Classic pair (A→B opposite dir) + displacement body sum ≥ InpDispMult × ATR",
+          "BULLISH SNRC1: Strong Resistance broken UP (close > level) + RBR demand base OR Bullish Gap SNR within InpProxATR �- ATR",
+          "BEARISH SNRC1: Strong Support broken DOWN (close < level) + DBD supply base OR Bearish Gap SNR within InpProxATR �- ATR",
+          "Strong SNR qualifier: Classic pair (A→B opposite dir) + displacement body sum ≥ InpDispMult �- ATR",
           "RBR/DBD qualifier: leg-in (impulse) → 1-6 small base candles → leg-out (impulse same dir, breaks base)",
           "Gap SNR qualifier: same-direction candle pair (Bull A → Bull B = Support, Bear A → Bear B = Resistance)",
           "ACTIVE → waiting for pullback to entry zone",
@@ -696,7 +696,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         output: [
           "Dashed gray reference line at the broken Strong SNR level",
-          "Filled rectangle (RBR/DBD base) or solid horizontal line (Gap SNR) — the entry zone",
+          "Filled rectangle (RBR/DBD base) or solid horizontal line (Gap SNR) - the entry zone",
           "ACTIVE: green/crimson zone  |  TOUCHED: gold  |  CONFIRMED: blue  |  BROKEN/EXPIRED: removed",
           "Label: 'SNRC1↑ RBR' / 'SNRC1↓ DBD' / 'SNRC1↑ G-Sup' / 'SNRC1↓ G-Res' (+ '✓' on confirm)",
           "Journal: SNRC1_FORMED | SNRC1_TOUCHED | SNRC1_CONFIRMED | SNRC1_BROKEN | SNRC1_EXPIRED",
@@ -712,19 +712,19 @@ const TRADING_MODULES: ModuleCategory[] = [
         description:
           "Detects candle-close breakouts of Classic SNR levels. On confirmation, the " +
           "broken level automatically flips to RBS (Resistance Becomes Support) or SBR " +
-          "(Support Becomes Resistance). Embeds Classic SNR detection internally — " +
+          "(Support Becomes Resistance). Embeds Classic SNR detection internally - " +
           "Gap SNR is ignored. Lifecycle: Classic SNR → Broken → RBS/SBR Active → Retested → Invalidated/Expired.",
         rules: [
           "Bullish BO: candle CLOSE > Classic Resistance level (wick break does NOT count)",
           "Bearish BO: candle CLOSE < Classic Support level   (wick break does NOT count)",
           "Classic SNR embedded: Bull→Bear pair = Resistance; Bear→Bull pair = Support (A close = level)",
-          "CONFIRMED → RBS/SBR: first bar after breakout without closing back through — zone flips",
+          "CONFIRMED → RBS/SBR: first bar after breakout without closing back through - zone flips",
           "RBS (Resistance Becomes Support): Bullish BO confirmed → Buy Zone (green, width 2)",
           "SBR (Support Becomes Resistance): Bearish BO confirmed → Sell Zone (orange-red, width 2)",
           "RETESTED: wick returns to level from correct side without closing through",
           "INVALIDATED: close back through the broken level (failed flip zone)",
           "EXPIRED: InpExpiryBars (default 100) bars elapsed without invalidation",
-          "Filters: InpMinBodyPts (body size) · InpMinBreakDist (points) · InpUseAtrFilt (ATR × mult)",
+          "Filters: InpMinBodyPts (body size) · InpMinBreakDist (points) · InpUseAtrFilt (ATR �- mult)",
         ],
         output: [
           "ACTIVE: OBJ_TREND line + 'Bull BO'/'Bear BO' label + ▲/▼ arrow, width 1",
@@ -741,7 +741,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "Rejection_Detector.mq5",
         name: "Rejection",
         description:
-          "Reactive SNR Rule 2 — a candle whose wick pierces an S/R level but " +
+          "Reactive SNR Rule 2 - a candle whose wick pierces an S/R level but " +
           "closes back on the origin side, confirming the level held. Embeds both " +
           "Classic (reversal-pair) and Gap (continuation-pair) level detection.",
         rules: [
@@ -765,7 +765,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "Miss_Detector.mq5",
         name: "Miss",
         description:
-          "Reactive SNR (Slide 27) — a swing turning point lands NEAR an S/R " +
+          "Reactive SNR (Slide 27) - a swing turning point lands NEAR an S/R " +
           "level without touching it. Price respected the level (it serves as " +
           "liquidity). Embeds Classic + Gap level detection, with the two-candle " +
           "SNR guard so the formation itself is never counted as a miss.",
@@ -797,16 +797,16 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Each R/S owns its sweep counter and fires exactly once. " +
           "The driving level line is drawn as the entry reference.",
         rules: [
-          "Classic SNR only — Bull→Bear pair = Resistance, Bear→Bull pair = Support (A close = level)",
+          "Classic SNR only - Bull→Bear pair = Resistance, Bear→Bull pair = Support (A close = level)",
           "A level is BROKEN when a candle CLOSES through it (wick break does NOT count)",
-          "Each resistance R owns a sweep counter — increments each time a support below R is close-broken",
+          "Each resistance R owns a sweep counter - increments each time a support below R is close-broken",
           "RSS fires for R when R's sweep counter reaches InpMinBreaks (default 2)",
           "Mirror: each support S fires SRR when InpMinBreaks resistances above S are broken",
-          "R/S fires exactly once (swept flag set) — no duplicate signals for the same level",
+          "R/S fires exactly once (swept flag set) - no duplicate signals for the same level",
           "Two-candle SNR guard: level not valid until after Candle B closes",
         ],
         output: [
-          "Solid horizontal line at the driving R (RSS) or S (SRR) — this is the entry reference",
+          "Solid horizontal line at the driving R (RSS) or S (SRR) - this is the entry reference",
           "Dotted dashes at each swept support/resistance price at the signal bar",
           "'RSS' label below the signal bar | 'SRR' label above",
           "Journal: RSS/SRR | R or S level | swept count | time",
@@ -829,7 +829,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "SNR_Equilibrium_Detector.mq5",
         name: "Equilibrium",
         description:
-          "Marks the 50% midpoint (equilibrium) of a swing range — the key " +
+          "Marks the 50% midpoint (equilibrium) of a swing range - the key " +
           "boundary between premium and discount zones.",
         status: "planned",
       },
@@ -860,21 +860,21 @@ const TRADING_MODULES: ModuleCategory[] = [
         rules: [
           "Bullish FVG: C3.Low > C1.High → UL = C3.Low, LL = C1.High",
           "Bearish FVG: C3.High < C1.Low → UL = C1.Low, LL = C3.High",
-          "RETESTED: wick enters zone — Bull: Low ≤ UL  |  Bear: High ≥ LL",
-          "CONFIRMED: from RETESTED, close back outside — Bull: Close > UL  |  Bear: Close < LL",
+          "RETESTED: wick enters zone - Bull: Low ≤ UL  |  Bear: High ≥ LL",
+          "CONFIRMED: from RETESTED, close back outside - Bull: Close > UL  |  Bear: Close < LL",
           "MITIGATED: close trades inside zone  LL ≤ Close ≤ UL  [terminal]",
-          "INVALIDATED: close beyond far edge — Bull: Close < LL  |  Bear: Close > UL  [terminal]",
+          "INVALIDATED: close beyond far edge - Bull: Close < LL  |  Bear: Close > UL  [terminal]",
           "EXPIRED: barsAlive ≥ InpExpiryBars (default 100)  [terminal]",
           "State cycle: ACTIVE → RETESTED → CONFIRMED → re-RETESTED → … until terminal",
         ],
         output: [
-          "OBJ_RECTANGLE per zone — left=C1 time, right=FAR_FUTURE (live) or endTime (terminal)",
+          "OBJ_RECTANGLE per zone - left=C1 time, right=FAR_FUTURE (live) or endTime (terminal)",
           "ACTIVE: solid width 1  |  CONFIRMED: solid width 2  |  RETESTED: gold  |  Terminal: dashed/faded",
           "Labels: FVG↑/↓ (ACTIVE) · FVG-T (RETESTED) · FVG-C (CONFIRMED) · FVG-M / FVG-X / FVG-E",
           "Buffer 0: BullConfirmBuf[sh]=1.0 at bar where bull FVG confirmed (Phase 3 readable via iCustom)",
           "Buffer 1: BearConfirmBuf[sh]=1.0 at bar where bear FVG confirmed",
-          "Buffer 2: BullSLBuf[sh]=retestLow at confirmation bar — SL for Phase 3 bull entries",
-          "Buffer 3: BearSLBuf[sh]=retestHigh at confirmation bar — SL for Phase 3 bear entries",
+          "Buffer 2: BullSLBuf[sh]=retestLow at confirmation bar - SL for Phase 3 bull entries",
+          "Buffer 3: BearSLBuf[sh]=retestHigh at confirmation bar - SL for Phase 3 bear entries",
           "Journal: FVG_ACTIVE | FVG_RETESTED | FVG_CONFIRMED | FVG_MITIGATED | FVG_INVALIDATED | FVG_EXPIRED",
         ],
         status: "ready",
@@ -886,26 +886,26 @@ const TRADING_MODULES: ModuleCategory[] = [
         name: "Order Block State Module",
         description:
           "Embeds OB detection (ATR-displacement) and manages full zone lifecycle. " +
-          "Same 4-buffer contract as FVG State Module — drop-in for any Phase 3 " +
+          "Same 4-buffer contract as FVG State Module - drop-in for any Phase 3 " +
           "execution module or MTF orchestrator step.",
         rules: [
-          "Bullish OB: last BEARISH candle before a bullish displacement (body ≥ InpDispMult × ATR)",
+          "Bullish OB: last BEARISH candle before a bullish displacement (body ≥ InpDispMult �- ATR)",
           "Bearish OB: last BULLISH candle before a bearish displacement",
-          "RETESTED: wick enters zone — Bull: Low ≤ OB high  |  Bear: High ≥ OB low",
-          "CONFIRMED: from RETESTED, close exits near edge — Bull: Close > OB high  |  Bear: Close < OB low",
+          "RETESTED: wick enters zone - Bull: Low ≤ OB high  |  Bear: High ≥ OB low",
+          "CONFIRMED: from RETESTED, close exits near edge - Bull: Close > OB high  |  Bear: Close < OB low",
           "MITIGATED: close inside zone  OB low ≤ Close ≤ OB high  [terminal]",
-          "INVALIDATED: close beyond far edge — Bull: Close < OB low  |  Bear: Close > OB high  [terminal]",
+          "INVALIDATED: close beyond far edge - Bull: Close < OB low  |  Bear: Close > OB high  [terminal]",
           "EXPIRED: barsAlive ≥ InpExpiryBars (default 100)  [terminal]",
           "State cycle: ACTIVE → RETESTED → CONFIRMED → re-RETESTED → … until terminal",
         ],
         output: [
-          "OBJ_RECTANGLE per zone — left=OB candle time, right=FAR_FUTURE (live) or endTime (terminal)",
+          "OBJ_RECTANGLE per zone - left=OB candle time, right=FAR_FUTURE (live) or endTime (terminal)",
           "ACTIVE: solid width 1  |  CONFIRMED: solid width 2  |  RETESTED: gold  |  Terminal: dashed/faded",
           "Labels: OB↑/↓ (ACTIVE) · OB-T (RETESTED) · OB-C (CONFIRMED) · OB-M / OB-X / OB-E",
           "Buffer 0: BullConfirmBuf[sh]=1.0 at bar where bull OB confirmed",
           "Buffer 1: BearConfirmBuf[sh]=1.0 at bar where bear OB confirmed",
-          "Buffer 2: BullSLBuf[sh]=retestLow at confirmation bar — SL for bull entries",
-          "Buffer 3: BearSLBuf[sh]=retestHigh at confirmation bar — SL for bear entries",
+          "Buffer 2: BullSLBuf[sh]=retestLow at confirmation bar - SL for bull entries",
+          "Buffer 3: BearSLBuf[sh]=retestHigh at confirmation bar - SL for bear entries",
           "Journal: OB_ACTIVE | OB_RETESTED | OB_CONFIRMED | OB_MITIGATED | OB_INVALIDATED | OB_EXPIRED",
         ],
         status: "ready",
@@ -919,11 +919,11 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Embeds Classic SNR detection + breakout logic and manages the full RBS/SBR " +
           "lifecycle. A broken SNR level flips to FLIP state (first bar holds), then " +
           "tracks RETESTED → CONFIRMED when a wick returns and close holds. Same 4-buffer " +
-          "contract as all Phase 2 modules — drop-in for MTF orchestrator steps.",
+          "contract as all Phase 2 modules - drop-in for MTF orchestrator steps.",
         rules: [
           "Embeds Classic SNR: Bull→Bear pair = Resistance, Bear→Bull pair = Support (A close = level)",
-          "ACTIVE: close breaks through SNR level — confirmed breakout bar",
-          "FLIP: first bar after breakout where price does NOT close back through — RBS/SBR live",
+          "ACTIVE: close breaks through SNR level - confirmed breakout bar",
+          "FLIP: first bar after breakout where price does NOT close back through - RBS/SBR live",
           "RETESTED: from FLIP, wick returns to level without closing through",
           "CONFIRMED: from RETESTED, close holds on correct side → Phase 3 signal fired",
           "INVALIDATED: close back through the level at any FLIP/RETESTED/CONFIRMED stage [terminal]",
@@ -931,14 +931,14 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Filters: body size, break-distance, optional ATR multiplier",
         ],
         output: [
-          "OBJ_TREND line per zone — from breakoutTime, RAY_RIGHT while live",
+          "OBJ_TREND line per zone - from breakoutTime, RAY_RIGHT while live",
           "ACTIVE: width 1 (bull/bear color)  |  FLIP: width 2 (RBS green / SBR orange-red)",
           "RETESTED: clrGold  |  CONFIRMED: width 2 confirm color  |  Terminal: dashed/faded",
           "Labels: BO↑/↓ (ACTIVE) · RBS/SBR (FLIP) · RBS-T/SBR-T (RETESTED) · RBS-C/SBR-C · RBS-X/SBR-X",
           "Buffer 0: BullConfirmBuf[sh]=1.0 at bar where RBS confirmed (Phase 3 readable via iCustom)",
           "Buffer 1: BearConfirmBuf[sh]=1.0 at bar where SBR confirmed",
-          "Buffer 2: BullSLBuf[sh]=retestLow at RBS confirmation bar — SL for bull entries",
-          "Buffer 3: BearSLBuf[sh]=retestHigh at SBR confirmation bar — SL for bear entries",
+          "Buffer 2: BullSLBuf[sh]=retestLow at RBS confirmation bar - SL for bull entries",
+          "Buffer 3: BearSLBuf[sh]=retestHigh at SBR confirmation bar - SL for bear entries",
           "Journal: RBS_ACTIVE | SBR_ACTIVE | RBS_RETESTED | SBR_RETESTED | RBS_CONFIRMED | SBR_CONFIRMED | RBS_INVALIDATED | SBR_INVALIDATED | BREAKOUT_ACTIVE | BREAKOUT_EXPIRED",
         ],
         status: "ready",
@@ -963,8 +963,8 @@ const TRADING_MODULES: ModuleCategory[] = [
         output: [
           "Buffer 0: BullConfirmBuf[sh]=1.0 at a bullish rejection bar (wick through support, close holds)",
           "Buffer 1: BearConfirmBuf[sh]=1.0 at a bearish rejection bar (wick through resistance, close holds)",
-          "Buffer 2: BullSLBuf[sh]=rejection wick low — SL for bull entries",
-          "Buffer 3: BearSLBuf[sh]=rejection wick high — SL for bear entries",
+          "Buffer 2: BullSLBuf[sh]=rejection wick low - SL for bull entries",
+          "Buffer 3: BearSLBuf[sh]=rejection wick high - SL for bear entries",
           "OBJ_TREND solid level line from SNR origin to rejection candle + TF label (DRD/WRW/4R4/1R1/MRM/Rej)",
           "Journal: REJECTION_BULL | REJECTION_BEAR | label | level | sl | time",
           "Inputs: min_wick_ratio · use_classic · use_gap · expiry_bars · draw · line_bars · colors",
@@ -979,23 +979,23 @@ const TRADING_MODULES: ModuleCategory[] = [
         description:
           "Embeds Classic + Gap S/R level detection and fires a signal when any candle " +
           "comes within proximity of a level without its wick touching it. The candle with " +
-          "the MINIMUM wick distance to the level gets the signal — buffers update in-place " +
+          "the MINIMUM wick distance to the level gets the signal - buffers update in-place " +
           "if a closer candle appears. Any wick touch retires the level and clears buffers. " +
           "Proximity threshold auto-scales to any instrument via ATR fraction.",
         rules: [
           "Levels: Classic (Bull→Bear = Res, Bear→Bull = Sup) + Gap (same-dir pair); valid only AFTER Candle B",
-          "Every closed candle is evaluated — no swing-pivot requirement",
-          "Bullish miss: wick Low above support AND (Low - level) <= InpNearATR × ATR(14)",
-          "Bearish miss: wick High below resistance AND (level - High) <= InpNearATR × ATR(14)",
-          "Any wick TOUCH (Low <= support OR High >= resistance) kills the level — no miss possible",
+          "Every closed candle is evaluated - no swing-pivot requirement",
+          "Bullish miss: wick Low above support AND (Low - level) <= InpNearATR �- ATR(14)",
+          "Bearish miss: wick High below resistance AND (level - High) <= InpNearATR �- ATR(14)",
+          "Any wick TOUCH (Low <= support OR High >= resistance) kills the level - no miss possible",
           "When a closer approach is found, old buffer entries are cleared and new ones written",
           "Levels expire after InpExpiryBars bars (0 = never)",
         ],
         output: [
           "Buffer 0: BullConfirmBuf[sh]=1.0 at the closest bullish miss bar (wick stops above support)",
           "Buffer 1: BearConfirmBuf[sh]=1.0 at the closest bearish miss bar (wick stops below resistance)",
-          "Buffer 2: BullSLBuf[sh]=wick Low of closest miss — SL for bull entries",
-          "Buffer 3: BearSLBuf[sh]=wick High of closest miss — SL for bear entries",
+          "Buffer 2: BullSLBuf[sh]=wick Low of closest miss - SL for bull entries",
+          "Buffer 3: BearSLBuf[sh]=wick High of closest miss - SL for bear entries",
           "'Ms' text label on the closest miss candle (updates if a closer bar appears)",
           "Journal: MISS_BULL | MISS_BEAR | level | wick | dist pts | time",
           "Inputs: InpNearATR (default 0.20) · InpATRPeriod (14) · InpNearPoints override · use_classic · use_gap · expiry_bars",
@@ -1009,16 +1009,16 @@ const TRADING_MODULES: ModuleCategory[] = [
         name: "Liquidity Buildup State Module",
         description:
           "Phase 2 state module for combined OB + BB + FVG liquidity buildup. Same detection " +
-          "as the Liquidity_Buildup indicator — zones, liquidity lines, and edge-touch kill.",
+          "as the Liquidity_Buildup indicator - zones, liquidity lines, and edge-touch kill.",
         rules: [
-          "OB: displacement + opposing candle — solid rectangle",
-          "BB: OB closed through (polarity flip) — dashed rectangle",
-          "FVG: 3-candle gap — dotted rectangle",
+          "OB: displacement + opposing candle - solid rectangle",
+          "BB: OB closed through (polarity flip) - dashed rectangle",
+          "FVG: 3-candle gap - dotted rectangle",
           "Liquidity line: horizontal line at closest wick within proximity of the edge",
           "Zone consumed (rect + line removed) when wick touches the body/gap edge",
         ],
         output: [
-          "Same visuals as Liquidity_Buildup.mq5 — for iCustom / Phase 3 EA attachment",
+          "Same visuals as Liquidity_Buildup.mq5 - for iCustom / Phase 3 EA attachment",
           "Journal: LBU_OB/BB/FVG_BULL|BEAR when InpShowLog=true",
         ],
         status: "ready",
@@ -1031,24 +1031,24 @@ const TRADING_MODULES: ModuleCategory[] = [
         name: "RSS / SRR State Module",
         description:
           "Same sweep detection as the RSS/SRR Detector. Each Classic Resistance R owns " +
-          "a sweep counter — RSS fires for R when InpMinBreaks supports below R are " +
+          "a sweep counter - RSS fires for R when InpMinBreaks supports below R are " +
           "close-broken. Mirror for SRR on each support S. SL buffers carry the driving " +
           "level price so Phase 3 EAs know exactly where to put the stop.",
         rules: [
-          "Classic SNR only — Bull→Bear = Resistance, Bear→Bull = Support (A close = level)",
+          "Classic SNR only - Bull→Bear = Resistance, Bear→Bull = Support (A close = level)",
           "Each R/S owns a sweep counter that increments on every opposite-side close-break in the correct direction",
           "RSS fires for R when sweepCount >= InpMinBreaks (supports below R broken)",
           "SRR fires for S when sweepCount >= InpMinBreaks (resistances above S broken)",
-          "Each level fires exactly once (swept flag) — no duplicate signals",
+          "Each level fires exactly once (swept flag) - no duplicate signals",
           "Two-candle SNR guard; levels expire after InpExpiryBars bars",
         ],
         output: [
           "Buffer 0: SRRBuf[sh]=1.0 at SRR signal bar (S drove 2+ resistance breaks above it)",
           "Buffer 1: RSSBuf[sh]=1.0 at RSS signal bar (R drove 2+ support breaks below it)",
-          "Buffer 2: SRRSLBuf[sh]=driving Support wick low — SL for buy entries (close below = setup invalid)",
-          "Buffer 3: RSSSLBuf[sh]=driving Resistance wick high — SL for sell entries (close above = setup invalid)",
+          "Buffer 2: SRRSLBuf[sh]=driving Support wick low - SL for buy entries (close below = setup invalid)",
+          "Buffer 3: RSSSLBuf[sh]=driving Resistance wick high - SL for sell entries (close above = setup invalid)",
           "Buffers cleared if price later closes beyond the driving level wick extreme",
-          "Visual: same as RSS/SRR Detector — R/S line + Possible Sell/Buy + swept S/R labels",
+          "Visual: same as RSS/SRR Detector - R/S line + Possible Sell/Buy + swept S/R labels",
           "Journal: RSS | R=X | wick=X | swept=N | time  /  SRR | S=X | wick=X | swept=N | time",
           "Inputs: min_breaks · expiry_bars · draw · colors · ext_bars",
         ],
@@ -1073,8 +1073,8 @@ const TRADING_MODULES: ModuleCategory[] = [
         output: [
           "Buffer 0: BullConfirmBuf[sh]=1.0 at bullish HD confirmation",
           "Buffer 1: BearConfirmBuf[sh]=1.0 at bearish HD confirmation",
-          "Buffer 2: BullSLBuf[sh]=second swing low — SL for bull continuation",
-          "Buffer 3: BearSLBuf[sh]=second swing high — SL for bear continuation",
+          "Buffer 2: BullSLBuf[sh]=second swing low - SL for bull continuation",
+          "Buffer 3: BearSLBuf[sh]=second swing high - SL for bear continuation",
           "Journal: RSI_HD_*_ACTIVE | _CONFIRMED | _INVALID | sl | time",
           "Inputs: rsi_period · pivot_left/right · min_bars · max_bars · expiry_bars",
         ],
@@ -1086,7 +1086,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "CHoCH_State_Module.mq5",
         name: "CHoCH State Module",
         description:
-          "Structural reversal module — embeds swing pivot detection and fires only on " +
+          "Structural reversal module - embeds swing pivot detection and fires only on " +
           "counter-trend structure breaks. In a BEAR trend, a close above a swing high " +
           "is a Bull CHoCH (potential reversal). In a BULL trend, a close below a swing " +
           "low is a Bear CHoCH. BOS-style persistent trend buffers + CHoCH event buffers. " +
@@ -1099,10 +1099,10 @@ const TRADING_MODULES: ModuleCategory[] = [
           "UNKNOWN trend: first break in either direction creates CHoCH + sets gTrend",
           "gTrend flips on every CHoCH event (BEAR→BULL or BULL→BEAR)",
           "Each swing consumed once regardless of whether CHoCH or BOS",
-          "InpMaxLines=20 — oldest dashed line removed when limit exceeded",
+          "InpMaxLines=20 - oldest dashed line removed when limit exceeded",
         ],
         output: [
-          "OBJ_TREND STYLE_DASH horizontal ray per CHoCH — from swingTime, RAY_RIGHT=1",
+          "OBJ_TREND STYLE_DASH horizontal ray per CHoCH - from swingTime, RAY_RIGHT=1",
           "Bull CHoCH: clrDodgerBlue  |  Bear CHoCH: clrDarkOrange",
           "Optional OBJ_TEXT label: 'CHoCH ↑' / 'CHoCH ↓' at the CHoCH bar",
           "Buffer 0: BullTrendBuf[sh]=1.0 on every bar while CHoCH-based trend is BULL",
@@ -1119,7 +1119,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "BOS_State_Module.mq5",
         name: "BOS State Module",
         description:
-          "Structural bias module — embeds swing pivot detection and Break-of-Structure " +
+          "Structural bias module - embeds swing pivot detection and Break-of-Structure " +
           "logic. Tracks trend state (BULL / BEAR / UNKNOWN) and exposes both persistent " +
           "trend buffers (read any bar) and event buffers (fire once at the BOS bar). " +
           "Used as a bias filter in MTF strategies: step confirms immediately when trend " +
@@ -1130,12 +1130,12 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Bull BOS: candle CLOSE > unconsumed swing high → gTrend = BULL",
           "Bear BOS: candle CLOSE < unconsumed swing low  → gTrend = BEAR",
           "Each swing can generate exactly one BOS (consumed flag prevents repeats)",
-          "Trend persists until next BOS event — no invalidation / auto-reversal",
+          "Trend persists until next BOS event - no invalidation / auto-reversal",
           "BOS lines drawn as horizontal rays from swing candle → FAR_FUTURE",
-          "Max lines: InpMaxLines=20 — oldest line removed when limit exceeded",
+          "Max lines: InpMaxLines=20 - oldest line removed when limit exceeded",
         ],
         output: [
-          "OBJ_TREND horizontal ray per BOS — from swingTime, RAY_RIGHT=1",
+          "OBJ_TREND horizontal ray per BOS - from swingTime, RAY_RIGHT=1",
           "Bull BOS: clrMediumSeaGreen  |  Bear BOS: clrTomato",
           "Optional OBJ_TEXT label at BOS bar: 'Bull BOS' / 'Bear BOS'",
           "Buffer 0: BullTrendBuf[sh]=1.0 on every bar while trend is BULL (persistent)",
@@ -1153,27 +1153,27 @@ const TRADING_MODULES: ModuleCategory[] = [
         name: "Breaker Block State Module",
         description:
           "Two-layer detection: embeds OB detection (ATR displacement) and checks when " +
-          "an OB is broken in the opposite direction — creating a Breaker Block zone. " +
+          "an OB is broken in the opposite direction - creating a Breaker Block zone. " +
           "The BB then tracks ACTIVE → RETESTED → CONFIRMED with identical lifecycle to " +
-          "OB State. Same 4-buffer contract — drop-in for any Phase 3 or MTF step.",
+          "OB State. Same 4-buffer contract - drop-in for any Phase 3 or MTF step.",
         rules: [
-          "OB Detection: ATR body ≥ InpDispMult × ATR14 → walk back up to InpObLookback bars for last opposing candle",
+          "OB Detection: ATR body ≥ InpDispMult �- ATR14 → walk back up to InpObLookback bars for last opposing candle",
           "Bullish OB (last bearish before bull disp.) broken when close < OB lo → Bearish BB",
           "Bearish OB (last bullish before bear disp.) broken when close > OB hi → Bullish BB",
-          "BB ACTIVE: breakout confirmed — zone now flipped polarity",
-          "RETESTED: wick enters zone — Bull BB: Low ≤ OB hi  |  Bear BB: High ≥ OB lo",
-          "CONFIRMED: from RETESTED, close exits near edge — Bull: Close > OB hi  |  Bear: Close < OB lo",
+          "BB ACTIVE: breakout confirmed - zone now flipped polarity",
+          "RETESTED: wick enters zone - Bull BB: Low ≤ OB hi  |  Bear BB: High ≥ OB lo",
+          "CONFIRMED: from RETESTED, close exits near edge - Bull: Close > OB hi  |  Bear: Close < OB lo",
           "MITIGATED: close inside zone  OB lo ≤ Close ≤ OB hi  [terminal]",
           "INVALIDATED: close beyond far edge [terminal]  |  EXPIRED: barsAlive ≥ InpExpiryBars [terminal]",
         ],
         output: [
-          "OBJ_RECTANGLE per zone — left=OB candle time, right=FAR_FUTURE (live) or endTime (terminal)",
+          "OBJ_RECTANGLE per zone - left=OB candle time, right=FAR_FUTURE (live) or endTime (terminal)",
           "ACTIVE: solid width 1  |  CONFIRMED: solid width 2  |  RETESTED: gold  |  Terminal: dashed/faded",
           "Labels: BB↑/↓ (ACTIVE) · BB-T (RETESTED) · BB-C (CONFIRMED) · BB-M / BB-X / BB-E",
           "Buffer 0: BullConfirmBuf[sh]=1.0 at bar where bull BB confirmed",
           "Buffer 1: BearConfirmBuf[sh]=1.0 at bar where bear BB confirmed",
-          "Buffer 2: BullSLBuf[sh]=retestLow at confirmation bar — SL for bull entries",
-          "Buffer 3: BearSLBuf[sh]=retestHigh at confirmation bar — SL for bear entries",
+          "Buffer 2: BullSLBuf[sh]=retestLow at confirmation bar - SL for bull entries",
+          "Buffer 3: BearSLBuf[sh]=retestHigh at confirmation bar - SL for bear entries",
           "Journal: BB_BULL_ACTIVE | BB_BEAR_ACTIVE | BB_BULL_RETESTED | BB_BULL_CONFIRMED | BB_BEAR_CONFIRMED | BB_BULL_MITIGATED | BB_BEAR_INVALIDATED | BB_BULL_EXPIRED",
         ],
         status: "ready",
@@ -1185,7 +1185,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         name: "FVG Inversion State Module",
         description:
           "Two-layer detection: embeds FVG detection and checks when an FVG is closed " +
-          "through on its far side — flipping polarity. The Inversion FVG then tracks " +
+          "through on its far side - flipping polarity. The Inversion FVG then tracks " +
           "ACTIVE → RETESTED → CONFIRMED with identical state logic to FVG State Module. " +
           "Distinct object prefix (SMCIFVGS_) and colours prevent collision.",
         rules: [
@@ -1199,7 +1199,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "INVALIDATED: close beyond far edge  |  EXPIRED: barsAlive ≥ InpExpiryBars",
         ],
         output: [
-          "OBJ_RECTANGLE per zone — left=FVG C1 time, right=FAR_FUTURE (live) or endTime",
+          "OBJ_RECTANGLE per zone - left=FVG C1 time, right=FAR_FUTURE (live) or endTime",
           "Bull: clrMediumAquamarine  |  Bear: clrOrchid  |  RETESTED: gold  |  Terminal: dotted/faded",
           "Labels: IFVG↑/↓ · IFVG-T · IFVG-C · IFVG-M · IFVG-X · IFVG-E",
           "Buffer 0: BullConfirmBuf[sh]=1.0 at bull IFVG CONFIRMED bar",
@@ -1227,18 +1227,18 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Bear sweep: barHigh > swing high AND close < swing high",
           "PENDING: wick detected, close-back not yet confirmed",
           "CONFIRMED: close-back on correct side within InpMaxWaitBars (default 5)",
-          "EXPIRED: InpMaxWaitBars exceeded without close-back — or InpExpiryBars total age",
+          "EXPIRED: InpMaxWaitBars exceeded without close-back - or InpExpiryBars total age",
           "Same-bar confirmation supported: wick + close-back on same candle → immediate CONFIRMED",
-          "Each swing consumed once — single sweep per pivot",
+          "Each swing consumed once - single sweep per pivot",
         ],
         output: [
-          "OBJ_TREND dashed line at swing level — swingTime → confirmTime (or FAR_FUTURE if pending)",
+          "OBJ_TREND dashed line at swing level - swingTime → confirmTime (or FAR_FUTURE if pending)",
           "PENDING: faded dashed line  |  CONFIRMED: full-opacity solid+1 line  |  EXPIRED: dotted",
           "Optional OBJ_TEXT label: Sweep↑/↓ (PENDING) · Sweep↑-C/↓-C (CONFIRMED) · Sweep↑-E/↓-E",
           "Buffer 0: BullConfirmBuf[sh]=1.0 at bull sweep CONFIRMED bar",
           "Buffer 1: BearConfirmBuf[sh]=1.0 at bear sweep CONFIRMED bar",
-          "Buffer 2: BullSLBuf[sh]=sweepLow — wick low of sweep bar (SL for bull entries)",
-          "Buffer 3: BearSLBuf[sh]=sweepHigh — wick high of sweep bar (SL for bear entries)",
+          "Buffer 2: BullSLBuf[sh]=sweepLow - wick low of sweep bar (SL for bull entries)",
+          "Buffer 3: BearSLBuf[sh]=sweepHigh - wick high of sweep bar (SL for bear entries)",
           "Journal: LIQSWEEP_BULL_PENDING | LIQSWEEP_BULL_CONFIRMED | LIQSWEEP_BULL_EXPIRED (and BEAR variants)",
         ],
         status: "ready",
@@ -1256,20 +1256,20 @@ const TRADING_MODULES: ModuleCategory[] = [
         rules: [
           "RESISTANCE: Bullish A → Bearish B  →  A.close = resistance level",
           "SUPPORT:    Bearish A → Bullish B  →  A.close = support level",
-          "Optional doji filter: skip candles with body ≤ InpDojiThresh × range",
-          "RETESTED: wick reaches level — Support: barLow ≤ level  |  Resistance: barHigh ≥ level",
-          "CONFIRMED: from RETESTED, close holds — Support: close > level  |  Resistance: close < level",
+          "Optional doji filter: skip candles with body ≤ InpDojiThresh �- range",
+          "RETESTED: wick reaches level - Support: barLow ≤ level  |  Resistance: barHigh ≥ level",
+          "CONFIRMED: from RETESTED, close holds - Support: close > level  |  Resistance: close < level",
           "BROKEN: close on wrong side [terminal]  |  EXPIRED: barsAlive ≥ InpExpiryBars [terminal]",
           "Post-CONFIRMED: cycles back RETESTED → CONFIRMED on each new touch until terminal",
         ],
         output: [
-          "OBJ_TREND horizontal line per level — levelTime to FAR_FUTURE (live) or endTime (terminal)",
+          "OBJ_TREND horizontal line per level - levelTime to FAR_FUTURE (live) or endTime (terminal)",
           "ACTIVE: faded solid  |  RETESTED: gold  |  CONFIRMED: full-color width+1  |  Terminal: dotted",
           "Labels: C-Sup / C-Res (ACTIVE) · C-Sup-T / C-Res-T (RETESTED) · C-Sup-C / C-Res-C (CONFIRMED) · -B / -E",
           "Buffer 0: BullConfirmBuf[sh]=1.0 at support CONFIRMED bar",
           "Buffer 1: BearConfirmBuf[sh]=1.0 at resistance CONFIRMED bar",
-          "Buffer 2: BullSLBuf[sh]=retestLow at confirmation bar — wick low of retest (SL for bulls)",
-          "Buffer 3: BearSLBuf[sh]=retestHigh at confirmation bar — wick high of retest (SL for bears)",
+          "Buffer 2: BullSLBuf[sh]=retestLow at confirmation bar - wick low of retest (SL for bulls)",
+          "Buffer 3: BearSLBuf[sh]=retestHigh at confirmation bar - wick high of retest (SL for bears)",
           "Journal: C_SNR_SUPPORT_CONFIRMED | C_SNR_RESISTANCE_CONFIRMED | id | level | sl | sh",
         ],
         status: "ready",
@@ -1280,21 +1280,21 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "Gap_SNR_State_Module.mq5",
         name: "Gap SNR State Module",
         description:
-          "Identical lifecycle to Classic SNR State — only detection differs. Gap SNR " +
+          "Identical lifecycle to Classic SNR State - only detection differs. Gap SNR " +
           "uses candle-pair direction CONTINUATION (Bull→Bull = Support, Bear→Bear = " +
           "Resistance). Distinct object prefix (SMCSNRGS_) and colours prevent collision " +
           "when both modules run on the same chart.",
         rules: [
           "GAP SUPPORT:    Bullish A → Bullish B  →  A.close = support level",
           "GAP RESISTANCE: Bearish A → Bearish B  →  A.close = resistance level",
-          "Optional doji filter: skip candles with body ≤ InpDojiThresh × range",
-          "RETESTED: wick reaches level — Support: barLow ≤ level  |  Resistance: barHigh ≥ level",
-          "CONFIRMED: from RETESTED, close holds — Support: close > level  |  Resistance: close < level",
+          "Optional doji filter: skip candles with body ≤ InpDojiThresh �- range",
+          "RETESTED: wick reaches level - Support: barLow ≤ level  |  Resistance: barHigh ≥ level",
+          "CONFIRMED: from RETESTED, close holds - Support: close > level  |  Resistance: close < level",
           "BROKEN: close on wrong side [terminal]  |  EXPIRED: barsAlive ≥ InpExpiryBars [terminal]",
           "Post-CONFIRMED: cycles back RETESTED → CONFIRMED on each new touch until terminal",
         ],
         output: [
-          "OBJ_TREND horizontal line per level — levelTime to FAR_FUTURE or endTime",
+          "OBJ_TREND horizontal line per level - levelTime to FAR_FUTURE or endTime",
           "ACTIVE: faded solid  |  RETESTED: gold  |  CONFIRMED: full-color width+1  |  Terminal: dotted",
           "Labels: G-Sup / G-Res · G-Sup-T / G-Res-T · G-Sup-C / G-Res-C · -B / -E",
           "Buffer 0: BullConfirmBuf[sh]=1.0 at gap support CONFIRMED bar",
@@ -1329,7 +1329,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         description:
           "Expert Advisor that consumes FVG_State_Module.mq5 via iCustom(). " +
           "Enters on the bar open after BullConfirmBuf[1]==1.0 (BUY) or " +
-          "BearConfirmBuf[1]==1.0 (SELL). SL comes from BullSLBuf / BearSLBuf — " +
+          "BearConfirmBuf[1]==1.0 (SELL). SL comes from BullSLBuf / BearSLBuf - " +
           "trade is blocked if SL buffer is zero or on the wrong side. " +
           "Fixed RR TP, breakeven at 0.5R, spread filter, max-open-trades guard. " +
           "Place in MQL5/Experts/ folder.",
@@ -1337,11 +1337,11 @@ const TRADING_MODULES: ModuleCategory[] = [
           "BUY signal:  BullConfirmBuf[1]==1.0 AND BullSLBuf[1]>0 AND sl < entry",
           "SELL signal: BearConfirmBuf[1]==1.0 AND BearSLBuf[1]>0 AND sl > entry",
           "Entry: new-bar open (one signal check per candle close)",
-          "TP: entry ± slDist × InpRR  (default RR = 2.0)",
-          "Lot size: (balance × InpRiskPct%) / (slDist × tickValue/tickSize)",
+          "TP: entry ± slDist �- InpRR  (default RR = 2.0)",
+          "Lot size: (balance �- InpRiskPct%) / (slDist �- tickValue/tickSize)",
           "Spread filter: current spread > InpMaxSpreadPts → SIGNAL_BLOCKED",
           "Max trades: CountMyPositions() ≥ InpMaxTrades → SIGNAL_BLOCKED",
-          "Breakeven: every tick — if floating profit ≥ InpBreakevenR × initialRisk, move SL to entry",
+          "Breakeven: every tick - if floating profit ≥ InpBreakevenR �- initialRisk, move SL to entry",
         ],
         output: [
           "Journal: TRADE_OPENED | dir | entry | sl | tp | lots | risk",
@@ -1367,17 +1367,17 @@ const TRADING_MODULES: ModuleCategory[] = [
           "BUY signal:  BullConfirmBuf[1]==1.0 AND BullSLBuf[1]>0 AND sl < entry",
           "SELL signal: BearConfirmBuf[1]==1.0 AND BearSLBuf[1]>0 AND sl > entry",
           "Entry: new-bar open (one signal check per candle close)",
-          "TP: entry ± slDist × InpRR  (default RR = 2.0)",
-          "Lot size: (balance × InpRiskPct%) / (slDist × tickValue/tickSize)",
+          "TP: entry ± slDist �- InpRR  (default RR = 2.0)",
+          "Lot size: (balance �- InpRiskPct%) / (slDist �- tickValue/tickSize)",
           "Spread filter: current spread > InpMaxSpreadPts → SIGNAL_BLOCKED",
           "Max trades: CountMyPositions() ≥ InpMaxTrades → SIGNAL_BLOCKED",
-          "Breakeven: every tick — if floating profit ≥ InpBreakevenR × initialRisk, move SL to entry",
+          "Breakeven: every tick - if floating profit ≥ InpBreakevenR �- initialRisk, move SL to entry",
         ],
         output: [
           "Reads iCustom() buffers 0–3 from OB_State_Module (BullConfirm / BearConfirm / BullSL / BearSL)",
           "Journal: TRADE_OPENED | TRADE_FAILED | BREAKEVEN_SET | SIGNAL_BLOCKED",
           "Inputs: module_name · module_tf · module_lookback · magic · risk_pct · rr · breakeven_r · max_trades · max_spread_pts",
-          "Compatible with any Phase 2 state module — change InpModuleName to swap modules",
+          "Compatible with any Phase 2 state module - change InpModuleName to swap modules",
         ],
         status: "ready",
         generate: () => generatePhase3Ea(OB_EA_CONFIG),
@@ -1394,14 +1394,14 @@ const TRADING_MODULES: ModuleCategory[] = [
           "BUY signal:  BullConfirmBuf[1]==1.0 (RBS CONFIRMED) AND BullSLBuf[1]>0",
           "SELL signal: BearConfirmBuf[1]==1.0 (SBR CONFIRMED) AND BearSLBuf[1]>0",
           "Entry: new-bar open after confirmed breakout retest",
-          "TP: entry ± slDist × InpRR  (default RR = 2.0)",
+          "TP: entry ± slDist �- InpRR  (default RR = 2.0)",
           "Spread filter, max-trades guard, breakeven management identical to FVG EA",
         ],
         output: [
           "Reads iCustom() buffers 0–3 from Breakout_State_Module",
           "Journal: TRADE_OPENED | TRADE_FAILED | BREAKEVEN_SET | SIGNAL_BLOCKED",
           "Inputs: module_name · module_tf · module_lookback · magic · risk_pct · rr · breakeven_r",
-          "Compatible with any Phase 2 state module — change InpModuleName to swap modules",
+          "Compatible with any Phase 2 state module - change InpModuleName to swap modules",
         ],
         status: "ready",
         generate: () => generatePhase3Ea(BREAKOUT_EA_CONFIG),
@@ -1412,20 +1412,20 @@ const TRADING_MODULES: ModuleCategory[] = [
         name: "Breaker Block Execution EA",
         description:
           "Expert Advisor that consumes BB_State_Module.mq5 via iCustom(). " +
-          "Enters on BB CONFIRMED signals — an OB that flipped polarity and " +
+          "Enters on BB CONFIRMED signals - an OB that flipped polarity and " +
           "price retested the recycled zone from the new direction.",
         rules: [
           "BUY signal:  BullConfirmBuf[1]==1.0 (Bullish BB CONFIRMED) AND BullSLBuf[1]>0",
           "SELL signal: BearConfirmBuf[1]==1.0 (Bearish BB CONFIRMED) AND BearSLBuf[1]>0",
           "Two-layer detection: OB detected → OB broken (BB created) → BB retested → CONFIRMED",
-          "TP: entry ± slDist × InpRR  (default RR = 2.0)",
+          "TP: entry ± slDist �- InpRR  (default RR = 2.0)",
           "Spread filter, max-trades guard, breakeven management identical to FVG EA",
         ],
         output: [
           "Reads iCustom() buffers 0–3 from BB_State_Module",
           "Journal: TRADE_OPENED | TRADE_FAILED | BREAKEVEN_SET | SIGNAL_BLOCKED",
           "Inputs: module_name · module_tf · module_lookback · magic · risk_pct · rr · breakeven_r",
-          "Compatible with any Phase 2 state module — change InpModuleName to swap modules",
+          "Compatible with any Phase 2 state module - change InpModuleName to swap modules",
         ],
         status: "ready",
         generate: () => generatePhase3Ea(BB_EA_CONFIG),
@@ -1436,20 +1436,20 @@ const TRADING_MODULES: ModuleCategory[] = [
         name: "Liquidity Sweep Execution EA",
         description:
           "Expert Advisor that consumes LiqSweep_State_Module.mq5 via iCustom(). " +
-          "Enters when a sweep CONFIRMATION fires — wick pierced a swing level and " +
+          "Enters when a sweep CONFIRMATION fires - wick pierced a swing level and " +
           "price closed back on the correct side. SL = wick extreme of the sweep bar.",
         rules: [
           "BUY signal:  BullConfirmBuf[1]==1.0 (Bull Sweep CONFIRMED) AND BullSLBuf[1]>0",
           "SELL signal: BearConfirmBuf[1]==1.0 (Bear Sweep CONFIRMED) AND BearSLBuf[1]>0",
           "SL for bull entries: sweepLow (wick low of sweep bar)",
           "SL for bear entries: sweepHigh (wick high of sweep bar)",
-          "TP: entry ± slDist × InpRR  (default RR = 2.0)",
+          "TP: entry ± slDist �- InpRR  (default RR = 2.0)",
         ],
         output: [
           "Reads iCustom() buffers 0–3 from LiqSweep_State_Module",
           "Journal: TRADE_OPENED | TRADE_FAILED | BREAKEVEN_SET | SIGNAL_BLOCKED",
           "Inputs: module_name · module_tf · module_lookback · magic · risk_pct · rr · breakeven_r",
-          "Compatible with any Phase 2 state module — change InpModuleName to swap modules",
+          "Compatible with any Phase 2 state module - change InpModuleName to swap modules",
         ],
         status: "ready",
         generate: () => generatePhase3Ea(LIQSWEEP_EA_CONFIG),
@@ -1460,20 +1460,20 @@ const TRADING_MODULES: ModuleCategory[] = [
         name: "FVG Inversion Execution EA",
         description:
           "Expert Advisor that consumes FVG_Inversion_State_Module.mq5 via iCustom(). " +
-          "Enters when an Inversion FVG CONFIRMED signal fires — an FVG that flipped " +
+          "Enters when an Inversion FVG CONFIRMED signal fires - an FVG that flipped " +
           "polarity and was then retested from the new direction.",
         rules: [
           "BUY signal:  BullConfirmBuf[1]==1.0 (Bullish IFVG CONFIRMED) AND BullSLBuf[1]>0",
           "SELL signal: BearConfirmBuf[1]==1.0 (Bearish IFVG CONFIRMED) AND BearSLBuf[1]>0",
           "Two-layer detection: FVG detected → FVG inverted (IFVG created) → IFVG retested → CONFIRMED",
-          "TP: entry ± slDist × InpRR  (default RR = 2.0)",
+          "TP: entry ± slDist �- InpRR  (default RR = 2.0)",
           "Spread filter, max-trades guard, breakeven management identical to FVG EA",
         ],
         output: [
           "Reads iCustom() buffers 0–3 from FVG_Inversion_State_Module",
           "Journal: TRADE_OPENED | TRADE_FAILED | BREAKEVEN_SET | SIGNAL_BLOCKED",
           "Inputs: module_name · module_tf · module_lookback · magic · risk_pct · rr · breakeven_r",
-          "Compatible with any Phase 2 state module — change InpModuleName to swap modules",
+          "Compatible with any Phase 2 state module - change InpModuleName to swap modules",
         ],
         status: "ready",
         generate: () => generatePhase3Ea(IFVG_EA_CONFIG),
@@ -1484,20 +1484,20 @@ const TRADING_MODULES: ModuleCategory[] = [
         name: "Classic SNR Execution EA",
         description:
           "Expert Advisor that consumes Classic_SNR_State_Module.mq5 via iCustom(). " +
-          "Enters when a Classic S/R level CONFIRMED signal fires — a wick touched the " +
+          "Enters when a Classic S/R level CONFIRMED signal fires - a wick touched the " +
           "level (RETESTED) then close held on the correct side (CONFIRMED).",
         rules: [
           "BUY signal:  BullConfirmBuf[1]==1.0 (Support CONFIRMED) AND BullSLBuf[1]>0",
           "SELL signal: BearConfirmBuf[1]==1.0 (Resistance CONFIRMED) AND BearSLBuf[1]>0",
           "SL for bulls: retestLow (wick low of the retest candle)",
           "SL for bears: retestHigh (wick high of the retest candle)",
-          "TP: entry ± slDist × InpRR  (default RR = 2.0)",
+          "TP: entry ± slDist �- InpRR  (default RR = 2.0)",
         ],
         output: [
           "Reads iCustom() buffers 0–3 from Classic_SNR_State_Module",
           "Journal: TRADE_OPENED | TRADE_FAILED | BREAKEVEN_SET | SIGNAL_BLOCKED",
           "Inputs: module_name · module_tf · module_lookback · magic · risk_pct · rr · breakeven_r",
-          "Compatible with any Phase 2 state module — change InpModuleName to swap modules",
+          "Compatible with any Phase 2 state module - change InpModuleName to swap modules",
         ],
         status: "ready",
         generate: () => generatePhase3Ea(CLASSIC_SNR_EA_CONFIG),
@@ -1514,14 +1514,14 @@ const TRADING_MODULES: ModuleCategory[] = [
           "BUY signal:  BullConfirmBuf[1]==1.0 (Gap Support CONFIRMED) AND BullSLBuf[1]>0",
           "SELL signal: BearConfirmBuf[1]==1.0 (Gap Resistance CONFIRMED) AND BearSLBuf[1]>0",
           "SL for bulls: retestLow  |  SL for bears: retestHigh",
-          "TP: entry ± slDist × InpRR  (default RR = 2.0)",
+          "TP: entry ± slDist �- InpRR  (default RR = 2.0)",
           "Spread filter, max-trades guard, breakeven management identical to FVG EA",
         ],
         output: [
           "Reads iCustom() buffers 0–3 from Gap_SNR_State_Module",
           "Journal: TRADE_OPENED | TRADE_FAILED | BREAKEVEN_SET | SIGNAL_BLOCKED",
           "Inputs: module_name · module_tf · module_lookback · magic · risk_pct · rr · breakeven_r",
-          "Compatible with any Phase 2 state module — change InpModuleName to swap modules",
+          "Compatible with any Phase 2 state module - change InpModuleName to swap modules",
         ],
         status: "ready",
         generate: () => generatePhase3Ea(GAP_SNR_EA_CONFIG),
@@ -1553,10 +1553,10 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Classic top-down confluence. Requires FVG_State_Module.mq5 in MQL5/Indicators/. " +
           "Place this EA in MQL5/Experts/ and attach to a M30 chart.",
         rules: [
-          "Step 1 (D1): BullConfirmBuf[1]==1.0 on D1 FVG_State_Module — sets daily bias",
-          "Step 2 (H4): BullConfirmBuf[1]==1.0 on H4 FVG_State_Module — activates only after Step 1",
-          "Step 3 (M30): BullConfirmBuf[1]==1.0 on M30 FVG_State_Module — activates only after Step 2",
-          "Execution: BUY on M30 bar open after all 3 steps confirmed — SL from BullSLBuf",
+          "Step 1 (D1): BullConfirmBuf[1]==1.0 on D1 FVG_State_Module - sets daily bias",
+          "Step 2 (H4): BullConfirmBuf[1]==1.0 on H4 FVG_State_Module - activates only after Step 1",
+          "Step 3 (M30): BullConfirmBuf[1]==1.0 on M30 FVG_State_Module - activates only after Step 2",
+          "Execution: BUY on M30 bar open after all 3 steps confirmed - SL from BullSLBuf",
           "Chain reset: if any step expires (configurable bars) before confirming, restart from that step",
           "Each step is independently configurable: module · timeframe · buffer index · expiry",
         ],
@@ -1578,12 +1578,12 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Mirror of the bull strategy. Run both with different magic numbers to trade both directions.",
         rules: [
           "Step 1 (D1): BearConfirmBuf[1]==1.0 on D1",
-          "Step 2 (H4): BearConfirmBuf[1]==1.0 on H4 — activates only after Step 1",
-          "Step 3 (M30): BearConfirmBuf[1]==1.0 on M30 — activates only after Step 2",
-          "Execution: SELL on M30 bar open — SL from BearSLBuf",
+          "Step 2 (H4): BearConfirmBuf[1]==1.0 on H4 - activates only after Step 1",
+          "Step 3 (M30): BearConfirmBuf[1]==1.0 on M30 - activates only after Step 2",
+          "Execution: SELL on M30 bar open - SL from BearSLBuf",
         ],
         output: [
-          "Same journal events as the bull orchestrator — direction is SELL throughout",
+          "Same journal events as the bull orchestrator - direction is SELL throughout",
           "Magic number default: 20250602 (different from bull's 20250601)",
         ],
         status: "ready",
@@ -1595,14 +1595,14 @@ const TRADING_MODULES: ModuleCategory[] = [
         name: "FVG 2-TF Bull  (H4 → M30)",
         description:
           "H4 FVG bull confirm → M30 FVG entry signal → BUY. " +
-          "Shorter intraday chain — no daily filter.",
+          "Shorter intraday chain - no daily filter.",
         rules: [
           "Step 1 (H4): BullConfirmBuf[1]==1.0 on H4",
-          "Step 2 (M30): BullConfirmBuf[1]==1.0 on M30 — activates only after Step 1",
-          "Execution: BUY — SL from BullSLBuf on M30 module",
+          "Step 2 (M30): BullConfirmBuf[1]==1.0 on M30 - activates only after Step 1",
+          "Execution: BUY - SL from BullSLBuf on M30 module",
         ],
         output: [
-          "2-step chain — fewer confirmations required, higher trade frequency",
+          "2-step chain - fewer confirmations required, higher trade frequency",
           "Max trades default: 2 (vs 1 for the 3-TF strategies)",
         ],
         status: "ready",
@@ -1617,10 +1617,10 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Mirror of the 2-TF bull strategy.",
         rules: [
           "Step 1 (H4): BearConfirmBuf[1]==1.0 on H4",
-          "Step 2 (M30): BearConfirmBuf[1]==1.0 on M30 — activates only after Step 1",
-          "Execution: SELL — SL from BearSLBuf on M30 module",
+          "Step 2 (M30): BearConfirmBuf[1]==1.0 on M30 - activates only after Step 1",
+          "Execution: SELL - SL from BearSLBuf on M30 module",
         ],
-        output: ["2-step chain — mirror of 2-TF bull strategy", "Magic number default: 20250604"],
+        output: ["2-step chain - mirror of 2-TF bull strategy", "Magic number default: 20250604"],
         status: "ready",
         generate: () => generateMtfOrchestrator(FVG_2TF_BEAR),
       },
@@ -1633,10 +1633,10 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Classic top-down OB confluence. Requires OB_State_Module.mq5 in MQL5/Indicators/. " +
           "Place this EA in MQL5/Experts/ and attach to a M30 chart.",
         rules: [
-          "Step 1 (D1): BullConfirmBuf[1]==1.0 on D1 OB_State_Module — sets daily OB bias",
-          "Step 2 (H4): BullConfirmBuf[1]==1.0 on H4 OB_State_Module — activates only after Step 1",
-          "Step 3 (M30): BullConfirmBuf[1]==1.0 on M30 OB_State_Module — activates only after Step 2",
-          "Execution: BUY on M30 bar open after all 3 steps confirmed — SL from BullSLBuf",
+          "Step 1 (D1): BullConfirmBuf[1]==1.0 on D1 OB_State_Module - sets daily OB bias",
+          "Step 2 (H4): BullConfirmBuf[1]==1.0 on H4 OB_State_Module - activates only after Step 1",
+          "Step 3 (M30): BullConfirmBuf[1]==1.0 on M30 OB_State_Module - activates only after Step 2",
+          "Execution: BUY on M30 bar open after all 3 steps confirmed - SL from BullSLBuf",
           "Chain reset: if any step expires before confirming, restart from that step",
         ],
         output: [
@@ -1656,12 +1656,12 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Mirror of the 3-TF OB bull strategy. Run both with different magic numbers.",
         rules: [
           "Step 1 (D1): BearConfirmBuf[1]==1.0 on D1",
-          "Step 2 (H4): BearConfirmBuf[1]==1.0 on H4 — activates only after Step 1",
-          "Step 3 (M30): BearConfirmBuf[1]==1.0 on M30 — activates only after Step 2",
-          "Execution: SELL on M30 bar open — SL from BearSLBuf",
+          "Step 2 (H4): BearConfirmBuf[1]==1.0 on H4 - activates only after Step 1",
+          "Step 3 (M30): BearConfirmBuf[1]==1.0 on M30 - activates only after Step 2",
+          "Execution: SELL on M30 bar open - SL from BearSLBuf",
         ],
         output: [
-          "Same journal events as the bull orchestrator — direction is SELL throughout",
+          "Same journal events as the bull orchestrator - direction is SELL throughout",
           "Magic number default: 20250702",
         ],
         status: "ready",
@@ -1673,14 +1673,14 @@ const TRADING_MODULES: ModuleCategory[] = [
         name: "OB 2-TF Bull  (H4 → M30)",
         description:
           "H4 OB bull confirm → M30 OB entry signal → BUY. " +
-          "Shorter intraday OB chain — H4 zone sets the bias, M30 provides the retest entry.",
+          "Shorter intraday OB chain - H4 zone sets the bias, M30 provides the retest entry.",
         rules: [
           "Step 1 (H4): BullConfirmBuf[1]==1.0 on H4",
-          "Step 2 (M30): BullConfirmBuf[1]==1.0 on M30 — activates only after Step 1",
-          "Execution: BUY — SL from BullSLBuf on M30 module",
+          "Step 2 (M30): BullConfirmBuf[1]==1.0 on M30 - activates only after Step 1",
+          "Execution: BUY - SL from BullSLBuf on M30 module",
         ],
         output: [
-          "2-step chain — fewer confirmations, higher trade frequency than 3-TF",
+          "2-step chain - fewer confirmations, higher trade frequency than 3-TF",
           "Magic number default: 20250703",
         ],
         status: "ready",
@@ -1695,11 +1695,11 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Mirror of the 2-TF OB bull strategy.",
         rules: [
           "Step 1 (H4): BearConfirmBuf[1]==1.0 on H4",
-          "Step 2 (M30): BearConfirmBuf[1]==1.0 on M30 — activates only after Step 1",
-          "Execution: SELL — SL from BearSLBuf on M30 module",
+          "Step 2 (M30): BearConfirmBuf[1]==1.0 on M30 - activates only after Step 1",
+          "Execution: SELL - SL from BearSLBuf on M30 module",
         ],
         output: [
-          "2-step chain — mirror of 2-TF OB bull strategy",
+          "2-step chain - mirror of 2-TF OB bull strategy",
           "Magic number default: 20250704",
         ],
         status: "ready",
@@ -1715,9 +1715,9 @@ const TRADING_MODULES: ModuleCategory[] = [
           "then M30 retest of its own RBS level triggers entry. " +
           "Requires Breakout_State_Module.mq5 in MQL5/Indicators/.",
         rules: [
-          "Step 1 (H4): BullConfirmBuf[1]==1.0 — RBS CONFIRMED on H4",
-          "Step 2 (M30): BullConfirmBuf[1]==1.0 — RBS CONFIRMED on M30",
-          "Execution: BUY — SL from BullSLBuf (wick low of M30 retest bar)",
+          "Step 1 (H4): BullConfirmBuf[1]==1.0 - RBS CONFIRMED on H4",
+          "Step 2 (M30): BullConfirmBuf[1]==1.0 - RBS CONFIRMED on M30",
+          "Execution: BUY - SL from BullSLBuf (wick low of M30 retest bar)",
         ],
         output: [
           "2-step chain using Breakout_State_Module at both steps",
@@ -1734,9 +1734,9 @@ const TRADING_MODULES: ModuleCategory[] = [
           "H4 SBR confirm → M30 SBR entry signal → SELL. " +
           "Mirror of the 2-TF Breakout bull strategy.",
         rules: [
-          "Step 1 (H4): BearConfirmBuf[1]==1.0 — SBR CONFIRMED on H4",
-          "Step 2 (M30): BearConfirmBuf[1]==1.0 — SBR CONFIRMED on M30",
-          "Execution: SELL — SL from BearSLBuf (wick high of M30 retest bar)",
+          "Step 1 (H4): BearConfirmBuf[1]==1.0 - SBR CONFIRMED on H4",
+          "Step 2 (M30): BearConfirmBuf[1]==1.0 - SBR CONFIRMED on M30",
+          "Execution: SELL - SL from BearSLBuf (wick high of M30 retest bar)",
         ],
         output: [
           "2-step chain using Breakout_State_Module at both steps",
@@ -1754,9 +1754,9 @@ const TRADING_MODULES: ModuleCategory[] = [
           "H4 OB broken and flipped, then M30 retest of the recycled zone triggers entry. " +
           "Requires BB_State_Module.mq5 in MQL5/Indicators/.",
         rules: [
-          "Step 1 (H4): BullConfirmBuf[1]==1.0 — Bullish BB CONFIRMED on H4",
-          "Step 2 (M30): BullConfirmBuf[1]==1.0 — Bullish BB CONFIRMED on M30",
-          "Execution: BUY — SL from BullSLBuf (wick low of M30 retest bar)",
+          "Step 1 (H4): BullConfirmBuf[1]==1.0 - Bullish BB CONFIRMED on H4",
+          "Step 2 (M30): BullConfirmBuf[1]==1.0 - Bullish BB CONFIRMED on M30",
+          "Execution: BUY - SL from BullSLBuf (wick low of M30 retest bar)",
         ],
         output: [
           "2-step chain using BB_State_Module at both steps",
@@ -1773,9 +1773,9 @@ const TRADING_MODULES: ModuleCategory[] = [
           "H4 Bearish Breaker Block confirm → M30 BB entry signal → SELL. " +
           "Mirror of the 2-TF BB bull strategy.",
         rules: [
-          "Step 1 (H4): BearConfirmBuf[1]==1.0 — Bearish BB CONFIRMED on H4",
-          "Step 2 (M30): BearConfirmBuf[1]==1.0 — Bearish BB CONFIRMED on M30",
-          "Execution: SELL — SL from BearSLBuf (wick high of M30 retest bar)",
+          "Step 1 (H4): BearConfirmBuf[1]==1.0 - Bearish BB CONFIRMED on H4",
+          "Step 2 (M30): BearConfirmBuf[1]==1.0 - Bearish BB CONFIRMED on M30",
+          "Execution: SELL - SL from BearSLBuf (wick high of M30 retest bar)",
         ],
         output: [
           "2-step chain using BB_State_Module at both steps",
@@ -1790,19 +1790,19 @@ const TRADING_MODULES: ModuleCategory[] = [
         name: "BOS Bias + FVG Bull  (D1 → H4)",
         description:
           "D1 structural bias BULL (BOS_State_Module) → H4 FVG confirmed → BUY. " +
-          "Step 1 gates instantly if D1 BOS trend is already BULL — no waiting for a new BOS event. " +
+          "Step 1 gates instantly if D1 BOS trend is already BULL - no waiting for a new BOS event. " +
           "Requires BOS_State_Module.mq5 and FVG_State_Module.mq5 in MQL5/Indicators/. " +
           "Attach to H4 chart.",
         rules: [
-          "Step 1 (D1 BOS): BullTrendBuf[1]==1.0 — persistent; confirms immediately if D1 is already BULL",
-          "Step 2 (H4 FVG): BullConfirmBuf[1]==1.0 — FVG retested + close held above UL",
-          "Execution: BUY on H4 bar open — SL from H4 BullSLBuf (retest low)",
+          "Step 1 (D1 BOS): BullTrendBuf[1]==1.0 - persistent; confirms immediately if D1 is already BULL",
+          "Step 2 (H4 FVG): BullConfirmBuf[1]==1.0 - FVG retested + close held above UL",
+          "Execution: BUY on H4 bar open - SL from H4 BullSLBuf (retest low)",
           "If D1 bias flips before Step 2 fires, next chain cycle re-checks trend and waits",
         ],
         output: [
           "Uses two different Phase 2 modules: BOS_State_Module (bias) + FVG_State_Module (entry)",
           "Journal: STEP_N_ACTIVE | STEP_N_CONFIRMED | STEP_N_EXPIRED | TRADE_OPENED",
-          "Magic: 20250801 — change if running alongside other strategies",
+          "Magic: 20250801 - change if running alongside other strategies",
         ],
         status: "ready",
         generate: () => generateMtfOrchestrator(BOS_BIAS_FVG_BULL),
@@ -1815,9 +1815,9 @@ const TRADING_MODULES: ModuleCategory[] = [
           "D1 structural bias BEAR → H4 FVG confirmed → SELL. " +
           "Mirror of the BOS Bias + FVG Bull strategy. Attach to H4 chart.",
         rules: [
-          "Step 1 (D1 BOS): BearTrendBuf[1]==1.0 — confirms immediately if D1 is already BEAR",
-          "Step 2 (H4 FVG): BearConfirmBuf[1]==1.0 — FVG retested + close held below LL",
-          "Execution: SELL on H4 bar open — SL from H4 BearSLBuf (retest high)",
+          "Step 1 (D1 BOS): BearTrendBuf[1]==1.0 - confirms immediately if D1 is already BEAR",
+          "Step 2 (H4 FVG): BearConfirmBuf[1]==1.0 - FVG retested + close held below LL",
+          "Execution: SELL on H4 bar open - SL from H4 BearSLBuf (retest high)",
         ],
         output: ["Uses BOS_State_Module (bias) + FVG_State_Module (entry)", "Magic: 20250802"],
         status: "ready",
@@ -1832,9 +1832,9 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Higher-conviction variant: daily structure aligns with H4 institutional zone retest. " +
           "Requires BOS_State_Module.mq5 and OB_State_Module.mq5. Attach to H4 chart.",
         rules: [
-          "Step 1 (D1 BOS): BullTrendBuf[1]==1.0 — persistent bias gate",
-          "Step 2 (H4 OB): BullConfirmBuf[1]==1.0 — OB retested + close held above OB high",
-          "Execution: BUY on H4 bar open — SL from H4 BullSLBuf (retest low)",
+          "Step 1 (D1 BOS): BullTrendBuf[1]==1.0 - persistent bias gate",
+          "Step 2 (H4 OB): BullConfirmBuf[1]==1.0 - OB retested + close held above OB high",
+          "Execution: BUY on H4 bar open - SL from H4 BullSLBuf (retest low)",
         ],
         output: ["Uses BOS_State_Module (bias) + OB_State_Module (entry)", "Magic: 20250803"],
         status: "ready",
@@ -1848,9 +1848,9 @@ const TRADING_MODULES: ModuleCategory[] = [
           "D1 structural bias BEAR → H4 Order Block confirmed → SELL. " +
           "Mirror of the BOS Bias + OB Bull strategy. Attach to H4 chart.",
         rules: [
-          "Step 1 (D1 BOS): BearTrendBuf[1]==1.0 — persistent bias gate",
-          "Step 2 (H4 OB): BearConfirmBuf[1]==1.0 — OB retested + close held below OB low",
-          "Execution: SELL on H4 bar open — SL from H4 BearSLBuf (retest high)",
+          "Step 1 (D1 BOS): BearTrendBuf[1]==1.0 - persistent bias gate",
+          "Step 2 (H4 OB): BearConfirmBuf[1]==1.0 - OB retested + close held below OB low",
+          "Execution: SELL on H4 bar open - SL from H4 BearSLBuf (retest high)",
         ],
         output: ["Uses BOS_State_Module (bias) + OB_State_Module (entry)", "Magic: 20250804"],
         status: "ready",
@@ -1866,14 +1866,14 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Three independent modules confirm at three timeframes before any trade is placed. " +
           "Requires BOS_State_Module.mq5, OB_State_Module.mq5, FVG_State_Module.mq5. Attach to M30 chart.",
         rules: [
-          "Step 1 (D1 BOS): BullTrendBuf[1]==1.0 — gates instantly if D1 trend already BULL",
-          "Step 2 (H4 OB): BullConfirmBuf[1]==1.0 — H4 OB retested and held (institutional zone confirmed)",
-          "Step 3 (M30 FVG): BullConfirmBuf[1]==1.0 — M30 FVG retested and held (precision entry)",
-          "Execution: BUY on M30 bar open — SL from M30 BullSLBuf (FVG retest low)",
+          "Step 1 (D1 BOS): BullTrendBuf[1]==1.0 - gates instantly if D1 trend already BULL",
+          "Step 2 (H4 OB): BullConfirmBuf[1]==1.0 - H4 OB retested and held (institutional zone confirmed)",
+          "Step 3 (M30 FVG): BullConfirmBuf[1]==1.0 - M30 FVG retested and held (precision entry)",
+          "Execution: BUY on M30 bar open - SL from M30 BullSLBuf (FVG retest low)",
           "Default RR = 2.5 (elevated for triple-confluence requirement)",
         ],
         output: [
-          "Three different Phase 2 modules across three timeframes — zero shared indicator handles",
+          "Three different Phase 2 modules across three timeframes - zero shared indicator handles",
           "Journal: STEP_N_ACTIVE | STEP_N_CONFIRMED | STEP_N_EXPIRED | ALL_STEPS_CONFIRMED | TRADE_OPENED",
           "Magic: 20250805",
         ],
@@ -1891,7 +1891,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Step 1 (D1 BOS): BearTrendBuf[1]==1.0",
           "Step 2 (H4 OB): BearConfirmBuf[1]==1.0",
           "Step 3 (M30 FVG): BearConfirmBuf[1]==1.0",
-          "Execution: SELL — SL from M30 BearSLBuf (FVG retest high)  |  RR = 2.5",
+          "Execution: SELL - SL from M30 BearSLBuf (FVG retest high)  |  RR = 2.5",
         ],
         output: [
           "Uses BOS_State_Module + OB_State_Module + FVG_State_Module across D1 / H4 / M30",
@@ -1923,7 +1923,7 @@ const TRADING_MODULES: ModuleCategory[] = [
     phaseActive: true,
     description:
       "Institutional supply & demand zone detection. Engulfing patterns fall under " +
-      "S&D too — every engulfing/base zone marks an area where orders accumulated and " +
+      "S&D too - every engulfing/base zone marks an area where orders accumulated and " +
       "price is expected to react. Includes engulfing (EG/EF), strong engulfing, and " +
       "rally/drop base zones (RBR/DBD), plus planned zone-state variants.",
     modules: [
@@ -1936,8 +1936,8 @@ const TRADING_MODULES: ModuleCategory[] = [
           "through an EG zone, it becomes an EF (engulfing failed) zone with opposite " +
           "direction. MES definition: zone = C1 full wick range. Multi-candle aware.",
         rules: [
-          "Bullish EG: C1 bearish, C2 closes > C1.High (upper wick) — any # of candles",
-          "Bearish EG: C1 bullish, C2 closes < C1.Low (lower wick) — any # of candles",
+          "Bullish EG: C1 bearish, C2 closes > C1.High (upper wick) - any # of candles",
+          "Bearish EG: C1 bullish, C2 closes < C1.Low (lower wick) - any # of candles",
           "Zone = C1 full wick range (hi=C1.High, lo=C1.Low)",
           "Bull EG fails when close < lo → flips to Bear EF (same zone)",
           "Bear EG fails when close > hi → flips to Bull EF (same zone)",
@@ -1957,7 +1957,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "SEG_Detector.mq5",
         name: "Strong Engulfing",
         description:
-          "Detects STRONG engulfings only — the decisive 2-candle case where the " +
+          "Detects STRONG engulfings only - the decisive 2-candle case where the " +
           "second candle alone breaks and closes beyond the wick of the first. " +
           "Marks the C1 wick-range zone (blue bull / red bear). No EF lifecycle.",
         rules: [
@@ -1979,7 +1979,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         catalogKind: "standalone_indicator",
         supersededBy: {
           name: "Engulfing (EGSM)",
-          hint: "Strategy Builder uses the verified EGSM inline state machine — includes strong 2-candle engulfings",
+          hint: "Strategy Builder uses the verified EGSM inline state machine - includes strong 2-candle engulfings",
         },
       },
       {
@@ -1993,7 +1993,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         rules: [
           "Leg candle: strong body (body/range ≥ InpImpulseRatio) in the move direction",
           "Base: 1–6 small-bodied candles (body/range ≤ InpBaseMaxRatio), any direction",
-          "Legs must be larger than the base (leg range ≥ InpLegBaseMult × avg base range)",
+          "Legs must be larger than the base (leg range ≥ InpLegBaseMult �- avg base range)",
           "Leg-out must close OUT of the base (above base high for RBR, below base low for DBD)",
           "RBR (bull legs) → Demand zone; DBD (bear legs) → Supply zone",
           "Zone = base high..low; traded through (close beyond) → invalid",
@@ -2016,7 +2016,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "that contains a Gap SNR one TF lower, which in turn contains an RBR (bull) " +
           "or DBD (bear) two TFs lower. Marks the confluence zone. Detection only.",
         rules: [
-          "Main TF: STRONG (2-candle) engulfing only — C2 closes beyond C1's wick",
+          "Main TF: STRONG (2-candle) engulfing only - C2 closes beyond C1's wick",
           "1 TF lower: a Gap SNR forms inside the engulfing candle (Support=bull, Resistance=bear)",
           "2 TF lower: an RBR (bull) / DBD (bear) base forms inside that area",
           "Bullish MEF = strong bull engulfing + Gap Support + RBR",
@@ -2041,7 +2041,7 @@ const TRADING_MODULES: ModuleCategory[] = [
           "engulfing candle (not a general Quasimodo). The left shoulder is the entry. " +
           "Stronger when a Gap SNR / RBR / DBD sits near the left shoulder.",
         rules: [
-          "HTF: a STRONG (2-candle) engulfing candle — no engulfing, no QM_MEF",
+          "HTF: a STRONG (2-candle) engulfing candle - no engulfing, no QM_MEF",
           "Quasimodo uses candle CLOSES, not wicks (highs/lows = closes)",
           "Quasimodo points: Left Shoulder → Head → Right Shoulder (close-based)",
           "Bullish QM: LS low → pullback high → Head (lower low) → higher high",
@@ -2100,17 +2100,17 @@ const TRADING_MODULES: ModuleCategory[] = [
           "chart visuals as the SNRC2 detector, plus the standard 4-buffer iCustom contract.",
         rules: [
           "HTF engulfing must precede the pattern (InpHtfTF / InpHtfLookback)",
-          "Bearish: L1 → L2(<L1) → H2(>L1,<res) → L3(<L2) — entry = Classic SNR of 1st low",
-          "Bullish mirror — entry = Classic SNR of 1st high; SL = manipulation extreme",
+          "Bearish: L1 → L2(<L1) → H2(>L1,<res) → L3(<L2) - entry = Classic SNR of 1st low",
+          "Bullish mirror - entry = Classic SNR of 1st high; SL = manipulation extreme",
           "Invalidation: price trades beyond SL → buffers cleared and setup removed",
           "Entry line freezes when price taps the level",
         ],
         output: [
           "Buffer 0: BullConfirmBuf[sh]=1.0 at bullish SNRC2 confirmation bar (Cont HH)",
           "Buffer 1: BearConfirmBuf[sh]=1.0 at bearish SNRC2 confirmation bar (Cont LL)",
-          "Buffer 2: BullSLBuf[sh]=manipulation low — SL for bull entries",
-          "Buffer 3: BearSLBuf[sh]=manipulation high — SL for bear entries",
-          "Same visuals as SNRC2_Detector — entry line, SL line, structure markers",
+          "Buffer 2: BullSLBuf[sh]=manipulation low - SL for bull entries",
+          "Buffer 3: BearSLBuf[sh]=manipulation high - SL for bear entries",
+          "Same visuals as SNRC2_Detector - entry line, SL line, structure markers",
           "Journal: SNRC2_CREATED | SNRC2_ENTRY_TAPPED | SNRC2_SL_HIT | SNRC2_EXPIRED",
         ],
         status: "ready",
@@ -2141,7 +2141,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         name: "Fresh Zone",
         description:
           "Highlights supply/demand zones that have not yet been retested by " +
-          "price — statistically the highest-probability zones.",
+          "price - statistically the highest-probability zones.",
         status: "planned",
       },
       {
@@ -2158,7 +2158,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "SD_Flip_Detector.mq5",
         name: "Flip Zone",
         description:
-          "Detects supply/demand zones that have flipped polarity — former " +
+          "Detects supply/demand zones that have flipped polarity - former " +
           "supply that has become a demand zone and vice versa.",
         status: "planned",
       },
@@ -2168,7 +2168,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         name: "Nested Zone",
         description:
           "Identifies supply/demand zones that contain smaller zones within " +
-          "them — confluence of two timeframe zones in one area.",
+          "them - confluence of two timeframe zones in one area.",
         status: "planned",
       },
     ],
@@ -2183,7 +2183,7 @@ const TRADING_MODULES: ModuleCategory[] = [
     phaseTag: "Referenceable",
     phaseActive: true,
     description:
-      "Native MT5 indicators. These are NOT rebuilt as custom modules — the AI " +
+      "Native MT5 indicators. These are NOT rebuilt as custom modules - the AI " +
       "references them through MQL5's built-in functions (iX handle + CopyBuffer), " +
       "then combines them with strategy primitives (cross, divergence, filters). " +
       "Custom modules are reserved for concepts MT5 can't express natively.",
@@ -2223,7 +2223,7 @@ const TRADING_MODULES: ModuleCategory[] = [
     phaseActive: false,
     description:
       "Standalone wrappers for classic technical indicators. Each module " +
-      "provides detection logic, configurable alerts, and journal logging — " +
+      "provides detection logic, configurable alerts, and journal logging - " +
       "ready to combine with SMC or S/R modules in a strategy.",
     modules: [
       {
@@ -2259,7 +2259,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         description:
           "Trend-CONTINUATION setup. Bullish HD: price makes a Higher Low while RSI " +
           "makes a Lower Low. Bearish HD: price makes a Lower High while RSI makes a " +
-          "Higher High. A SETUP module only — it does not decide direction; pair it " +
+          "Higher High. A SETUP module only - it does not decide direction; pair it " +
           "with a Direction Brain (BOS / EMA) and an Execution module (IFVG / OB).",
         rules: [
           "Bullish HD: Price Low2 > Low1 (HL) AND RSI Low2 < Low1 (LL)",
@@ -2270,7 +2270,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         output: [
           "Renders in its own sub-window: plots the RSI line with 30/70 guides",
-          "Draws the divergence on BOTH panes — price line on the main chart, RSI line in the sub-window",
+          "Draws the divergence on BOTH panes - price line on the main chart, RSI line in the sub-window",
           "Buffer 0: RSIPlotBuf (the RSI line) · Buffer 1: BullHiddenDivBuf · Buffer 2: BearHiddenDivBuf",
           "Green legs for bullish HD + 'Bull HD' label; red legs for bearish HD + 'Bear HD' label",
           "Journal: RSI_HD_BULL | RSI_HD_BEAR | price/RSI swings | time",
@@ -2292,7 +2292,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "IND_ATR_Detector.mq5",
         name: "ATR",
         description:
-          "Average True Range for volatility measurement — dynamic threshold " +
+          "Average True Range for volatility measurement - dynamic threshold " +
           "bands and volatility-state logging (low / normal / high).",
         status: "planned",
       },
@@ -2337,7 +2337,7 @@ const TRADING_MODULES: ModuleCategory[] = [
         filename: "IND_Custom_Detector.mq5",
         name: "Other Indicators",
         description:
-          "Additional indicators built on request — EMA ribbon, Ichimoku cloud, " +
+          "Additional indicators built on request - EMA ribbon, Ichimoku cloud, " +
           "Parabolic SAR, Williams %R, CCI, and more.",
         status: "planned",
       },
@@ -2373,17 +2373,17 @@ function CatalogKindBadge({ kind }: { kind: ModuleCatalogKind }) {
     standalone_indicator: {
       label: "Standalone indicator",
       tone: "bg-violet-500/10 text-violet-300 border-violet-500/25",
-      hint: "Download, compile, attach to chart — not a Strategy Builder brain slot",
+      hint: "Download, compile, attach to chart - not a Strategy Builder brain slot",
     },
     state_module: {
       label: "State module",
       tone: "bg-amber-500/10 text-amber-300 border-amber-500/25",
-      hint: "iCustom state machine for Phase 3 EAs — not in 4-Brain picker yet",
+      hint: "iCustom state machine for Phase 3 EAs - not in 4-Brain picker yet",
     },
     full_ea: {
       label: "Full EA",
       tone: "bg-emerald-500/10 text-emerald-300 border-emerald-500/25",
-      hint: "Complete Expert Advisor — run on its own in MT5",
+      hint: "Complete Expert Advisor - run on its own in MT5",
     },
     brain_composable: {
       label: "Brain composable",
@@ -2568,7 +2568,7 @@ function ModuleCard({ mod }: { mod: ModuleEntry }) {
     if (!mod.generate) return;
     try {
       downloadMql5(mod.filename, mod.generate());
-      toast.success(`${mod.filename} downloaded — open in MetaEditor and compile`);
+      toast.success(`${mod.filename} downloaded - open in MetaEditor and compile`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Download failed");
     }
@@ -2608,7 +2608,7 @@ function ModuleCard({ mod }: { mod: ModuleEntry }) {
         )}
       </div>
 
-      {/* Rules + Output — only shown when specified */}
+      {/* Rules + Output - only shown when specified */}
       {mod.rules && mod.rules.length > 0 && (
         <div className="grid sm:grid-cols-2 gap-4 text-xs">
           <div>
@@ -2711,7 +2711,7 @@ function ModulesPage() {
     <div>
       <PageHeader
         title="Trading Modules"
-        subtitle="Modular trading concept engine — standalone detection, visualisation, and lifecycle modules across every major trading methodology."
+        subtitle="Modular trading concept engine - standalone detection, visualisation, and lifecycle modules across every major trading methodology."
       />
 
       <div className="p-6 space-y-6 max-w-5xl mx-auto">
@@ -2719,7 +2719,7 @@ function ModulesPage() {
         <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 flex items-start gap-3">
           <FlaskConical className="h-4 w-4 text-primary shrink-0 mt-0.5" />
           <div className="text-xs text-primary/80 space-y-2">
-            <p className="font-semibold text-primary">Two catalogs — do not confuse them</p>
+            <p className="font-semibold text-primary">Two catalogs - do not confuse them</p>
             <p>
               <span className="font-medium text-foreground/90">Strategy Builder</span> (
               <Link to="/build" className="underline hover:text-primary">
@@ -2731,11 +2731,11 @@ function ModulesPage() {
             </p>
             <p>
               <span className="font-medium text-foreground/90">Trading Modules</span> (this page) is
-              a download library of standalone MT5 files — detectors, liquidity visualisers, state
+              a download library of standalone MT5 files - detectors, liquidity visualisers, state
               modules, and full EAs. Items like{" "}
               <span className="font-medium">FVG / OB / BB Liquidity Detector</span> are legacy
               standalone files (superseded by{" "}
-              <span className="font-medium">Liquidity Buildup + zone_liq / ZLSM</span>) —{" "}
+              <span className="font-medium">Liquidity Buildup + zone_liq / ZLSM</span>) -{" "}
               <span className="font-medium">not</span> brain slots: download → compile → attach, or
               use Strategy Builder for EAs.
             </p>
@@ -2784,9 +2784,9 @@ function ModulesPage() {
         {/* Road map footer */}
         <div className="text-xs text-muted-foreground border-t border-border pt-4 space-y-1">
           <p className="font-medium text-foreground/60">Road map</p>
-          <p>Phase 2 — State modules: retest, mitigation, invalidation, expiry logic</p>
-          <p>Phase 3 — Execution modules: entry timing, SL, TP, break-even, trailing</p>
-          <p>Phase 4 — Composition: combine modules from any category into a full EA strategy</p>
+          <p>Phase 2 - State modules: retest, mitigation, invalidation, expiry logic</p>
+          <p>Phase 3 - Execution modules: entry timing, SL, TP, break-even, trailing</p>
+          <p>Phase 4 - Composition: combine modules from any category into a full EA strategy</p>
         </div>
       </div>
     </div>

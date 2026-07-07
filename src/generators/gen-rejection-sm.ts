@@ -3,7 +3,7 @@
  *
  * Playbook definition (Reactive/Malaysian SNR, Rule 2):
  *   "A rejection is a candle that closes below a resistance or above a support."
- *   The wick pierces the level, but the candle CLOSES BACK on the origin side —
+ *   The wick pierces the level, but the candle CLOSES BACK on the origin side -
  *   confirming the level held.
  *
  * This SM embeds S/R level detection (Classic reversal pairs + Gap continuation
@@ -16,12 +16,12 @@
  * Standard API:
  *   REJSM_{id}_Reset()
  *   REJSM_{id}_Tick(lookback)
- *   REJSM_{id}_BullJustConfirmed()  — bullish rejection off support this bar
- *   REJSM_{id}_BearJustConfirmed()  — bearish rejection off resistance this bar
- *   REJSM_{id}_BullConfirmSL()      — wick low of the rejection candle
- *   REJSM_{id}_BearConfirmSL()      — wick high of the rejection candle
- *   REJSM_{id}_HasActiveBull()      — a live support level exists
- *   REJSM_{id}_HasActiveBear()      — a live resistance level exists
+ *   REJSM_{id}_BullJustConfirmed()  - bullish rejection off support this bar
+ *   REJSM_{id}_BearJustConfirmed()  - bearish rejection off resistance this bar
+ *   REJSM_{id}_BullConfirmSL()      - wick low of the rejection candle
+ *   REJSM_{id}_BearConfirmSL()      - wick high of the rejection candle
+ *   REJSM_{id}_HasActiveBull()      - a live support level exists
+ *   REJSM_{id}_HasActiveBear()      - a live resistance level exists
  */
 
 export function genRejectionSM(
@@ -36,16 +36,16 @@ export function genRejectionSM(
 
   return `
 //+------------------------------------------------------------------+
-//| Rejection State Machine — ${tf} (${id})                         |
+//| Rejection State Machine - ${tf} (${id})                         |
 //| Wick pierces level + close back on origin side = rejection      |
 //| Levels: Classic (reversal pair) + Gap (continuation pair)       |
 //+------------------------------------------------------------------+
 struct ${P}LevelRec
 {
    int      dir;         //  1=support  -1=resistance
-   double   level;       // candle A close — the SNR price
+   double   level;       // candle A close - the SNR price
    datetime levelTime;   // candle A time
-   datetime confirmTime; // candle B time — SNR valid only AFTER this
+   datetime confirmTime; // candle B time - SNR valid only AFTER this
    bool     broken;
    int      barsAlive;
 };
@@ -87,7 +87,7 @@ void ${P}AddLevel(int dir, double level, datetime tA, datetime tB)
    ${P}levels[idx].dir         = dir;
    ${P}levels[idx].level       = level;
    ${P}levels[idx].levelTime   = tA;
-   ${P}levels[idx].confirmTime = tB;   // candle B — valid only after this
+   ${P}levels[idx].confirmTime = tB;   // candle B - valid only after this
    ${P}levels[idx].broken      = false;
    ${P}levels[idx].barsAlive   = 0;
 }

@@ -2,19 +2,19 @@
  * Inline FVG State Machine Generator
  *
  * Embeds FVG detection + full lifecycle state machine directly in an EA.
- * No external indicator required — zero dependencies.
+ * No external indicator required - zero dependencies.
  *
  * States: ACTIVE → RETESTED → CONFIRMED (consumed) | MITIGATED | INVALIDATED | EXPIRED
  *
  * Standard API:
  *   FVGSM_{id}_Reset()
- *   FVGSM_{id}_Tick(lookback)         — call once per bar-open
- *   FVGSM_{id}_BullJustConfirmed()    — true for ONE bar after bull confirmation
- *   FVGSM_{id}_BearJustConfirmed()    — true for ONE bar after bear confirmation
- *   FVGSM_{id}_BullConfirmSL()        — retestLow at last bull confirmation
- *   FVGSM_{id}_BearConfirmSL()        — retestHigh at last bear confirmation
- *   FVGSM_{id}_HasActiveBull()        — any live bull FVG (ACTIVE or RETESTED)
- *   FVGSM_{id}_HasActiveBear()        — any live bear FVG
+ *   FVGSM_{id}_Tick(lookback)         - call once per bar-open
+ *   FVGSM_{id}_BullJustConfirmed()    - true for ONE bar after bull confirmation
+ *   FVGSM_{id}_BearJustConfirmed()    - true for ONE bar after bear confirmation
+ *   FVGSM_{id}_BullConfirmSL()        - retestLow at last bull confirmation
+ *   FVGSM_{id}_BearConfirmSL()        - retestHigh at last bear confirmation
+ *   FVGSM_{id}_HasActiveBull()        - any live bull FVG (ACTIVE or RETESTED)
+ *   FVGSM_{id}_HasActiveBear()        - any live bear FVG
  */
 
 export function genFvgSM(
@@ -27,7 +27,7 @@ export function genFvgSM(
 
   return `
 //+------------------------------------------------------------------+
-//| FVG State Machine — ${tf} (${id})                               |
+//| FVG State Machine - ${tf} (${id})                               |
 //| States: ACTIVE → RETESTED → CONFIRMED | MITIGATED/INVALID/EXPIRED|
 //+------------------------------------------------------------------+
 #define ${P}ACTIVE       0

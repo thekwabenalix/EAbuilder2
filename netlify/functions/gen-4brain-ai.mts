@@ -1,5 +1,5 @@
 /**
- * gen-4brain-ai — AI-powered 4-Brain EA generator
+ * gen-4brain-ai - AI-powered 4-Brain EA generator
  *
  * Claude interprets the user's brain config + description using the full
  * module library as context, then generates the wiring MQL5 code that:
@@ -87,7 +87,7 @@ A trade fires only when all active brains agree (confluence gate).
 DIRECTION BRAIN:
   Purpose: Establish market bias (BULL/BEAR/NEUTRAL) from a higher timeframe.
   Output: gBias = 1 (BULL), -1 (BEAR), or 0 (NEUTRAL)
-  Rule: gBias is PERSISTENT — it holds until the opposite signal fires.
+  Rule: gBias is PERSISTENT - it holds until the opposite signal fires.
   Examples: EMA alignment, BOS/CHoCH trend, iFVG direction flip.
 
 SETUP BRAIN:
@@ -102,11 +102,11 @@ EXECUTION BRAIN:
   Rule: Reset to false every bar. Fires the specific entry pattern.
   Examples: FVG confirmed, OB confirmed, liquidity sweep, engulfing, pin bar.
 
-MANAGEMENT BRAIN: (handled by the assembler — you do NOT generate this)
+MANAGEMENT BRAIN: (handled by the assembler - you do NOT generate this)
   Risk %, R:R ratio, break-even, trailing stop, max trades.
 
 ═══════════════════════════════════════════════════════════════════════
-GLOBAL VARIABLES (already declared — do NOT redeclare)
+GLOBAL VARIABLES (already declared - do NOT redeclare)
 ═══════════════════════════════════════════════════════════════════════
   int    gBias        = 0;       // 1=BULL, -1=BEAR, 0=NEUTRAL
   bool   gSetupActive = false;   // true when zone is active in bias direction
@@ -121,11 +121,11 @@ GLOBAL VARIABLES (already declared — do NOT redeclare)
 YOUR OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════════════════
 
-Return a JSON object. PREFERRED output_mode is "strategy_flow" — structured steps
+Return a JSON object. PREFERRED output_mode is "strategy_flow" - structured steps
 the compiler maps to the ordered event gate. Use "brain_bodies" ONLY when the
 strategy cannot be expressed as verified module steps (e.g. custom EMA+IFVG timing).
 
-PRIMARY — strategy_flow mode (preferred):
+PRIMARY - strategy_flow mode (preferred):
 {
   "output_mode": "strategy_flow",
   "strategy_flow": {
@@ -174,13 +174,13 @@ PRIMARY — strategy_flow mode (preferred):
   "notes": "One paragraph: which modules you chose, which role they play, how steps chain together, and how you interpreted the trader's description."
 }
 
-Step roles: direction | setup | entry (alias: execution — treated as entry).
+Step roles: direction | setup | entry (alias: execution - treated as entry).
 Use ONLY verified module ids and contract-backed event names from the module library.
 dependsOn enforces chronological order between steps.
-Leave sm_configs and required_sms empty in strategy_flow mode — the compiler embeds
+Leave sm_configs and required_sms empty in strategy_flow mode - the compiler embeds
 state machines from steps automatically.
 
-LEGACY FALLBACK — brain_bodies mode (only when steps cannot express the strategy):
+LEGACY FALLBACK - brain_bodies mode (only when steps cannot express the strategy):
 {
   "output_mode": "brain_bodies",
   "direction_brain": "void Direction_Brain_Execute()\\n{\\n  ...\\n}",
@@ -223,7 +223,7 @@ LEGACY FALLBACK — brain_bodies mode (only when steps cannot express the strate
   "sm_configs": {
     "<unique_key>": {
       "type":   "<module_id>",     // fvg | fvg_inversion | ob | bos | choch | bos_choch | liqsweep | snr | gap_snr | breakout | rejection | miss
-      "id":     "<tf_label>",      // e.g. "D1", "H4", "M15" — used as SM prefix
+      "id":     "<tf_label>",      // e.g. "D1", "H4", "M15" - used as SM prefix
       "TF":     "<PERIOD_const>",  // e.g. "PERIOD_D1"
       "tf":     "<label>",         // same as id, used in log messages
       "params": {}                 // only include if different from defaults
@@ -239,7 +239,7 @@ it to "either". If they say IFVG "forms", "becomes", or is "confirmed" by closin
 through the old FVG boundary, semantics.execution.entryEvent MUST be "formation".
 Use "retest" only when the trader explicitly asks to enter on a later IFVG retest.
 
-sm_configs example — BOS direction D1, FVG setup H4, FVG execution M15:
+sm_configs example - BOS direction D1, FVG setup H4, FVG execution M15:
 {
   "bos_D1":  { "type": "bos",  "id": "D1",  "TF": "PERIOD_D1",  "tf": "D1",  "params": {} },
   "fvg_H4":  { "type": "fvg",  "id": "H4",  "TF": "PERIOD_H4",  "tf": "H4",  "params": { "expiryBars": 50 } },
@@ -281,17 +281,17 @@ CODE GENERATION RULES
 5.  Use EXACT function names from the module API (e.g. FVGSM_H4_BullJustConfirmed())
     Replace {id} with the SM's id value (e.g. "H4").
 
-    ★ CRITICAL — SM DECLARATION RULE:
+    ★ CRITICAL - SM DECLARATION RULE:
     EVERY state-machine function you call MUST have a matching entry in sm_configs.
     If your brain code calls FVGSM_M15_BullJustConfirmed(), then sm_configs MUST
     contain an entry with type "fvg" and id "M15". A function call with no matching
     config = "undeclared identifier" compile error. Before finishing, check every
     XXXSM_ID_ call against your sm_configs.
 
-    ★ EMA / moving averages HAVE NO STATE MACHINE — INLINE only.
+    ★ EMA / moving averages HAVE NO STATE MACHINE - INLINE only.
     Do NOT call BOSSM/FVGSM/etc for EMA. Use the verified helper B4_MA so the
     moving average is a REAL iMA handle AND is DRAWN on the chart (the trader
-    must be able to SEE the MA to trust the EA). B4_MA is idempotent — safe to
+    must be able to SEE the MA to trust the EA). B4_MA is idempotent - safe to
     call every bar. Example (12/48 EMA cross on M5 for direction):
       void Direction_Brain_Execute() {
         int hFast = B4_MA(PERIOD_M5, 12, MODE_EMA);
@@ -301,14 +301,14 @@ CODE GENERATION RULES
         gBias = (fast>slow) ? 1 : (fast<slow ? -1 : 0);
         PrintFormat("[DIR] EMA fast=%.5f slow=%.5f gBias=%d", fast, slow, gBias);
       }
-    NEVER approximate an EMA with a manual loop/average — always use B4_MA.
-    Simple EMA-cross DIRECTION (bias only) needs NO sm_config — inline B4_MA is fine.
+    NEVER approximate an EMA with a manual loop/average - always use B4_MA.
+    Simple EMA-cross DIRECTION (bias only) needs NO sm_config - inline B4_MA is fine.
     Pin Bar and Engulfing are also INLINE (no SM, no sm_config).
 
-    ★★ EMA CROSS → RETEST → PULLBACK SEQUENCES — USE THE VERIFIED EMASM, never hand-write.
+    ★★ EMA CROSS → RETEST → PULLBACK SEQUENCES - USE THE VERIFIED EMASM, never hand-write.
     The canonical EMA setup is "fast/slow CROSS, then retest the slow EMA, then a
-    candle CLOSES outside the fast EMA, then enter next bar" — a MULTI-BAR sequence.
-    Do NOT write the phases inline — you WILL collapse them onto one bar. Use the
+    candle CLOSES outside the fast EMA, then enter next bar" - a MULTI-BAR sequence.
+    Do NOT write the phases inline - you WILL collapse them onto one bar. Use the
     EMASM state machine (type "ema", prefix EMASM): IDLE → CROSSED (aligned
     fast/slow cross) → ARMED (retest slow EMA) → CONFIRMED (close outside fast EMA).
       // sm_configs: { "ema_M5": { type:"ema", id:"M5", TF:"PERIOD_M5", tf:"M5",
@@ -329,9 +329,9 @@ CODE GENERATION RULES
       • "M5 cross is the setup"            → Setup uses EMASM_M5_SetupActive()
       • "retest 48 then close outside 12"  → Execution uses EMASM_M5_JustConfirmed()
     Direction can be a simple cross on the HTF: gBias = EMASM_M15_Bias();  (or inline B4_MA).
-    requireCross:true (default) demands an aligned fast/slow cross BEFORE the retest —
+    requireCross:true (default) demands an aligned fast/slow cross BEFORE the retest -
     set false ONLY for a pure retest-with-no-cross strategy.
-    EMASM on the SAME TF for both Setup and Execution is correct — Tick is once-per-bar
+    EMASM on the SAME TF for both Setup and Execution is correct - Tick is once-per-bar
     guarded, so SetupActive() and JustConfirmed() are both valid on the confirmation bar.
     retestPoints = tolerance in POINTS. Default to 0 for a real touch of the slow EMA.
     Use a positive tolerance only when the trader explicitly says "within N points/pips".
@@ -340,15 +340,15 @@ CODE GENERATION RULES
     gExecSignalArmed / gExecSignalBar pattern, no waiting one bar before setting
     gExecSignal). Set gExecSignal = true in the SAME tick as JustConfirmed().
     WHY: the state machine confirms on the CLOSED bar (shift 1), so firing
-    immediately already enters at the CURRENT (new) bar's open — that IS "enter on
+    immediately already enters at the CURRENT (new) bar's open - that IS "enter on
     the next candle". A manual defer pushes gExecSignal to a LATER bar, by which
-    time the setup has been CONSUMED (gSetupActive resets to false) — the confluence
+    time the setup has been CONSUMED (gSetupActive resets to false) - the confluence
     gate then BLOCKS the trade with "no setup" and NO TRADE EVER FIRES. "Enter on
     next candle open" is already handled by the bar-open execution model; do not
     re-implement it.
 
     ★ VISUALISE EVERY INDICATOR. Any classic indicator you use MUST be visible:
-      - Moving averages: use B4_MA(tf, period, method) — it draws automatically.
+      - Moving averages: use B4_MA(tf, period, method) - it draws automatically.
       - Other built-ins (RSI, MACD, Bollinger, ATR, Stochastic, Ichimoku, Fractals)
         are referenceable primitives, not 4-Brain modules by themselves.
       - Do NOT put built-in indicator IDs such as rsi/macd/atr/stochastic into
@@ -385,13 +385,13 @@ CODE GENERATION RULES
 
     State machines that DO need an sm_config entry: fvg, fvg_inversion, ob, bos,
     choch, bos_choch, liqsweep, snr, gap_snr, breakout, rejection, miss, rsi_hd,
-    ob_fvg, unicorn, and ema (ONLY the EMA retest/pullback variant — simple EMA cross does not).
+    ob_fvg, unicorn, and ema (ONLY the EMA retest/pullback variant - simple EMA cross does not).
     Prefixes: fvg→FVGSM, fvg_inversion→IFVGSM, ob→OBSM, bos/choch/bos_choch→BOSSM,
     liqsweep→LSSM, snr→SNRSM, gap_snr→GSNRSM, breakout→BRKSM, rejection→REJSM,
     miss→MISSSM, rsi_hd→RSIHDSM, ob_fvg→OBFVGSM, unicorn→UNISMSM, ema→EMASM.
 
-    ★ UNICORN / ZONE-SCOPED REJECTION (critical — do NOT use REJSM for zone pockets):
-    - \`unicorn\` = ICT Unicorn overlap pocket (breaker block + FVG). SETUP role only — never direction.
+    ★ UNICORN / ZONE-SCOPED REJECTION (critical - do NOT use REJSM for zone pockets):
+    - \`unicorn\` = ICT Unicorn overlap pocket (breaker block + FVG). SETUP role only - never direction.
     - SNR Rejection (\`rejection\` / REJSM) = horizontal Classic/Gap S/R levels ONLY.
       It is NOT zone rejection on FVG, OB, or Unicorn pockets.
     - When setup is unicorn, fvg, order_block, ob_fvg, or breaker_block AND the trader wants
@@ -402,7 +402,7 @@ CODE GENERATION RULES
         3. entry: BAR_AFTER_CONFIRM on the same zone module
       → NEVER wire REJSM_ for pocket/zone rejection.
       → If the visual builder shows execution module "rejection" with a zone setup, emit the
-        strategy_flow steps above — the compiler remaps SNR rejection to zone-scoped confirm.
+        strategy_flow steps above - the compiler remaps SNR rejection to zone-scoped confirm.
     Example unicorn pocket strategy_flow:
       { "role": "setup", "module": "unicorn", "event": "UNICORN_ACTIVE", ... },
       { "role": "confirmation", "module": "unicorn", "event": "UNICORN_CONFIRMED", ... },
@@ -422,12 +422,12 @@ CODE GENERATION RULES
     If they say "fast EMA 12, slow EMA 48", set fastPeriod=12, slowPeriod=48 in sm_configs params.
 
 10. The same module can be used at different timeframes for different brains.
-    E.g., FVG at H4 for setup AND FVG at M15 for execution — give them different keys.
+    E.g., FVG at H4 for setup AND FVG at M15 for execution - give them different keys.
 
-11. COMMON PATTERNS — generate these correctly when described:
+11. COMMON PATTERNS - generate these correctly when described:
 
     MAX SL FILTER: "max stop loss = 7 pips" or "skip if SL > 70 points"
-    → DO NOT generate this — the assembler already handles it via the
+    → DO NOT generate this - the assembler already handles it via the
       InpMaxStopPts input and skips any trade whose SL distance exceeds it.
       Just make sure gExecSL is set correctly; the management layer enforces the cap.
       (If the trader gives a number, it is captured in the Max stop loss management
@@ -470,7 +470,7 @@ CODE GENERATION RULES
     not lookback. The IFVG state machine is guarded, so Setup and Execution can
     both call Tick(1) on the same bar without consuming the event.
 
-    iFVG ENTRY SEMANTICS — distinguish FORMATION from RETEST:
+    iFVG ENTRY SEMANTICS - distinguish FORMATION from RETEST:
     - If the trader says "bearish FVG closes above its upper boundary, becomes a
       bullish IFVG" and "enter after the bullish IFVG is confirmed/forms", the
       entry trigger is the INVERSION/FORMATION bar:
@@ -483,7 +483,7 @@ CODE GENERATION RULES
 
     INVALIDATION: "if opposite cross, reset direction and cancel pending"
     → In Direction_Brain_Execute(): when gBias flips, also reset gSetupActive = false.
-      If using EMA, gBias flips every bar based on alignment — no extra logic needed.
+      If using EMA, gBias flips every bar based on alignment - no extra logic needed.
       If using BOS/CHoCH, detect the flip and reset the retest flag.
 
     BREAKEVEN: "move SL to BE at 1.5R" → This is management brain logic.
@@ -517,7 +517,7 @@ interface FourBrainConfig {
 }
 
 interface GenRequest {
-  /** Structured brain config (from visual builder). Optional — can be inferred from description. */
+  /** Structured brain config (from visual builder). Optional - can be inferred from description. */
   config?: FourBrainConfig;
   eaName: string;
   /**
@@ -525,7 +525,7 @@ interface GenRequest {
    * When config is absent or has empty brains, Claude infers everything from this.
    */
   description?: string;
-  /** Raw user prompt from the /new page — Claude interprets it as a complete strategy */
+  /** Raw user prompt from the /new page - Claude interprets it as a complete strategy */
   prompt?: string;
   /** Verified built-in filter refs extracted during strategy intake. */
   filterRefs?: BuiltinFilterRef[];
@@ -1483,7 +1483,7 @@ export default async (req: Request): Promise<Response> => {
   if (!process.env.ANTHROPIC_API_KEY)
     return Response.json({ error: "ANTHROPIC_API_KEY not set" }, { status: 500, headers: CORS });
 
-  // Build the user message — two modes:
+  // Build the user message - two modes:
   // 1. Description-first: trader wrote a plain-English description, no structured config
   // 2. Config-guided: visual builder provided brain config + optional descriptions
   let userMessage: string;
@@ -1504,7 +1504,7 @@ TRADER'S STRATEGY DESCRIPTION:
 ${description ? `Additional context: ${description}` : ""}
 
 Instructions:
-- Map the description to the module library — use the aliases and example phrases to identify concepts
+- Map the description to the module library - use the aliases and example phrases to identify concepts
 - Decide which module goes in which brain role (direction/setup/execution)
 - If the trader specifies timeframes, use them exactly. If not, choose sensible defaults (D1 direction, H4 setup, H1/M15 execution)
 - Extract any configuration values from their words (lookback bars, expiry, pivot strength)
@@ -1514,7 +1514,7 @@ Instructions:
     // ── Config-guided mode ──────────────────────────────────────────────────
     // Visual builder provided explicit brain config.
     // Exact parameter values the trader set in the visual builder. These are
-    // AUTHORITATIVE — use them verbatim (e.g. EMA fastPeriod/slowPeriod, lookback,
+    // AUTHORITATIVE - use them verbatim (e.g. EMA fastPeriod/slowPeriod, lookback,
     // expiryBars). Do NOT substitute defaults when a value is provided here.
     const paramLine = (p?: Record<string, unknown>) =>
       p && Object.keys(p).length
@@ -1522,14 +1522,14 @@ Instructions:
         : "";
 
     const dirDesc = config.direction
-      ? `DIRECTION BRAIN — modules: [${config.direction.modules.join(", ")}] @ ${config.direction.timeframe}${paramLine(config.direction.params)}${config.direction.description ? `\nTrader notes: "${config.direction.description}"` : ""}`
-      : "DIRECTION BRAIN — disabled (passthrough: trade both directions)";
+      ? `DIRECTION BRAIN - modules: [${config.direction.modules.join(", ")}] @ ${config.direction.timeframe}${paramLine(config.direction.params)}${config.direction.description ? `\nTrader notes: "${config.direction.description}"` : ""}`
+      : "DIRECTION BRAIN - disabled (passthrough: trade both directions)";
 
     const setupDesc = config.setup
-      ? `SETUP BRAIN — modules: [${config.setup.modules.join(", ")}] @ ${config.setup.timeframe}${paramLine(config.setup.params)}${config.setup.description ? `\nTrader notes: "${config.setup.description}"` : ""}`
-      : "SETUP BRAIN — disabled (passthrough: setup always active when bias set)";
+      ? `SETUP BRAIN - modules: [${config.setup.modules.join(", ")}] @ ${config.setup.timeframe}${paramLine(config.setup.params)}${config.setup.description ? `\nTrader notes: "${config.setup.description}"` : ""}`
+      : "SETUP BRAIN - disabled (passthrough: setup always active when bias set)";
 
-    const execDesc = `EXECUTION BRAIN — modules: [${config.execution.modules.join(", ")}] @ ${config.execution.timeframe}${paramLine(config.execution.params)}${config.execution.description ? `\nTrader notes: "${config.execution.description}"` : ""}`;
+    const execDesc = `EXECUTION BRAIN - modules: [${config.execution.modules.join(", ")}] @ ${config.execution.timeframe}${paramLine(config.execution.params)}${config.execution.description ? `\nTrader notes: "${config.execution.description}"` : ""}`;
 
     userMessage = `Generate strategy_flow steps (preferred) or legacy brain wiring for this EA: "${eaName}"
 ${description ? `\nOverall strategy intent: ${description}\n` : ""}

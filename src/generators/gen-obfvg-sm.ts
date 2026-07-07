@@ -10,15 +10,15 @@
  *   Bullish: high(C1) < low(C3) (bullish gap) AND C1 bearish.
  *   Bearish: low(C1)  > high(C3) (bearish gap) AND C1 bullish.
  *
- * FRESH zones only — a zone is consumed the instant price tests the OB body.
+ * FRESH zones only - a zone is consumed the instant price tests the OB body.
  *
  * Standard API:
  *   OBFVGSM_{id}_Reset()
  *   OBFVGSM_{id}_Tick(lookback)
- *   OBFVGSM_{id}_HasActiveBull() / HasActiveBear()   — a fresh OB+FVG zone exists (SETUP)
- *   OBFVGSM_{id}_BullJustConfirmed() / BearJustConfirmed() — price tapped the OB body (ENTRY)
- *   OBFVGSM_{id}_BullConfirmSL() / BearConfirmSL()   — OB invalidation level (SL)
- *   OBFVGSM_{id}_ActiveBullSL() / ActiveBearSL()     — freshest zone's OB low/high (setup SL hint)
+ *   OBFVGSM_{id}_HasActiveBull() / HasActiveBear()   - a fresh OB+FVG zone exists (SETUP)
+ *   OBFVGSM_{id}_BullJustConfirmed() / BearJustConfirmed() - price tapped the OB body (ENTRY)
+ *   OBFVGSM_{id}_BullConfirmSL() / BearConfirmSL()   - OB invalidation level (SL)
+ *   OBFVGSM_{id}_ActiveBullSL() / ActiveBearSL()     - freshest zone's OB low/high (setup SL hint)
  */
 
 export function genObFvgSM(id: string, TF: string, tf: string, expiryBars = 250): string {
@@ -26,7 +26,7 @@ export function genObFvgSM(id: string, TF: string, tf: string, expiryBars = 250)
 
   return `
 //+------------------------------------------------------------------+
-//| OB+FVG State Machine — ${tf} (${id})                            |
+//| OB+FVG State Machine - ${tf} (${id})                            |
 //| FVG whose first candle is the opposite colour = the OB.        |
 //| Entry at the OB body. Fresh zones only.                        |
 //+------------------------------------------------------------------+
@@ -38,7 +38,7 @@ struct ${P}Zone
    double   obLo;       // C1 low  (SL ref)
    double   obHi;       // C1 high (SL ref)
    datetime obTime;     // C1 time (dedup key)
-   datetime confirmTime;// C3 time — valid only after this
+   datetime confirmTime;// C3 time - valid only after this
    bool     dead;
    int      barsAlive;
 };
@@ -202,7 +202,7 @@ bool   ${P}HasActiveBear()
    for(int _k=0;_k<${P}zoneCount;_k++) if(${P}zones[_k].dir==-1 && !${P}zones[_k].dead) return true;
    return false;
 }
-// Freshest (most recent) live zone's OB invalidation level — setup SL hint.
+// Freshest (most recent) live zone's OB invalidation level - setup SL hint.
 double ${P}ActiveBullSL()
 {
    double sl = 0.0; datetime best = 0;

@@ -30,7 +30,7 @@ export function generateSnrc1Detector(): string {
 //| Entry is at the matching zone; the broken SNR level is shown    |
 //| as a dashed reference line.                                      |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SNRC1 Detector"
+#property copyright "EA Builder - SNRC1 Detector"
 #property version   "2.00"
 #property strict
 #property indicator_chart_window
@@ -76,9 +76,9 @@ input int             InpDojiPoints    = 0;              // Doji body threshold 
 input double InpImpulseRatio   = 0.5;  // Leg   body/range ≥ this (impulse qualifier)
 input double InpBaseMaxRatio   = 0.5;  // Base  body/range ≤ this (base qualifier)
 input int    InpMaxBaseCandles = 6;    // Max candles in base
-input double InpLegBaseMult    = 1.3;  // Leg range ≥ N × avg base range
+input double InpLegBaseMult    = 1.3;  // Leg range ≥ N �- avg base range
 
-//--- Proximity — how close the zone must be to the broken Classic SNR level
+//--- Proximity - how close the zone must be to the broken Classic SNR level
 input double InpProxATR    = 2.0;  // Zone proximity in ATR multiples
 input int    InpProxAtrPer = 14;   // ATR period for proximity calculation
 
@@ -230,7 +230,7 @@ void AddSnrLevel(int shA, int shB)
    if(shA >= avail || shB < 0) return;
 
    int dA = CandleDir(shA), dB = CandleDir(shB);
-   if(dA == 0 || dB == 0) return;  // doji — skip
+   if(dA == 0 || dB == 0) return;  // doji - skip
 
    int stype = 0;
    if(dA > 0 && dB < 0) stype = SNR_RES;  // Bull A → Bear B = Resistance
@@ -364,7 +364,7 @@ void DetectBase(int sh)
 //|                                                                  |
 //| The zone must:                                                   |
 //|   • match direction (bull break → RBR / Gap-Sup; bear → DBD / Gap-Res)
-//|   • be within InpProxATR × ATR of the broken level              |
+//|   • be within InpProxATR �- ATR of the broken level              |
 //| Pick the closest match. BASE wins over GAP when equidistant.   |
 //+------------------------------------------------------------------+
 void TryMatchSnrc1(int snrIdx, int sh)
@@ -394,7 +394,7 @@ void TryMatchSnrc1(int snrIdx, int sh)
 
    if(bestBase >= 0)
    {
-      // Consume the base — prevent it pairing with another breakout
+      // Consume the base - prevent it pairing with another breakout
       baseList[bestBase].dead = true;
 
       int idx = snrc1Total++;
@@ -433,7 +433,7 @@ void TryMatchSnrc1(int snrIdx, int sh)
 
    if(bestGap >= 0)
    {
-      // Consume the gap — prevent it pairing with another breakout
+      // Consume the gap - prevent it pairing with another breakout
       gapList[bestGap].dead = true;
 
       int idx = snrc1Total++;
@@ -585,12 +585,12 @@ void UpdateGapAtBar(int sh)
 //+------------------------------------------------------------------+
 //| Drawing                                                          |
 //|                                                                  |
-//| ObjZone — historical entry zone box (entryLeft → breakTime)     |
+//| ObjZone - historical entry zone box (entryLeft → breakTime)     |
 //|           Fixed width. Shows where the RBR/DBD base formed.     |
-//| ObjLine — entry-level extending line (breakTime → right)        |
+//| ObjLine - entry-level extending line (breakTime → right)        |
 //|           Shows the active level to watch for re-entry.         |
-//| ObjLvl  — dashed broken Classic SNR reference (snrOrigin → right)
-//| ObjLbl  — label at breakTime on the entry level                 |
+//| ObjLvl  - dashed broken Classic SNR reference (snrOrigin → right)
+//| ObjLbl  - label at breakTime on the entry level                 |
 //+------------------------------------------------------------------+
 void DrawSnrc1(int i)
 {
@@ -612,7 +612,7 @@ void DrawSnrc1(int i)
    ObjectDelete(0, ObjLvl (snrc1List[i].id));
    ObjectDelete(0, ObjLbl (snrc1List[i].id));
 
-   // Terminal states — remove everything from chart
+   // Terminal states - remove everything from chart
    if(st == C1_BROKEN || st == C1_EXPIRED)
    {
       snrc1List[i].drawnState = st;
@@ -643,7 +643,7 @@ void DrawSnrc1(int i)
       }
    }
 
-   // ── Entry-level line — extends right to show the active level ─────
+   // ── Entry-level line - extends right to show the active level ─────
    // For base: from breakTime at entryLvl, ray right.
    // For gap : from entryLeft at gap level, ray right.
    datetime tLineStart = isGap ? tLeft : tBreak;
@@ -674,7 +674,7 @@ void DrawSnrc1(int i)
       ObjectSetInteger(0, ObjLvl(snrc1List[i].id), OBJPROP_BACK,       true);
    }
 
-   // ── Label — at breakTime on the entry level ────────────────────────
+   // ── Label - at breakTime on the entry level ────────────────────────
    string typeStr = isGap ? (isBull ? "G-Sup" : "G-Res")
                           : (isBull ? "RBR"   : "DBD");
    string suffix  = (st == C1_TOUCHED) ? " ~" : (st == C1_CONFIRMED) ? " ✓" : "";
@@ -704,7 +704,7 @@ void DrawAll()
 
 void ExtendZones()
 {
-   // ObjZone (historical base box) is fixed-width — do NOT extend it.
+   // ObjZone (historical base box) is fixed-width - do NOT extend it.
    // Only the entry-level line and broken-SNR reference line extend right.
    datetime tNow = iTime(_Symbol, InpTF, 0);
    for(int i = 0; i < snrc1Total; i++)
@@ -752,7 +752,7 @@ void DeleteAllObjects()
 }
 
 //+------------------------------------------------------------------+
-//| OnInit — two-pass chronological scan                            |
+//| OnInit - two-pass chronological scan                            |
 //|                                                                  |
 //| Pass 1: detect all Classic SNR levels, Gap SNRs, RBR/DBD bases |
 //| Pass 2: replay bar-by-bar, detect breakouts + update lifecycle  |
@@ -801,7 +801,7 @@ int OnInit()
          case C1_BROKEN:    nBr++; break;
          case C1_EXPIRED:   nEx++; break;
       }
-   PrintFormat("SNRC1_Detector v${SNRC1_DETECTOR_VERSION} ready | active=%d touched=%d confirmed=%d broken=%d expired=%d | prox=%.1f×ATR(%d) | %s %s",
+   PrintFormat("SNRC1_Detector v${SNRC1_DETECTOR_VERSION} ready | active=%d touched=%d confirmed=%d broken=%d expired=%d | prox=%.1f�-ATR(%d) | %s %s",
       nA, nT, nC, nBr, nEx, InpProxATR, InpProxAtrPer, _Symbol, EnumToString(InpTF));
    return INIT_SUCCEEDED;
 }
@@ -809,7 +809,7 @@ int OnInit()
 void OnDeinit(const int reason) { DeleteAllObjects(); ChartRedraw(0); }
 
 //+------------------------------------------------------------------+
-//| OnCalculate — new bar                                           |
+//| OnCalculate - new bar                                           |
 //+------------------------------------------------------------------+
 int OnCalculate(const int rates_total, const int prev_calculated,
                 const datetime &time[], const double &open[],

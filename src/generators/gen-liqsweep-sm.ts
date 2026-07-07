@@ -1,16 +1,16 @@
 /**
  * Inline Liquidity Sweep State Machine Generator
  *
- * Detects when a wick sweeps a swing extreme then closes back — the
+ * Detects when a wick sweeps a swing extreme then closes back - the
  * confirmation IS the signal (no separate retest phase needed).
  *
  * Standard API:
  *   LSSM_{id}_Reset()
  *   LSSM_{id}_Tick(lookback)
- *   LSSM_{id}_BullJustConfirmed()   — bull sweep confirmed this bar
- *   LSSM_{id}_BearJustConfirmed()   — bear sweep confirmed this bar
- *   LSSM_{id}_BullConfirmSL()       — wick low of sweep bar
- *   LSSM_{id}_BearConfirmSL()       — wick high of sweep bar
+ *   LSSM_{id}_BullJustConfirmed()   - bull sweep confirmed this bar
+ *   LSSM_{id}_BearJustConfirmed()   - bear sweep confirmed this bar
+ *   LSSM_{id}_BullConfirmSL()       - wick low of sweep bar
+ *   LSSM_{id}_BearConfirmSL()       - wick high of sweep bar
  */
 
 export function genLiqSweepSM(
@@ -25,7 +25,7 @@ export function genLiqSweepSM(
 
   return `
 //+------------------------------------------------------------------+
-//| LiqSweep State Machine — ${tf} (${id})                         |
+//| LiqSweep State Machine - ${tf} (${id})                         |
 //| Sweep wick beyond swing + close-back → CONFIRMED               |
 //+------------------------------------------------------------------+
 struct ${P}SwingLvl

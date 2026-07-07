@@ -30,7 +30,7 @@ const helpers = [
   .join("\n\n");
 
 const header = `/**
- * Phase 3 — blessed deterministic AI adapters (EMA+IFVG, EMA CTC).
+ * Phase 3 - blessed deterministic AI adapters (EMA+IFVG, EMA CTC).
  * Shared by Netlify gen-4brain-ai and client-side resolve-ai-wiring.
  */
 

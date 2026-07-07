@@ -151,7 +151,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "IFVGSM_{id}_BullConfirmTime()",
           "IFVGSM_{id}_BearConfirmTime()",
         ],
-        meaning: "After IFVG retest, close holds outside — SMC rejection confirm.",
+        meaning: "After IFVG retest, close holds outside - SMC rejection confirm.",
       },
       {
         id: "confirmation",
@@ -226,7 +226,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "FVGSM_{id}_BullConfirmSL()",
           "FVGSM_{id}_BearConfirmSL()",
         ],
-        meaning: "After retest, close holds outside the zone — SMC rejection confirm.",
+        meaning: "After retest, close holds outside the zone - SMC rejection confirm.",
       },
     ],
     params: [
@@ -275,7 +275,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "OBSM_{id}_BullConfirmSL()",
           "OBSM_{id}_BearConfirmSL()",
         ],
-        meaning: "After OB retest, close holds outside the block — SMC rejection confirm.",
+        meaning: "After OB retest, close holds outside the block - SMC rejection confirm.",
       },
     ],
     params: [
@@ -354,7 +354,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "UNISMSM_{id}_ActiveBullSL()",
           "UNISMSM_{id}_ActiveBearSL()",
         ],
-        meaning: "Breaker block and FVG overlap pocket is live — awaiting retest.",
+        meaning: "Breaker block and FVG overlap pocket is live - awaiting retest.",
       },
       {
         id: "retest",
@@ -371,7 +371,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "UNISMSM_{id}_BullConfirmSL()",
           "UNISMSM_{id}_BearConfirmSL()",
         ],
-        meaning: "After retest, close holds outside the pocket — zone-scoped SMC rejection.",
+        meaning: "After retest, close holds outside the pocket - zone-scoped SMC rejection.",
       },
       {
         id: "overlap_entry",
@@ -382,7 +382,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "UNISMSM_{id}_BullConfirmSL()",
           "UNISMSM_{id}_BearConfirmSL()",
         ],
-        meaning: "Alias for zone_rejection — pocket rejection confirm (not SNR rejection).",
+        meaning: "Alias for zone_rejection - pocket rejection confirm (not SNR rejection).",
       },
     ],
     params: [
@@ -396,7 +396,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         name: "dispMult",
         type: "double",
         default: 1.5,
-        description: "Displacement body >= N × ATR.",
+        description: "Displacement body >= N �- ATR.",
       },
       {
         name: "dispAtrPeriod",
@@ -431,7 +431,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
     ],
     aliases: ["unicorn", "bb fvg", "breaker fvg", "ict unicorn", "breaker block fvg"],
     notes:
-      "ICT Unicorn — NOT the same as OB+FVG. Requires a flipped breaker overlapping a same-direction FVG.",
+      "ICT Unicorn - NOT the same as OB+FVG. Requires a flipped breaker overlapping a same-direction FVG.",
   },
   bos: {
     id: "bos",
@@ -545,7 +545,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "SWINGSM_{id}_ActiveBullSL()",
           "SWINGSM_{id}_ActiveBearSL()",
         ],
-        meaning: "New swing pivot confirmed — last swing low/high as SL reference.",
+        meaning: "New swing pivot confirmed - last swing low/high as SL reference.",
       },
     ],
     params: [
@@ -569,7 +569,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       },
     ],
     aliases: ["swing structure", "swing high", "swing low", "higher highs", "lower lows"],
-    notes: "Confirmed pivots only — HH/HL bull or LH/LL bear; not BOS/CHoCH.",
+    notes: "Confirmed pivots only - HH/HL bull or LH/LL bear; not BOS/CHoCH.",
   },
   liqsweep: {
     id: "liqsweep",
@@ -745,7 +745,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "ZLSM_{id}_ActiveBullSL()",
           "ZLSM_{id}_ActiveBearSL()",
         ],
-        meaning: "OB/BB/FVG zone with liquidity built — wick approached the edge without entering.",
+        meaning: "OB/BB/FVG zone with liquidity built - wick approached the edge without entering.",
       },
       {
         id: "zone_confirmed",
@@ -788,7 +788,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       "ob liquidity buildup",
       "bb liquidity buildup",
     ],
-    notes: "Combined OB + BB + FVG liquidity buildup — wick near edge without entering.",
+    notes: "Combined OB + BB + FVG liquidity buildup - wick near edge without entering.",
   },
   snrc2: {
     id: "snrc2",
@@ -808,7 +808,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "SNRC2SM_{id}_ActiveBullSL()",
           "SNRC2SM_{id}_ActiveBearSL()",
         ],
-        meaning: "Live SNRC2 continuation — entry level active until tapped or SL invalidation.",
+        meaning: "Live SNRC2 continuation - entry level active until tapped or SL invalidation.",
       },
       {
         id: "pattern_confirmed",
@@ -881,7 +881,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "BBSM_{id}_ActiveBullSL()",
           "BBSM_{id}_ActiveBearSL()",
         ],
-        meaning: "Live breaker block zone after failed OB — awaiting retest.",
+        meaning: "Live breaker block zone after failed OB - awaiting retest.",
       },
       {
         id: "bb_confirmed",
@@ -916,7 +916,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       },
     ],
     aliases: ["breaker block", "smc breaker block", "smc bb", "failed order block", "ob flip"],
-    notes: "SMC Breaker Block — failed OB polarity flip. Not Bollinger Bands (bb).",
+    notes: "SMC Breaker Block - failed OB polarity flip. Not Bollinger Bands (bb).",
   },
   rss_srr: {
     id: "rss_srr",
@@ -931,25 +931,25 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         id: "srr_active",
         roles: ["setup"],
         queryFunctions: ["RSSSRRSM_{id}_HasActiveBull()", "RSSSRRSM_{id}_ActiveBullSL()"],
-        meaning: "Live SRR — driving Support swept ≥ minBreaks resistances, not invalidated.",
+        meaning: "Live SRR - driving Support swept ≥ minBreaks resistances, not invalidated.",
       },
       {
         id: "rss_active",
         roles: ["setup"],
         queryFunctions: ["RSSSRRSM_{id}_HasActiveBear()", "RSSSRRSM_{id}_ActiveBearSL()"],
-        meaning: "Live RSS — driving Resistance swept ≥ minBreaks supports, not invalidated.",
+        meaning: "Live RSS - driving Resistance swept ≥ minBreaks supports, not invalidated.",
       },
       {
         id: "srr_confirmed",
         roles: ["setup", "execution"],
         queryFunctions: ["RSSSRRSM_{id}_BullJustConfirmed()", "RSSSRRSM_{id}_BullConfirmSL()"],
-        meaning: "SRR fired this bar — Support drove minBreaks resistance close-breaks.",
+        meaning: "SRR fired this bar - Support drove minBreaks resistance close-breaks.",
       },
       {
         id: "rss_confirmed",
         roles: ["setup", "execution"],
         queryFunctions: ["RSSSRRSM_{id}_BearJustConfirmed()", "RSSSRRSM_{id}_BearConfirmSL()"],
-        meaning: "RSS fired this bar — Resistance drove minBreaks support close-breaks.",
+        meaning: "RSS fired this bar - Resistance drove minBreaks support close-breaks.",
       },
     ],
     params: [
@@ -973,7 +973,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       },
     ],
     aliases: ["rss", "srr", "rss srr", "repeated support sweep", "repeated resistance sweep"],
-    notes: "Classic SNR sweep counter — RSS (sell) / SRR (buy).",
+    notes: "Classic SNR sweep counter - RSS (sell) / SRR (buy).",
   },
   mef: {
     id: "mef",
@@ -993,7 +993,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "MEFSM_{id}_ActiveBullSL()",
           "MEFSM_{id}_ActiveBearSL()",
         ],
-        meaning: "Live MEF — engulfing confluence active until expiry.",
+        meaning: "Live MEF - engulfing confluence active until expiry.",
       },
       {
         id: "pattern_confirmed",
@@ -1004,7 +1004,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "MEFSM_{id}_BullConfirmSL()",
           "MEFSM_{id}_BearConfirmSL()",
         ],
-        meaning: "MEF confirmed this bar — strong engulfing + Gap SNR + RBR/DBD inside.",
+        meaning: "MEF confirmed this bar - strong engulfing + Gap SNR + RBR/DBD inside.",
       },
     ],
     params: [
@@ -1054,7 +1054,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         name: "legBaseMult",
         type: "double",
         default: 1.3,
-        description: "Leg range must exceed avg base range × this multiplier.",
+        description: "Leg range must exceed avg base range �- this multiplier.",
       },
     ],
     aliases: ["mef", "manipulation entry formula", "mef candle", "multi timeframe engulfing"],
@@ -1079,7 +1079,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "QMMEFSM_{id}_ActiveBullSL()",
           "QMMEFSM_{id}_ActiveBearSL()",
         ],
-        meaning: "Live QM_MEF awaiting left-shoulder retest — not touched, not invalidated.",
+        meaning: "Live QM_MEF awaiting left-shoulder retest - not touched, not invalidated.",
       },
       {
         id: "ls_touched",
@@ -1090,7 +1090,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "QMMEFSM_{id}_BullConfirmSL()",
           "QMMEFSM_{id}_BearConfirmSL()",
         ],
-        meaning: "Left shoulder touched this bar — right-shoulder entry trigger.",
+        meaning: "Left shoulder touched this bar - right-shoulder entry trigger.",
       },
     ],
     params: [
@@ -1146,12 +1146,12 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         name: "legBaseMult",
         type: "double",
         default: 1.3,
-        description: "Leg range must exceed avg base range × this multiplier.",
+        description: "Leg range must exceed avg base range �- this multiplier.",
       },
     ],
     aliases: ["qm mef", "qm_mef", "quasimodo mef", "quasimodo manipulation entry"],
     notes:
-      "HTF engulfing-born Quasimodo — entry at left shoulder, SL beyond head, optional confluence.",
+      "HTF engulfing-born Quasimodo - entry at left shoulder, SL beyond head, optional confluence.",
   },
   rbr_dbd: {
     id: "rbr_dbd",
@@ -1166,25 +1166,25 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         id: "demand_active",
         roles: ["setup"],
         queryFunctions: ["RBRDBDSM_{id}_HasActiveBull()", "RBRDBDSM_{id}_ActiveBullSL()"],
-        meaning: "Live RBR demand zone — base not traded through, not expired.",
+        meaning: "Live RBR demand zone - base not traded through, not expired.",
       },
       {
         id: "supply_active",
         roles: ["setup"],
         queryFunctions: ["RBRDBDSM_{id}_HasActiveBear()", "RBRDBDSM_{id}_ActiveBearSL()"],
-        meaning: "Live DBD supply zone — base not traded through, not expired.",
+        meaning: "Live DBD supply zone - base not traded through, not expired.",
       },
       {
         id: "rbr_confirmed",
         roles: ["setup", "execution"],
         queryFunctions: ["RBRDBDSM_{id}_BullJustConfirmed()", "RBRDBDSM_{id}_BullConfirmSL()"],
-        meaning: "RBR demand zone confirmed this bar — leg-out broke above base.",
+        meaning: "RBR demand zone confirmed this bar - leg-out broke above base.",
       },
       {
         id: "dbd_confirmed",
         roles: ["setup", "execution"],
         queryFunctions: ["RBRDBDSM_{id}_BearJustConfirmed()", "RBRDBDSM_{id}_BearConfirmSL()"],
-        meaning: "DBD supply zone confirmed this bar — leg-out broke below base.",
+        meaning: "DBD supply zone confirmed this bar - leg-out broke below base.",
       },
     ],
     params: [
@@ -1222,11 +1222,11 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         name: "legBaseMult",
         type: "double",
         default: 1.3,
-        description: "Leg range must exceed avg base range × this multiplier.",
+        description: "Leg range must exceed avg base range �- this multiplier.",
       },
     ],
     aliases: ["rbr", "dbd", "rbr dbd", "rally base rally", "drop base drop", "supply demand zone"],
-    notes: "RBR demand / DBD supply — base zone invalidates on close through the zone.",
+    notes: "RBR demand / DBD supply - base zone invalidates on close through the zone.",
   },
   breakout: {
     id: "breakout",
@@ -1342,11 +1342,11 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         name: "mode",
         type: "string",
         default: "touch",
-        description: "touch | breakout | midline — signal interpretation.",
+        description: "touch | breakout | midline - signal interpretation.",
       },
     ],
     aliases: ["bollinger", "bollinger bands", "upper band", "lower band"],
-    notes: "Prefix BOLLSM — distinct from SMC Breaker Block BBSM.",
+    notes: "Prefix BOLLSM - distinct from SMC Breaker Block BBSM.",
   },
   engulfing: {
     id: "engulfing",
@@ -1372,14 +1372,14 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
           "EGSM_{id}_BullConfirmSL()",
           "EGSM_{id}_BearConfirmSL()",
         ],
-        meaning: "Price retested the EG/EF zone and closed back outside — zone held. Entry signal.",
+        meaning: "Price retested the EG/EF zone and closed back outside - zone held. Entry signal.",
       },
       {
         id: "ef_formed",
         roles: ["direction", "setup"],
         queryFunctions: ["EGSM_{id}_HasActiveBull()", "EGSM_{id}_HasActiveBear()"],
         meaning:
-          "An EG zone was violated and flipped direction — now an EF zone in the opposite direction.",
+          "An EG zone was violated and flipped direction - now an EF zone in the opposite direction.",
       },
     ],
     params: [
@@ -1407,7 +1407,7 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
       "Malaysian engulfing",
     ],
     notes:
-      "EG = wick-defined zone (like OB but marked from C1 full wick range). EF = a failed EG — price closed through the zone, which then flips direction. Both share one SM instance. EF is NOT a Breaker Block; it requires no BOS context.",
+      "EG = wick-defined zone (like OB but marked from C1 full wick range). EF = a failed EG - price closed through the zone, which then flips direction. Both share one SM instance. EF is NOT a Breaker Block; it requires no BOS context.",
   },
   pin_bar: {
     id: "pin_bar",
@@ -1437,17 +1437,17 @@ export const MODULE_CONTRACTS: Record<string, ModuleContract> = {
         name: "wickRatio",
         type: "double",
         default: 0.6,
-        description: "Wick must be >= N × candle range.",
+        description: "Wick must be >= N �- candle range.",
       },
       {
         name: "bodyMaxRatio",
         type: "double",
         default: 0.35,
-        description: "Body must be <= N × candle range.",
+        description: "Body must be <= N �- candle range.",
       },
     ],
     aliases: ["pin bar", "hammer", "shooting star", "long wick", "rejection candle"],
-    notes: "Point-in-time execution trigger — fires on the just-closed bar.",
+    notes: "Point-in-time execution trigger - fires on the just-closed bar.",
   },
 };
 

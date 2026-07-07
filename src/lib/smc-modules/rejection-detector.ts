@@ -1,11 +1,11 @@
 /**
- * SNR Module Library — Phase 1: Rejection Detector
+ * SNR Module Library - Phase 1: Rejection Detector
  *
  * Rejection_Detector v1.0.0
  * ────────────────────────────────────────────────
  * Reactive SNR Rule 2: "A rejection is a candle that closes below a resistance
  * or above a support." The wick pierces an S/R level, but the candle CLOSES
- * BACK on the origin side — the level held.
+ * BACK on the origin side - the level held.
  *
  * LEVEL SOURCE (embedded): Classic SNR (reversal pair) + Gap SNR (continuation
  *   pair). SNR price = Candle A close.
@@ -31,13 +31,13 @@ export const REJECTION_DETECTOR_MODULE = "Rejection_Detector";
 export function generateRejectionDetector(): string {
   return `//+------------------------------------------------------------------+
 //| Rejection_Detector.mq5                                         |
-//| SNR Module Library v${REJECTION_DETECTOR_VERSION} — Phase 1: Detection Only  |
+//| SNR Module Library v${REJECTION_DETECTOR_VERSION} - Phase 1: Detection Only  |
 //|                                                                  |
 //| Reactive SNR Rule 2: wick pierces an S/R level, close holds on  |
 //| the origin side. Levels = Classic (reversal) + Gap (continuation)|
 //| NO trading logic. Detection and visualisation only.            |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SNR Module Library"
+#property copyright "EA Builder - SNR Module Library"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window
@@ -47,7 +47,7 @@ export function generateRejectionDetector(): string {
 #define TYPE_RESISTANCE   2
 #define LVL_MAX           600
 
-//--- Inputs — Detection
+//--- Inputs - Detection
 input ENUM_TIMEFRAMES InpTF           = PERIOD_CURRENT; // Timeframe
 input int             InpLookback     = 500;            // Historical bars to scan
 input double          InpMinWickRatio = 0.5;            // Rejection wick >= this fraction of range
@@ -56,7 +56,7 @@ input bool            InpUseClassic   = true;           // Use Classic (reversal
 input bool            InpUseGap       = true;           // Use Gap (continuation-pair) levels
 input int             InpLineBars     = 6;               // Rejection line length (bars)
 input string          InpLabelOverride= "";              // Custom label ("" = auto DRD/WRW/4R4/1R1)
-//--- Inputs — Colours
+//--- Inputs - Colours
 input color           InpBullColor    = clrMediumSeaGreen; // Bullish rejection (support held)
 input color           InpBearColor    = clrTomato;          // Bearish rejection (resistance held)
 input int             InpLineWidth    = 2;               // Rejection line width
@@ -68,9 +68,9 @@ struct LevelRec
 {
    int      id;
    int      type;        // TYPE_SUPPORT or TYPE_RESISTANCE
-   double   level;       // Candle A close — the SNR price
+   double   level;       // Candle A close - the SNR price
    datetime levelTime;   // Candle A time (price origin / line left anchor)
-   datetime confirmTime; // Candle B time — the SNR is only valid AFTER this
+   datetime confirmTime; // Candle B time - the SNR is only valid AFTER this
    bool     broken;
    int      ageCounter;
 };
@@ -131,8 +131,8 @@ void AddLevel(int type, double level, datetime tA, datetime tB)
    levList[idx].id          = nextId++;
    levList[idx].type        = type;
    levList[idx].level       = level;
-   levList[idx].levelTime   = tA;   // Candle A — price origin
-   levList[idx].confirmTime = tB;   // Candle B — SNR valid only AFTER this
+   levList[idx].levelTime   = tA;   // Candle A - price origin
+   levList[idx].confirmTime = tB;   // Candle B - SNR valid only AFTER this
    levList[idx].broken      = false;
    levList[idx].ageCounter  = 0;
 }
@@ -179,7 +179,7 @@ void DrawRejection(int dir, double wickExtreme, datetime levelTime, datetime rej
 
    // The actual SNR level line: horizontal at lvl, from the level's origin
    // candle up to the reject candle. Bounded (no ray) so it stops at the
-   // rejection — not drawn to the end of the chart.
+   // rejection - not drawn to the end of the chart.
    datetime tLeft  = (levelTime > 0 && levelTime < rejTime) ? levelTime : rejTime;
    datetime tRight = rejTime + (datetime)(PeriodSeconds(InpTF) * InpLineBars);
    if(ObjectCreate(0, ln, OBJ_TREND, 0, tLeft, lvl, tRight, lvl))
@@ -225,7 +225,7 @@ void CheckRejection(int sh)
    for(int i = 0; i < levTotal; i++)
    {
       if(levList[i].broken) continue;
-      // A rejection must be on a candle AFTER Candle B — the SNR is not
+      // A rejection must be on a candle AFTER Candle B - the SNR is not
       // valid until its second candle has closed. This prevents the
       // formation's own Candle B from being mislabeled as a rejection.
       if(levList[i].confirmTime >= t) continue;

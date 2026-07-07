@@ -1,23 +1,23 @@
 /**
- * SNR Module Library — Phase 2: Rejection State Module
+ * SNR Module Library - Phase 2: Rejection State Module
  *
  * Rejection_State_Module v1.0.0
  * ────────────────────────────────────────────────
  * Embeds Classic + Gap S/R level detection and fires a CONFIRMED signal when a
  * candle rejects a level (wick pierces it, close holds on the origin side, long
- * rejection wick). Two-candle SNR guard — never reacts on the formation's own
+ * rejection wick). Two-candle SNR guard - never reacts on the formation's own
  * Candle B.
  *
  * Phase 3 buffer contract (read via iCustom):
- *   0 : BullConfirmBuf — 1.0 at a bullish rejection bar (off support)
- *   1 : BearConfirmBuf — 1.0 at a bearish rejection bar (off resistance)
- *   2 : BullSLBuf      — rejection wick low  (SL for bull entries)
- *   3 : BearSLBuf      — rejection wick high (SL for bear entries)
+ *   0 : BullConfirmBuf - 1.0 at a bullish rejection bar (off support)
+ *   1 : BearConfirmBuf - 1.0 at a bearish rejection bar (off resistance)
+ *   2 : BullSLBuf      - rejection wick low  (SL for bull entries)
+ *   3 : BearSLBuf      - rejection wick high (SL for bear entries)
  *
  * Visual: the SNR level line (origin → reject candle) + a timeframe label
  *   (DRD/WRW/4R4/1R1/MRM/Rej) on the reject candle.
  *
- * NO trading logic — state tracking, signal buffers, and visualisation only.
+ * NO trading logic - state tracking, signal buffers, and visualisation only.
  */
 
 export const REJECTION_STATE_MODULE_VERSION = "1.0.0";
@@ -26,14 +26,14 @@ export const REJECTION_STATE_MODULE = "Rejection_State_Module";
 export function generateRejectionStateModule(): string {
   return `//+------------------------------------------------------------------+
 //| Rejection_State_Module.mq5                                     |
-//| SNR Module Library v${REJECTION_STATE_MODULE_VERSION} — Phase 2: State + Buffers |
+//| SNR Module Library v${REJECTION_STATE_MODULE_VERSION} - Phase 2: State + Buffers |
 //|                                                                  |
 //| Wick pierces an S/R level, close holds → rejection CONFIRMED.   |
 //| Buffers 0/1 = bull/bear confirm, 2/3 = bull/bear SL.            |
 //| Levels = Classic (reversal) + Gap (continuation). Two-candle    |
-//| guard — Candle B is never a rejection.                          |
+//| guard - Candle B is never a rejection.                          |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SNR Module Library"
+#property copyright "EA Builder - SNR Module Library"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window
@@ -51,14 +51,14 @@ double BearSLBuf[];
 #define LVL_MAX           600
 #define OBJ_PREFIX        "SMCREJS_"
 
-//--- Inputs — Detection
+//--- Inputs - Detection
 input ENUM_TIMEFRAMES InpTF           = PERIOD_CURRENT; // Timeframe
 input int             InpLookback     = 500;            // Historical bars to scan
 input double          InpMinWickRatio = 0.5;            // Rejection wick >= this fraction of range
 input int             InpExpiryBars   = 150;            // Bars until a level expires (0 = never)
 input bool            InpUseClassic   = true;           // Use Classic (reversal-pair) levels
 input bool            InpUseGap       = true;           // Use Gap (continuation-pair) levels
-//--- Inputs — Drawing
+//--- Inputs - Drawing
 input bool            InpDraw         = true;           // Draw level lines + labels
 input int             InpLineBars     = 6;              // Level line right extension (bars)
 input int             InpLineWidth    = 2;              // Level line width
@@ -75,7 +75,7 @@ struct LevelRec
    int      type;        // TYPE_SUPPORT or TYPE_RESISTANCE
    double   level;       // Candle A close
    datetime levelTime;   // Candle A time (price origin)
-   datetime confirmTime; // Candle B time — valid only AFTER this
+   datetime confirmTime; // Candle B time - valid only AFTER this
    bool     broken;
    int      ageCounter;
 };
@@ -208,7 +208,7 @@ void CheckRejection(int sh)
    for(int i = 0; i < levTotal; i++)
    {
       if(levList[i].broken) continue;
-      // Two-candle guard — rejection must be AFTER Candle B.
+      // Two-candle guard - rejection must be AFTER Candle B.
       if(levList[i].confirmTime >= t) continue;
       double lvl = levList[i].level;
 

@@ -17,9 +17,9 @@ const CORS = {
 
 const SYSTEM = `You are an expert MQL5 developer making SURGICAL fixes to an EA.
 
-You output ONLY small edit blocks — NEVER the whole file.
+You output ONLY small edit blocks - NEVER the whole file.
 
-OUTPUT FORMAT — output one or more edit blocks, each EXACTLY like this and nothing else:
+OUTPUT FORMAT - output one or more edit blocks, each EXACTLY like this and nothing else:
 <<<<<<< SEARCH
 (verbatim lines copied character-for-character from the code, with exact indentation)
 =======
@@ -27,7 +27,7 @@ OUTPUT FORMAT — output one or more edit blocks, each EXACTLY like this and not
 >>>>>>> REPLACE
 
 RULES:
-1. The SEARCH text MUST be copied EXACTLY from the provided code — same characters,
+1. The SEARCH text MUST be copied EXACTLY from the provided code - same characters,
    same indentation, same spacing. It must appear EXACTLY ONCE in the file. Include
    a few surrounding lines of context if needed to make it unique.
 2. Make the SMALLEST edits that implement ONLY the fix described in the conversation.
@@ -51,7 +51,7 @@ IMPORTANT: This EA was built by the verified assembler. You may ONLY fix MetaEdi
 compile/syntax errors shown in COMPILE ERRORS. Do NOT change strategy logic, brain
 wiring, state-machine calls, confluence gates, or trade rules.`;
 
-/** Keep only error/warning/result lines — strips verbose information: lines. */
+/** Keep only error/warning/result lines - strips verbose information: lines. */
 function trimCompileLog(log: string): string {
   return log
     .split("\n")
@@ -230,7 +230,7 @@ export default async (req: Request): Promise<Response> => {
         if (!balanced(patched)) {
           send({
             error:
-              "The edit would unbalance braces/parentheses — refusing to apply a broken file. Try Generate EA to regenerate.",
+              "The edit would unbalance braces/parentheses - refusing to apply a broken file. Try Generate EA to regenerate.",
           });
           send({ done: true });
           controller.close();

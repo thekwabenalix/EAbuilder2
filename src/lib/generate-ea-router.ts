@@ -1,12 +1,12 @@
 /**
- * Phase 1 — single EA generation router.
+ * Phase 1 - single EA generation router.
  *
  * All blueprint → .mq5 paths go through here:
  *   1. Resolve StrategyFlow (explicit or 4-Brain adapter)
  *   2. Validate step schema (blueprint-generation-gate)
  *   3. Flow engine when all steps are supported (ordered event gate)
  *   4. Blueprint assembler fallback (verified SMs, boolean confluence)
- *   5. Legacy heuristic fallback (none — all brain modules use verified SMs)
+ *   5. Legacy heuristic fallback (none - all brain modules use verified SMs)
  */
 
 import type { StrategyBlueprint } from "@/types/blueprint";
@@ -52,7 +52,7 @@ function resolveGenerationPath(
       path: "legacy_heuristic",
       validationWarnings: [
         ...gateWarnings,
-        "Flow engine does not cover all modules — using legacy heuristic brain generators.",
+        "Flow engine does not cover all modules - using legacy heuristic brain generators.",
       ],
     };
   }

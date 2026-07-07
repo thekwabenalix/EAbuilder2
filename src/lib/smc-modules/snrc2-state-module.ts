@@ -1,16 +1,16 @@
 /**
- * SNRC2 State Module — Phase 2
+ * SNRC2 State Module - Phase 2
  *
  * Same detection and chart visuals as SNRC2_Detector, plus the standard
  * 4-buffer iCustom contract for Setup Brain / Phase 3 EA attachment.
  *
  * Phase 3 buffer contract (read via iCustom):
- *   0 : BullConfirmBuf — 1.0 at bullish SNRC2 confirmation bar (Cont HH pivot)
- *   1 : BearConfirmBuf — 1.0 at bearish SNRC2 confirmation bar (Cont LL pivot)
- *   2 : BullSLBuf      — manipulation low (SL for bull entries)
- *   3 : BearSLBuf      — manipulation high (SL for bear entries)
+ *   0 : BullConfirmBuf - 1.0 at bullish SNRC2 confirmation bar (Cont HH pivot)
+ *   1 : BearConfirmBuf - 1.0 at bearish SNRC2 confirmation bar (Cont LL pivot)
+ *   2 : BullSLBuf      - manipulation low (SL for bull entries)
+ *   3 : BearSLBuf      - manipulation high (SL for bear entries)
  *
- * NO trading logic — state tracking, signal buffers, and visualisation only.
+ * NO trading logic - state tracking, signal buffers, and visualisation only.
  */
 
 import { SNRC2_DETECTOR_VERSION, generateSnrc2Detector } from "./snrc2-detector";
@@ -20,7 +20,7 @@ export const SNRC2_STATE_MODULE = "SNRC2_State_Module";
 
 const BUFFER_HELPERS = `
 //+------------------------------------------------------------------+
-// Phase 2 — iCustom buffer writers
+// Phase 2 - iCustom buffer writers
 void WriteConfirmBuffers(int idx)
 {
    int sh = iBarShift(_Symbol, InpTF, recs[idx].tConf);
@@ -65,16 +65,16 @@ export function generateSnrc2StateModule(): string {
 
   code = code
     .replace(
-      "//| SNRC2_Detector.mq5 — Support & Resistance Continuation 2        ",
-      `//| ${SNRC2_STATE_MODULE}.mq5 — Support & Resistance Continuation 2`,
+      "//| SNRC2_Detector.mq5 - Support & Resistance Continuation 2        ",
+      `//| ${SNRC2_STATE_MODULE}.mq5 - Support & Resistance Continuation 2`,
     )
     .replace(
       `//| SNRC2 Detector v${SNRC2_DETECTOR_VERSION}                                `,
-      `//| SNRC2 State Module v${SNRC2_STATE_MODULE_VERSION} — Phase 2: State + Buffers`,
+      `//| SNRC2 State Module v${SNRC2_STATE_MODULE_VERSION} - Phase 2: State + Buffers`,
     )
     .replace(
-      "//| Detection only — no trade logic.                                ",
-      "//| Detection + 4-buffer iCustom contract — no trade logic.         ",
+      "//| Detection only - no trade logic.                                ",
+      "//| Detection + 4-buffer iCustom contract - no trade logic.         ",
     )
     .replace(
       "#property indicator_plots 0",
@@ -148,7 +148,7 @@ double BearSLBuf[];`,
       // Full rebuild each new bar: re-detect + replay every bar of the lookback.
       // This guarantees a setup whose SL was traded through (possibly several bars
       // before its final pivot confirmed, due to swing-confirmation lag) is always
-      // re-validated against the whole history and removed — never left extending.
+      // re-validated against the whole history and removed - never left extending.
       Rebuild();
    }
    return rates_total;

@@ -138,7 +138,7 @@ export function TradeAuditPanel({
                     className="flex items-center justify-between gap-2 text-[11px] rounded border border-border/60 bg-background/30 px-2 py-1"
                   >
                     <span className="text-muted-foreground truncate">{block.reason}</span>
-                    <span className="font-mono text-amber-400 shrink-0">×{block.count}</span>
+                    <span className="font-mono text-amber-400 shrink-0">�-{block.count}</span>
                   </div>
                 ))}
               </div>
@@ -160,7 +160,7 @@ export function TradeAuditPanel({
                   >
                     <div className="flex items-center gap-1.5 text-[11px] text-emerald-300">
                       <CheckCircle2 className="h-3.5 w-3.5" />
-                      Trade opened — step chain satisfied
+                      Trade opened - step chain satisfied
                     </div>
                     {chain.steps.map((step) => (
                       <p
@@ -184,7 +184,7 @@ export function TradeAuditPanel({
           {parsed.hasAuditMarkers && parsed.tradesOpened === 0 && parsed.gateBlocks.length > 0 && (
             <div className="flex items-start gap-2 text-[11px] text-amber-300">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-              Tester log shows gate blocks but no completed trades — check the dominant block above.
+              Tester log shows gate blocks but no completed trades - check the dominant block above.
             </div>
           )}
 

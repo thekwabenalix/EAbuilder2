@@ -1,5 +1,5 @@
 /**
- * Phase 5 — generation gate checks (validator blocks invalid blueprints).
+ * Phase 5 - generation gate checks (validator blocks invalid blueprints).
  */
 import { DEFAULT_BLUEPRINT } from "../src/types/blueprint";
 import type { StrategyBlueprint } from "../src/types/blueprint";

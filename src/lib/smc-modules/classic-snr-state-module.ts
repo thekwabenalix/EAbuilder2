@@ -1,5 +1,5 @@
 // ─── Classic SNR State Module ─────────────────────────────────────────────────
-// Phase 2 State Module — EAbuilder2
+// Phase 2 State Module - EAbuilder2
 //
 // Embeds Classic SNR detection (candle-pair direction REVERSAL) and tracks each
 // level through the full Phase 2 lifecycle.
@@ -8,7 +8,7 @@
 //   RESISTANCE: Bullish A → Bearish B  →  A.close = resistance level
 //   SUPPORT:    Bearish A → Bullish B  →  A.close = support level
 //
-// Level lifecycle (single price line — no zone thickness):
+// Level lifecycle (single price line - no zone thickness):
 //   ACTIVE    → level created, extending right
 //   RETESTED  → wick reaches level from correct side
 //   CONFIRMED → from RETESTED, close holds on correct side (Phase 3 signal)
@@ -23,8 +23,8 @@
 //   [0] BullConfirmBuf  [1] BearConfirmBuf  [2] BullSLBuf  [3] BearSLBuf
 //
 // SL semantics for SNR:
-//   BullSLBuf = retestLow  (wick low of the support retest bar — buyer's SL)
-//   BearSLBuf = retestHigh (wick high of the resistance retest bar — seller's SL)
+//   BullSLBuf = retestLow  (wick low of the support retest bar - buyer's SL)
+//   BearSLBuf = retestHigh (wick high of the resistance retest bar - seller's SL)
 
 export const CLASSIC_SNR_STATE_MODULE_VERSION = "1.00";
 export const CLASSIC_SNR_STATE_MODULE = "Classic_SNR_State_Module";
@@ -33,17 +33,17 @@ export function generateClassicSnrStateModule(): string {
   return `
 //+------------------------------------------------------------------+
 //| Classic_SNR_State_Module.mq5                                     |
-//| Phase 2 Classic SNR State Module — EAbuilder2                    |
+//| Phase 2 Classic SNR State Module - EAbuilder2                    |
 //| v${CLASSIC_SNR_STATE_MODULE_VERSION}                                                 |
 //|                                                                  |
 //| Detection: candle-pair direction REVERSAL (Bull-Bear = Res,      |
 //|            Bear-Bull = Sup, Candle A close = level).             |
 //|                                                                  |
 //| Buffers (read via iCustom()):                                    |
-//|   0 : BullConfirmBuf — 1.0 at support CONFIRMED bar             |
-//|   1 : BearConfirmBuf — 1.0 at resistance CONFIRMED bar          |
-//|   2 : BullSLBuf      — retestLow at confirmation bar            |
-//|   3 : BearSLBuf      — retestHigh at confirmation bar           |
+//|   0 : BullConfirmBuf - 1.0 at support CONFIRMED bar             |
+//|   1 : BearConfirmBuf - 1.0 at resistance CONFIRMED bar          |
+//|   2 : BullSLBuf      - retestLow at confirmation bar            |
+//|   3 : BearSLBuf      - retestHigh at confirmation bar           |
 //+------------------------------------------------------------------+
 #property copyright   "EAbuilder2"
 #property version     "${CLASSIC_SNR_STATE_MODULE_VERSION}"
@@ -196,7 +196,7 @@ void DetectSnr(int sh)
    else if(aBear && bBull) { dir = 1; level = Cl(sh + 1); }  // Support
    else return;
 
-   // Dedup: skip terminal levels — their slot can be recycled
+   // Dedup: skip terminal levels - their slot can be recycled
    datetime t = Tm(sh + 1);
    for(int k = 0; k < snrCount; k++)
      {
@@ -207,7 +207,7 @@ void DetectSnr(int sh)
 
    // Slot allocation: recycle a terminal slot before appending.
    // Without recycling, snrCount hits MAX_LEVELS during long backtests and
-   // DetectSnr silently stops detecting — no further signals possible.
+   // DetectSnr silently stops detecting - no further signals possible.
    int idx = -1;
    for(int k = 0; k < snrCount; k++)
      {

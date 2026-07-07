@@ -1,5 +1,5 @@
 /**
- * Phase 3 — blessed deterministic AI adapters (EMA+IFVG, EMA CTC).
+ * Phase 3 - blessed deterministic AI adapters (EMA+IFVG, EMA CTC).
  * Shared by Netlify gen-4brain-ai and client-side resolve-ai-wiring.
  */
 
@@ -45,7 +45,7 @@ export function extractEmaRetestTarget(
   if (/\b(fast|fast_ema|fast-ma|fast ma)\b/.test(configured)) return "fast";
   if (/\b(slow|slow_ema|slow-ma|slow ma)\b/.test(configured)) return "slow";
 
-  const hay = text.toLowerCase().replace(/[–—]/g, "-");
+  const hay = text.toLowerCase().replace(/[–-]/g, "-");
   const fastPattern = new RegExp(`\\b${fast}\\s*(?:period\\s*)?ema\\b`);
   const slowPattern = new RegExp(`\\b${slow}\\s*(?:period\\s*)?ema\\b`);
   const onlyPatterns = [

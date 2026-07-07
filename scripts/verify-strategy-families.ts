@@ -182,12 +182,12 @@ console.log("\nStrategy family regression tests\n");
 try {
   assertEq(
     STRATEGY_EVENT_CONTRACTS.FVG_CONFIRMED.label,
-    "SMC Zone Rejection — FVG",
+    "SMC Zone Rejection - FVG",
     "FVG confirmed event label",
   );
   assertEq(
     smcZoneRejectionEventLabel("unicorn"),
-    "SMC Zone Rejection — Unicorn",
+    "SMC Zone Rejection - Unicorn",
     "unicorn zone rejection label",
   );
   assertOk(

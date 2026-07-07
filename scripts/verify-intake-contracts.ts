@@ -998,7 +998,7 @@ const cases: ContractCase[] = [
             },
           ],
         }),
-        "H1 Unicorn overlap pocket — reject the FVG and enter next candle.",
+        "H1 Unicorn overlap pocket - reject the FVG and enter next candle.",
       );
       const fb = fourBrainOf(blueprint);
       const setup = brainOf(fb, "setup");
@@ -1080,7 +1080,7 @@ const cases: ContractCase[] = [
             },
           },
         }),
-        "H1 Unicorn — reject pocket, enter next candle.",
+        "H1 Unicorn - reject pocket, enter next candle.",
       );
       const fb = fourBrainOf(blueprint);
       assertOk(!fb.direction, "direction cleared");

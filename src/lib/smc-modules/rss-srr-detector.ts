@@ -1,5 +1,5 @@
 /**
- * SNR Module Library — Phase 1: RSS / SRR Detector v4.0.0
+ * SNR Module Library - Phase 1: RSS / SRR Detector v4.0.0
  *
  * RSS: Classic Resistance R (wick high = R's Candle A high) drives price to
  *      close-break ≥ InpMinBreaks Supports below it.
@@ -22,14 +22,14 @@ export const RSS_SRR_DETECTOR_MODULE = "RSS_SRR_Detector";
 export function generateRssSrrDetector(): string {
   return `//+------------------------------------------------------------------+
 //| RSS_SRR_Detector.mq5                                           |
-//| SNR Module Library v${RSS_SRR_DETECTOR_VERSION} — Phase 1: Detection Only  |
+//| SNR Module Library v${RSS_SRR_DETECTOR_VERSION} - Phase 1: Detection Only  |
 //|                                                                  |
 //| RSS: R drives 2+ S close-breaks below it.                      |
 //| SRR: S drives 2+ R close-breaks above it.                      |
 //| Setups eliminated when price closes beyond the driving level's  |
 //| formation wick (above R wick high / below S wick low).          |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — SNR Module Library"
+#property copyright "EA Builder - SNR Module Library"
 #property version   "4.00"
 #property strict
 #property indicator_chart_window
@@ -158,7 +158,7 @@ void DeleteSignalObjects(int id, int sweptN)
 
 //+------------------------------------------------------------------+
 // Mark levels invalid when price closes beyond their wick extreme.
-// Before sweep: just flag — prevents the signal from ever drawing.
+// Before sweep: just flag - prevents the signal from ever drawing.
 // After sweep:  flag + delete existing drawings.
 void CheckInvalidations(int sh)
 {
@@ -173,7 +173,7 @@ void CheckInvalidations(int sh)
       if(levList[j].type == TYPE_SUPPORT    && c < levList[j].wickExtreme) hit = true;
       if(!hit) continue;
       levList[j].invalidated = true;
-      if(levList[j].swept)   // drawings exist — delete them
+      if(levList[j].swept)   // drawings exist - delete them
          DeleteSignalObjects(levList[j].id, levList[j].sweptN);
    }
 }

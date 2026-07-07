@@ -26,7 +26,7 @@ export const M5_IFVG_PULLBACK_META = {
     "BUY:  EMA12 > EMA48 → swing low forms (3L+3R) → bearish FVG born AFTER swing → close > FVG UL → BUY next bar",
     "SELL: EMA12 < EMA48 → swing high forms (3L+3R) → bullish FVG born AFTER swing → close < FVG LL → SELL next bar",
     "SL: swing low – 20pts (buy) | swing high + 20pts (sell)",
-    "TP: entry ± (SL distance × 2.0)",
+    "TP: entry ± (SL distance �- 2.0)",
     "BE: move SL to entry when profit ≥ 1R",
     "Max 1 open trade | Max spread 25pts | Risk 1%",
     "Only trades iFVGs born AFTER the most recent qualifying swing",

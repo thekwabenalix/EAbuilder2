@@ -1,5 +1,5 @@
 /**
- * Phase 3 — AI convergence checks (blessed adapters + resolver + flow enrich).
+ * Phase 3 - AI convergence checks (blessed adapters + resolver + flow enrich).
  */
 import type { AiBrainWiring } from "../src/lib/api-client";
 import { enrichBlueprintWithStrategyFlow } from "../src/lib/blueprint-flow-enrich";

@@ -1,7 +1,7 @@
 // ─── Liquidity Sweep State Module ────────────────────────────────────────────
-// Phase 2 State Module — EAbuilder2
+// Phase 2 State Module - EAbuilder2
 //
-// Simplest Phase 2 lifecycle — no RETESTED step.
+// Simplest Phase 2 lifecycle - no RETESTED step.
 //
 // The sweep itself IS the confirmation event.  Two-stage detection:
 //   Stage 1 (PENDING): wick pierces a confirmed swing level but bar has NOT
@@ -28,14 +28,14 @@ export function generateLiqSweepStateModule(): string {
   return `
 //+------------------------------------------------------------------+
 //| LiqSweep_State_Module.mq5                                        |
-//| Phase 2 Liquidity Sweep State Module — EAbuilder2                |
+//| Phase 2 Liquidity Sweep State Module - EAbuilder2                |
 //| v${LIQSWEEP_STATE_MODULE_VERSION}                                                    |
 //|                                                                  |
 //| Buffers (read via iCustom()):                                    |
-//|   0 : BullConfirmBuf — 1.0 at bull sweep CONFIRMED bar          |
-//|   1 : BearConfirmBuf — 1.0 at bear sweep CONFIRMED bar          |
-//|   2 : BullSLBuf      — sweepLow at confirmation bar             |
-//|   3 : BearSLBuf      — sweepHigh at confirmation bar            |
+//|   0 : BullConfirmBuf - 1.0 at bull sweep CONFIRMED bar          |
+//|   1 : BearConfirmBuf - 1.0 at bear sweep CONFIRMED bar          |
+//|   2 : BullSLBuf      - sweepLow at confirmation bar             |
+//|   3 : BearSLBuf      - sweepHigh at confirmation bar            |
 //+------------------------------------------------------------------+
 #property copyright   "EAbuilder2"
 #property version     "${LIQSWEEP_STATE_MODULE_VERSION}"
@@ -64,8 +64,8 @@ input int             InpLineWidth   = 1;                 // Line width (active)
 input bool            InpShowLabels  = true;              // Show sweep labels
 
 // ─── States ───────────────────────────────────────────────────────
-#define STATE_PENDING    0   // wick through level — waiting for close-back
-#define STATE_CONFIRMED  2   // close-back confirmed — Phase 3 signal fired
+#define STATE_PENDING    0   // wick through level - waiting for close-back
+#define STATE_CONFIRMED  2   // close-back confirmed - Phase 3 signal fired
 #define STATE_EXPIRED    5   // maxWaitBars or expiryBars elapsed [terminal]
 #define STATE_UNDRAWN   -1
 
@@ -174,7 +174,7 @@ void TryAddSwing(int sh)
    if(pivot + InpSwingStr >= totalBars) return;
 
    datetime pivotT = Tm(pivot);
-   // Dedup: skip consumed swings — their slot can be recycled
+   // Dedup: skip consumed swings - their slot can be recycled
    for(int k = 0; k < swingCount; k++)
      {
       if(swingList[k].consumed) continue;
@@ -233,7 +233,7 @@ void TryAddSwing(int sh)
 
 // ─── CheckNewSweeps ───────────────────────────────────────────────
 // At bar sh: test wick against all unconsumed swings.
-// Same-bar confirmation is handled here — if wick + close-back both on sh,
+// Same-bar confirmation is handled here - if wick + close-back both on sh,
 // the sweep is immediately CONFIRMED without going through PENDING.
 void CheckNewSweeps(int sh)
   {
@@ -411,7 +411,7 @@ void DrawOne(int idx)
 
    bool terminal = (st == STATE_EXPIRED);
 
-   // Delete existing objects before redrawing — prevents EXPIRED sweeps lingering
+   // Delete existing objects before redrawing - prevents EXPIRED sweeps lingering
    // as active-state lines after the sweep has timed out or been confirmed.
    ObjectDelete(0, name);
    ObjectDelete(0, lname);

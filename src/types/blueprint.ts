@@ -1,4 +1,4 @@
-// Universal StrategyBlueprint — replaces the old EMA-hardcoded StrategySpec.
+// Universal StrategyBlueprint - replaces the old EMA-hardcoded StrategySpec.
 // The AI extracts this from any plain-English strategy description.
 
 import type { StrategyDirection, StrategyEventType } from "../lib/strategy-events";
@@ -310,38 +310,38 @@ export type Timeframe = (typeof TIMEFRAMES)[number];
 
 export type BrainModuleType =
   | "bos"
-  | "choch" // structural break — bias detection
+  | "choch" // structural break - bias detection
   | "bos_choch" // combined BOS + CHoCH detection
   | "swing_structure" // multi-bar swing structure
-  | "fvg" // fair value gap — zone setup or execution trigger
+  | "fvg" // fair value gap - zone setup or execution trigger
   | "fvg_inversion" // inverted FVG pattern
-  | "order_block" // order block  — zone setup or execution trigger
+  | "order_block" // order block  - zone setup or execution trigger
   | "ob_fvg" // order block + FVG confluence
-  | "liqsweep" // liquidity sweep — execution trigger
+  | "liqsweep" // liquidity sweep - execution trigger
   | "breakout" // price break beyond a defined level
-  | "snr" // classic S/R — zone setup
+  | "snr" // classic S/R - zone setup
   | "gap_snr" // S/R at gap edges
-  | "rejection" // Reactive SNR — wick rejection off a level
-  | "miss" // Reactive SNR — price misses a level (liquidity)
+  | "rejection" // Reactive SNR - wick rejection off a level
+  | "miss" // Reactive SNR - price misses a level (liquidity)
   | "bb" // Bollinger Bands
   | "rsi_hd" // RSI hidden divergence
-  | "ema" // EMA trend — direction bias
-  | "engulfing" // candle pattern — execution trigger
-  | "pin_bar" // candle pattern — execution trigger
+  | "ema" // EMA trend - direction bias
+  | "engulfing" // candle pattern - execution trigger
+  | "pin_bar" // candle pattern - execution trigger
   | "seg" // strong engulfing detector
   | "rbr_dbd" // rally-base-rally / drop-base-drop detector
   | "mef" // multi-timeframe engulfing confluence detector
   | "qm_mef" // Quasimodo born from MEF detector
   | "snrc2" // support/resistance continuation detector
   | "zone_liq" // OB/BB/FVG liquidity buildup (alias: liquidity_buildup)
-  | "breaker_block" // SMC breaker block (failed OB flip — not Bollinger bb)
+  | "breaker_block" // SMC breaker block (failed OB flip - not Bollinger bb)
   | "rss_srr" // repeated support/resistance sweep (RSS/SRR)
-  | "unicorn"; // ICT Unicorn — breaker block + FVG overlap
+  | "unicorn"; // ICT Unicorn - breaker block + FVG overlap
 
 export interface BrainConfig {
   /**
    * One or more modules assigned to this brain.
-   * Multiple modules are combined with OR logic — any confirmed module
+   * Multiple modules are combined with OR logic - any confirmed module
    * activates the brain's output (gBias for direction, gSetupActive for setup,
    * entry signal for execution). The user describes how they interact in
    * the `description` field; AI extracts params from it.
@@ -420,8 +420,8 @@ export interface StrategyFlowConfig {
 
 /**
  * Describes the four-brain strategy structure.
- * direction and setup are optional — absent brains are bypassed (no gating).
- * execution is required — it is the trade trigger.
+ * direction and setup are optional - absent brains are bypassed (no gating).
+ * execution is required - it is the trade trigger.
  */
 export interface FourBrainConfig {
   direction?: BrainConfig; // sets gBias = BUY / SELL / NEUTRAL

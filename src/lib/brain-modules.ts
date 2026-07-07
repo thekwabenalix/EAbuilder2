@@ -18,7 +18,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
   {
     id: "choch",
     label: "CHoCH",
-    desc: "Change of Character — swing high/low reversal",
+    desc: "Change of Character - swing high/low reversal",
     symbol: "↺",
     color: "text-violet-400",
     category: "Structure",
@@ -26,7 +26,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
   {
     id: "bos",
     label: "BOS",
-    desc: "Break of Structure — impulse continuation",
+    desc: "Break of Structure - impulse continuation",
     symbol: "⟶",
     color: "text-blue-400",
     category: "Structure",
@@ -42,8 +42,8 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
   {
     id: "swing_structure",
     label: "Swing Structure",
-    desc: "Confirmed pivots — HH/HL bull or LH/LL bear bias",
-    symbol: "◇",
+    desc: "Confirmed pivots - HH/HL bull or LH/LL bear bias",
+    symbol: "�-�",
     color: "text-purple-400",
     category: "Structure",
   },
@@ -52,7 +52,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     id: "fvg",
     label: "Fair Value Gap",
     desc: "3-candle imbalance zone",
-    symbol: "◫",
+    symbol: "�-�",
     color: "text-emerald-400",
     category: "Gap",
   },
@@ -60,7 +60,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     id: "fvg_inversion",
     label: "FVG Inversion",
     desc: "Inverted gap/imbalance patterns",
-    symbol: "◬",
+    symbol: "�-�",
     color: "text-teal-400",
     category: "Gap",
   },
@@ -84,12 +84,12 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
   {
     id: "unicorn",
     label: "Unicorn",
-    desc: "Breaker block overlapping same-direction FVG — overlap pocket retest → zone rejection",
+    desc: "Breaker block overlapping same-direction FVG - overlap pocket retest → zone rejection",
     symbol: "🦄",
     color: "text-emerald-400",
     category: "OrderBlock",
   },
-  // Entry zones — S/R & reactive SNR (same compiler role as OB/FVG: zone → touch → confirm)
+  // Entry zones - S/R & reactive SNR (same compiler role as OB/FVG: zone → touch → confirm)
   {
     id: "snr",
     label: "Classic S/R",
@@ -109,7 +109,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
   {
     id: "rejection",
     label: "SNR Rejection",
-    desc: "Wick rejects a classic/gap SNR level — close holds (not zone-scoped SMC rejection)",
+    desc: "Wick rejects a classic/gap SNR level - close holds (not zone-scoped SMC rejection)",
     symbol: "↩",
     color: "text-sky-300",
     category: "EntryZone",
@@ -126,7 +126,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
   {
     id: "bb",
     label: "Bollinger Bands",
-    desc: "Volatility envelope — touch, breakout, or midline bias (BOLLSM)",
+    desc: "Volatility envelope - touch, breakout, or midline bias (BOLLSM)",
     symbol: "≈",
     color: "text-orange-400",
     category: "Volatility",
@@ -161,7 +161,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     id: "engulfing",
     label: "Engulfing / EF",
     desc: "Verified EG and failed-engulfing state machine",
-    symbol: "◑",
+    symbol: "�-�",
     color: "text-pink-400",
     category: "Candle",
   },
@@ -201,7 +201,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
   {
     id: "mef",
     label: "MEF",
-    desc: "Manipulation Entry Formula — engulfing + Gap SNR + RBR/DBD confluence",
+    desc: "Manipulation Entry Formula - engulfing + Gap SNR + RBR/DBD confluence",
     symbol: "MEF",
     color: "text-fuchsia-300",
     category: "EntryZone",
@@ -209,7 +209,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
   {
     id: "qm_mef",
     label: "QM MEF",
-    desc: "Quasimodo born from HTF engulfing — left shoulder entry, SL beyond head",
+    desc: "Quasimodo born from HTF engulfing - left shoulder entry, SL beyond head",
     symbol: "QM",
     color: "text-violet-300",
     category: "EntryZone",
@@ -217,7 +217,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
   {
     id: "snrc2",
     label: "SNRC2",
-    desc: "Support/resistance continuation — Classic SNR break + manipulation + HTF engulfing",
+    desc: "Support/resistance continuation - Classic SNR break + manipulation + HTF engulfing",
     symbol: "S2",
     color: "text-sky-300",
     category: "EntryZone",
@@ -225,7 +225,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
   {
     id: "zone_liq",
     label: "Liquidity Buildup",
-    desc: "OB/BB/FVG — wick near zone edge without entering",
+    desc: "OB/BB/FVG - wick near zone edge without entering",
     symbol: "LB",
     color: "text-violet-300",
     category: "EntryZone",
@@ -233,7 +233,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
   {
     id: "breaker_block",
     label: "Breaker Block",
-    desc: "Failed OB flips polarity — SMC breaker zone (not Bollinger)",
+    desc: "Failed OB flips polarity - SMC breaker zone (not Bollinger)",
     symbol: "BB",
     color: "text-emerald-300",
     category: "EntryZone",
@@ -241,7 +241,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
   {
     id: "rss_srr",
     label: "RSS / SRR",
-    desc: "Repeated support/resistance sweep — Classic SNR multi-break",
+    desc: "Repeated support/resistance sweep - Classic SNR multi-break",
     symbol: "R/S",
     color: "text-orange-300",
     category: "EntryZone",
@@ -259,7 +259,7 @@ export const TIMEFRAMES = ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN
 export function formatBrain(
   brain: { modules: BrainModuleType[]; timeframe: string } | undefined,
 ): string {
-  if (!brain) return "—";
+  if (!brain) return "-";
   const mods = brain.modules.map((m) => MODULE_BY_ID[m]?.label ?? m.toUpperCase()).join(" + ");
   return `${brain.timeframe} ${mods}`;
 }

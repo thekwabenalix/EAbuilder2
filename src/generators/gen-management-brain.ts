@@ -5,7 +5,7 @@
  * and inline OnTick logic. This file is kept for future extension (e.g.
  * generating trailing-stop or partial-close code blocks).
  *
- * Currently a no-op — returns an empty string.
+ * Currently a no-op - returns an empty string.
  */
 
 import type { ManagementBrainConfig } from "@/types/blueprint";

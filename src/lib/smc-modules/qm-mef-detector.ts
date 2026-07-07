@@ -1,8 +1,8 @@
 /**
- * QM_MEF Detector — Quasimodo Manipulation Entry Formula
+ * QM_MEF Detector - Quasimodo Manipulation Entry Formula
  *
  * Detects a Quasimodo (QM) structure that is BORN FROM a higher-timeframe strong
- * engulfing candle. It is NOT a general Quasimodo detector — without an HTF
+ * engulfing candle. It is NOT a general Quasimodo detector - without an HTF
  * engulfing candle there is no valid QM_MEF.
  *
  *   HTF: a STRONG (2-candle) engulfing candle
@@ -11,7 +11,7 @@
  *   Optional confluence opposite/around the left shoulder: Gap SNR, RBR, or DBD
  *        → strength = "strong" when present, else "normal"
  *
- * Quasimodo (CLOSE-based — wicks are ignored; highs/lows use candle closes):
+ * Quasimodo (CLOSE-based - wicks are ignored; highs/lows use candle closes):
  *
  *   Bullish QM (after bearish move):
  *     LEFT SHOULDER low → pullback high → HEAD (lower low, close below LS) →
@@ -24,14 +24,14 @@
  *
  *   Bullish QM_MEF must come from a bullish HTF engulfing; bearish from bearish.
  *
- * Reference trade levels (output/drawn — this is detection only, no orders):
+ * Reference trade levels (output/drawn - this is detection only, no orders):
  *   Entry = LEFT SHOULDER (= where the RIGHT SHOULDER forms on return)
  *   SL    = beyond the HEAD (below the head for bull, above for bear)
  *   TP    = the pullback extreme (above the pullback high / below the pullback low)
  *
  * Invalidation: close beyond the HEAD kills the pattern.
  *
- * Detection only — no trade execution.
+ * Detection only - no trade execution.
  */
 
 export const QM_MEF_DETECTOR_VERSION = "1.0.0";
@@ -39,14 +39,14 @@ export const QM_MEF_DETECTOR_MODULE = "QM_MEF_Detector";
 
 export function generateQmMefDetector(): string {
   return `//+------------------------------------------------------------------+
-//| QM_MEF_Detector.mq5 — Quasimodo Manipulation Entry Formula      |
+//| QM_MEF_Detector.mq5 - Quasimodo Manipulation Entry Formula      |
 //| QM_MEF Detector v${QM_MEF_DETECTOR_VERSION}                              |
 //|                                                                  |
 //| Strong HTF engulfing → LTF close-based Quasimodo → left shoulder |
 //| entry, + optional Gap SNR / RBR / DBD confluence (strength).    |
 //| Quasimodo uses candle CLOSES, not wicks. Detection only.       |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — QM_MEF"
+#property copyright "EA Builder - QM_MEF"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window
@@ -92,7 +92,7 @@ struct QmRec
    double   engLo;        // HTF engulfing candle low
    datetime engTime;      // engulfing window start (C1)
    datetime engEnd;       // engulfing window end
-   double   lsLevel;      // LEFT SHOULDER (entry) — close-based
+   double   lsLevel;      // LEFT SHOULDER (entry) - close-based
    double   headLevel;    // HEAD extreme: LL close (bull) / HH close (bear) → SL beyond
    double   pbLevel;      // pullback high (bull) / pullback low (bear) → TP
    double   confirmLevel; // higher-high (bull) / lower-low (bear) close
@@ -329,7 +329,7 @@ void DrawQm(int i)
                        qms[i].dir == DIR_BULL ? ANCHOR_LOWER : ANCHOR_UPPER);
       ObjectSetInteger(0, lbl, OBJPROP_SELECTABLE, false);
    }
-   // LEFT SHOULDER (entry) level — SHORT line (no ray). It grows only until price
+   // LEFT SHOULDER (entry) level - SHORT line (no ray). It grows only until price
    // taps the level (the entry), then it is frozen. Right edge = lsEnd.
    string ls = ObjLS(qms[i].id);
    if(ObjectCreate(0, ls, OBJ_TREND, 0, qms[i].lsTime, qms[i].lsLevel,
@@ -358,7 +358,7 @@ void DrawQm(int i)
       ObjectSetInteger(0, rs, OBJPROP_ANCHOR,      ANCHOR_RIGHT_UPPER);
       ObjectSetInteger(0, rs, OBJPROP_SELECTABLE,  false);
    }
-   // HEAD marker (LL bull / HH bear) — SL goes beyond the head.
+   // HEAD marker (LL bull / HH bear) - SL goes beyond the head.
    string hd = ObjHead(qms[i].id);
    if(ObjectCreate(0, hd, OBJ_VLINE, 0, qms[i].headTime, 0)) {
       ObjectSetInteger(0, hd, OBJPROP_COLOR,      c);
@@ -385,7 +385,7 @@ void DrawQm(int i)
                        qms[i].dir == DIR_BULL ? ANCHOR_LEFT_UPPER : ANCHOR_LEFT_LOWER);
       ObjectSetInteger(0, hdt, OBJPROP_SELECTABLE, false);
    }
-   // TAKE PROFIT — the high (bull) / low (bear) that created the pullback.
+   // TAKE PROFIT - the high (bull) / low (bear) that created the pullback.
    string tp = ObjTP(qms[i].id);
    if(ObjectCreate(0, tp, OBJ_TREND, 0, qms[i].engTime, qms[i].pbLevel,
                    qms[i].engEnd, qms[i].pbLevel)) {

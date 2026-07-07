@@ -10,7 +10,7 @@ const OPTIONS: { value: ThemePreference; label: string; icon: typeof Sun }[] = [
   { value: "system", label: "System", icon: Monitor },
 ];
 
-/** Segmented control — settings / full-width. */
+/** Segmented control - settings / full-width. */
 export function ThemeToggle({ className }: { className?: string }) {
   const { preference, setPreference } = useTheme();
 

@@ -20,25 +20,25 @@ export function buildValidationReport(blueprint: StrategyBlueprint): string {
   checks.push(
     r.riskPercent <= 2
       ? `[OK]   Risk per trade: ${r.riskPercent}% (within recommended ≤ 2%)`
-      : `[WARN] Risk per trade: ${r.riskPercent}% — consider reducing below 2%`,
+      : `[WARN] Risk per trade: ${r.riskPercent}% - consider reducing below 2%`,
   );
 
   checks.push(
     r.rewardRisk >= 1.5
       ? `[OK]   Reward:risk: 1:${r.rewardRisk}`
-      : `[WARN] Reward:risk: 1:${r.rewardRisk} — below recommended 1:1.5`,
+      : `[WARN] Reward:risk: 1:${r.rewardRisk} - below recommended 1:1.5`,
   );
 
   checks.push(
     e.spreadFilterPoints > 0
       ? `[OK]   Spread guard: ${e.spreadFilterPoints} points`
-      : `[WARN] No spread guard — vulnerable to wide-spread entries`,
+      : `[WARN] No spread guard - vulnerable to wide-spread entries`,
   );
 
   checks.push(
     blueprint.rules.length > 0
       ? `[OK]   ${blueprint.rules.length} rule(s) extracted from prompt`
-      : `[WARN] No rules extracted — re-describe your strategy in more detail`,
+      : `[WARN] No rules extracted - re-describe your strategy in more detail`,
   );
 
   const buyRules = blueprint.rules.filter((r) => r.side === "buy" || r.side === "both");
@@ -46,17 +46,17 @@ export function buildValidationReport(blueprint: StrategyBlueprint): string {
   checks.push(
     buyRules.length > 0
       ? `[OK]   ${buyRules.length} buy-side rule(s)`
-      : `[WARN] No buy rules — EA will not open long positions`,
+      : `[WARN] No buy rules - EA will not open long positions`,
   );
   checks.push(
     sellRules.length > 0
       ? `[OK]   ${sellRules.length} sell-side rule(s)`
-      : `[WARN] No sell rules — EA will not open short positions`,
+      : `[WARN] No sell rules - EA will not open short positions`,
   );
 
   if (blueprint.subjectiveRuleIds.length > 0) {
     checks.push(
-      `[WARN] ${blueprint.subjectiveRuleIds.length} rule(s) flagged as subjective — answer pending clarifications`,
+      `[WARN] ${blueprint.subjectiveRuleIds.length} rule(s) flagged as subjective - answer pending clarifications`,
     );
   }
 
@@ -83,7 +83,7 @@ export function buildValidationReport(blueprint: StrategyBlueprint): string {
   }
 
   lines.push(``, `Disclaimer: This validation does not assess profitability.`);
-  lines.push(`MQL5 code is AI-generated — always test on a demo account first.`);
+  lines.push(`MQL5 code is AI-generated - always test on a demo account first.`);
 
   return lines.join("\n");
 }

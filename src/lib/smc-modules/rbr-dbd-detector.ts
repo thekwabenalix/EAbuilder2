@@ -1,5 +1,5 @@
 /**
- * RBR / DBD Detector — Supply & Demand base zones
+ * RBR / DBD Detector - Supply & Demand base zones
  *
  * RBR (Rally-Base-Rally)  = bullish continuation → the BASE is a DEMAND zone.
  * DBD (Drop-Base-Drop)    = bearish continuation → the BASE is a SUPPLY zone.
@@ -15,11 +15,11 @@
  * Identification:
  *   - leg candle  : decisive body (body/range ≥ InpImpulseRatio) in the move direction
  *   - base candle : small body (body/range ≤ InpBaseMaxRatio), any direction
- *   - legs must be larger than the base (leg range ≥ InpLegBaseMult × avg base range)
+ *   - legs must be larger than the base (leg range ≥ InpLegBaseMult �- avg base range)
  *   - leg-out must break OUT of the base (close beyond base high/low)
  *
  * Invalidation: a zone is "traded through" and removed when price CLOSES beyond
- *   it against the zone — demand dies on a close below it, supply on a close above.
+ *   it against the zone - demand dies on a close below it, supply on a close above.
  *
  * Pure detector (reference/debug tooling).
  */
@@ -29,7 +29,7 @@ export const RBR_DBD_DETECTOR_MODULE = "RBR_DBD_Detector";
 
 export function generateRbrDbdDetector(): string {
   return `//+------------------------------------------------------------------+
-//| RBR_DBD_Detector.mq5 — Supply & Demand base zones               |
+//| RBR_DBD_Detector.mq5 - Supply & Demand base zones               |
 //| RBR/DBD Detector v${RBR_DBD_DETECTOR_VERSION}                            |
 //|                                                                  |
 //| RBR (Rally-Base-Rally) → DEMAND zone (base of a bullish leg-leg) |
@@ -38,14 +38,14 @@ export function generateRbrDbdDetector(): string {
 //| direction) breaking out of the base. Zone = base high..low.     |
 //| Traded through (close beyond zone) → invalid.                   |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — RBR/DBD Supply & Demand"
+#property copyright "EA Builder - RBR/DBD Supply & Demand"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window
 #property indicator_plots 0
 
-#define DIR_DEMAND   1     // RBR — bullish base
-#define DIR_SUPPLY  -1     // DBD — bearish base
+#define DIR_DEMAND   1     // RBR - bullish base
+#define DIR_SUPPLY  -1     // DBD - bearish base
 #define MAX_ZONES    500
 #define OBJ_PREFIX   "SMRBR_"
 

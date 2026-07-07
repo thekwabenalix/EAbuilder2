@@ -1,5 +1,5 @@
 /**
- * Phase 6 — AI strategy_flow normalization and generation routing checks.
+ * Phase 6 - AI strategy_flow normalization and generation routing checks.
  */
 import type { AiBrainWiring } from "../src/lib/api-client";
 import {

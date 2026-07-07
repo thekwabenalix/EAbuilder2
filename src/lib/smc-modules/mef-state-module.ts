@@ -1,11 +1,11 @@
 /**
- * MEF State Module — Phase 2
+ * MEF State Module - Phase 2
  *
  * Same detection as MEF_Detector plus 4-buffer iCustom contract:
- *   0 : BullConfirmBuf — 1.0 at bullish MEF bar
- *   1 : BearConfirmBuf — 1.0 at bearish MEF bar
- *   2 : BullSLBuf      — engulfing low (SL hint for longs)
- *   3 : BearSLBuf      — engulfing high (SL hint for shorts)
+ *   0 : BullConfirmBuf - 1.0 at bullish MEF bar
+ *   1 : BearConfirmBuf - 1.0 at bearish MEF bar
+ *   2 : BullSLBuf      - engulfing low (SL hint for longs)
+ *   3 : BearSLBuf      - engulfing high (SL hint for shorts)
  */
 
 import { MEF_DETECTOR_VERSION, generateMefDetector } from "./mef-detector";
@@ -42,16 +42,16 @@ export function generateMefStateModule(): string {
 
   code = code
     .replace(
-      "//| MEF_Detector.mq5 — Manipulation Entry Formula                   ",
-      `//| ${MEF_STATE_MODULE}.mq5 — Manipulation Entry Formula              `,
+      "//| MEF_Detector.mq5 - Manipulation Entry Formula                   ",
+      `//| ${MEF_STATE_MODULE}.mq5 - Manipulation Entry Formula              `,
     )
     .replace(
       `//| MEF Candle Detector v${MEF_DETECTOR_VERSION}                             `,
-      `//| MEF State Module v${MEF_STATE_MODULE_VERSION} — Phase 2: State + Buffers`,
+      `//| MEF State Module v${MEF_STATE_MODULE_VERSION} - Phase 2: State + Buffers`,
     )
     .replace(
-      "//| Detection only — no trade logic.                                ",
-      "//| Detection + 4-buffer iCustom contract — no trade logic.         ",
+      "//| Detection only - no trade logic.                                ",
+      "//| Detection + 4-buffer iCustom contract - no trade logic.         ",
     )
     .replace(
       "#property indicator_plots 0",

@@ -32,9 +32,9 @@ function eventUiGroup(category: StrategyEventCategory, eventType: StrategyEventT
 const UI_GROUP_ORDER: EventUiGroup[] = ["retest", "zone", "rejection", "entry", "bias", "other"];
 
 const UI_GROUP_LABEL: Record<EventUiGroup, string> = {
-  retest: "Retest — price returned to zone/level",
+  retest: "Retest - price returned to zone/level",
   zone: "Zone / level formed",
-  rejection: "Rejection / confirm — touch failed to break",
+  rejection: "Rejection / confirm - touch failed to break",
   entry: "Entry trigger",
   bias: "Bias / structure",
   other: "Other",

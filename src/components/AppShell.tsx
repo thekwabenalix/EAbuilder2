@@ -35,15 +35,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   const companionOnline = Boolean(health.data?.ok);
 
   return (
-    <div className="min-h-screen flex flex-col md:block bg-background text-foreground">
+    <div className="min-h-screen flex flex-col bg-background text-foreground md:block">
       {/* Sidebar */}
-      <aside className="border-b border-border bg-sidebar flex md:fixed md:inset-y-0 md:left-0 md:z-30 md:w-56 md:flex-col md:border-b-0 md:border-r">
-        <div className="hidden md:flex items-center gap-2 px-4 h-14 border-b border-border">
-          <TerminalSquare className="h-5 w-5 text-primary" />
+      <aside className="app-panel border-b border-border/70 bg-sidebar/90 flex shadow-sm md:fixed md:inset-y-0 md:left-0 md:z-30 md:w-56 md:flex-col md:border-b-0 md:border-r">
+        <div className="hidden md:flex items-center gap-2 px-4 h-14 border-b border-border/70">
+          <TerminalSquare className="h-5 w-5 text-primary drop-shadow-sm" />
           <span className="font-semibold text-sm tracking-tight flex-1">MT5 AI Builder</span>
           <ThemeToggleIcon />
         </div>
-        <nav className="flex flex-1 gap-1 overflow-x-auto p-2 md:flex-col md:overflow-x-hidden md:overflow-y-auto">
+        <nav className="app-scrollbar flex flex-1 gap-1 overflow-x-auto p-2 md:flex-col md:overflow-x-hidden md:overflow-y-auto">
           {NAV.map((item) => {
             const active = item.to === "/" ? path === "/" : path.startsWith(item.to);
             const Icon = item.icon;
@@ -52,10 +52,10 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link
                 key={item.to}
                 to={item.to}
-                className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm whitespace-nowrap transition ${
+                className={`app-hover-lift flex items-center gap-2 rounded-lg px-3 py-2 text-sm whitespace-nowrap transition ${
                   active
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                    ? "border border-primary/20 bg-primary/10 text-sidebar-accent-foreground shadow-sm ring-1 ring-primary/10"
+                    : "border border-transparent text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground"
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -63,14 +63,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {isSettings && (
                   <span
                     title={companionOnline ? "Companion online" : "Companion offline"}
-                    className={`h-2 w-2 rounded-full shrink-0 ${companionOnline ? "bg-emerald-400" : "bg-muted-foreground/30"}`}
+                    className={`h-2 w-2 rounded-full shrink-0 shadow-sm ${companionOnline ? "bg-emerald-400 shadow-emerald-400/40" : "bg-muted-foreground/30"}`}
                   />
                 )}
               </Link>
             );
           })}
         </nav>
-        <div className="hidden md:block p-2 border-t border-border">
+        <div className="hidden md:block p-2 border-t border-border/70">
           <div className="px-2 py-1.5 text-xs text-muted-foreground truncate">{user?.email}</div>
           <Button
             variant="ghost"
@@ -84,8 +84,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Main */}
-      <main className="flex-1 min-w-0 flex flex-col md:ml-56">
-        <div className="md:hidden flex items-center gap-2 px-4 h-12 border-b border-border bg-card">
+      <main className="app-page-in flex-1 min-w-0 flex flex-col md:ml-56">
+        <div className="app-panel md:hidden flex items-center gap-2 px-4 h-12 border-b border-border/70 bg-card/90">
           <TerminalSquare className="h-4 w-4 text-primary shrink-0" />
           <span className="text-sm font-semibold truncate flex-1">MT5 AI Builder</span>
           <ThemeToggleIcon />

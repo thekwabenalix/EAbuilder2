@@ -7,12 +7,12 @@
  * Standard API:
  *   RSSSRRSM_{id}_Reset()
  *   RSSSRRSM_{id}_Tick(lookback)
- *   RSSSRRSM_{id}_BullJustConfirmed()  — SRR fired this bar (buy)
- *   RSSSRRSM_{id}_BearJustConfirmed()  — RSS fired this bar (sell)
- *   RSSSRRSM_{id}_BullConfirmSL()      — driving S wick low
- *   RSSSRRSM_{id}_BearConfirmSL()      — driving R wick high
- *   RSSSRRSM_{id}_HasActiveBull()      — live SRR (swept S, not invalidated)
- *   RSSSRRSM_{id}_HasActiveBear()      — live RSS (swept R, not invalidated)
+ *   RSSSRRSM_{id}_BullJustConfirmed()  - SRR fired this bar (buy)
+ *   RSSSRRSM_{id}_BearJustConfirmed()  - RSS fired this bar (sell)
+ *   RSSSRRSM_{id}_BullConfirmSL()      - driving S wick low
+ *   RSSSRRSM_{id}_BearConfirmSL()      - driving R wick high
+ *   RSSSRRSM_{id}_HasActiveBull()      - live SRR (swept S, not invalidated)
+ *   RSSSRRSM_{id}_HasActiveBear()      - live RSS (swept R, not invalidated)
  *   RSSSRRSM_{id}_ActiveBullSL() / ActiveBearSL()
  */
 
@@ -29,7 +29,7 @@ export function genRssSrrSM(
 
   return `
 //+------------------------------------------------------------------+
-//| RSS/SRR State Machine — ${tf} (${id})                            |
+//| RSS/SRR State Machine - ${tf} (${id})                            |
 //| Repeated resistance/support sweep counter signals               |
 //+------------------------------------------------------------------+
 #define ${P}TYPE_SUPPORT    1

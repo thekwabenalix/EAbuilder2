@@ -1,5 +1,5 @@
 /**
- * Phase 4 — canonical ordered strategy sequences.
+ * Phase 4 - canonical ordered strategy sequences.
  *
  * Each case is a trader-realistic 4-Brain config with proofs for:
  *   - StrategyFlow step order, events, and dependencies
@@ -18,7 +18,7 @@ export interface GoldenFlowStepProof {
   module: string;
   timeframe: string;
   event: StrategyEventType;
-  /** Required upstream step ids (subset — order enforced separately). */
+  /** Required upstream step ids (subset - order enforced separately). */
   dependsOn?: string[];
 }
 
@@ -178,7 +178,7 @@ export const GOLDEN_SEQUENCE_CASES: GoldenSequenceCase[] = [
   {
     id: "ema_snr_rsi",
     name: "M15 EMA → M15 S/R → M5 RSI HD",
-    description: "Trend bias, level setup, divergence entry — includes B4_MA helper.",
+    description: "Trend bias, level setup, divergence entry - includes B4_MA helper.",
     fourBrain: {
       direction: { modules: ["ema"], timeframe: "M15", params: { fastPeriod: 12, slowPeriod: 48 } },
       setup: { modules: ["snr"], timeframe: "M15", params: { lookback: 20, expiryBars: 100 } },
@@ -227,7 +227,7 @@ export const GOLDEN_SEQUENCE_CASES: GoldenSequenceCase[] = [
   {
     id: "bos_engulfing_direct",
     name: "H1 BOS → M5 Engulfing (no setup brain)",
-    description: "Direction + execution only — setup brain omitted, entry depends on direction.",
+    description: "Direction + execution only - setup brain omitted, entry depends on direction.",
     fourBrain: {
       direction: { modules: ["bos"], timeframe: "H1", params: { lookback: 20 } },
       execution: { modules: ["engulfing"], timeframe: "M5", params: {} },
@@ -338,7 +338,7 @@ export const GOLDEN_SEQUENCE_CASES: GoldenSequenceCase[] = [
   {
     id: "rsi_obfvg_flow",
     name: "RSI HD setup → OB+FVG execution (flow path)",
-    description: "Reactive setup with confluence entry — flow engine ordered gate.",
+    description: "Reactive setup with confluence entry - flow engine ordered gate.",
     fourBrain: {
       setup: { modules: ["rsi_hd"], timeframe: "H4", params: { rsiPeriod: 21, expiryBars: 80 } },
       execution: { modules: ["ob_fvg"], timeframe: "M15", params: { expiryBars: 60 } },

@@ -41,7 +41,7 @@ export interface SetupBrainState {
   /** Direction of the setup: 1 = BUY setup, -1 = SELL setup, 0 = none */
   direction: number;
 
-  /** The far edge of the setup zone — used as SL anchor */
+  /** The far edge of the setup zone - used as SL anchor */
   slHint: number; // price level
 
   /** When was this zone confirmed (bar time) */
@@ -118,7 +118,7 @@ export interface ConfluenceGate {
   summary: string;
   // Examples:
   // "✓ Direction=BULL Setup=ACTIVE Execution=SIGNAL → TRADE"
-  // "✗ Direction=NEUTRAL Setup=ACTIVE Execution=SIGNAL → blocked by direction"
+  // "�- Direction=NEUTRAL Setup=ACTIVE Execution=SIGNAL → blocked by direction"
 }
 
 /**

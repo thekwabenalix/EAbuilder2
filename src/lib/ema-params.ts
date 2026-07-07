@@ -1,5 +1,5 @@
 /**
- * Normalize EMA module params — traders may use 1, 2, or many EMA periods.
+ * Normalize EMA module params - traders may use 1, 2, or many EMA periods.
  * Legacy fastPeriod/slowPeriod are kept in sync for older blueprints.
  */
 

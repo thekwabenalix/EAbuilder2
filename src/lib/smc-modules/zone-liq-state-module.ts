@@ -1,5 +1,5 @@
 /**
- * Liquidity Buildup State Module — derived from Liquidity_Buildup indicator.
+ * Liquidity Buildup State Module - derived from Liquidity_Buildup indicator.
  */
 
 import {
@@ -20,7 +20,7 @@ export function generateLiquidityBuildupStateModule(): string {
   return generateLiquidityBuildup()
     .replace("//| Liquidity_Buildup.mq5", `//| ${LIQUIDITY_BUILDUP_STATE_MODULE}.mq5`)
     .replace(
-      `//| SMC Liquidity v${LIQUIDITY_BUILDUP_VERSION} — Combined OB + BB + FVG`,
+      `//| SMC Liquidity v${LIQUIDITY_BUILDUP_VERSION} - Combined OB + BB + FVG`,
       `//| Liquidity Buildup State Module v${LIQUIDITY_BUILDUP_STATE_MODULE_VERSION}`,
     )
     .replace(

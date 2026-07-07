@@ -1,5 +1,5 @@
 /**
- * Phase 2 — flow engine parity (filters + OR dependency groups).
+ * Phase 2 - flow engine parity (filters + OR dependency groups).
  */
 import { generateFlowEA } from "../src/generators/gen-flow-ea";
 import { fourBrainToStrategyFlow } from "../src/lib/fourbrain-flow-adapter";

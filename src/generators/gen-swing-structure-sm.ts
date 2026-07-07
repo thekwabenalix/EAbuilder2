@@ -7,7 +7,7 @@
  *   SWINGSM_{id}_IsBull() / IsBear()
  *
  * Standard API (setup / events):
- *   SWINGSM_{id}_BullJustConfirmed() / BearJustConfirmed()  — pivot confirmed this bar
+ *   SWINGSM_{id}_BullJustConfirmed() / BearJustConfirmed()  - pivot confirmed this bar
  *   SWINGSM_{id}_BullConfirmSL() / BearConfirmSL()
  *   SWINGSM_{id}_HasActiveBull() / HasActiveBear()
  *   SWINGSM_{id}_ActiveBullSL() / ActiveBearSL()
@@ -25,7 +25,7 @@ export function genSwingStructureSM(
 
   return `
 //+------------------------------------------------------------------+
-//| Swing Structure SM — ${tf} (${id})                                 |
+//| Swing Structure SM - ${tf} (${id})                                 |
 //| Confirmed pivots → HH/HL bull or LH/LL bear bias                  |
 //+------------------------------------------------------------------+
 #define ${P}SWING_HIGH  1

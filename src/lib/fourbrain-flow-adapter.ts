@@ -1,5 +1,5 @@
 /**
- * Phase 3 — faithful 4-Brain → StrategyFlow adapter.
+ * Phase 3 - faithful 4-Brain → StrategyFlow adapter.
  *
  * Expands every module in each brain to its own step (not just modules[0]).
  * Single-module brains keep stable step ids (step_direction / step_setup / step_entry).
@@ -49,7 +49,7 @@ function zoneFlowParams(
 
 type BrainKind = "direction" | "setup" | "execution";
 
-/** SMC zone modules whose rejection must scope to the zone — not SNR `rejection`. */
+/** SMC zone modules whose rejection must scope to the zone - not SNR `rejection`. */
 const ZONE_SCOPED_SETUP_MODULES = new Set<BrainModuleType>([
   "fvg",
   "fvg_inversion",
@@ -270,7 +270,7 @@ function tryBuildZoneScopedRejectionFlow(config: FourBrainConfig): StrategyFlowC
       ? { mode: "from_step" as const, stepId: directionAnchor.id }
       : { mode: "own_event" as const },
     slSource: { mode: "event_sl" as const, bufferPoints: 0 },
-    notes: "Zone pocket armed — SNR rejection remapped to zone-scoped SMC confirm.",
+    notes: "Zone pocket armed - SNR rejection remapped to zone-scoped SMC confirm.",
   };
   steps.push(setupStep);
 

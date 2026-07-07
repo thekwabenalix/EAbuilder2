@@ -1,5 +1,5 @@
 /**
- * Malaysian Engulfing Strategy (MES) Detector — EG + EF
+ * Malaysian Engulfing Strategy (MES) Detector - EG + EF
  *
  * Detects engulfing zones and tracks their lifecycle.
  * When an EG zone is violated by price, it becomes an EF zone (opposite direction).
@@ -24,7 +24,7 @@ export const ENG_DETECTOR_MODULE = "ENG_Detector";
 
 export function generateEngulfingDetector(): string {
   return `//+------------------------------------------------------------------+
-//| ENG_Detector.mq5 — Malaysian Engulfing (EG + EF)               |
+//| ENG_Detector.mq5 - Malaysian Engulfing (EG + EF)               |
 //| Engulfing Pattern Detector v${ENG_DETECTOR_VERSION}                        |
 //|                                                                  |
 //| Detects EG zones (multi-candle aware: an engulfing is any candle |
@@ -34,7 +34,7 @@ export function generateEngulfingDetector(): string {
 //| EG marked green/red (bullish/bearish).                         |
 //| EF marked orange (failed zone, now opposite direction).        |
 //+------------------------------------------------------------------+
-#property copyright "EA Builder — Malaysian Engulfing Strategy"
+#property copyright "EA Builder - Malaysian Engulfing Strategy"
 #property version   "1.00"
 #property strict
 #property indicator_chart_window
@@ -208,7 +208,7 @@ void AddZone(int c1, int c2, bool isBull, double c1h, double c1l, datetime t1)
 // Detect EG completed at bar c2 (multi-candle aware).
 // An engulfing = a candle whose OPPOSITE wick is closed through, no matter how
 // many candles it takes. We treat c2 as the completing candle and scan back to
-// the NEAREST prior candle C1 whose opposite wick c2 just closed beyond — and
+// the NEAREST prior candle C1 whose opposite wick c2 just closed beyond - and
 // require c2 to be the FIRST bar to break that wick (so each event fires once).
 void DetectEG(int c2)
 {
@@ -250,7 +250,7 @@ void DetectEG(int c2)
       if(!firstBreak) continue;
 
       AddZone(c1, c2, isBullEG, c1h, c1l, t1);
-      return;  // nearest qualifying C1 only — one engulfing per completing candle
+      return;  // nearest qualifying C1 only - one engulfing per completing candle
    }
 }
 

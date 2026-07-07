@@ -1,5 +1,5 @@
 /**
- * Phase 4 — golden ordered-sequence proofs for CI.
+ * Phase 4 - golden ordered-sequence proofs for CI.
  *
  *   npm run verify:golden
  *
@@ -96,7 +96,7 @@ function runCase(testCase: GoldenSequenceCase): EaGenerationPath {
   assertOk(result.flow, `${testCase.id}: flow resolved`);
 
   const validation = validateStrategyFlowSchema(result.flow);
-  assertOk(validation.ok, `${testCase.id}: flow validates — ${validation.errors.join("; ")}`);
+  assertOk(validation.ok, `${testCase.id}: flow validates - ${validation.errors.join("; ")}`);
 
   proveFlowSteps(testCase, result.flow!.steps);
   proveCodeMarkers(testCase, result.code);
@@ -110,7 +110,7 @@ function runCase(testCase: GoldenSequenceCase): EaGenerationPath {
     );
   }
 
-  console.log(`[OK  ] ${testCase.id} — ${testCase.name}`);
+  console.log(`[OK  ] ${testCase.id} - ${testCase.name}`);
   return result.path;
 }
 

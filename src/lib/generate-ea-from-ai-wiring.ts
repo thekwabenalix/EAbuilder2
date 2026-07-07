@@ -1,5 +1,5 @@
 /**
- * Phase 6 + Phase 4 — route AI wiring to Strategy Flow engine, blessed flow, or legacy assembler.
+ * Phase 6 + Phase 4 - route AI wiring to Strategy Flow engine, blessed flow, or legacy assembler.
  */
 
 import type { AiBrainWiring } from "@/lib/api-client";

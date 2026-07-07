@@ -2,10 +2,10 @@ const PROVIDER_CREDIT_MSG =
   "Cloud AI is unavailable (provider credits exhausted). You still get offline answers from your blueprint, code, and backtest logs below.";
 
 const PROMPT_TOO_LONG_MSG =
-  "This chat included too much data (full tester log + code). I trimmed what gets sent to cloud AI — try your question again. See the offline analysis below.";
+  "This chat included too much data (full tester log + code). I trimmed what gets sent to cloud AI - try your question again. See the offline analysis below.";
 
 const PROVIDER_BUSY_MSG =
-  "Cloud AI is temporarily busy. Try again in a moment — or use the offline summary below.";
+  "Cloud AI is temporarily busy. Try again in a moment - or use the offline summary below.";
 
 export function isProviderCreditError(raw: string): boolean {
   return /credit balance is too low|plans\s*&\s*billing|purchase credits/i.test(raw);
@@ -25,7 +25,7 @@ function extractNestedMessage(raw: string): string | null {
   }
 }
 
-/** Turn API / stream errors into trader-friendly copy — never raw JSON. */
+/** Turn API / stream errors into trader-friendly copy - never raw JSON. */
 export function formatAssistantError(raw: unknown): string {
   const text =
     typeof raw === "string" ? raw : raw instanceof Error ? raw.message : String(raw ?? "");
@@ -41,7 +41,7 @@ export function formatAssistantError(raw: unknown): string {
     return "Assistant is not configured on the server. Offline strategy summaries still work.";
   }
   if (/modelId\.replace is not a function/i.test(combined)) {
-    return "AI provider configuration failed. This is a platform issue — try again later or use the offline summary.";
+    return "AI provider configuration failed. This is a platform issue - try again later or use the offline summary.";
   }
   if (/502|503|504|bad gateway|temporarily busy|ETIMEDOUT|ECONNRESET/i.test(combined)) {
     return PROVIDER_BUSY_MSG;
@@ -51,13 +51,13 @@ export function formatAssistantError(raw: unknown): string {
   }
   if (nested && nested.length < 240) return nested;
   if (text.length > 240) {
-    return "Cloud AI is unavailable right now — offline diagnosis is shown in the chat below.";
+    return "Cloud AI is unavailable right now - offline diagnosis is shown in the chat below.";
   }
-  return text || "Chat unavailable — offline diagnosis is shown below.";
+  return text || "Chat unavailable - offline diagnosis is shown below.";
 }
 
 export const OFFLINE_ASSISTANT_TOAST =
-  "Cloud AI unavailable — offline diagnosis shown in chat. Use Apply now buttons to fix.";
+  "Cloud AI unavailable - offline diagnosis shown in chat. Use Apply now buttons to fix.";
 
 export function isAssistantProviderUnavailable(raw: unknown): boolean {
   const text =

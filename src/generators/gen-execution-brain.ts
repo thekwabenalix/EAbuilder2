@@ -1,22 +1,22 @@
 /**
  * Execution Brain Generator
  *
- * Generates Execution_Brain_Execute() — detects a precise entry trigger.
+ * Generates Execution_Brain_Execute() - detects a precise entry trigger.
  * Sets gExecSignal = true + gExecDir (direction) + gExecSL (stop level).
- * Resets every bar — entry signals are point-in-time.
+ * Resets every bar - entry signals are point-in-time.
  *
  * The signal fires only when the entry pattern aligns with gBias AND gSetupDir.
  * Trade execution lives in OnTick (gen-ea.ts), not here.
  *
  * Supported modules (OR logic):
- *   fvg           — FVG retest + close-back bounce
- *   order_block   — OB zone retest + rejection candle
- *   liqsweep      — sweep of recent extreme + close back
- *   engulfing     — strong reversal candle
- *   pin_bar       — long-wick rejection
- *   bos / choch   — fresh structure break
- *   snr           — bounce off swing level
- *   ema           — cross of fast/slow MA
+ *   fvg           - FVG retest + close-back bounce
+ *   order_block   - OB zone retest + rejection candle
+ *   liqsweep      - sweep of recent extreme + close back
+ *   engulfing     - strong reversal candle
+ *   pin_bar       - long-wick rejection
+ *   bos / choch   - fresh structure break
+ *   snr           - bounce off swing level
+ *   ema           - cross of fast/slow MA
  */
 
 import type { BrainConfig } from "@/types/blueprint";
@@ -70,7 +70,7 @@ void Execution_Brain_Execute() { gExecSignal = false; gExecDir = 0; gExecSL = 0;
       case "fvg_inversion": {
         // Reads from the inline Phase 3 state machine (IFVGSM_${tf}_*).
         // Entry fires ONLY when iFVG reaches CONFIRMED (ACTIVE→RETESTED→CONFIRMED).
-        // SL = confirmSL (retestLow for bull, retestHigh for bear) — the worst
+        // SL = confirmSL (retestLow for bull, retestHigh for bear) - the worst
         // wick during the retest phase, exactly as the state module tracks it.
         parts.push(`
    // iFVG Execution: entry on Phase 3 CONFIRMED signal (not just inversion)
@@ -298,7 +298,7 @@ void Execution_Brain_Execute() { gExecSignal = false; gExecDir = 0; gExecSL = 0;
         const label = mod === "bos" ? "BOS" : mod === "choch" ? "CHoCH" : "BOS+CHoCH";
         const execLookback = p(brainParams, "lookback", 20);
         parts.push(`
-   // ${label}: fresh structure break — fire entry on same bar
+   // ${label}: fresh structure break - fire entry on same bar
    if(!gExecSignal)
    {
       double swH = iHigh(InpSymbol, ${TF}, 2);
@@ -504,7 +504,7 @@ void Execution_Brain_Execute() { gExecSignal = false; gExecDir = 0; gExecSL = 0;
 // ─── Execution Brain: ${modules.join(" + ").toUpperCase()} @ ${tf} ─────────────────────────────
 void Execution_Brain_Execute()
 {
-   gExecSignal = false;   // Reset each bar — entry signals are point-in-time
+   gExecSignal = false;   // Reset each bar - entry signals are point-in-time
    gExecDir    = 0;
    gExecSL     = 0.0;
 ${detectionBody}

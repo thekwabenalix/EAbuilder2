@@ -1,5 +1,5 @@
 // ─── Gap SNR State Module ─────────────────────────────────────────────────────
-// Phase 2 State Module — EAbuilder2
+// Phase 2 State Module - EAbuilder2
 //
 // Identical lifecycle to Classic_SNR_State_Module.  Only the detection differs:
 // Gap SNR uses candle-pair direction CONTINUATION instead of reversal.
@@ -24,17 +24,17 @@ export function generateGapSnrStateModule(): string {
   return `
 //+------------------------------------------------------------------+
 //| Gap_SNR_State_Module.mq5                                         |
-//| Phase 2 Gap SNR State Module — EAbuilder2                        |
+//| Phase 2 Gap SNR State Module - EAbuilder2                        |
 //| v${GAP_SNR_STATE_MODULE_VERSION}                                                     |
 //|                                                                  |
 //| Detection: candle-pair direction CONTINUATION (Bull-Bull = Sup,  |
 //|            Bear-Bear = Res, Candle A close = level).             |
 //|                                                                  |
 //| Buffers (read via iCustom()):                                    |
-//|   0 : BullConfirmBuf — 1.0 at gap support CONFIRMED bar         |
-//|   1 : BearConfirmBuf — 1.0 at gap resistance CONFIRMED bar      |
-//|   2 : BullSLBuf      — retestLow at confirmation bar            |
-//|   3 : BearSLBuf      — retestHigh at confirmation bar           |
+//|   0 : BullConfirmBuf - 1.0 at gap support CONFIRMED bar         |
+//|   1 : BearConfirmBuf - 1.0 at gap resistance CONFIRMED bar      |
+//|   2 : BullSLBuf      - retestLow at confirmation bar            |
+//|   3 : BearSLBuf      - retestHigh at confirmation bar           |
 //+------------------------------------------------------------------+
 #property copyright   "EAbuilder2"
 #property version     "${GAP_SNR_STATE_MODULE_VERSION}"
@@ -187,7 +187,7 @@ void DetectSnr(int sh)
    else if(aBear && bBear) { dir = -1; level = Cl(sh + 1); }  // Gap Resistance
    else return;
 
-   // Dedup: skip terminal levels — their slot can be recycled
+   // Dedup: skip terminal levels - their slot can be recycled
    datetime t = Tm(sh + 1);
    for(int k = 0; k < snrCount; k++)
      {
@@ -224,7 +224,7 @@ void DetectSnr(int sh)
   }
 
 // ─── UpdateSnrStates ──────────────────────────────────────────────
-// Identical logic to Classic SNR State Module — only the detection above differs.
+// Identical logic to Classic SNR State Module - only the detection above differs.
 void UpdateSnrStates(int sh)
   {
    double   barHigh  = Hi(sh);
