@@ -1,9 +1,9 @@
 import type { ElementType } from "react";
 import type { StrategyFamily } from "@/lib/strategy-family";
 import { STRATEGY_FAMILIES, familyMeta } from "@/lib/strategy-family";
-import { BarChart3, GitMerge, Layers, TrendingUp } from "lucide-react";
+import { BarChart3, GitMerge, Layers, TrendingUp, type LucideIcon } from "lucide-react";
 
-const FAMILY_ICONS: Record<StrategyFamily, ElementType> = {
+const FAMILY_ICONS: Record<StrategyFamily, LucideIcon> = {
   smc_ict: Layers,
   snr_snd: BarChart3,
   indicators: TrendingUp,

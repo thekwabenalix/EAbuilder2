@@ -23,6 +23,7 @@ import {
   Sparkles,
   RefreshCw,
   GitBranch,
+  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createStrategy } from "@/lib/strategies";
@@ -565,7 +566,7 @@ function BrainCard({
   setupModule,
 }: {
   role: BrainRole;
-  icon: React.ElementType;
+  icon: LucideIcon;
   title: string;
   color: string;
   state: BrainState | undefined;

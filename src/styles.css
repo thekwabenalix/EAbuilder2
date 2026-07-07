@@ -274,10 +274,25 @@
   body {
     min-height: 100vh;
     background-image:
-      linear-gradient(180deg, color-mix(in oklch, var(--color-background) 94%, var(--color-primary) 6%) 0%, var(--color-background) 32rem),
-      linear-gradient(90deg, color-mix(in oklch, var(--color-border) 42%, transparent) 1px, transparent 1px),
-      linear-gradient(180deg, color-mix(in oklch, var(--color-border) 32%, transparent) 1px, transparent 1px);
-    background-size: auto, 42px 42px, 42px 42px;
+      linear-gradient(
+        180deg,
+        color-mix(in oklch, var(--color-background) 94%, var(--color-primary) 6%) 0%,
+        var(--color-background) 32rem
+      ),
+      linear-gradient(
+        90deg,
+        color-mix(in oklch, var(--color-border) 42%, transparent) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        180deg,
+        color-mix(in oklch, var(--color-border) 32%, transparent) 1px,
+        transparent 1px
+      );
+    background-size:
+      auto,
+      42px 42px,
+      42px 42px;
     background-attachment: fixed;
   }
 
@@ -344,7 +359,11 @@
   }
 
   .app-hover-lift {
-    transition: transform 180ms var(--ease-out), box-shadow 180ms var(--ease-out), border-color 180ms var(--ease-out), background-color 180ms var(--ease-out);
+    transition:
+      transform 180ms var(--ease-out),
+      box-shadow 180ms var(--ease-out),
+      border-color 180ms var(--ease-out),
+      background-color 180ms var(--ease-out);
   }
 
   .app-hover-lift:hover {
@@ -387,11 +406,15 @@
 
 @layer components {
   main :where(.rounded-md.border, .rounded-lg.border, .rounded-xl.border) {
-    box-shadow: 0 1px 0 color-mix(in oklch, white 46%, transparent) inset, 0 10px 28px color-mix(in oklch, black 6%, transparent);
+    box-shadow:
+      0 1px 0 color-mix(in oklch, white 46%, transparent) inset,
+      0 10px 28px color-mix(in oklch, black 6%, transparent);
   }
 
   .dark main :where(.rounded-md.border, .rounded-lg.border, .rounded-xl.border) {
-    box-shadow: 0 1px 0 color-mix(in oklch, white 5%, transparent) inset, 0 14px 38px color-mix(in oklch, black 24%, transparent);
+    box-shadow:
+      0 1px 0 color-mix(in oklch, white 5%, transparent) inset,
+      0 14px 38px color-mix(in oklch, black 24%, transparent);
   }
 
   main :where(.rounded-md.border, .rounded-lg.border, .rounded-xl.border):where(:not(pre)):hover {
@@ -400,5 +423,92 @@
 
   main :where(input, textarea, button, [role="tab"], [role="button"]):focus-visible {
     box-shadow: 0 0 0 4px color-mix(in oklch, var(--color-primary) 14%, transparent);
+  }
+}
+
+@layer components {
+  .landing-premium {
+    --lp-bg: #f7f5f2;
+    --lp-bg-soft: #eee8e3;
+    --lp-text: #202329;
+    --lp-muted: #666b74;
+    --lp-accent: #df8755;
+    --lp-accent-strong: #c96f3f;
+    --lp-accent-border: rgb(223 135 85 / 0.34);
+    --lp-outline: rgb(32 35 41 / 0.14);
+    --lp-outline-bg: rgb(255 255 255 / 0.58);
+    --lp-pill: rgb(255 255 255 / 0.58);
+    --lp-soft-shadow: rgb(45 34 28 / 0.09);
+    --lp-button-shadow: rgb(223 135 85 / 0.34);
+    --lp-radial: rgb(223 135 85 / 0.18);
+    --lp-cube-glow: rgb(223 135 85 / 0.2);
+    --lp-wave-opacity: 0.32;
+    --lp-chart-opacity: 0.2;
+    --lp-grid: rgb(32 35 41 / 0.12);
+    --lp-candle: rgb(32 35 41 / 0.28);
+    --lp-candle-up: rgb(223 135 85 / 0.34);
+    --lp-feature-icon: #69707a;
+  }
+
+  .dark .landing-premium {
+    --lp-bg: #0f1115;
+    --lp-bg-soft: #12161b;
+    --lp-text: #f4f2ef;
+    --lp-muted: #bfc3c9;
+    --lp-accent: #df8755;
+    --lp-accent-strong: #ef995f;
+    --lp-accent-border: rgb(223 135 85 / 0.42);
+    --lp-outline: rgb(238 232 227 / 0.16);
+    --lp-outline-bg: rgb(15 17 21 / 0.42);
+    --lp-pill: rgb(15 17 21 / 0.56);
+    --lp-soft-shadow: rgb(0 0 0 / 0.35);
+    --lp-button-shadow: rgb(223 135 85 / 0.28);
+    --lp-radial: rgb(223 135 85 / 0.15);
+    --lp-cube-glow: rgb(223 135 85 / 0.2);
+    --lp-wave-opacity: 0.34;
+    --lp-chart-opacity: 0.18;
+    --lp-grid: rgb(238 232 227 / 0.08);
+    --lp-candle: rgb(238 232 227 / 0.2);
+    --lp-candle-up: rgb(223 135 85 / 0.3);
+    --lp-feature-icon: #c3c7ce;
+  }
+
+  .lp-wave-svg {
+    position: absolute;
+    inset: 0;
+    width: 120%;
+    height: 100%;
+    transform: translateX(-8%);
+  }
+
+  .lp-wave-path {
+    fill: none;
+    stroke: var(--lp-accent);
+    stroke-width: 0.8;
+    stroke-opacity: 0.45;
+    stroke-linecap: round;
+    animation: lp-wave-flow 12s linear infinite;
+  }
+}
+
+@keyframes lp-wave-flow {
+  0% {
+    stroke-dasharray: 40 620;
+    stroke-dashoffset: 0;
+    opacity: 0.08;
+  }
+  40% {
+    opacity: 0.46;
+  }
+  100% {
+    stroke-dasharray: 40 620;
+    stroke-dashoffset: -660;
+    opacity: 0.08;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-wave-path {
+    animation: none;
   }
 }

@@ -1,31 +1,30 @@
-import { useState, useEffect, type FormEvent } from "react";
-import { Player } from "@remotion/player";
+import { lazy, Suspense, useState, type FormEvent } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThemeToggleIcon } from "@/components/ThemeToggle";
-import { cn } from "@/lib/utils";
-import { EAComposition } from "@/remotion/EAComposition";
 import {
-  TerminalSquare,
-  Loader2,
-  TrendingUp,
-  Crosshair,
-  Zap,
-  ShieldCheck,
-  BarChart2,
-  Code2,
-  Download,
-  SlidersHorizontal,
-  Play,
-  MessageSquare,
-  X,
   ArrowRight,
+  BarChart3,
+  Bot,
   Check,
+  Loader2,
+  Play,
+  ShieldCheck,
+  Sparkles,
+  TerminalSquare,
+  X,
 } from "lucide-react";
 
-/* ── Auth modal ────────────────────────────────────────────── */
+type PointerState = { x: number; y: number };
+
+const LandingHeroCanvas = lazy(() =>
+  import("@/components/LandingHeroCanvas").then((module) => ({
+    default: module.LandingHeroCanvas,
+  })),
+);
 
 function AuthModal({
   onClose,
@@ -70,28 +69,33 @@ function AuthModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xl"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-sm rounded-xl border border-border bg-card p-7 relative shadow-2xl lp-fade-up">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
+        className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-[#0f1115]/95 p-7 text-[#f4f2ef] shadow-2xl"
+      >
         <button
           type="button"
           onClick={onClose}
-          className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
+          className="absolute right-4 top-4 rounded-full p-1.5 text-[#bfc3c9] transition hover:bg-white/10 hover:text-white"
           aria-label="Close"
         >
           <X className="h-4 w-4" />
         </button>
 
-        <div className="flex items-center gap-2.5 mb-6">
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/15 border border-primary/25">
-            <TerminalSquare className="h-4 w-4 text-primary" />
+        <div className="mb-6 flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#df8755]/30 bg-[#df8755]/15">
+            <TerminalSquare className="h-4 w-4 text-[#df8755]" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold leading-none">EAbuilder</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <h2 className="text-sm font-semibold leading-none">EABuilder</h2>
+            <p className="mt-1 text-xs text-[#bfc3c9]">
               {mode === "signin" ? "Sign in to your workstation" : "Create your account"}
             </p>
           </div>
@@ -117,22 +121,26 @@ function AuthModal({
               autoComplete={mode === "signin" ? "current-password" : "new-password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
+              placeholder="********"
             />
           </div>
 
-          {error && <p className="text-xs text-destructive">{error}</p>}
-          {info && <p className="text-xs text-emerald-400">{info}</p>}
+          {error && <p className="text-xs text-red-300">{error}</p>}
+          {info && <p className="text-xs text-emerald-300">{info}</p>}
 
-          <Button type="submit" className="w-full" disabled={busy}>
+          <Button
+            type="submit"
+            className="h-11 w-full bg-[#df8755] text-white hover:bg-[#c96f3f]"
+            disabled={busy}
+          >
             {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {mode === "signin" ? "Sign In" : "Create Account"}
+            {mode === "signin" ? "Sign in" : "Create account"}
           </Button>
         </form>
 
         <button
           type="button"
-          className="mt-4 text-xs text-muted-foreground hover:text-foreground transition-colors w-full text-center"
+          className="mt-4 w-full text-center text-xs text-[#bfc3c9] transition hover:text-white"
           onClick={() => {
             setMode(mode === "signin" ? "signup" : "signin");
             setError(null);
@@ -141,533 +149,300 @@ function AuthModal({
         >
           {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
         </button>
-      </div>
+      </motion.div>
     </div>
   );
 }
 
-/* ── Data ──────────────────────────────────────────────────── */
+function BrandMark() {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="relative h-8 w-8">
+        <span className="absolute left-1 top-1 h-3 w-6 rotate-[-45deg] rounded-[3px] bg-[#c3c7ce]" />
+        <span className="absolute bottom-1 left-1 h-3 w-6 rotate-[-45deg] rounded-[3px] bg-[#f0b28b]" />
+        <span className="absolute left-3 top-3 h-3 w-6 rotate-[-45deg] rounded-[3px] bg-[#df8755]" />
+        <span className="absolute left-3 top-0 h-3 w-3 rotate-45 rounded-[3px] bg-[#eee8e3]" />
+      </div>
+      <span className="text-2xl font-semibold tracking-tight text-[var(--lp-text)]">EABuilder</span>
+    </div>
+  );
+}
 
-const BRAINS = [
-  {
-    icon: TrendingUp,
-    dot: "bg-emerald-400",
-    border: "border-l-emerald-500/60",
-    iconColor: "text-emerald-400",
-    iconBg: "bg-emerald-950/60",
-    badge: "gBias",
-    badgeColor: "text-emerald-400 bg-emerald-950/50",
-    title: "Direction brain",
-    body: "Reads market bias (Bull / Bear / Neutral) from the higher timeframe using trend and structure logic. Stays persistent across bars.",
-  },
-  {
-    icon: Crosshair,
-    dot: "bg-blue-400",
-    border: "border-l-blue-500/60",
-    iconColor: "text-blue-400",
-    iconBg: "bg-blue-950/60",
-    badge: "gSetupActive",
-    badgeColor: "text-blue-400 bg-blue-950/50",
-    title: "Setup brain",
-    body: "Identifies high-probability zones - FVG, OB, liquidity sweeps - on the setup timeframe. Resets every bar.",
-  },
-  {
-    icon: Zap,
-    dot: "bg-red-400",
-    border: "border-l-red-500/60",
-    iconColor: "text-red-400",
-    iconBg: "bg-red-950/60",
-    badge: "gExecSignal",
-    badgeColor: "text-red-400 bg-red-950/50",
-    title: "Execution brain",
-    body: "Fires the precise entry - BOS, engulfing candle, or divergence - on the fastest timeframe. Resets every bar.",
-  },
-  {
-    icon: ShieldCheck,
-    dot: "bg-amber-400",
-    border: "border-l-amber-500/60",
-    iconColor: "text-amber-400",
-    iconBg: "bg-amber-950/60",
-    badge: "Deterministic",
-    badgeColor: "text-amber-400 bg-amber-950/50",
-    title: "Management brain",
-    body: "Risk %, R:R ratio, break-even, trailing stop. Fully deterministic - never AI-invented. Numbers come from your description.",
-  },
-] as const;
+function MarketWaves({ pointer }: { pointer: PointerState }) {
+  return (
+    <div
+      className="pointer-events-none absolute inset-0 overflow-hidden opacity-[var(--lp-wave-opacity)]"
+      style={{ transform: `translate3d(${pointer.x * 8}px, ${pointer.y * 5}px, 0)` }}
+      aria-hidden
+    >
+      <svg className="lp-wave-svg" viewBox="0 0 1200 760" preserveAspectRatio="none">
+        {Array.from({ length: 18 }).map((_, i) => (
+          <path
+            key={i}
+            className="lp-wave-path"
+            style={{ animationDelay: `${i * -0.65}s` }}
+            d={`M -80 ${430 + i * 14} C 170 ${310 + i * 9}, 290 ${570 - i * 12}, 520 ${440 + i * 10} S 850 ${320 + i * 9}, 1280 ${410 + i * 13}`}
+          />
+        ))}
+      </svg>
+    </div>
+  );
+}
 
-const FEATURES = [
-  {
-    icon: BarChart2,
-    title: "Verified modules only",
-    body: "EMA, FVG, BOS, OB, Liquidity Sweep, RSI Divergence. Each is a battle-tested inline state machine - not generated on the fly.",
-  },
-  {
-    icon: Code2,
-    title: "AI wires, not writes",
-    body: "AI maps your intent to module configurations. The assembler embeds proven MQL5 logic. Hallucinations cannot ship.",
-  },
-  {
-    icon: Download,
-    title: "Single self-contained file",
-    body: "One .mq5 file with everything inline. No external indicators, no DLLs, no extra installation steps in MetaTrader.",
-  },
-  {
-    icon: SlidersHorizontal,
-    title: "Visual 4-Brain builder",
-    body: "Assign modules to brains visually. Set timeframes and parameters through a UI - no need to touch any code.",
-  },
-  {
-    icon: Play,
-    title: "Instant backtest",
-    body: "The desktop companion compiles the EA and opens MT5 Strategy Tester in one click from the browser.",
-  },
-  {
-    icon: MessageSquare,
-    title: "AI compile fixer",
-    body: "Paste a compile error into the chat. AI patches the EA and re-emits the corrected file immediately.",
-  },
-] as const;
-
-const MODULES = [
-  { name: "EMA Cross", cat: "Trend" },
-  { name: "FVG", cat: "SMC" },
-  { name: "BOS / CHoCH", cat: "Structure" },
-  { name: "Order Block", cat: "SMC" },
-  { name: "Liquidity Sweep", cat: "SMC" },
-  { name: "RSI Divergence", cat: "Momentum" },
-  { name: "Engulfing", cat: "Price Action" },
-  { name: "IFVG", cat: "SMC" },
-  { name: "ATR Filter", cat: "Volatility" },
-  { name: "Session Filter", cat: "Time" },
-  { name: "Spread Filter", cat: "Execution" },
-  { name: "Break-even", cat: "Management" },
-  { name: "Trailing Stop", cat: "Management" },
-  { name: "Fixed R:R", cat: "Management" },
-] as const;
-
-const STEPS = [
-  {
-    n: "01",
-    title: "Describe your strategy",
-    body: "Type your logic in plain English. EAbuilder extracts timeframes, entry conditions, filters, and risk rules automatically.",
-  },
-  {
-    n: "02",
-    title: "Review the blueprint",
-    body: "AI maps your logic to the 4-Brain model using verified building blocks. You see the exact wiring before any code is generated.",
-  },
-  {
-    n: "03",
-    title: "Download and compile",
-    body: "Get a single self-contained .mq5 file. Compile in MetaEditor and run a backtest in MT5 immediately.",
-  },
-] as const;
-
-/* ── Remotion Player wrapper - client-only ─────────────────── */
-
-function HeroPlayer() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+function ChartBackdrop() {
+  const candles = [
+    [12, 44, 28, 68],
+    [48, 58, 38, 82],
+    [84, 75, 52, 97],
+    [120, 88, 72, 118],
+    [156, 70, 48, 91],
+    [192, 54, 31, 76],
+    [228, 42, 22, 61],
+    [264, 63, 44, 88],
+    [300, 81, 65, 105],
+    [336, 95, 72, 126],
+    [372, 75, 54, 98],
+    [408, 60, 38, 82],
+    [444, 46, 24, 67],
+    [480, 64, 45, 91],
+    [516, 84, 62, 108],
+    [552, 98, 76, 122],
+  ];
 
   return (
-    /* Explicit aspect-ratio wrapper so the Player gets a real height */
-    <div style={{ aspectRatio: "720 / 440", width: "100%" }}>
-      {mounted ? (
-        <Player
-          component={EAComposition}
-          durationInFrames={150}
-          fps={30}
-          compositionWidth={720}
-          compositionHeight={440}
-          loop
-          autoPlay
-          controls={false}
-          clickToPlay={false}
-          acknowledgeRemotionLicense
-          style={{ width: "100%", height: "100%", borderRadius: "0.75rem" }}
-        />
-      ) : (
-        <div className="w-full h-full rounded-xl bg-card border border-border/50 flex items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/40" />
-        </div>
-      )}
-    </div>
+    <svg
+      className="pointer-events-none absolute inset-0 h-full w-full opacity-[var(--lp-chart-opacity)]"
+      viewBox="0 0 620 250"
+      preserveAspectRatio="none"
+      aria-hidden
+    >
+      <g className="stroke-[var(--lp-grid)]">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <line key={`v-${i}`} x1={i * 88} y1="0" x2={i * 88} y2="250" strokeDasharray="4 6" />
+        ))}
+        {Array.from({ length: 5 }).map((_, i) => (
+          <line
+            key={`h-${i}`}
+            x1="0"
+            y1={35 + i * 42}
+            x2="620"
+            y2={35 + i * 42}
+            strokeDasharray="4 6"
+          />
+        ))}
+      </g>
+      <path
+        d="M0 162 C120 96 176 146 260 112 S420 86 620 124"
+        fill="none"
+        stroke="var(--lp-accent)"
+        strokeOpacity="0.34"
+        strokeWidth="1"
+      />
+      <g>
+        {candles.map(([x, open, close, wick], i) => {
+          const up = close < open;
+          const top = Math.min(open, close);
+          const height = Math.max(8, Math.abs(open - close));
+          return (
+            <g key={i} transform={`translate(${x} 55)`} opacity="0.55">
+              <line
+                x1="6"
+                x2="6"
+                y1={Math.min(top, wick - 18)}
+                y2={Math.max(open, close) + 24}
+                stroke="var(--lp-candle)"
+                strokeWidth="1"
+              />
+              <rect
+                x="0"
+                y={top}
+                width="12"
+                height={height}
+                rx="1.5"
+                fill={up ? "var(--lp-candle-up)" : "var(--lp-candle)"}
+              />
+            </g>
+          );
+        })}
+      </g>
+    </svg>
   );
 }
 
-/* ── Landing page ──────────────────────────────────────────── */
+const navItems = ["Home", "Solutions", "Modules", "Pricing", "Resources"];
+
+const featureRow = [
+  { icon: ShieldCheck, label: "Verified Modules" },
+  { icon: Bot, label: "AI Strategy Builder" },
+  { icon: BarChart3, label: "MT5 Ready" },
+] as const;
 
 export function LandingPage() {
   const [showAuth, setShowAuth] = useState(false);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signup");
+  const [pointer, setPointer] = useState<PointerState>({ x: 0, y: 0 });
+  const prefersReducedMotion = useReducedMotion();
+  const reduced = Boolean(prefersReducedMotion);
 
   const openAuth = (mode: "signin" | "signup") => {
     setAuthMode(mode);
     setShowAuth(true);
   };
 
+  const handlePointerMove = (event: React.PointerEvent<HTMLElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setPointer({
+      x: (event.clientX - rect.left) / rect.width - 0.5,
+      y: (event.clientY - rect.top) / rect.height - 0.5,
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
+    <div className="landing-premium min-h-screen overflow-hidden bg-[var(--lp-bg)] text-[var(--lp-text)]">
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} initialMode={authMode} />}
 
-      {/* ── Nav ─────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <TerminalSquare className="h-4 w-4 text-primary" />
-            <span className="font-semibold text-sm tracking-tight">
-              EA<span className="text-primary">builder</span>
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
+      <section className="relative min-h-screen overflow-hidden" onPointerMove={handlePointerMove}>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_48%,var(--lp-radial),transparent_38%),linear-gradient(135deg,var(--lp-bg),var(--lp-bg-soft))]" />
+        <ChartBackdrop />
+        {!reduced && <MarketWaves pointer={pointer} />}
+
+        <header className="relative z-20 mx-auto flex h-24 max-w-[1440px] items-center justify-between px-6 sm:px-10 lg:px-12">
+          <BrandMark />
+
+          <nav className="hidden items-center gap-10 text-sm font-medium text-[var(--lp-muted)] lg:flex">
+            {navItems.map((item) => (
+              <button
+                key={item}
+                type="button"
+                className={`relative transition hover:text-[var(--lp-text)] ${
+                  item === "Home" ? "text-[var(--lp-accent)]" : ""
+                }`}
+              >
+                {item}
+                {item === "Home" && (
+                  <span className="absolute -bottom-5 left-0 h-0.5 w-full rounded-full bg-[var(--lp-accent)]" />
+                )}
+              </button>
+            ))}
+          </nav>
+
+          <div className="flex items-center gap-3">
             <ThemeToggleIcon />
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground hover:text-foreground"
+            <button
+              type="button"
+              className="hidden text-sm text-[var(--lp-muted)] transition hover:text-[var(--lp-text)] sm:inline-flex"
               onClick={() => openAuth("signin")}
             >
-              Sign in
-            </Button>
-            <Button size="sm" className="gap-1.5" onClick={() => openAuth("signup")}>
-              Get started
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* ── Hero ────────────────────────────────────────── */}
-      <section className="relative border-b border-border/40">
-        {/* Subtle radial glow behind hero content */}
-        <div
-          className="pointer-events-none absolute inset-0 opacity-30"
-          style={{
-            background:
-              "radial-gradient(ellipse 80% 50% at 50% -10%, oklch(0.63 0.24 262 / 0.35) 0%, transparent 70%)",
-          }}
-          aria-hidden
-        />
-
-        <div className="relative max-w-7xl mx-auto px-6 py-24 lg:py-32 grid grid-cols-1 lg:grid-cols-2 gap-14 lg:gap-20 items-center">
-          {/* ── Left - copy ──────────────────────────── */}
-          <div>
-            {/* Eyebrow */}
-            <div className="lp-fade-in inline-flex items-center gap-2 text-[11px] font-mono tracking-widest uppercase text-primary/80 bg-primary/8 border border-primary/20 rounded-full px-3.5 py-1.5 mb-8">
-              MT5 Expert Advisor Builder
-            </div>
-
-            {/* H1 - font-black for impact */}
-            <h1 className="lp-fade-up lp-d1 text-5xl md:text-6xl lg:text-[3.75rem] xl:text-[4.25rem] font-black leading-[1.06] tracking-tight mb-6">
-              Build trading EAs{" "}
-              <span
-                className="bg-clip-text text-transparent"
-                style={{
-                  backgroundImage:
-                    "linear-gradient(135deg, oklch(0.72 0.2 260) 0%, oklch(0.78 0.18 200) 100%)",
-                }}
-              >
-                without writing MQL5
-              </span>
-              .
-            </h1>
-
-            {/* Sub */}
-            <p className="lp-fade-up lp-d2 text-base text-muted-foreground leading-relaxed mb-8 max-w-md">
-              Describe any strategy in plain English. EAbuilder maps it to verified modules and
-              generates a compilable, self-contained Expert Advisor.
-            </p>
-
-            {/* CTAs */}
-            <div className="lp-fade-up lp-d3 flex flex-wrap items-center gap-3 mb-8">
-              <Button size="lg" className="gap-2 px-6" onClick={() => openAuth("signup")}>
-                Start building free
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="text-muted-foreground hover:text-foreground"
-                onClick={() => openAuth("signin")}
-              >
-                Sign in
-              </Button>
-            </div>
-
-            {/* Trust row */}
-            <div className="lp-fade-up lp-d4 flex flex-wrap gap-3">
-              {["No credit card required", "28+ verified modules", "Always compiles"].map((t) => (
-                <span
-                  key={t}
-                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
-                >
-                  <Check className="h-3 w-3 text-primary/70 shrink-0" />
-                  {t}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* ── Right - Remotion animation ───────────── */}
-          <div className="lp-fade-in lp-d3 w-full">
-            {/* Glow ring behind the player */}
-            <div className="relative">
-              <div
-                className="pointer-events-none absolute -inset-4 rounded-2xl opacity-20 blur-2xl"
-                style={{
-                  background: "oklch(0.63 0.24 262 / 0.6)",
-                }}
-                aria-hidden
-              />
-              <div className="relative rounded-xl overflow-hidden border border-white/8 shadow-2xl">
-                <HeroPlayer />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Stats strip ─────────────────────────────────── */}
-      <section className="border-b border-border/40 bg-card/30">
-        <div className="max-w-7xl mx-auto px-6 py-7 grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-0 md:divide-x divide-border/40">
-          {[
-            { value: "28+", label: "Verified modules" },
-            { value: "4", label: "Independent brains" },
-            { value: "1", label: "File output" },
-            { value: "100%", label: "Compilation rate" },
-          ].map((s) => (
-            <div
-              key={s.label}
-              className="flex flex-col items-center md:items-start md:px-10 gap-0.5"
-            >
-              <span className="text-2xl font-black tracking-tight text-foreground">{s.value}</span>
-              <span className="text-xs text-muted-foreground">{s.label}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── How it works ────────────────────────────────── */}
-      <section className="py-24 px-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-14">
-            <p className="text-[11px] font-mono text-primary/70 uppercase tracking-widest mb-3">
-              How it works
-            </p>
-            <h2 className="text-3xl font-black tracking-tight">Three steps from idea to EA</h2>
-          </div>
-
-          {/* Steps with connectors */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
-            {/* Connector line - desktop only */}
-            <div
-              className="hidden md:block absolute top-8 left-[calc(33.33%+1rem)] right-[calc(33.33%+1rem)] h-px"
-              style={{
-                background:
-                  "linear-gradient(90deg, transparent, oklch(0.63 0.24 262 / 0.4), transparent)",
-              }}
-              aria-hidden
-            />
-
-            {STEPS.map((s) => (
-              <div
-                key={s.n}
-                className="relative bg-card border border-border/60 rounded-xl p-6 hover:border-primary/30 transition-colors"
-              >
-                {/* Step number */}
-                <div className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-primary/25 bg-primary/10 text-sm font-black font-mono text-primary mb-4">
-                  {s.n}
-                </div>
-                <h3 className="font-semibold text-sm mb-2">{s.title}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">{s.body}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── 4-Brain architecture ────────────────────────── */}
-      <section className="py-24 px-6 border-t border-border/40">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-14">
-            <p className="text-[11px] font-mono text-primary/70 uppercase tracking-widest mb-3">
-              Architecture
-            </p>
-            <h2 className="text-3xl font-black tracking-tight mb-3">The 4-Brain model</h2>
-            <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
-              Every EA runs four independent brains on separate timeframes. A trade fires only when
-              all active brains agree.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {BRAINS.map((b) => (
-              <div
-                key={b.title}
-                className={cn(
-                  "bg-card border border-border/60 border-l-2 rounded-xl p-6",
-                  "hover:bg-card/80 transition-colors",
-                  b.border,
-                )}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div
-                    className={cn("flex items-center justify-center w-9 h-9 rounded-lg", b.iconBg)}
-                  >
-                    <b.icon className={cn("h-4 w-4", b.iconColor)} />
-                  </div>
-                  <span className={cn("text-[10px] font-mono px-2 py-1 rounded-md", b.badgeColor)}>
-                    {b.badge}
-                  </span>
-                </div>
-                <h3 className="text-sm font-semibold mb-1.5">{b.title}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">{b.body}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Confluence note */}
-          <div className="mt-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-5 py-4">
-            <div className="flex -space-x-1">
-              {(["bg-emerald-500", "bg-blue-500", "bg-red-500", "bg-amber-500"] as const).map(
-                (c, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      "w-2.5 h-2.5 rounded-full border border-background lp-dot-pulse",
-                      c,
-                    )}
-                    style={{ animationDelay: `${i * 0.4}s` }}
-                  />
-                ),
-              )}
-            </div>
-            <p className="text-xs text-primary/80 font-mono">
-              ConfluenceGate() - trade fires only when all active brains agree
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Module ticker ────────────────────────────────── */}
-      <section className="py-14 border-t border-border/40 overflow-hidden relative">
-        {/* Edge fades */}
-        <div
-          className="pointer-events-none absolute inset-y-0 left-0 w-24 z-10"
-          style={{ background: "linear-gradient(90deg, var(--color-background), transparent)" }}
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute inset-y-0 right-0 w-24 z-10"
-          style={{ background: "linear-gradient(270deg, var(--color-background), transparent)" }}
-          aria-hidden
-        />
-
-        <div className="text-center mb-8">
-          <p className="text-[11px] font-mono text-primary/70 uppercase tracking-widest mb-2">
-            Module library
-          </p>
-          <h2 className="text-2xl font-black tracking-tight">Your strategy vocabulary</h2>
-          <p className="text-sm text-muted-foreground mt-2">
-            Every module is a verified, compilable building block.
-          </p>
-        </div>
-
-        {/* Infinite ticker - duplicated for seamless loop */}
-        <div className="flex gap-3 lp-ticker w-max">
-          {[...MODULES, ...MODULES].map((m, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-2 shrink-0 rounded-lg border border-border/60 bg-card/50 px-4 py-2.5 hover:border-primary/30 transition-colors"
-            >
-              <span className="text-xs font-medium whitespace-nowrap">{m.name}</span>
-              <span className="text-[10px] text-muted-foreground/60 font-mono">{m.cat}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Features ─────────────────────────────────────── */}
-      <section className="py-24 px-6 border-t border-border/40">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-14">
-            <p className="text-[11px] font-mono text-primary/70 uppercase tracking-widest mb-3">
-              Features
-            </p>
-            <h2 className="text-3xl font-black tracking-tight">Built for serious traders</h2>
-            <p className="text-sm text-muted-foreground mt-2">
-              Not a template builder. Not raw AI-generated code.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
-            {FEATURES.map((f) => (
-              <div
-                key={f.title}
-                className="bg-card border border-border/60 rounded-xl p-6 hover:border-primary/25 transition-colors"
-              >
-                <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 mb-4">
-                  <f.icon className="h-4 w-4 text-primary" />
-                </div>
-                <h3 className="text-sm font-semibold mb-2">{f.title}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">{f.body}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── CTA ─────────────────────────────────────────── */}
-      <section className="py-28 px-6 border-t border-border/40 relative overflow-hidden">
-        {/* Background glow */}
-        <div
-          className="pointer-events-none absolute inset-0 opacity-25"
-          style={{
-            background:
-              "radial-gradient(ellipse 60% 80% at 50% 100%, oklch(0.63 0.24 262 / 0.5) 0%, transparent 70%)",
-          }}
-          aria-hidden
-        />
-
-        <div className="relative max-w-2xl mx-auto text-center">
-          <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-4">
-            Ready to build your first EA?
-          </h2>
-          <p className="text-muted-foreground text-base leading-relaxed mb-10 max-w-lg mx-auto">
-            Describe any strategy. Get a compilable MT5 Expert Advisor ready for MetaEditor in
-            minutes.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <Button
-              size="lg"
-              className="gap-2 px-8 h-12 text-base"
+              Login
+            </button>
+            <motion.button
+              type="button"
+              whileHover={{ y: -1, scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="inline-flex h-12 items-center gap-3 rounded-full bg-[var(--lp-accent)] px-6 text-sm font-semibold text-white shadow-[0_18px_45px_var(--lp-button-shadow)] transition hover:bg-[var(--lp-accent-strong)]"
               onClick={() => openAuth("signup")}
             >
-              Start building free
+              Get started
               <ArrowRight className="h-4 w-4" />
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="h-12 text-base text-muted-foreground hover:text-foreground"
-              onClick={() => openAuth("signin")}
-            >
-              Sign in
-            </Button>
+            </motion.button>
           </div>
-        </div>
-      </section>
+        </header>
 
-      {/* ── Footer ──────────────────────────────────────── */}
-      <footer className="border-t border-border/40 px-6 py-6">
-        <div className="max-w-7xl mx-auto flex items-center justify-between text-xs text-muted-foreground/60">
-          <div className="flex items-center gap-2">
-            <TerminalSquare className="h-3.5 w-3.5 text-primary/50" />
-            <span>EAbuilder - MT5 Expert Advisor Generator</span>
+        <main className="relative z-10 mx-auto grid min-h-[calc(100vh-6rem)] max-w-[1440px] grid-cols-1 items-center gap-8 px-6 pb-16 pt-8 sm:px-10 lg:grid-cols-[0.9fr_1.1fr] lg:px-12 lg:pb-8">
+          <div className="max-w-2xl">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
+              className="mb-9 inline-flex items-center gap-3 rounded-full border border-[var(--lp-accent-border)] bg-[var(--lp-pill)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--lp-text)] shadow-[0_18px_60px_var(--lp-soft-shadow)]"
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--lp-accent)] text-white">
+                <Sparkles className="h-3.5 w-3.5" />
+              </span>
+              AI powered / verified / no coding
+            </motion.div>
+
+            <motion.h1
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.62, delay: 0.08, ease: [0.23, 1, 0.32, 1] }}
+              className="max-w-[760px] text-[clamp(3.6rem,7vw,6.4rem)] font-semibold leading-[0.98] tracking-[-0.055em] text-[var(--lp-text)]"
+            >
+              Build smarter
+              <br />
+              <span className="text-[var(--lp-accent)]">trading EAs</span>
+              <br />
+              without writing MQL5.
+            </motion.h1>
+
+            <motion.p
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.62, delay: 0.16, ease: [0.23, 1, 0.32, 1] }}
+              className="mt-8 max-w-[520px] text-xl leading-8 text-[var(--lp-muted)]"
+            >
+              Describe your strategy in plain English. We map it to verified modules and generate a
+              self-contained Expert Advisor.
+            </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.62, delay: 0.24, ease: [0.23, 1, 0.32, 1] }}
+              className="mt-10 flex flex-wrap items-center gap-5"
+            >
+              <motion.button
+                type="button"
+                whileHover={{ y: -2, scale: 1.015 }}
+                whileTap={{ scale: 0.98 }}
+                className="inline-flex h-16 items-center gap-5 rounded-2xl bg-[var(--lp-accent)] px-9 text-lg font-semibold text-white shadow-[0_24px_70px_var(--lp-button-shadow)] transition hover:bg-[var(--lp-accent-strong)]"
+                onClick={() => openAuth("signup")}
+              >
+                Start Building Free
+                <ArrowRight className="h-5 w-5" />
+              </motion.button>
+
+              <motion.button
+                type="button"
+                whileHover={{ y: -2, scale: 1.015 }}
+                whileTap={{ scale: 0.98 }}
+                className="inline-flex h-16 items-center gap-4 rounded-2xl border border-[var(--lp-outline)] bg-[var(--lp-outline-bg)] px-8 text-lg font-semibold text-[var(--lp-text)] shadow-[0_18px_60px_var(--lp-soft-shadow)] backdrop-blur transition hover:border-[var(--lp-accent-border)]"
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--lp-accent-border)] text-[var(--lp-accent)]">
+                  <Play className="h-4 w-4 fill-current" />
+                </span>
+                Watch Demo
+              </motion.button>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.62, delay: 0.34, ease: [0.23, 1, 0.32, 1] }}
+              className="mt-12 flex flex-wrap items-center gap-6 text-sm text-[var(--lp-text)] sm:gap-8"
+            >
+              {featureRow.map(({ icon: Icon, label }) => (
+                <div key={label} className="flex items-center gap-3">
+                  <Icon className="h-6 w-6 text-[var(--lp-feature-icon)]" />
+                  <span>{label}</span>
+                </div>
+              ))}
+            </motion.div>
           </div>
-          <span>2026</span>
-        </div>
-      </footer>
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8, delay: 0.12, ease: [0.23, 1, 0.32, 1] }}
+            className="relative min-h-[520px] lg:min-h-[720px]"
+          >
+            <div className="absolute inset-0 rounded-[3rem] bg-[radial-gradient(circle_at_52%_50%,var(--lp-cube-glow),transparent_42%)]" />
+            <Suspense fallback={<div className="h-full w-full" />}>
+              <LandingHeroCanvas pointer={pointer} reduced={reduced} />
+            </Suspense>
+          </motion.div>
+        </main>
+      </section>
     </div>
   );
 }
