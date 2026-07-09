@@ -10,11 +10,17 @@ import {
   BarChart3,
   Bot,
   Check,
+  CircleCheck,
+  Cpu,
+  Download,
+  FileCode2,
+  Layers3,
   Loader2,
   Play,
   ShieldCheck,
   Sparkles,
   TerminalSquare,
+  Workflow,
   X,
 } from "lucide-react";
 
@@ -23,6 +29,12 @@ type PointerState = { x: number; y: number };
 const LandingHeroCanvas = lazy(() =>
   import("@/components/LandingHeroCanvas").then((module) => ({
     default: module.LandingHeroCanvas,
+  })),
+);
+
+const Particles = lazy(() =>
+  import("@/components/ui/particles").then((module) => ({
+    default: module.Particles,
   })),
 );
 
@@ -269,7 +281,95 @@ function ChartBackdrop() {
   );
 }
 
-const navItems = ["Home", "Solutions", "Modules", "Pricing", "Resources"];
+const navItems = [
+  { label: "Home", id: "home" },
+  { label: "Modules", id: "modules" },
+  { label: "Pricing", id: "pricing" },
+  { label: "Resources", id: "resources" },
+] as const;
+
+const moduleCards = [
+  {
+    icon: Layers3,
+    title: "Verified module library",
+    body: "Compose SMC, SNR, indicator, state, and execution modules without asking AI to invent trading code.",
+  },
+  {
+    icon: Workflow,
+    title: "Strategy flow builder",
+    body: "Break a trader idea into ordered instances so each condition has a timeframe, role, and gate.",
+  },
+  {
+    icon: Cpu,
+    title: "Self-contained MQL5 output",
+    body: "Export one EA with the selected module logic embedded, ready for MetaEditor and MT5 Strategy Tester.",
+  },
+] as const;
+
+const pricingPlans = [
+  {
+    name: "Starter",
+    price: "$0",
+    note: "Explore the builder",
+    features: ["Create strategy drafts", "Preview module mapping", "Download sample indicators"],
+    cta: "Start free",
+    featured: false,
+  },
+  {
+    name: "Builder",
+    price: "$29",
+    note: "For active EA builders",
+    features: [
+      "AI strategy interviews",
+      "Generate MT5 EAs",
+      "Compile and backtest with local runner",
+    ],
+    cta: "Build EAs",
+    featured: true,
+  },
+  {
+    name: "Studio",
+    price: "$79",
+    note: "For teams and power users",
+    features: ["Strategy library", "Advanced repair assistant", "Priority module requests"],
+    cta: "Open studio",
+    featured: false,
+  },
+] as const;
+
+const indicatorResources = [
+  {
+    name: "FVG Detector",
+    type: "Smart money concept",
+    detail: "Marks fair value gaps, mitigations, and valid imbalance zones on MT5 charts.",
+  },
+  {
+    name: "IFVG Detector",
+    type: "Execution module",
+    detail:
+      "Tracks inversion fair value gaps so traders can inspect valid reversal zones before using them in EAs.",
+  },
+  {
+    name: "BOS / CHoCH Detector",
+    type: "Structure module",
+    detail: "Labels structural breaks and character changes with swing strength controls.",
+  },
+  {
+    name: "Order Block Detector",
+    type: "Zone module",
+    detail: "Draws bullish and bearish order blocks with invalidation and expiry behavior.",
+  },
+  {
+    name: "Liquidity Sweep Detector",
+    type: "Momentum module",
+    detail: "Highlights stop hunts, sweep confirmations, and return-to-range events.",
+  },
+  {
+    name: "RSI Hidden Divergence",
+    type: "Indicator module",
+    detail: "Visualizes bullish and bearish hidden divergence with RSI context and signal buffers.",
+  },
+] as const;
 
 const featureRow = [
   { icon: ShieldCheck, label: "Verified Modules" },
@@ -289,6 +389,10 @@ export function LandingPage() {
     setShowAuth(true);
   };
 
+  const scrollToSection = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: reduced ? "auto" : "smooth" });
+  };
+
   const handlePointerMove = (event: React.PointerEvent<HTMLElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     setPointer({
@@ -301,9 +405,22 @@ export function LandingPage() {
     <div className="landing-premium min-h-screen overflow-hidden bg-[var(--lp-bg)] text-[var(--lp-text)]">
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} initialMode={authMode} />}
 
-      <section className="relative min-h-screen overflow-hidden" onPointerMove={handlePointerMove}>
+      <section
+        id="home"
+        className="relative min-h-screen overflow-hidden"
+        onPointerMove={handlePointerMove}
+      >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_48%,var(--lp-radial),transparent_38%),linear-gradient(135deg,var(--lp-bg),var(--lp-bg-soft))]" />
         <ChartBackdrop />
+        <Suspense fallback={null}>
+          <Particles
+            color="#df8755"
+            particleCount={1400}
+            particleSize={6}
+            animate={!reduced}
+            className="z-[1] opacity-[var(--lp-particles-opacity)]"
+          />
+        </Suspense>
         {!reduced && <MarketWaves pointer={pointer} />}
 
         <header className="relative z-20 mx-auto flex h-20 w-full max-w-[1920px] items-center justify-between px-5 sm:px-8 lg:px-12 xl:px-16 2xl:px-20">
@@ -312,14 +429,15 @@ export function LandingPage() {
           <nav className="hidden items-center gap-10 text-sm font-medium text-[var(--lp-muted)] lg:flex">
             {navItems.map((item) => (
               <button
-                key={item}
+                key={item.id}
                 type="button"
+                onClick={() => scrollToSection(item.id)}
                 className={`relative transition hover:text-[var(--lp-text)] ${
-                  item === "Home" ? "text-[var(--lp-accent)]" : ""
+                  item.id === "home" ? "text-[var(--lp-accent)]" : ""
                 }`}
               >
-                {item}
-                {item === "Home" && (
+                {item.label}
+                {item.id === "home" && (
                   <span className="absolute -bottom-5 left-0 h-0.5 w-full rounded-full bg-[var(--lp-accent)]" />
                 )}
               </button>
@@ -443,6 +561,182 @@ export function LandingPage() {
             </motion.div>
           </div>
         </main>
+      </section>
+
+      <section
+        id="modules"
+        className="relative border-t border-[var(--lp-outline)] bg-[var(--lp-bg)] px-5 py-24 sm:px-8 lg:px-12 xl:px-16 2xl:px-20"
+      >
+        <div className="mx-auto max-w-[1600px]">
+          <div className="flex flex-col gap-5 lg:max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--lp-accent)]">
+              Modules
+            </p>
+            <h2 className="text-4xl font-semibold tracking-[-0.035em] text-[var(--lp-text)] sm:text-5xl">
+              Verified trading logic, ready to compose.
+            </h2>
+            <p className="max-w-2xl text-lg leading-8 text-[var(--lp-muted)]">
+              EABuilder maps trader intent into verified modules, then the generator assembles the
+              EA from trusted blocks.
+            </p>
+          </div>
+          <div className="mt-12 grid gap-5 lg:grid-cols-3">
+            {moduleCards.map(({ icon: Icon, title, body }) => (
+              <motion.article
+                key={title}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-80px" }}
+                transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
+                className="rounded-2xl border border-[var(--lp-outline)] bg-[var(--lp-outline-bg)] p-7 shadow-[0_18px_60px_var(--lp-soft-shadow)] backdrop-blur"
+              >
+                <div className="mb-8 flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--lp-accent-border)] bg-[var(--lp-pill)] text-[var(--lp-accent)]">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <h3 className="text-xl font-semibold text-[var(--lp-text)]">{title}</h3>
+                <p className="mt-3 leading-7 text-[var(--lp-muted)]">{body}</p>
+              </motion.article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section
+        id="pricing"
+        className="relative border-t border-[var(--lp-outline)] bg-[linear-gradient(180deg,var(--lp-bg),var(--lp-bg-soft))] px-5 py-24 sm:px-8 lg:px-12 xl:px-16 2xl:px-20"
+      >
+        <div className="mx-auto max-w-[1600px]">
+          <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+            <div className="max-w-3xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--lp-accent)]">
+                Pricing
+              </p>
+              <h2 className="mt-5 text-4xl font-semibold tracking-[-0.035em] text-[var(--lp-text)] sm:text-5xl">
+                Start simple. Scale when your EA workflow grows.
+              </h2>
+            </div>
+            <p className="max-w-lg text-lg leading-8 text-[var(--lp-muted)]">
+              Pricing should support learning, active building, and team workflows without forcing
+              traders into complex setup work.
+            </p>
+          </div>
+          <div className="mt-12 grid gap-5 lg:grid-cols-3">
+            {pricingPlans.map((plan) => (
+              <motion.article
+                key={plan.name}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-80px" }}
+                transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
+                className={`rounded-2xl border p-7 shadow-[0_18px_60px_var(--lp-soft-shadow)] backdrop-blur ${plan.featured ? "border-[var(--lp-accent-border)] bg-[var(--lp-pill)]" : "border-[var(--lp-outline)] bg-[var(--lp-outline-bg)]"}`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-2xl font-semibold text-[var(--lp-text)]">{plan.name}</h3>
+                    <p className="mt-2 text-sm text-[var(--lp-muted)]">{plan.note}</p>
+                  </div>
+                  {plan.featured && (
+                    <span className="rounded-full bg-[var(--lp-accent)] px-3 py-1 text-xs font-semibold text-white">
+                      Popular
+                    </span>
+                  )}
+                </div>
+                <div className="mt-8 flex items-end gap-2">
+                  <span className="text-5xl font-semibold tracking-[-0.04em] text-[var(--lp-text)]">
+                    {plan.price}
+                  </span>
+                  <span className="pb-2 text-sm text-[var(--lp-muted)]">/ month</span>
+                </div>
+                <div className="mt-8 space-y-4">
+                  {plan.features.map((feature) => (
+                    <div
+                      key={feature}
+                      className="flex items-center gap-3 text-sm text-[var(--lp-text)]"
+                    >
+                      <CircleCheck className="h-4 w-4 text-[var(--lp-accent)]" />
+                      <span>{feature}</span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openAuth("signup")}
+                  className="mt-8 inline-flex h-12 w-full items-center justify-center rounded-xl bg-[var(--lp-accent)] px-5 text-sm font-semibold text-white shadow-[0_18px_45px_var(--lp-button-shadow)] transition hover:bg-[var(--lp-accent-strong)]"
+                >
+                  {plan.cta}
+                </button>
+              </motion.article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section
+        id="resources"
+        className="relative border-t border-[var(--lp-outline)] bg-[var(--lp-bg)] px-5 py-24 sm:px-8 lg:px-12 xl:px-16 2xl:px-20"
+      >
+        <div className="mx-auto max-w-[1600px]">
+          <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
+            <div className="lg:sticky lg:top-8">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--lp-accent)]">
+                Resources
+              </p>
+              <h2 className="mt-5 text-4xl font-semibold tracking-[-0.035em] text-[var(--lp-text)] sm:text-5xl">
+                Downloadable indicators for MT5 inspection.
+              </h2>
+              <p className="mt-5 max-w-xl text-lg leading-8 text-[var(--lp-muted)]">
+                Use the indicators to inspect zones, signals, and structure visually before you
+                convert a strategy into an Expert Advisor.
+              </p>
+              <button
+                type="button"
+                onClick={() => openAuth("signup")}
+                className="mt-8 inline-flex h-13 items-center gap-3 rounded-2xl border border-[var(--lp-accent-border)] bg-[var(--lp-pill)] px-6 text-sm font-semibold text-[var(--lp-text)] transition hover:border-[var(--lp-accent)]"
+              >
+                <Download className="h-4 w-4 text-[var(--lp-accent)]" />
+                Open download library
+              </button>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {indicatorResources.map((resource) => (
+                <motion.article
+                  key={resource.name}
+                  initial={{ opacity: 0, y: 16 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-80px" }}
+                  transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
+                  className="rounded-2xl border border-[var(--lp-outline)] bg-[var(--lp-outline-bg)] p-6 shadow-[0_18px_60px_var(--lp-soft-shadow)] backdrop-blur"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--lp-outline)] bg-[var(--lp-pill)] text-[var(--lp-accent)]">
+                      <FileCode2 className="h-5 w-5" />
+                    </div>
+                    <span className="rounded-full border border-[var(--lp-outline)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--lp-muted)]">
+                      MQ5
+                    </span>
+                  </div>
+                  <h3 className="mt-6 text-lg font-semibold text-[var(--lp-text)]">
+                    {resource.name}
+                  </h3>
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--lp-accent)]">
+                    {resource.type}
+                  </p>
+                  <p className="mt-4 min-h-[84px] leading-7 text-[var(--lp-muted)]">
+                    {resource.detail}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => openAuth("signup")}
+                    className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--lp-accent)] px-4 text-sm font-semibold text-white transition hover:bg-[var(--lp-accent-strong)]"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download
+                  </button>
+                </motion.article>
+              ))}
+            </div>
+          </div>
+        </div>
       </section>
     </div>
   );

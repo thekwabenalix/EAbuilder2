@@ -9,15 +9,16 @@ export type LandingPointerState = { x: number; y: number };
 const MAX_CURSOR_TILT = MathUtils.degToRad(8);
 const BASE_X_ROTATION = -0.45;
 const BASE_Z_ROTATION = 0.12;
-const CUBE_SIZE = 0.7;
+const CUBE_SIZE = 0.52;
+const CUBE_SPACING = 0.58;
 
 const coreCubes = [
-  { color: "#df8755", position: [-0.56, 0.72, 0] },
-  { color: "#eee8e3", position: [0.56, 0.72, 0] },
-  { color: "#c3c7ce", position: [-0.98, 0, 0] },
-  { color: "#2c2e32", position: [0.98, 0, 0] },
-  { color: "#f1b184", position: [-0.56, -0.72, 0] },
-  { color: "#b8bdc5", position: [0.56, -0.72, 0] },
+  { color: "#eee8e3", position: [-CUBE_SPACING, 0, 0] },
+  { color: "#2c2e32", position: [CUBE_SPACING, 0, 0] },
+  { color: "#f1b184", position: [0, CUBE_SPACING, 0] },
+  { color: "#c3c7ce", position: [0, -CUBE_SPACING, 0] },
+  { color: "#b8bdc5", position: [0, 0, CUBE_SPACING] },
+  { color: "#eee8e3", position: [0, 0, -CUBE_SPACING] },
 ] as const;
 
 function EngineCube({
@@ -31,7 +32,7 @@ function EngineCube({
     <group position={position}>
       <RoundedBox
         args={[CUBE_SIZE, CUBE_SIZE, CUBE_SIZE]}
-        radius={0.025}
+        radius={0.018}
         smoothness={2}
         castShadow
         receiveShadow
@@ -89,9 +90,9 @@ function EngineCore({ pointer, reduced }: { pointer: LandingPointerState; reduce
   return (
     <group
       ref={group}
-      position={[0.46, -0.03, 0]}
-      rotation={[BASE_X_ROTATION, -0.35, BASE_Z_ROTATION]}
-      scale={1.36}
+      position={[0.42, -0.02, 0]}
+      rotation={[BASE_X_ROTATION, -0.74, BASE_Z_ROTATION]}
+      scale={1.72}
     >
       {coreCubes.map((cube, index) => (
         <EngineCube key={index} {...cube} />
@@ -130,7 +131,7 @@ export function LandingHeroCanvas({
     <Canvas
       shadows
       dpr={[1, 1.5]}
-      camera={{ position: [0, 0, 6.15], fov: 36 }}
+      camera={{ position: [0, 0, 6.8], fov: 34 }}
       gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
     >
       <HeroScene pointer={pointer} reduced={reduced} />

@@ -452,6 +452,7 @@
     --lp-radial: rgb(223 135 85 / 0.15);
     --lp-cube-glow: rgb(223 135 85 / 0.2);
     --lp-wave-opacity: 0.34;
+    --lp-particles-opacity: 0.22;
     --lp-chart-opacity: 0.18;
     --lp-grid: rgb(238 232 227 / 0.08);
     --lp-candle: rgb(238 232 227 / 0.2);
