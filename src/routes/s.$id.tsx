@@ -1368,19 +1368,48 @@ function FourBrainTab({
   );
 
   const strategyFlow = blueprint.strategyFlow;
-  const strategyFlowSteps = safeFlowSteps(strategyFlow);
-  const strategyFlowSyncKey = [
-    strategyFlow?.source ?? "",
-    strategyFlow?.mode ?? "",
-    strategyFlowSteps.length,
-    strategyFlowSteps.map((s) => s.id).join(","),
-  ].join("|");
+  const strategyFlowSteps = useMemo(() => safeFlowSteps(strategyFlow), [strategyFlow]);
+  const strategyFlowSyncKey = useMemo(
+    () =>
+      [
+        strategyFlow?.source ?? "",
+        strategyFlow?.mode ?? "",
+        strategyFlowSteps.length,
+        JSON.stringify(
+          strategyFlowSteps.map((s) => ({
+            id: s.id,
+            role: s.role,
+            module: s.module,
+            timeframe: s.timeframe,
+            event: s.event,
+            enabled: s.enabled,
+          })),
+        ),
+      ].join("|"),
+    [strategyFlow?.source, strategyFlow?.mode, strategyFlowSteps],
+  );
+  const lastStrategyFlowSyncKey = useRef<string | null>(null);
 
   useEffect(() => {
-    if (strategyFlow && strategyFlowSteps.length) {
-      setBuilderMode("advanced");
-      setFlowConfig({ ...strategyFlow, steps: strategyFlowSteps });
-    }
+    if (!strategyFlow || !strategyFlowSteps.length) return;
+    if (lastStrategyFlowSyncKey.current === strategyFlowSyncKey) return;
+
+    lastStrategyFlowSyncKey.current = strategyFlowSyncKey;
+    setBuilderMode((prev) => (prev === "advanced" ? prev : "advanced"));
+    setFlowConfig((prev) => {
+      const next = { ...strategyFlow, steps: strategyFlowSteps };
+      const prevKey = JSON.stringify({
+        source: prev.source,
+        mode: prev.mode,
+        steps: prev.steps,
+      });
+      const nextKey = JSON.stringify({
+        source: next.source,
+        mode: next.mode,
+        steps: next.steps,
+      });
+      return prevKey === nextKey ? prev : next;
+    });
   }, [strategyFlow, strategyFlowSteps, strategyFlowSyncKey]);
 
   function buildFourBrainConfig(): FourBrainConfig {
@@ -1998,7 +2027,7 @@ function CodeTab({
         placeholder={
           "// Paste or write a complete MT5 Expert Advisor here.\n// Then click Save Code, Compile, and run Backtest."
         }
-        className="block h-[68vh] min-h-[420px] w-full resize-y bg-[#111827] px-4 py-3 font-mono text-xs leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/50"
+        className="block h-[68vh] min-h-[420px] w-full resize-y bg-white px-4 py-3 font-mono text-xs leading-relaxed text-slate-950 outline-none placeholder:text-slate-400 dark:bg-[#111827] dark:text-slate-50 dark:placeholder:text-slate-500"
       />
     </div>
   );

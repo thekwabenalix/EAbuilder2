@@ -30,8 +30,8 @@ export function CodeViewer({
   };
 
   return (
-    <div className="rounded-md border border-border bg-card overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
+    <div className="rounded-md border border-border bg-white text-slate-950 overflow-hidden dark:bg-card dark:text-foreground">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-slate-50 dark:bg-muted/30">
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground font-mono">{filename}</span>
           <span className="text-[10px] uppercase tracking-wide text-muted-foreground/60">
@@ -60,7 +60,9 @@ export function CodeViewer({
                 <td className="select-none text-right text-muted-foreground/40 pr-3 pl-4 py-0 w-10 shrink-0 border-r border-border/30">
                   {i + 1}
                 </td>
-                <td className="pl-3 pr-4 py-0 text-foreground/90 whitespace-pre">{line}</td>
+                <td className="pl-3 pr-4 py-0 text-slate-950 whitespace-pre dark:text-foreground/90">
+                  {line}
+                </td>
               </tr>
             ))}
           </tbody>

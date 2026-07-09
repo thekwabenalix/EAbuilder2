@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -2345,6 +2344,11 @@ const TRADING_MODULES: ModuleCategory[] = [
   },
 ];
 
+const RESOURCE_CATEGORY_IDS = new Set(["smc", "snr", "supply-demand"]);
+const MODULE_LIBRARY_CATEGORIES: ModuleCategory[] = TRADING_MODULES.filter(
+  (cat) => !RESOURCE_CATEGORY_IDS.has(cat.id),
+);
+
 // ─── EA Backtest Panel ───────────────────────────────────────────────────────
 
 function today() {
@@ -2701,28 +2705,21 @@ function CategoryPanel({ category }: { category: ModuleCategory }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function ModulesPage() {
-  const totalReady = TRADING_MODULES.reduce(
-    (sum, cat) => sum + cat.modules.filter((m) => m.status === "ready").length,
-    0,
-  );
-  const totalModules = TRADING_MODULES.reduce((sum, cat) => sum + cat.modules.length, 0);
-
   return (
     <div>
       <PageHeader
-        title="Trading Modules"
-        subtitle="Modular trading concept engine - standalone detection, visualisation, and lifecycle modules across every major trading methodology."
+        title="Builder Modules"
+        subtitle="Internal module admission status and builder vocabulary health."
       />
 
-      <div className="p-6 space-y-6 max-w-5xl mx-auto">
-        {/* Architecture banner */}
+      <div className="mx-auto max-w-5xl space-y-6 p-6">
         <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 flex items-start gap-3">
           <FlaskConical className="h-4 w-4 text-primary shrink-0 mt-0.5" />
           <div className="text-xs text-primary/80 space-y-2">
             <p className="font-semibold text-primary">Two catalogs - do not confuse them</p>
             <p>
               <span className="font-medium text-foreground/90">Strategy Builder</span> (
-              <Link to="/build" className="underline hover:text-primary">
+              <Link to="/new" className="underline hover:text-primary">
                 New strategy
               </Link>
               ) composes <span className="font-medium">verified brain modules</span> (FVG, OB, EMA,
@@ -2730,64 +2727,23 @@ function ModulesPage() {
               state machines the compiler can wire.
             </p>
             <p>
-              <span className="font-medium text-foreground/90">Trading Modules</span> (this page) is
-              a download library of standalone MT5 files - detectors, liquidity visualisers, state
-              modules, and full EAs. Items like{" "}
-              <span className="font-medium">FVG / OB / BB Liquidity Detector</span> are legacy
-              standalone files (superseded by{" "}
-              <span className="font-medium">Liquidity Buildup + zone_liq / ZLSM</span>) -{" "}
-              <span className="font-medium">not</span> brain slots: download → compile → attach, or
-              use Strategy Builder for EAs.
+              <span className="font-medium text-foreground/90">Resources</span> is the download
+              library for standalone MT5 indicators. Downloadable SMC, SNR, and S&D indicators now
+              live in{" "}
+              <Link to="/resources" className="underline hover:text-primary">
+                Resources
+              </Link>
+              , where users select a classification and module before downloading.
             </p>
             <p>
-              Phase 1: {totalReady} of {totalModules} files ready · Detection → State → Execution
-              pipeline for promoting a concept into Strategy Builder later.
+              State, execution, strategy, built-in, and internal indicator tabs are hidden from the
+              user-facing catalog, but their admission status remains visible below for builder
+              health checks.
             </p>
           </div>
         </div>
 
         <ModuleAdmissionReport />
-
-        {/* Category tabs */}
-        <Tabs defaultValue="smc">
-          <div className="overflow-x-auto pb-1">
-            <TabsList className="inline-flex h-auto gap-1 p-1">
-              {TRADING_MODULES.map((cat) => {
-                const ready = cat.modules.filter((m) => m.status === "ready").length;
-                const Icon = cat.icon;
-                return (
-                  <TabsTrigger
-                    key={cat.id}
-                    value={cat.id}
-                    className="flex items-center gap-1.5 px-3 py-2 text-xs"
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    <span>{cat.label}</span>
-                    {ready > 0 && (
-                      <span className="ml-0.5 text-[10px] px-1 py-0 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">
-                        {ready}
-                      </span>
-                    )}
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
-          </div>
-
-          {TRADING_MODULES.map((cat) => (
-            <TabsContent key={cat.id} value={cat.id} className="mt-4">
-              <CategoryPanel category={cat} />
-            </TabsContent>
-          ))}
-        </Tabs>
-
-        {/* Road map footer */}
-        <div className="text-xs text-muted-foreground border-t border-border pt-4 space-y-1">
-          <p className="font-medium text-foreground/60">Road map</p>
-          <p>Phase 2 - State modules: retest, mitigation, invalidation, expiry logic</p>
-          <p>Phase 3 - Execution modules: entry timing, SL, TP, break-even, trailing</p>
-          <p>Phase 4 - Composition: combine modules from any category into a full EA strategy</p>
-        </div>
       </div>
     </div>
   );

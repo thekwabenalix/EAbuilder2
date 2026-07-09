@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThemeToggleIcon } from "@/components/ThemeToggle";
+import { DOWNLOADABLE_MODULE_CATEGORIES } from "@/lib/resource-module-catalog";
 import {
   ArrowRight,
   CircleCheck,
   Cpu,
   Download,
-  FileCode2,
   Layers3,
   Loader2,
   TerminalSquare,
@@ -72,46 +72,6 @@ const pricingPlans = [
     features: ["Strategy library", "Advanced repair assistant", "Priority module requests"],
     cta: "Open studio",
     featured: false,
-  },
-] as const;
-
-const marketingIndicatorResources = [
-  {
-    id: "fvg",
-    name: "FVG Detector",
-    type: "Smart money concept",
-    detail: "Marks fair value gaps, mitigations, and valid imbalance zones on MT5 charts.",
-  },
-  {
-    id: "ifvg",
-    name: "IFVG Detector",
-    type: "Execution module",
-    detail:
-      "Tracks inversion fair value gaps so traders can inspect valid reversal zones before using them in EAs.",
-  },
-  {
-    id: "bos",
-    name: "BOS Detector",
-    type: "Structure module",
-    detail: "Labels structural breaks with swing strength controls.",
-  },
-  {
-    id: "ob",
-    name: "Order Block Detector",
-    type: "Zone module",
-    detail: "Draws bullish and bearish order blocks with invalidation and expiry behavior.",
-  },
-  {
-    id: "liqsweep",
-    name: "Liquidity Sweep Detector",
-    type: "Momentum module",
-    detail: "Highlights stop hunts, sweep confirmations, and return-to-range events.",
-  },
-  {
-    id: "rsi_hd",
-    name: "RSI Hidden Divergence",
-    type: "Indicator module",
-    detail: "Visualizes bullish and bearish hidden divergence with RSI context and signal buffers.",
   },
 ] as const;
 
@@ -441,27 +401,27 @@ export function MarketingResourcesPage() {
               an account.
             </p>
             <div className="mt-12 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {marketingIndicatorResources.map((resource) => (
+              {DOWNLOADABLE_MODULE_CATEGORIES.map((category) => (
                 <article
-                  key={resource.name}
+                  key={category.id}
                   className="rounded-2xl border border-[var(--lp-outline)] bg-[var(--lp-outline-bg)] p-6 shadow-[0_18px_60px_var(--lp-soft-shadow)] backdrop-blur"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--lp-outline)] bg-[var(--lp-pill)] text-[var(--lp-accent)]">
-                      <FileCode2 className="h-5 w-5" />
+                      <Layers3 className="h-5 w-5" />
                     </div>
                     <span className="rounded-full border border-[var(--lp-outline)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--lp-muted)]">
-                      MQ5
+                      {category.modules.length} MQ5
                     </span>
                   </div>
                   <h2 className="mt-6 text-lg font-semibold text-[var(--lp-text)]">
-                    {resource.name}
+                    {category.actionLabel}
                   </h2>
                   <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--lp-accent)]">
-                    {resource.type}
+                    {category.fullName}
                   </p>
                   <p className="mt-4 min-h-[84px] leading-7 text-[var(--lp-muted)]">
-                    {resource.detail}
+                    {category.description}
                   </p>
                   <button
                     type="button"
@@ -469,7 +429,7 @@ export function MarketingResourcesPage() {
                     className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--lp-accent)] px-4 text-sm font-semibold text-white transition hover:bg-[var(--lp-accent-strong)]"
                   >
                     <Download className="h-4 w-4" />
-                    Log in to download
+                    Log in to select module
                   </button>
                 </article>
               ))}
