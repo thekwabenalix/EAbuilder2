@@ -10,7 +10,7 @@ import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardList, Shield } from "
 
 function roleTone(role: string): string {
   if (role === "direction") return "text-blue-400 border-blue-500/30 bg-blue-500/10";
-  if (role === "setup") return "text-violet-400 border-violet-500/30 bg-violet-500/10";
+  if (role === "setup") return "text-orange-300 border-orange-500/30 bg-orange-500/10";
   if (role === "entry" || role === "confirmation")
     return "text-emerald-400 border-emerald-500/30 bg-emerald-500/10";
   return "text-muted-foreground border-border bg-muted/20";

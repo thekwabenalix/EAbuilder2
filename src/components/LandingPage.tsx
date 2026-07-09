@@ -348,8 +348,21 @@ export function LandingPage() {
           </div>
         </header>
 
-        <main className="relative z-10 mx-auto grid min-h-[calc(100vh-5rem)] w-full max-w-[1920px] grid-cols-1 items-center gap-6 px-5 pb-8 pt-2 sm:px-8 lg:grid-cols-[minmax(680px,0.86fr)_minmax(640px,1.14fr)] lg:px-12 lg:pb-6 xl:px-16 2xl:px-20">
-          <div className="max-w-[780px] lg:pl-0">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.985 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.8, delay: 0.12, ease: [0.23, 1, 0.32, 1] }}
+          className="pointer-events-none absolute inset-y-0 right-0 z-0 w-full lg:left-[38%] lg:w-auto"
+          aria-hidden
+        >
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_60%_42%,var(--lp-cube-glow),transparent_46%)]" />
+          <Suspense fallback={<div className="h-full w-full" />}>
+            <LandingHeroCanvas pointer={pointer} reduced={reduced} />
+          </Suspense>
+        </motion.div>
+
+        <main className="relative z-10 mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-[1920px] items-center px-5 pb-8 pt-2 sm:px-8 lg:px-12 lg:pb-6 xl:px-16 2xl:px-20">
+          <div className="max-w-[820px] lg:w-[44vw] lg:min-w-[680px]">
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
@@ -429,18 +442,6 @@ export function LandingPage() {
               ))}
             </motion.div>
           </div>
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.97 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 0.12, ease: [0.23, 1, 0.32, 1] }}
-            className="relative min-h-[420px] lg:min-h-[calc(100vh-6rem)]"
-          >
-            <div className="absolute inset-0 rounded-[3rem] bg-[radial-gradient(circle_at_52%_50%,var(--lp-cube-glow),transparent_42%)]" />
-            <Suspense fallback={<div className="h-full w-full" />}>
-              <LandingHeroCanvas pointer={pointer} reduced={reduced} />
-            </Suspense>
-          </motion.div>
         </main>
       </section>
     </div>

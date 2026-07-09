@@ -20,7 +20,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     label: "CHoCH",
     desc: "Change of Character - swing high/low reversal",
     symbol: "↺",
-    color: "text-violet-400",
+    color: "text-orange-400",
     category: "Structure",
   },
   {
@@ -28,7 +28,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     label: "BOS",
     desc: "Break of Structure - impulse continuation",
     symbol: "⟶",
-    color: "text-blue-400",
+    color: "text-stone-300",
     category: "Structure",
   },
   {
@@ -36,7 +36,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     label: "BOS + CHoCH",
     desc: "Combined structure detection",
     symbol: "⇄",
-    color: "text-indigo-400",
+    color: "text-amber-300",
     category: "Structure",
   },
   {
@@ -44,7 +44,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     label: "Swing Structure",
     desc: "Confirmed pivots - HH/HL bull or LH/LL bear bias",
     symbol: "x",
-    color: "text-purple-400",
+    color: "text-zinc-300",
     category: "Structure",
   },
   // Gaps
@@ -53,7 +53,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     label: "Fair Value Gap",
     desc: "3-candle imbalance zone",
     symbol: "x",
-    color: "text-emerald-400",
+    color: "text-teal-300",
     category: "Gap",
   },
   {
@@ -86,7 +86,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     label: "Unicorn",
     desc: "Breaker block overlapping same-direction FVG - overlap pocket retest → zone rejection",
     symbol: "🦄",
-    color: "text-emerald-400",
+    color: "text-teal-300",
     category: "OrderBlock",
   },
   // Entry zones - S/R & reactive SNR (same compiler role as OB/FVG: zone → touch → confirm)
@@ -95,7 +95,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     label: "Classic S/R",
     desc: "Horizontal support and resistance levels",
     symbol: "─",
-    color: "text-sky-400",
+    color: "text-stone-400",
     category: "EntryZone",
   },
   {
@@ -103,7 +103,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     label: "Gap S/R",
     desc: "Support/resistance at gap edges",
     symbol: "⋮",
-    color: "text-slate-400",
+    color: "text-zinc-400",
     category: "EntryZone",
   },
   {
@@ -111,7 +111,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     label: "SNR Rejection",
     desc: "Wick rejects a classic/gap SNR level - close holds (not zone-scoped SMC rejection)",
     symbol: "↩",
-    color: "text-sky-300",
+    color: "text-stone-300",
     category: "EntryZone",
   },
   {
@@ -119,7 +119,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     label: "Miss",
     desc: "Price turns near a level without touching it",
     symbol: "⊘",
-    color: "text-slate-300",
+    color: "text-zinc-300",
     category: "EntryZone",
   },
   // Volatility
@@ -153,7 +153,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     label: "RSI Hidden Divergence",
     desc: "Continuation divergence between price and RSI",
     symbol: "RSI",
-    color: "text-fuchsia-400",
+    color: "text-rose-300",
     category: "Momentum",
   },
   // Candle patterns
@@ -162,7 +162,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     label: "Engulfing / EF",
     desc: "Verified EG and failed-engulfing state machine",
     symbol: "x",
-    color: "text-pink-400",
+    color: "text-orange-300",
     category: "Candle",
   },
   {
@@ -170,7 +170,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     label: "Strong Engulfing",
     desc: "Two-candle strong engulfing detector",
     symbol: "SEG",
-    color: "text-pink-300",
+    color: "text-amber-200",
     category: "Candle",
   },
   {
@@ -187,7 +187,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     label: "EMA",
     desc: "Fast/slow exponential moving average alignment",
     symbol: "~",
-    color: "text-cyan-400",
+    color: "text-stone-200",
     category: "Trend",
   },
   {
@@ -203,7 +203,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     label: "MEF",
     desc: "Manipulation Entry Formula - engulfing + Gap SNR + RBR/DBD confluence",
     symbol: "MEF",
-    color: "text-fuchsia-300",
+    color: "text-rose-300",
     category: "EntryZone",
   },
   {
@@ -211,7 +211,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     label: "QM MEF",
     desc: "Quasimodo born from HTF engulfing - left shoulder entry, SL beyond head",
     symbol: "QM",
-    color: "text-violet-300",
+    color: "text-orange-200",
     category: "EntryZone",
   },
   {
@@ -219,7 +219,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     label: "SNRC2",
     desc: "Support/resistance continuation - Classic SNR break + manipulation + HTF engulfing",
     symbol: "S2",
-    color: "text-sky-300",
+    color: "text-stone-300",
     category: "EntryZone",
   },
   {
@@ -227,7 +227,7 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     label: "Liquidity Buildup",
     desc: "OB/BB/FVG - wick near zone edge without entering",
     symbol: "LB",
-    color: "text-violet-300",
+    color: "text-orange-200",
     category: "EntryZone",
   },
   {

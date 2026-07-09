@@ -2372,7 +2372,7 @@ function CatalogKindBadge({ kind }: { kind: ModuleCatalogKind }) {
   const meta: Record<ModuleCatalogKind, { label: string; tone: string; hint: string }> = {
     standalone_indicator: {
       label: "Standalone indicator",
-      tone: "bg-violet-500/10 text-violet-300 border-violet-500/25",
+      tone: "bg-orange-500/10 text-orange-200 border-orange-500/25",
       hint: "Download, compile, attach to chart - not a Strategy Builder brain slot",
     },
     state_module: {

@@ -5,16 +5,14 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Design system - premium trading SaaS (light + dark).
- *
- * Primary: electric indigo. Use :root for light, .dark for dark.
+ * Design system for a premium trading SaaS in light and dark themes.
+ * Uses warm orange, charcoal, cream, and soft greys across the app.
  * Toggle via ThemeProvider / localStorage key eab-theme.
  */
 
 @theme inline {
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
 
-  /* Custom easing curves - never use built-in CSS easings on deliberate UI */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
@@ -65,84 +63,78 @@
 :root {
   --radius: 0.375rem;
 
-  /* ── Surfaces (light) ─────────────────────── */
-  --background: oklch(0.985 0.004 258);
-  --foreground: oklch(0.18 0.022 258);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.022 258);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.022 258);
+  --background: #f7f5f2;
+  --foreground: #202329;
+  --card: #ffffff;
+  --card-foreground: #202329;
+  --popover: #ffffff;
+  --popover-foreground: #202329;
 
-  /* ── Brand - electric indigo ──────────────── */
-  --primary: oklch(0.52 0.22 262);
-  --primary-foreground: oklch(0.99 0.002 255);
+  --primary: #df8755;
+  --primary-foreground: #ffffff;
 
-  /* ── Supporting surfaces ─────────────────── */
-  --secondary: oklch(0.96 0.008 258);
-  --secondary-foreground: oklch(0.25 0.02 258);
-  --muted: oklch(0.955 0.006 258);
-  --muted-foreground: oklch(0.48 0.02 258);
-  --accent: oklch(0.94 0.012 258);
-  --accent-foreground: oklch(0.22 0.02 258);
+  --secondary: #eee8e3;
+  --secondary-foreground: #2a2d33;
+  --muted: #eee8e3;
+  --muted-foreground: #666b74;
+  --accent: #f2e6dc;
+  --accent-foreground: #202329;
 
-  /* ── Semantic ─────────────────────────────── */
-  --destructive: oklch(0.55 0.22 24);
-  --destructive-foreground: oklch(0.99 0.002 255);
-  --border: oklch(0.9 0.01 258);
-  --input: oklch(0.92 0.01 258);
-  --ring: oklch(0.52 0.22 262);
+  --destructive: #c44a3a;
+  --destructive-foreground: #ffffff;
+  --border: #ded8d2;
+  --input: #d9d2cc;
+  --ring: #df8755;
 
-  /* ── Chart / signal palette ───────────────── */
-  --chart-1: oklch(0.52 0.22 262);
-  --chart-2: oklch(0.58 0.17 165);
-  --chart-3: oklch(0.62 0.16 82);
-  --chart-4: oklch(0.55 0.22 24);
-  --chart-5: oklch(0.58 0.19 305);
+  --chart-1: #df8755;
+  --chart-2: #8d939d;
+  --chart-3: #c3c7ce;
+  --chart-4: #c44a3a;
+  --chart-5: #b78b68;
 
-  /* ── Sidebar ──────────────────────────────── */
-  --sidebar: oklch(0.975 0.006 258);
-  --sidebar-foreground: oklch(0.22 0.02 258);
-  --sidebar-primary: oklch(0.52 0.22 262);
-  --sidebar-primary-foreground: oklch(0.99 0.002 255);
-  --sidebar-accent: oklch(0.94 0.01 258);
-  --sidebar-accent-foreground: oklch(0.22 0.02 258);
-  --sidebar-border: oklch(0.9 0.01 258);
-  --sidebar-ring: oklch(0.52 0.22 262);
+  --sidebar: #f2efeb;
+  --sidebar-foreground: #2a2d33;
+  --sidebar-primary: #df8755;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eee8e3;
+  --sidebar-accent-foreground: #202329;
+  --sidebar-border: #ded8d2;
+  --sidebar-ring: #df8755;
 }
 
 .dark {
-  --background: oklch(0.07 0.02 258);
-  --foreground: oklch(0.95 0.006 255);
-  --card: oklch(0.11 0.022 258);
-  --card-foreground: oklch(0.95 0.006 255);
-  --popover: oklch(0.12 0.022 258);
-  --popover-foreground: oklch(0.95 0.006 255);
-  --primary: oklch(0.63 0.24 262);
-  --primary-foreground: oklch(0.98 0.002 255);
-  --secondary: oklch(0.17 0.022 258);
-  --secondary-foreground: oklch(0.95 0.006 255);
-  --muted: oklch(0.14 0.018 258);
-  --muted-foreground: oklch(0.54 0.018 258);
-  --accent: oklch(0.18 0.025 258);
-  --accent-foreground: oklch(0.95 0.006 255);
-  --destructive: oklch(0.65 0.22 24);
-  --destructive-foreground: oklch(0.98 0.002 255);
-  --border: oklch(0.22 0.02 258);
-  --input: oklch(0.19 0.022 258);
-  --ring: oklch(0.63 0.24 262);
-  --chart-1: oklch(0.63 0.24 262);
-  --chart-2: oklch(0.74 0.18 165);
-  --chart-3: oklch(0.78 0.17 82);
-  --chart-4: oklch(0.65 0.22 24);
-  --chart-5: oklch(0.7 0.2 305);
-  --sidebar: oklch(0.09 0.022 258);
-  --sidebar-foreground: oklch(0.9 0.006 255);
-  --sidebar-primary: oklch(0.63 0.24 262);
-  --sidebar-primary-foreground: oklch(0.98 0.002 255);
-  --sidebar-accent: oklch(0.16 0.022 258);
-  --sidebar-accent-foreground: oklch(0.95 0.006 255);
-  --sidebar-border: oklch(0.18 0.018 258);
-  --sidebar-ring: oklch(0.63 0.24 262);
+  --background: #0f1115;
+  --foreground: #f4f2ef;
+  --card: #15181d;
+  --card-foreground: #f4f2ef;
+  --popover: #171a20;
+  --popover-foreground: #f4f2ef;
+  --primary: #df8755;
+  --primary-foreground: #ffffff;
+  --secondary: #1b1e24;
+  --secondary-foreground: #eee8e3;
+  --muted: #171a20;
+  --muted-foreground: #bfc3c9;
+  --accent: #241d19;
+  --accent-foreground: #eee8e3;
+  --destructive: #e06555;
+  --destructive-foreground: #ffffff;
+  --border: #2b2f36;
+  --input: #272b32;
+  --ring: #df8755;
+  --chart-1: #df8755;
+  --chart-2: #c3c7ce;
+  --chart-3: #eee8e3;
+  --chart-4: #e06555;
+  --chart-5: #b78b68;
+  --sidebar: #101216;
+  --sidebar-foreground: #eee8e3;
+  --sidebar-primary: #df8755;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1b1e24;
+  --sidebar-accent-foreground: #f4f2ef;
+  --sidebar-border: #2b2f36;
+  --sidebar-ring: #df8755;
 }
 
 @layer base {
@@ -156,7 +148,6 @@
     font-family: var(--font-sans);
   }
 
-  /* Button press feedback - confirms every pressable element immediately */
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     transition: transform 120ms var(--ease-out);
@@ -167,8 +158,6 @@
     transform: scale(0.97);
   }
 }
-
-/* ── Landing page animations ─────────────────────────────────── */
 
 @keyframes lp-fade-up {
   from {
@@ -211,7 +200,6 @@
   }
 }
 
-/* Utility classes */
 .lp-fade-up {
   animation: lp-fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -225,7 +213,6 @@
   animation: lp-pulse-dot 2.4s ease-in-out infinite;
 }
 
-/* Accessibility - reduced motion: keep opacity reveals, remove all movement */
 @media (prefers-reduced-motion: reduce) {
   .lp-fade-up {
     animation: lp-fade-in 0.3s ease both;
@@ -246,7 +233,6 @@
   }
 }
 
-/* Stagger delay helpers */
 .lp-d1 {
   animation-delay: 0.08s;
 }

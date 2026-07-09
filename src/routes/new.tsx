@@ -213,10 +213,10 @@ function StrategyBuilders() {
             </Link>
 
             {/* AI Description Builder */}
-            <div className="h-full rounded-xl border border-violet-500/20 bg-violet-500/5 p-6 space-y-3">
+            <div className="h-full rounded-xl border border-orange-500/20 bg-orange-500/5 p-6 space-y-3">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-violet-500/15 flex items-center justify-center">
-                  <Sparkles className="h-5 w-5 text-violet-400" />
+                <div className="h-10 w-10 rounded-lg bg-orange-500/15 flex items-center justify-center">
+                  <Sparkles className="h-5 w-5 text-orange-300" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-sm">AI Description Builder</h3>
@@ -229,18 +229,18 @@ function StrategyBuilders() {
               </p>
               <ul className="text-[11px] text-muted-foreground space-y-0.5">
                 <li className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3 w-3 text-violet-400" /> Supports any indicator or
+                  <CheckCircle2 className="h-3 w-3 text-orange-300" /> Supports any indicator or
                   pattern
                 </li>
                 <li className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3 w-3 text-violet-400" /> AI interview clarifies
+                  <CheckCircle2 className="h-3 w-3 text-orange-300" /> AI interview clarifies
                   ambiguity
                 </li>
                 <li className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3 w-3 text-violet-400" /> Rules reviewed before saving
+                  <CheckCircle2 className="h-3 w-3 text-orange-300" /> Rules reviewed before saving
                 </li>
               </ul>
-              <div className="flex items-center gap-1 text-xs text-violet-400 font-medium pt-1">
+              <div className="flex items-center gap-1 text-xs text-orange-300 font-medium pt-1">
                 Use the form below ↓
               </div>
             </div>
@@ -686,7 +686,7 @@ function BuildStatusCard({ blueprint }: { blueprint: StrategyBlueprint }) {
       );
     if (cat === "state_machine")
       return (
-        <span className="text-[9px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400 font-medium uppercase tracking-wide">
+        <span className="text-[9px] px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-300 font-medium uppercase tracking-wide">
           state machine
         </span>
       );
@@ -739,7 +739,7 @@ function BuildStatusCard({ blueprint }: { blueprint: StrategyBlueprint }) {
                   category === "trigger"
                     ? "text-emerald-400"
                     : category === "state_machine"
-                      ? "text-violet-400"
+                      ? "text-orange-300"
                       : "text-sky-400"
                 }`}
               />

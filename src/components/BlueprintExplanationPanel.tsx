@@ -138,8 +138,8 @@ export function BlueprintExplanationPanel({ blueprint }: { blueprint: StrategyBl
       )}
 
       {explanation.contract.length > 0 && (
-        <div className="rounded border border-violet-500/25 bg-violet-500/5 p-2.5">
-          <p className="text-[10px] uppercase tracking-wide text-violet-300">Strategy Contract</p>
+        <div className="rounded border border-orange-500/25 bg-orange-500/5 p-2.5">
+          <p className="text-[10px] uppercase tracking-wide text-orange-200">Strategy Contract</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">
             Structured rules the generator must preserve before it can build the EA.
           </p>
@@ -147,7 +147,7 @@ export function BlueprintExplanationPanel({ blueprint }: { blueprint: StrategyBl
             {explanation.contract.map((item) => (
               <span
                 key={`${item.label}-${item.value}`}
-                className="text-[10px] px-1.5 py-0.5 rounded border border-violet-500/30 bg-violet-500/10 text-violet-300"
+                className="text-[10px] px-1.5 py-0.5 rounded border border-orange-500/30 bg-orange-500/10 text-orange-200"
               >
                 {item.label}: {item.value}
               </span>

@@ -474,7 +474,7 @@ function AIParamExtractor({
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
       >
-        <Sparkles className="h-3 w-3 text-violet-400" />
+        <Sparkles className="h-3 w-3 text-orange-300" />
         Refine with AI
         {hasParams && (
           <span className="ml-1 text-[10px] text-emerald-400 font-medium">✓ params set</span>
@@ -519,7 +519,7 @@ function AIParamExtractor({
               variant="outline"
               onClick={onExtract}
               disabled={extracting || !hint.trim()}
-              className="shrink-0 self-end gap-1.5 border-violet-500/40 text-violet-400 hover:bg-violet-500/10"
+              className="shrink-0 self-end gap-1.5 border-orange-500/40 text-orange-300 hover:bg-orange-500/10"
             >
               {extracting ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -1446,7 +1446,7 @@ function FourBrainBuilderPage() {
                     role="direction"
                     icon={Brain}
                     title="Direction Brain"
-                    color="bg-violet-500"
+                    color="bg-orange-500"
                     state={direction}
                     onChange={setDirection}
                     onClear={() => setDirection(undefined)}

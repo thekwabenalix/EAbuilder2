@@ -1014,7 +1014,7 @@ const BRAIN_META: Record<
   setup: {
     label: "Setup Brain",
     icon: <BarChart2 className="h-4 w-4" />,
-    color: "text-violet-400 border-violet-500/30 bg-violet-500/5",
+    color: "text-orange-300 border-orange-500/30 bg-orange-500/5",
     hint: "Detects the active zone (OB / FVG / S-R). MTF.",
   },
   execution: {
@@ -2119,7 +2119,7 @@ function CodeTab({
             </div>
           )}
           {build.hasFvgMachine && (
-            <p className="text-[11px] text-violet-400/80">
+            <p className="text-[11px] text-orange-300/80">
               ⚙ FVG state machine active - retest, confirmation, invalidation, expiry, SL and
               break-even are all implemented.
             </p>
