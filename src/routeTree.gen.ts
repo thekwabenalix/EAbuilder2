@@ -10,6 +10,8 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ResourcesRouteImport } from './routes/resources'
+import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as NewRouteImport } from './routes/new'
 import { Route as ModulesRouteImport } from './routes/modules'
 import { Route as BuildRouteImport } from './routes/build'
@@ -19,6 +21,16 @@ import { Route as SIdRouteImport } from './routes/s.$id'
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResourcesRoute = ResourcesRouteImport.update({
+  id: '/resources',
+  path: '/resources',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NewRoute = NewRouteImport.update({
@@ -52,6 +64,8 @@ export interface FileRoutesByFullPath {
   '/build': typeof BuildRoute
   '/modules': typeof ModulesRoute
   '/new': typeof NewRoute
+  '/pricing': typeof PricingRoute
+  '/resources': typeof ResourcesRoute
   '/settings': typeof SettingsRoute
   '/s/$id': typeof SIdRoute
 }
@@ -60,6 +74,8 @@ export interface FileRoutesByTo {
   '/build': typeof BuildRoute
   '/modules': typeof ModulesRoute
   '/new': typeof NewRoute
+  '/pricing': typeof PricingRoute
+  '/resources': typeof ResourcesRoute
   '/settings': typeof SettingsRoute
   '/s/$id': typeof SIdRoute
 }
@@ -69,15 +85,42 @@ export interface FileRoutesById {
   '/build': typeof BuildRoute
   '/modules': typeof ModulesRoute
   '/new': typeof NewRoute
+  '/pricing': typeof PricingRoute
+  '/resources': typeof ResourcesRoute
   '/settings': typeof SettingsRoute
   '/s/$id': typeof SIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/build' | '/modules' | '/new' | '/settings' | '/s/$id'
+  fullPaths:
+    | '/'
+    | '/build'
+    | '/modules'
+    | '/new'
+    | '/pricing'
+    | '/resources'
+    | '/settings'
+    | '/s/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/build' | '/modules' | '/new' | '/settings' | '/s/$id'
-  id: '__root__' | '/' | '/build' | '/modules' | '/new' | '/settings' | '/s/$id'
+  to:
+    | '/'
+    | '/build'
+    | '/modules'
+    | '/new'
+    | '/pricing'
+    | '/resources'
+    | '/settings'
+    | '/s/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/build'
+    | '/modules'
+    | '/new'
+    | '/pricing'
+    | '/resources'
+    | '/settings'
+    | '/s/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -85,6 +128,8 @@ export interface RootRouteChildren {
   BuildRoute: typeof BuildRoute
   ModulesRoute: typeof ModulesRoute
   NewRoute: typeof NewRoute
+  PricingRoute: typeof PricingRoute
+  ResourcesRoute: typeof ResourcesRoute
   SettingsRoute: typeof SettingsRoute
   SIdRoute: typeof SIdRoute
 }
@@ -96,6 +141,20 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/resources': {
+      id: '/resources'
+      path: '/resources'
+      fullPath: '/resources'
+      preLoaderRoute: typeof ResourcesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/new': {
@@ -141,6 +200,8 @@ const rootRouteChildren: RootRouteChildren = {
   BuildRoute: BuildRoute,
   ModulesRoute: ModulesRoute,
   NewRoute: NewRoute,
+  PricingRoute: PricingRoute,
+  ResourcesRoute: ResourcesRoute,
   SettingsRoute: SettingsRoute,
   SIdRoute: SIdRoute,
 }

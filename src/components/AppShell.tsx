@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { getLocalRunnerHealth } from "@/lib/local-runner";
 import {
   LayoutDashboard,
+  CreditCard,
+  Download,
   LayoutGrid,
   PlusSquare,
   Settings,
@@ -19,6 +21,8 @@ const NAV = [
   { to: "/new", label: "New strategy", icon: PlusSquare },
   // Keep visible during build-out; hide from nav at product launch (route stays for dev/settings).
   { to: "/modules", label: "Trading Modules", icon: LayoutGrid },
+  { to: "/resources", label: "Resources", icon: Download },
+  { to: "/pricing", label: "Pricing", icon: CreditCard },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
