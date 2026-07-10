@@ -27,6 +27,7 @@ const CATEGORY_ICON: Record<IndicatorPickerCategory, typeof LineChart> = {
   oscillator: Activity,
   volume: Waves,
   bill_williams: Gauge,
+  custom_included: Gauge,
 };
 
 const WIRING_TONE: Record<IndicatorWiringKind, string> = {

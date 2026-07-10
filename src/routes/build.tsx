@@ -129,6 +129,16 @@ interface Preset {
   flowChain?: string[];
 }
 
+
+function presetFamily(preset: Preset): StrategyFamily {
+  const modules: BrainModuleType[] = [
+    ...(preset.direction?.modules ?? []),
+    ...(preset.setup?.modules ?? []),
+    ...preset.execution.modules,
+  ];
+  return preset.family ?? inferStrategyFamilyFromModules(modules);
+}
+
 const PRESETS: Preset[] = [
   {
     name: "Unicorn Pocket",
@@ -925,11 +935,12 @@ function FourBrainBuilderPage() {
       } else setExecution(undefined);
     }
     if (builderMode === "advanced" && flowConfig.steps.length) {
+      const steps = flowConfig.steps.filter(
+        (s) => s.enabled === false || moduleAllowedInFamily(s.module, next),
+      );
       setFlowConfig({
         ...flowConfig,
-        steps: flowConfig.steps.filter(
-          (s) => s.enabled === false || moduleAllowedInFamily(s.module, next),
-        ),
+        steps: steps.length ? steps : [createDefaultStep([], "entry", next)],
       });
     }
   }
@@ -1281,6 +1292,11 @@ function FourBrainBuilderPage() {
     if (!strategyFamily) return [];
     return crossFamilyWarnings(allSelectedModuleIds(), strategyFamily);
   }, [strategyFamily, direction, setup, execution, builderMode, flowConfig.steps]);
+
+  const visiblePresets = useMemo(() => {
+    if (!strategyFamily) return [];
+    return PRESETS.filter((preset) => presetFamily(preset) === strategyFamily);
+  }, [strategyFamily]);
 
   const execConfigured = Boolean(execution?.modules?.[0] && execution.timeframe);
   const flowHasEntry = flowConfig.steps.some(

@@ -9,8 +9,14 @@ import { BUILTIN_FILTER_CONTRACTS, type BuiltinFilterRef } from "@/lib/builtin-f
 import type { StrategyBlueprint } from "@/types/blueprint";
 import type { BuiltinIndicatorRef } from "@/lib/indicator-boundary";
 import { explainBuiltinIndicator } from "@/lib/indicator-boundary";
+import { INDICATOR_REGISTRY } from "@/lib/indicator-registry";
 
-export type IndicatorPickerCategory = "trend" | "oscillator" | "volume" | "bill_williams";
+export type IndicatorPickerCategory =
+  | "trend"
+  | "oscillator"
+  | "volume"
+  | "bill_williams"
+  | "custom_included";
 
 export type IndicatorWiringKind = "filter" | "brain_module" | "catalog";
 
@@ -39,7 +45,12 @@ export const INDICATOR_PICKER_CATEGORIES: IndicatorPickerCategoryDef[] = [
   {
     id: "bill_williams",
     label: "Bill Williams",
-    hint: "Coming soon - catalog reference only for now",
+    hint: "Bill Williams indicators from MT5",
+  },
+  {
+    id: "custom_included",
+    label: "MT5 Examples",
+    hint: "Indicators shipped in MetaTrader's Examples folder",
   },
 ];
 
@@ -58,7 +69,7 @@ export interface IndicatorPickerOption {
 }
 
 /** Indicators the compiler can actually wire today. */
-export const INDICATOR_PICKER_OPTIONS: IndicatorPickerOption[] = [
+const VERIFIED_INDICATOR_PICKER_OPTIONS: IndicatorPickerOption[] = [
   {
     id: "ema_module",
     name: "EMA / Moving Average",
@@ -143,6 +154,27 @@ export const INDICATOR_PICKER_OPTIONS: IndicatorPickerOption[] = [
     catalogIndicatorId: "ichimoku",
     description: "Catalog reference only - not compiled into EAs yet.",
   },
+];
+
+const VERIFIED_CATALOG_IDS = new Set(
+  VERIFIED_INDICATOR_PICKER_OPTIONS.map((option) => option.catalogIndicatorId).filter(Boolean),
+);
+
+const REGISTRY_CATALOG_OPTIONS: IndicatorPickerOption[] = INDICATOR_REGISTRY.filter(
+  (indicator) => !VERIFIED_CATALOG_IDS.has(indicator.id),
+).map((indicator) => ({
+  id: `catalog_${indicator.id}`,
+  name: indicator.name,
+  category: indicator.category,
+  wiring: "catalog",
+  wiringLabel: indicator.via === "builtin" ? "MT5 built-in" : "MT5 example",
+  catalogIndicatorId: indicator.id,
+  description: `${indicator.mql5} - ${indicator.description}`,
+}));
+
+export const INDICATOR_PICKER_OPTIONS: IndicatorPickerOption[] = [
+  ...VERIFIED_INDICATOR_PICKER_OPTIONS,
+  ...REGISTRY_CATALOG_OPTIONS,
 ];
 
 export function pickerOptionsForCategory(
