@@ -10,9 +10,11 @@ import type {
   StrategyFlowConfig,
   StrategyStepConfig,
   StrategyStepRole,
+  StrategyFamily,
 } from "@/types/blueprint";
 import { fourBrainToStrategyFlow } from "@/lib/fourbrain-flow-adapter";
 import { firstEventForRole } from "@/lib/strategy-flow-events";
+import { pickerModulesForBrain } from "@/lib/strategy-family";
 import { flowEaSupportsAllSteps } from "@/generators/gen-flow-ea";
 import { validateStrategyFlowSchema } from "@/lib/strategy-flow";
 import { formatStepDisplayName, normalizeFlowStepNames } from "@/lib/strategy-step-label";
@@ -111,8 +113,11 @@ export function defaultStepName(
 export function createDefaultStep(
   steps: StrategyStepConfig[],
   role: StrategyStepRole = "entry",
+  family?: StrategyFamily | null,
 ): StrategyStepConfig {
-  const moduleId = "bos";
+  const pickerRole = role === "direction" ? "direction" : role === "setup" ? "setup" : "execution";
+  const familyModules = family ? pickerModulesForBrain(family, pickerRole) : [];
+  const moduleId = familyModules[0]?.id ?? "bos";
   const timeframe = steps[steps.length - 1]?.timeframe ?? "M5";
   const prior = steps[steps.length - 1];
   const id = newStepId(steps, role);

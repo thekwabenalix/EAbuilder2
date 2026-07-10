@@ -2639,22 +2639,15 @@ function BacktestTab({
       </div>
     );
   }
-  if (!mt5Configured) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3 text-center max-w-sm mx-auto">
-        <BarChart2 className="h-10 w-10 text-muted-foreground/30" />
-        <p className="font-medium">MT5 not configured</p>
-        <p className="text-sm text-muted-foreground">
-          Select your MT5 terminal in Settings before running a backtest.
-        </p>
-      </div>
-    );
-  }
-
   const compileRunning = compileMut.isPending || compilePolling;
   const backtestRunning = backtestMut.isPending || backtestPolling;
   const visualRunning = visualMut.isPending || visualPolling;
   const anyRunning = compileRunning || backtestRunning || visualRunning;
+  const mt5UnavailableMessage = mt5Status.isError
+    ? "The local runner is online, but the app could not read the MT5 configuration. Open Settings and reconnect your terminal."
+    : !mt5Configured
+      ? "Select your MT5 terminal in Settings before running compile or backtest jobs."
+      : null;
   const summary: ReportSummary | null = backtestResult?.summary ?? null;
   const artifactJobId = backtestResult?.job?.id ?? backtestJobId;
   const artifactBaseName = safeDownloadName(
@@ -2714,9 +2707,15 @@ function BacktestTab({
         <div className="rounded-md border border-border bg-background/50 p-3">
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground">MT5</p>
           <div className="mt-1.5 flex items-center gap-1.5">
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+            {mt5Configured ? (
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+            ) : (
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
+            )}
             <span className="text-sm font-medium truncate">
-              {mt5Status.data?.configuredTerminalPath?.split(/[\\/]/).at(-2) ?? "Configured"}
+              {mt5Configured
+                ? (mt5Status.data?.configuredTerminalPath?.split(/[\\/]/).at(-2) ?? "Configured")
+                : "Not configured"}
             </span>
           </div>
         </div>
@@ -2751,6 +2750,21 @@ function BacktestTab({
           </div>
         </div>
       </div>
+
+      {mt5UnavailableMessage && (
+        <div className="rounded-md border border-amber-500/35 bg-amber-500/10 p-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-foreground">MT5 setup needed</p>
+              <p className="text-xs text-muted-foreground">{mt5UnavailableMessage}</p>
+            </div>
+          </div>
+          <Button asChild size="sm" variant="outline" className="shrink-0">
+            <Link to="/settings">Open Settings</Link>
+          </Button>
+        </div>
+      )}
 
       {/* Config + actions */}
       <div className="rounded-md border border-border bg-card p-4 space-y-4">
@@ -2892,8 +2906,9 @@ function BacktestTab({
             variant="outline"
             size="sm"
             onClick={() => compileMut.mutate()}
-            disabled={anyRunning || !localApproval}
+            disabled={anyRunning || !localApproval || !mt5Configured}
             className="min-w-[120px]"
+            title={!mt5Configured ? "Configure MT5 in Settings first" : undefined}
           >
             {compileRunning ? (
               <>
@@ -2911,9 +2926,15 @@ function BacktestTab({
           <Button
             size="sm"
             onClick={() => backtestMut.mutate()}
-            disabled={anyRunning || !compileSucceeded || !localApproval}
+            disabled={anyRunning || !compileSucceeded || !localApproval || !mt5Configured}
             className="min-w-[160px]"
-            title={!compileSucceeded ? "Compile EA first" : undefined}
+            title={
+              !mt5Configured
+                ? "Configure MT5 in Settings first"
+                : !compileSucceeded
+                  ? "Compile EA first"
+                  : undefined
+            }
           >
             {backtestRunning ? (
               <>
@@ -2931,9 +2952,15 @@ function BacktestTab({
             size="sm"
             variant="outline"
             onClick={() => visualMut.mutate()}
-            disabled={anyRunning || !compileSucceeded || !localApproval}
+            disabled={anyRunning || !compileSucceeded || !localApproval || !mt5Configured}
             className="min-w-[140px]"
-            title={!compileSucceeded ? "Compile EA first" : undefined}
+            title={
+              !mt5Configured
+                ? "Configure MT5 in Settings first"
+                : !compileSucceeded
+                  ? "Compile EA first"
+                  : undefined
+            }
           >
             {visualRunning ? (
               <>

@@ -938,7 +938,7 @@ function FourBrainBuilderPage() {
     version: 1,
     mode: "advanced_instances",
     source: "user",
-    steps: [createDefaultStep([])],
+    steps: [createDefaultStep([], "entry", strategyFamily)],
   }));
 
   const [saving, setSaving] = useState(false);
@@ -1003,7 +1003,7 @@ function FourBrainBuilderPage() {
       version: 1,
       mode: "advanced_instances",
       source: "user",
-      steps: [createDefaultStep([])],
+      steps: [createDefaultStep([], "entry", strategyFamily)],
       management: buildManagementConfig(),
     });
   }

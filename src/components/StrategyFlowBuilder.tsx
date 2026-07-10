@@ -484,7 +484,7 @@ export function StrategyFlowBuilder({
         type="button"
         variant="outline"
         className="w-full border-dashed"
-        onClick={() => updateSteps([...steps, createDefaultStep(steps)])}
+        onClick={() => updateSteps([...steps, createDefaultStep(steps, "entry", strategyFamily)])}
       >
         <Plus className="h-4 w-4 mr-1.5" />
         Add step
