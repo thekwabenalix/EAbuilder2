@@ -7,7 +7,13 @@
  */
 
 import type { StrategyBlueprint } from "@/types/blueprint";
-import { resolveFlowBacktestPeriod, type AssistantApplyFix, looksLikeHtfLtfMisalignment } from "@/lib/assistant-apply";
+import {
+  resolveFlowBacktestPeriod,
+  type AssistantApplyFix,
+  looksLikeHtfLtfMisalignment,
+  looksLikeSameBarCollision,
+  looksLikeSetupExpiryIssue,
+} from "@/lib/assistant-apply";
 import { buildExpectedTradePath, parseTesterLogForTradeAudit } from "@/lib/trade-audit";
 import { buildModuleRepairPlan, MODULE_ADMISSION } from "@/lib/module-admission";
 import { previewEaGeneration } from "@/lib/generate-ea-router";
@@ -85,6 +91,10 @@ export function buildAssistantRepairPlan(input: {
   const alignmentComplaint =
     looksLikeHtfLtfMisalignment(userMessage ?? "") ||
     looksLikeHtfLtfMisalignment(testerLog ?? "");
+  const sameBarComplaint =
+    looksLikeSameBarCollision(userMessage ?? "") || looksLikeSameBarCollision(testerLog ?? "");
+  const expiryComplaint =
+    looksLikeSetupExpiryIssue(userMessage ?? "") || looksLikeSetupExpiryIssue(testerLog ?? "");
 
   if (moduleRepair.blocked.length) {
     return {
@@ -170,20 +180,28 @@ export function buildAssistantRepairPlan(input: {
         ? backtestSummary.totalTrades
         : parsed.tradesOpened;
 
-    if (alignmentComplaint || /not before entry/i.test(testerLog ?? "")) {
+    if (alignmentComplaint || sameBarComplaint || expiryComplaint || /not before entry/i.test(testerLog ?? "")) {
+      const preferEma = alignmentComplaint && !sameBarComplaint && !expiryComplaint;
       return {
         layer: "strategy_flow",
-        title: "HTF↔LTF EMA alignment is not enforced the way the trader expects",
+        title: preferEma
+          ? "HTF↔LTF EMA alignment is not enforced the way the trader expects"
+          : "Strategy Flow wiring needs a one-click repair",
         reasons: [
           totalTrades > 0
-            ? `Trades opened (${totalTrades}) while alignment/cross timing looks wrong.`
-            : "Trader reports M5 entries without waiting for an M5 cross in the H1 direction.",
-          "Plain regen_ea is not enough when Configure wiring already matches the last generated code.",
-        ],
-        apply: { type: "fix_htf_ltf_ema_alignment" },
+            ? `Trades opened (${totalTrades}) while timing/alignment/setup looks wrong.`
+            : "Trader reports entries that do not wait for the intended Direction → Setup → Entry chain.",
+          sameBarComplaint
+            ? "Setup and Entry appear on the same bar — entry should use relation=after."
+            : "Plain regen_ea is not enough when Configure wiring already matches the last generated code.",
+          expiryComplaint ? "Setup expiry / arming looks wrong for zone modules." : "",
+        ].filter(Boolean),
+        apply: preferEma
+          ? { type: "fix_htf_ltf_ema_alignment" }
+          : { type: "fix_flow_wiring" },
         action: "open_brains",
         verify:
-          "Apply HTF→LTF EMA alignment, compile, backtest with InpAudit=true, confirm M5 only arms after a same-direction cross.",
+          "Apply the wiring fix, compile, backtest with InpAudit=true, confirm the event chain fires in order.",
       };
     }
 

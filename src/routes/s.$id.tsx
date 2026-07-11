@@ -68,7 +68,12 @@ import {
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EaChatDrawer, type EaAssistantAction } from "@/components/EaChatDrawer";
-import { resolveFlowBacktestPeriod, type AssistantApplyFix, applyHtfLtfEmaAlignment } from "@/lib/assistant-apply";
+import {
+  resolveFlowBacktestPeriod,
+  type AssistantApplyFix,
+  applyHtfLtfEmaAlignment,
+  applyFixFlowWiring,
+} from "@/lib/assistant-apply";
 import { toast } from "sonner";
 import {
   buildExportFilename,
@@ -552,11 +557,14 @@ function StrategyPage() {
       saveMut.mutate();
       return;
     }
-    if (fix.type === "fix_htf_ltf_ema_alignment") {
-      const patched = applyHtfLtfEmaAlignment(blueprint);
+    if (fix.type === "fix_htf_ltf_ema_alignment" || fix.type === "fix_flow_wiring") {
+      const patched =
+        fix.type === "fix_flow_wiring"
+          ? applyFixFlowWiring(blueprint)
+          : applyHtfLtfEmaAlignment(blueprint);
       if (!patched.changed) {
         setActiveTab(isFourBrain ? "brains" : "builder");
-        toast.message(patched.notes[0] ?? "Configure already has HTF→LTF EMA alignment wiring");
+        toast.message(patched.notes[0] ?? "Configure wiring already looks correct");
         return;
       }
       setBlueprint(patched.blueprint);
@@ -574,13 +582,13 @@ function StrategyPage() {
         qc.invalidateQueries({ queryKey: ["strategies"] });
         qc.invalidateQueries({ queryKey: ["strategy", id] });
         toast.success(
-          `HTF→LTF EMA alignment applied (${patched.notes.length} change${patched.notes.length === 1 ? "" : "s"}) — compile, then backtest`,
+          `${fix.type === "fix_flow_wiring" ? "Flow wiring" : "EMA alignment"} applied (${patched.notes.length} change${patched.notes.length === 1 ? "" : "s"}) — compile, then backtest`,
         );
       } catch (e: unknown) {
         toast.error(
           e instanceof Error
             ? e.message
-            : "Alignment wiring saved in Configure, but regenerate failed — click Regenerate EA",
+            : "Wiring saved in Configure, but regenerate failed — click Regenerate EA",
         );
         setActiveTab(isFourBrain ? "brains" : "builder");
       }

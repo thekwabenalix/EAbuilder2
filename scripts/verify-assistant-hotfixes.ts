@@ -20,6 +20,11 @@ import {
   readAssistantChatHistory,
   writeAssistantChatHistory,
 } from "../src/lib/assistant-chat-history";
+import {
+  applyFixFlowWiring,
+  applyFixLabel,
+  extractApplyMarkers,
+} from "../src/lib/assistant-apply";
 import { DEFAULT_BLUEPRINT } from "../src/types/blueprint";
 
 function assertOk(condition: unknown, message: string): asserts condition {
@@ -241,5 +246,79 @@ console.log("[OK  ] assistant credit policy");
   console.log("[OK  ] assistant chat history persistence");
 }
 
-console.log("\n12 assistant checks passed.\n");
+// Flow wiring Apply (any modules)
+{
+  const markers = extractApplyMarkers(
+    'Use this:\n[APPLY:{"type":"fix_flow_wiring"}]\n[TOOL:{"action":"open_backtest"}]',
+  );
+  assertOk(
+    markers.some((m) => m.type === "fix_flow_wiring"),
+    "extracts fix_flow_wiring apply",
+  );
+  assertOk(
+    applyFixLabel({ type: "fix_flow_wiring" }).includes("Flow wiring"),
+    "labels flow wiring apply",
+  );
+
+  const bp = {
+    ...DEFAULT_BLUEPRINT,
+    name: "Wiring Fix Smoke",
+    fourBrain: {
+      direction: { modules: ["bos" as const], timeframe: "H1", params: {} },
+      setup: { modules: ["fvg" as const], timeframe: "M15", params: {} },
+      execution: { modules: ["fvg" as const], timeframe: "M15", params: {} },
+      management: { riskPercent: 1, rewardRisk: 2 },
+    },
+    strategyFlow: {
+      version: 1 as const,
+      mode: "advanced_instances" as const,
+      source: "user" as const,
+      steps: [
+        {
+          id: "d",
+          name: "Dir BOS H1",
+          role: "direction" as const,
+          module: "bos",
+          timeframe: "H1",
+          event: "BOS_BIAS",
+          enabled: true,
+        },
+        {
+          id: "s",
+          name: "Setup FVG M15",
+          role: "setup" as const,
+          module: "fvg",
+          timeframe: "M15",
+          event: "FVG_FORMED",
+          enabled: true,
+        },
+        {
+          id: "e",
+          name: "Entry FVG M15",
+          role: "entry" as const,
+          module: "fvg",
+          timeframe: "M15",
+          event: "FVG_RETESTED",
+          dependsOn: [{ stepId: "s", relation: "same_or_after" as const }],
+          enabled: true,
+        },
+      ],
+    },
+  };
+
+  const fixed = applyFixFlowWiring(bp);
+  assertOk(fixed.changed, "flow wiring changes incomplete FVG blueprint");
+  assertOk(
+    fixed.notes.some((n) => /direction source|after|expiry/i.test(n)),
+    "flow wiring notes describe changes",
+  );
+  const entry = fixed.blueprint.strategyFlow?.steps?.find((s) => s.id === "e");
+  assertOk(
+    entry?.dependsOn?.some((d) => d.stepId === "s" && d.relation === "after"),
+    "entry depends on setup with after",
+  );
+  console.log("[OK  ] assistant flow wiring apply");
+}
+
+console.log("\n13 assistant checks passed.\n");
 

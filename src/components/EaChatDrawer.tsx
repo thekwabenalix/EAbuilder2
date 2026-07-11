@@ -51,10 +51,12 @@ import {
   applyFixLabel,
   codeHasDirectionAlignGate,
   extractApplyMarkers,
+  isBlueprintPatchApply,
   stripApplyMarkers,
   type AssistantApplyFix,
   type RegenEaResult,
 } from "@/lib/assistant-apply";
+import { buildAssistantRepairPlan } from "@/lib/assistant-repair-plan";
 import {
   canAffordAssistantCredits,
   CREDIT_COSTS,
@@ -416,8 +418,12 @@ export function EaChatDrawer({
   const [drawerWidth, setDrawerWidth] = useState(readDrawerWidth);
   const resizeRef = useRef<{ startX: number; startW: number } | null>(null);
   const hydratedStrategyRef = useRef<string | undefined>(strategyId);
-  /** Unlock Open Backtest "Run" only after the user applies regen_ea. */
+  /** Unlock Open Backtest "Run" only after the user applies regen_ea / wiring fix. */
   const [backtestUnlockedAfterRegen, setBacktestUnlockedAfterRegen] = useState(false);
+  /** Post-apply checklist: guides Compile → Backtest after a successful Apply. */
+  const [applyPipeline, setApplyPipeline] = useState<"idle" | "needs_compile" | "needs_backtest">(
+    "idle",
+  );
 
   // Restore when switching strategies (same drawer instance across navigations).
   useEffect(() => {
@@ -427,6 +433,7 @@ export function EaChatDrawer({
     setFixReady(false);
     setPendingImages([]);
     setBacktestUnlockedAfterRegen(false);
+    setApplyPipeline("idle");
   }, [strategyId]);
 
   // Persist after each turn (skip while streaming an empty assistant bubble).
@@ -545,6 +552,7 @@ export function EaChatDrawer({
     setPendingImages([]);
     setInput("");
     setBacktestUnlockedAfterRegen(false);
+    setApplyPipeline("idle");
     if (strategyId) clearAssistantChatHistory(strategyId);
     toast.success("Conversation cleared");
   };
@@ -814,6 +822,11 @@ export function EaChatDrawer({
       onOpenChange(false);
       return;
     }
+    if (action === "open_backtest" && applyPipeline === "needs_compile") {
+      setApplyPipeline("needs_backtest");
+    } else if (action === "open_backtest" && applyPipeline === "needs_backtest") {
+      setApplyPipeline("idle");
+    }
     onSafeAction?.(action);
     onOpenChange(false);
   };
@@ -843,40 +856,55 @@ export function EaChatDrawer({
   };
 
   const handleApplyAssistantFix = async (fix: AssistantApplyFix) => {
-    if (fix.type === "fix_htf_ltf_ema_alignment") {
+    if (isBlueprintPatchApply(fix)) {
       if (!onApplyAssistantFix) {
-        toast.error("Alignment fix is not available for this strategy");
+        toast.error("This wiring fix is not available for this strategy");
         return;
       }
       setRegenLoading(true);
       try {
         await onApplyAssistantFix(fix);
         setBacktestUnlockedAfterRegen(true);
+        setApplyPipeline("needs_compile");
+        const title =
+          fix.type === "fix_flow_wiring"
+            ? "Applied: Strategy Flow wiring"
+            : "Applied: HTF→LTF EMA alignment";
+        const bullets =
+          fix.type === "fix_flow_wiring"
+            ? [
+                "- Direction sources linked for Setup/Entry/Confirmation",
+                "- Entry waits for a **later bar** than Setup (`after`)",
+                "- Zone setups get a sensible **expiry** when missing",
+                "- LTF EMA extras (requireCross) applied when present",
+              ]
+            : [
+                "- **requireCross = true** on lower-TF EMA",
+                "- **direction source** → HTF Direction",
+                "- **Entry after Setup** (different bar)",
+              ];
         setMessages((prev) => [
           ...prev,
           {
             role: "assistant",
             content: [
-              "## Applied: HTF→LTF EMA alignment",
+              `## ${title}`,
               "",
-              "Configure was updated so lower-TF EMA Setup/Entry:",
-              "- **requireCross = true** (must actually cross on M5)",
-              "- **direction source** points at the HTF Direction step",
-              "- **Entry waits for a later bar** than Setup (`after`)",
+              ...bullets,
               "",
-              "EA was regenerated and saved from that wiring.",
+              "EA was regenerated and saved.",
               "",
               "### Next (required)",
               "1. **Compile EA** (new `.ex5`)",
               "2. Backtest with **InpAudit=true**",
-              "3. Sells should wait until M5 has crossed bearish when H1 is BEAR (and the reverse for bull)",
+              "3. Confirm Direction → Setup → Entry timestamps and gate lines",
               "",
-              '[TOOL:{"action":"open_backtest","reason":"Compile the alignment-fixed EA, then run report backtest with InpAudit=true."}]',
+              '[TOOL:{"action":"open_backtest","reason":"Compile the fixed EA, then run report backtest with InpAudit=true."}]',
             ].join("\n"),
           },
         ]);
       } catch (e: unknown) {
-        toast.error(e instanceof Error ? e.message : "Alignment fix failed");
+        toast.error(e instanceof Error ? e.message : "Wiring fix failed");
       } finally {
         setRegenLoading(false);
       }
@@ -905,11 +933,12 @@ export function EaChatDrawer({
         }
 
         setBacktestUnlockedAfterRegen(true);
+        setApplyPipeline(result?.changed === false ? "idle" : "needs_compile");
         const gateNote = result?.hasAlignGate
-          ? "Direction-alignment gate is present in the new EA (`entry not aligned` / direction mismatch blocks)."
+          ? "Direction-alignment gate is present in the new EA."
           : codeHasDirectionAlignGate(code)
-            ? "Alignment checks were already in the previous code — recompile so MT5 picks up the saved file."
-            : "If trades still ignore HTF bias after recompile, use **Fix H1→M5 EMA alignment** (not another plain regen).";
+            ? "Alignment checks were already in code — recompile so MT5 picks up the saved file."
+            : "If behaviour is still wrong after compile, use **Fix Strategy Flow wiring** (not another plain regen).";
 
         setMessages((prev) => [
           ...prev,
@@ -919,21 +948,20 @@ export function EaChatDrawer({
               "## Applied: EA regenerated from blueprint",
               "",
               result?.changed === false
-                ? "- Code was **already** up to date with the blueprint (nothing new to write). Plain regen will not fix H1↔M5 behaviour — use **Fix H1→M5 EMA alignment** if sells still fire while M5 has not crossed with H1."
+                ? "- Code was **already** up to date. Plain regen will not change behaviour — use a wiring Apply instead."
                 : "- MQL5 was rewritten from your Strategy Flow / 4-Brain blueprint.",
               result?.saved
                 ? "- Strategy was **saved** automatically."
-                : "- Save failed or was skipped — click **Save** in the header before compiling.",
+                : "- Save failed or was skipped — click **Save** before compiling.",
               result?.pathLabel ? `- Generator: **${result.pathLabel}**` : "",
               `- ${gateNote}`,
               "",
               "### Next (required)",
-              "1. Open **Code** / **Backtest** → **Compile EA** (so MT5 gets the new `.ex5`).",
-              "2. Run a report backtest with **InpAudit=true**.",
-              "3. Opposite-direction M5 crosses should show `[GATE] BLOCKED: entry not aligned…`, not trades.",
+              "1. **Compile EA**",
+              "2. Backtest with **InpAudit=true**",
               "",
               result?.changed === false
-                ? '[APPLY:{"type":"fix_htf_ltf_ema_alignment"}]\n[TOOL:{"action":"open_brains","reason":"Plain regen changed nothing — open Configure and apply HTF→LTF EMA alignment wiring."}]'
+                ? '[APPLY:{"type":"fix_flow_wiring"}]\n[TOOL:{"action":"open_brains","reason":"Plain regen changed nothing — apply Strategy Flow wiring fix."}]'
                 : '[TOOL:{"action":"open_backtest","reason":"Compile the saved EA, then run a report backtest with InpAudit=true."}]',
             ]
               .filter(Boolean)
@@ -968,8 +996,7 @@ export function EaChatDrawer({
         disabled={loading || applyLoading || regenLoading}
         className="h-7 bg-emerald-700 hover:bg-emerald-600 text-white border-0 text-[11px]"
       >
-        {regenLoading &&
-        (fix.type === "regen_ea" || fix.type === "fix_htf_ltf_ema_alignment") ? (
+        {regenLoading && (isBlueprintPatchApply(fix) || fix.type === "regen_ea") ? (
           <>
             <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
             Regenerating…
@@ -1106,6 +1133,20 @@ export function EaChatDrawer({
     { label: "Screenshot", active: pendingImages.length > 0 },
   ].filter((t) => t.active);
 
+  const nextCloudCost = creditCostForChat(pendingImages.length > 0);
+  const canAffordCloud = canAffordAssistantCredits(nextCloudCost, credits);
+  const pinnedRepair = buildAssistantRepairPlan({
+    blueprint,
+    code,
+    compileLog,
+    testerLog,
+    backtestSummary:
+      backtestSummary && typeof backtestSummary === "object"
+        ? (backtestSummary as Record<string, unknown>)
+        : null,
+    userMessage: messages.filter((m) => m.role === "user").at(-1)?.content ?? null,
+  });
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -1155,6 +1196,59 @@ export function EaChatDrawer({
             Free: rule audit + Apply now. Cloud chat uses AI credits.
             {strategyId ? " Conversation is saved for this strategy." : ""}
           </p>
+
+          {(pinnedRepair.apply || pinnedRepair.layer !== "missing_evidence") && (
+            <div className="mt-2 rounded-md border border-border/70 bg-muted/30 px-2.5 py-2">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                Pinned repair plan
+              </div>
+              <div className="text-[11px] font-medium text-foreground mt-0.5">
+                {pinnedRepair.title}
+              </div>
+              {pinnedRepair.apply && (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="mt-2 h-7 text-[11px] bg-emerald-700 hover:bg-emerald-600 text-white border-0"
+                  disabled={loading || applyLoading || regenLoading}
+                  onClick={() => void handleApplyAssistantFix(pinnedRepair.apply!)}
+                >
+                  {regenLoading ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                      Applying…
+                    </>
+                  ) : (
+                    applyFixLabel(pinnedRepair.apply)
+                  )}
+                </Button>
+              )}
+            </div>
+          )}
+
+          {applyPipeline !== "idle" && (
+            <div className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[11px]">
+              <div className="font-medium text-amber-950 dark:text-amber-100">
+                {applyPipeline === "needs_compile"
+                  ? "Applied — next: Compile EA"
+                  : "Compiled? Next: run backtest with InpAudit=true"}
+              </div>
+              <div className="mt-1 text-amber-900/80 dark:text-amber-200/80">
+                {applyPipeline === "needs_compile"
+                  ? "Open Backtest → Compile so MT5 loads the new .ex5, then Run."
+                  : "Re-run the report and check [EVENT] / [GATE] lines."}
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="mt-2 h-7 text-[11px]"
+                onClick={() => handleSafeAction("open_backtest")}
+              >
+                Open Backtest
+              </Button>
+            </div>
+          )}
 
           {messages.length === 0 && !loading && (
             <div className="flex flex-wrap gap-1.5 mt-3">
@@ -1278,7 +1372,10 @@ export function EaChatDrawer({
             const applyFixes =
               m.role === "assistant" && !isStreaming ? extractApplyMarkers(m.content) : [];
             const requiresRegenBeforeBacktest = applyFixes.some(
-              (f) => f.type === "regen_ea" || f.type === "fix_htf_ltf_ema_alignment",
+              (f) =>
+                f.type === "regen_ea" ||
+                f.type === "fix_htf_ltf_ema_alignment" ||
+                f.type === "fix_flow_wiring",
             );
 
             return (
@@ -1395,9 +1492,12 @@ export function EaChatDrawer({
               <ClipboardList className="h-3.5 w-3.5 mr-1.5" />
               Free diagnosis
             </Button>
-            <span className="text-[10px] text-muted-foreground">
-              Cloud send: {creditCostForChat(pendingImages.length > 0)} credit
-              {creditCostForChat(pendingImages.length > 0) === 1 ? "" : "s"}
+            <span
+              className={`text-[10px] ${canAffordCloud ? "text-muted-foreground" : "text-amber-700 dark:text-amber-300"}`}
+            >
+              {canAffordCloud
+                ? `Next cloud send: ${nextCloudCost} credit${nextCloudCost === 1 ? "" : "s"} (have ${credits.balance})`
+                : `Need ${nextCloudCost} credits (have ${credits.balance}) — Free diagnosis still works`}
             </span>
           </div>
           {/* Attached screenshot thumbnails */}

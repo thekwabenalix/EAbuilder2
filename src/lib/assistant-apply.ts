@@ -8,19 +8,27 @@ import {
   applyHtfLtfEmaAlignment,
   looksLikeHtfLtfMisalignment,
 } from "@/lib/assistant-htf-ltf-fix";
+import {
+  applyFixFlowWiring,
+  looksLikeSameBarCollision,
+  looksLikeSetupExpiryIssue,
+} from "@/lib/assistant-flow-fixes";
 
 export type AssistantApplyFix =
   | { type: "regen_ea" }
   | { type: "set_backtest_period"; period: string }
   | { type: "save_strategy" }
   /** Patch Strategy Flow so LTF EMA waits for HTF Direction alignment, then regen. */
-  | { type: "fix_htf_ltf_ema_alignment" };
+  | { type: "fix_htf_ltf_ema_alignment" }
+  /** Universal flow wiring: direction sources, entry-after-setup, zone expiry (+ EMA extras). */
+  | { type: "fix_flow_wiring" };
 
 const APPLY_TYPES = new Set([
   "regen_ea",
   "set_backtest_period",
   "save_strategy",
   "fix_htf_ltf_ema_alignment",
+  "fix_flow_wiring",
 ]);
 
 export function extractApplyMarkers(text: string): AssistantApplyFix[] {
@@ -51,6 +59,9 @@ export function extractApplyMarkers(text: string): AssistantApplyFix[] {
         !fixes.some((f) => f.type === "fix_htf_ltf_ema_alignment")
       ) {
         fixes.push({ type: "fix_htf_ltf_ema_alignment" });
+      }
+      if (type === "fix_flow_wiring" && !fixes.some((f) => f.type === "fix_flow_wiring")) {
+        fixes.push({ type: "fix_flow_wiring" });
       }
     } catch {
       // ignore malformed APPLY JSON
@@ -88,7 +99,14 @@ export function applyFixLabel(fix: AssistantApplyFix): string {
       return "Save strategy";
     case "fix_htf_ltf_ema_alignment":
       return "Fix H1→M5 EMA alignment in Configure";
+    case "fix_flow_wiring":
+      return "Fix Strategy Flow wiring (any modules)";
   }
+}
+
+/** Apply types that rewrite the blueprint then regenerate. */
+export function isBlueprintPatchApply(fix: AssistantApplyFix): boolean {
+  return fix.type === "fix_htf_ltf_ema_alignment" || fix.type === "fix_flow_wiring";
 }
 
 /** True when generated MQL5 already includes HTF↔LTF direction alignment gates. */
@@ -111,4 +129,10 @@ export type RegenEaResult = {
   error?: string;
 };
 
-export { applyHtfLtfEmaAlignment, looksLikeHtfLtfMisalignment };
+export {
+  applyHtfLtfEmaAlignment,
+  looksLikeHtfLtfMisalignment,
+  applyFixFlowWiring,
+  looksLikeSameBarCollision,
+  looksLikeSetupExpiryIssue,
+};
