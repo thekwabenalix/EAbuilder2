@@ -2,6 +2,7 @@
  * Phase 1–3 — TIME_SESSION_FILTER (windows, outside-window actions, session audit).
  */
 import { generateFlowEA } from "../src/generators/gen-flow-ea";
+import { generateEA } from "../src/generators/gen-ea";
 import {
   applySetTimeFilter,
   buildSessionBreakdownFromTimes,
@@ -133,5 +134,38 @@ assertOk(applied.changed, "applySetTimeFilter changes blueprint");
 assertOk(applied.schedule.sessions?.includes("newyork"), "normalizes new_york → newyork");
 assertOk(applied.blueprint.fourBrain?.management?.tradingSchedule?.enabled === true, "mgmt schedule set");
 console.log("[OK  ] set_time_filter Apply");
+
+// Assembler path must also embed TIME_SESSION_FILTER (Simple 4-Brain / engulfing stacks)
+const asmCode = generateEA({
+  eaName: "SessionAsm",
+  config: {
+    direction: { modules: ["engulfing"], timeframe: "H4" },
+    setup: { modules: ["engulfing"], timeframe: "H1" },
+    execution: { modules: ["engulfing"], timeframe: "M15" },
+    management: {
+      riskPercent: 1,
+      rewardRisk: 2,
+      tradingSchedule: {
+        enabled: true,
+        timeReference: "broker_server",
+        mode: "presets",
+        sessions: ["newyork"],
+        allowedDays: [2, 3, 4],
+        outsideWindow: {
+          allowNewEntries: false,
+          manageOpenPositions: true,
+          closeOpenPositions: false,
+          cancelPendingOrders: true,
+        },
+      },
+    },
+  },
+});
+assertOk(asmCode.includes("InpUseSessionFilter"), "assembler embeds session filter input");
+assertOk(asmCode.includes("IsTradingTime"), "assembler embeds IsTradingTime");
+assertOk(asmCode.includes("BLOCKED: outside session"), "assembler session gate");
+assertOk(asmCode.includes("SessionOutsideMaintenance"), "assembler cancel-pending maintenance");
+assertOk(/InpAllowedDaysMask = 28\b/.test(asmCode), "Tue-Thu day mask = 28 (bits 2+3+4)");
+console.log("[OK  ] blueprint assembler wires schedule");
 
 console.log("\nAll trading schedule checks passed.\n");

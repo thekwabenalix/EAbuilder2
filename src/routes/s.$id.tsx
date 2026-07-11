@@ -748,13 +748,43 @@ function StrategyPage() {
                 if (aiCode) {
                   setGeneratedCode(aiCode);
                   setDirty(true);
+                  setActiveTab("code");
                   return;
                 }
                 try {
                   const result = generateEaFromBlueprint(next);
+                  setBlueprint(next);
                   setGeneratedCode(result.code);
                   setDirty(true);
-                  toast.success(`EA regenerated - ${generationPathLabel(result.path)}`);
+                  setActiveTab("code");
+                  const scheduleOn = Boolean(
+                    next.fourBrain?.management?.tradingSchedule?.enabled ||
+                      next.strategyFlow?.management?.tradingSchedule?.enabled,
+                  );
+                  const hasSession =
+                    /InpUseSessionFilter|IsTradingTime\s*\(/.test(result.code);
+                  toast.success(
+                    `EA regenerated - ${generationPathLabel(result.path)}${
+                      scheduleOn
+                        ? hasSession
+                          ? " · session filter embedded"
+                          : " · WARNING: schedule not in code"
+                        : ""
+                    }`,
+                  );
+                  void updateStrategy(id, {
+                    name: name || "Untitled Strategy",
+                    blueprint: next,
+                    generatedCode: result.code,
+                  })
+                    .then(() => {
+                      setDirty(false);
+                      qc.invalidateQueries({ queryKey: ["strategies"] });
+                      qc.invalidateQueries({ queryKey: ["strategy", id] });
+                    })
+                    .catch(() => {
+                      toast.message("EA updated in editor — click Save if auto-save failed");
+                    });
                 } catch (e: unknown) {
                   toast.error(e instanceof EaGenerationError ? e.message : "Regeneration failed");
                 }

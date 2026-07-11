@@ -33,6 +33,7 @@ import {
   tfConst,
   tickArgForSm,
 } from "./sm-embed-registry";
+import { emitTradingScheduleMql5 } from "@/lib/trading-schedule";
 
 /** Collect all unique TFs that need an iFVG state machine instance. */
 function collectIfvgTFs(config: FourBrainConfig): Map<string, string> {
@@ -429,6 +430,7 @@ export function generateEA(params: MQL5CodeGenParams): string {
   const beAtR = mgmt?.breakEvenAtR ?? 1.0;
   const maxTrades = mgmt?.maxOpenTrades ?? 1;
   const maxStopPts = mgmt?.maxStopPoints ?? 0; // 0 = no limit
+  const sessionMql = emitTradingScheduleMql5(mgmt?.tradingSchedule);
   const useLegacyHeuristics = !aiWiring && configUsesLegacyHeuristics(config);
   const blueprintWiring =
     aiWiring ?? (useLegacyHeuristics ? undefined : buildBlueprintWiring(config, filterRefs));
@@ -584,6 +586,7 @@ input int             InpMaxTrades   = ${maxTrades};         // Max simultaneous
 input bool            InpDebugMarkers = true;                // Draw rule/gate markers on chart
 input bool            InpDebugJournal = true;                // Print rule/gate diagnostics
 ${beEnabled ? `input double InpBEAtR = ${beAtR};  // Move SL to B/E at this R multiple` : ""}
+${sessionMql.inputs}
 
 //--- Global brain state (shared across all brains)
 int    gBias        = 0;      // Direction Brain: 1=BULL, -1=BEAR, 0=NEUTRAL
@@ -657,7 +660,7 @@ bool SpreadOk()
    if(InpMaxSpread <= 0) return true;
    return (int)SymbolInfoInteger(InpSymbol, SYMBOL_SPREAD) <= InpMaxSpread;
 }
-
+${sessionMql.helpers.replace(/InpAudit/g, "InpDebugJournal")}
 //+------------------------------------------------------------------+
 //| Info panel - corner dashboard showing live brain states         |
 //+------------------------------------------------------------------+
@@ -695,6 +698,13 @@ void DrawInfoPanel()
    DrawPanelRow("4B_P4",
       StringFormat("Risk: %.1f%% | R:R %.1fx", InpRiskPercent, InpRewardRisk),
       clrSilver, 75);
+   DrawPanelRow("4B_P5",
+      ${JSON.stringify(
+        /FILTER on/.test(sessionMql.panelLine)
+          ? "Session: FILTER on (broker)"
+          : "Session: all day (broker)",
+      )},
+      clrSilver, 90);
 }
 
 void B4_DebugMark(const string key, ENUM_TIMEFRAMES tf, int shift, double price, color clr, const string text)
@@ -723,7 +733,7 @@ void B4_DebugGate(const string key, const string text, color clr)
 
 void DeleteAllChartObjects()
 {
-   string prefixes[] = { "4B_DIR_", "4B_SETUP_", "4B_EXEC_", "4B_DBG_", "4B_P0", "4B_P1", "4B_P2", "4B_P3", "4B_P4" };
+   string prefixes[] = { "4B_DIR_", "4B_SETUP_", "4B_EXEC_", "4B_DBG_", "4B_P0", "4B_P1", "4B_P2", "4B_P3", "4B_P4", "4B_P5" };
    for(int _p = 0; _p < ArraySize(prefixes); _p++)
    {
       for(int _i = ObjectsTotal(0) - 1; _i >= 0; _i--)
@@ -943,6 +953,7 @@ void OnDeinit(const int reason)
 void OnTick()
 {
    DrawInfoPanel();  // Update corner panel every tick
+${sessionMql.onTickHook.replace(/InpAudit/g, "InpDebugJournal")}
 ${breakEvenCode}
 
    // ── Direction Brain (${dirTF}) ──────────────────────────────────────────────
@@ -983,6 +994,10 @@ ${breakEvenCode}
       if(!gExecSignal) { B4_DebugGate("NO_EXEC", "BLOCKED: no exec signal", clrSilver); return; }
       if(!SpreadOk())  { B4_DebugGate("SPREAD", "BLOCKED: spread too wide", clrTomato); return; }
       if(CountPositions() >= InpMaxTrades) { PrintFormat("[GATE] BLOCKED: max trades %d", InpMaxTrades); B4_DebugGate("MAX_TRADES", "BLOCKED: max trades", clrTomato); return; }
+      if(${sessionMql.helpers.includes("IsTradingTime()") ? "!IsTradingTime()" : "false"}) {
+         B4_DebugGate("SESSION", "BLOCKED: outside session", clrTomato);
+         return;
+      }
 
       PrintFormat("[GATE] OPEN - bias=%d setup=%d execDir=%d SL=%.5f",
                   gBias, gSetupActive, gExecDir, gExecSL);
