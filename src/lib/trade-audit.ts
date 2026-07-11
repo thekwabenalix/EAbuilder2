@@ -7,6 +7,13 @@
 
 import type { StrategyBlueprint, StrategyStepConfig } from "@/types/blueprint";
 import { resolveStrategyFlow } from "@/lib/blueprint-generation-gate";
+import {
+  buildSessionBreakdownFromTimes,
+  emptySessionBreakdown,
+  suggestScheduleFromBreakdown,
+  type SessionBreakdownCounts,
+  type TradingScheduleConfig,
+} from "@/lib/trading-schedule";
 
 export interface ExpectedTradeStep {
   order: number;
@@ -47,6 +54,10 @@ export interface TradeAuditReport {
   equitySnapshots: number;
   hasAuditMarkers: boolean;
   dominantBlock?: string;
+  /** Broker-hour session buckets for entry times (preset approximations). */
+  sessionBreakdown: SessionBreakdownCounts;
+  /** Optional UX hint when entries cluster in one session. */
+  sessionHint?: string | null;
 }
 
 function normalizeBlockReason(raw: string): string {
@@ -68,6 +79,7 @@ function normalizeBlockReason(raw: string): string {
   if (/lot calc|zero_lots/i.test(text)) return "Lot size calculation failed";
   if (/sl_invalid/i.test(text)) return "Invalid stop loss price";
   if (/sl_too_close/i.test(text)) return "Stop loss too close to entry";
+  if (/outside session/i.test(text)) return "Outside trading session";
   return text.length > 80 ? `${text.slice(0, 77)}…` : text;
 }
 
@@ -98,7 +110,10 @@ export function buildExpectedTradePath(blueprint: StrategyBlueprint): ExpectedTr
 }
 
 /** Parse tester / journal log lines into structured trade audit data. */
-export function parseTesterLogForTradeAudit(log: string): TradeAuditReport {
+export function parseTesterLogForTradeAudit(
+  log: string,
+  options?: { tradingSchedule?: TradingScheduleConfig },
+): TradeAuditReport {
   const lines = log.split(/\r?\n/);
   const flowEvents: ParsedFlowEvent[] = [];
   const tradeChains: ParsedTradeChain[] = [];
@@ -219,6 +234,24 @@ export function parseTesterLogForTradeAudit(log: string): TradeAuditReport {
     .map(([reason, meta]) => ({ reason, count: meta.count, sampleLine: meta.sampleLine }))
     .sort((a, b) => b.count - a.count);
 
+  const entryTimes = tradeChains.map((chain) => {
+    const entryStep = [...chain.steps].reverse().find((s) => /entry/i.test(s.name));
+    return entryStep?.time ?? chain.steps[chain.steps.length - 1]?.time ?? "";
+  }).filter(Boolean);
+  // Fallback: use flow events tagged as entry-like if no trade chains
+  if (!entryTimes.length) {
+    for (const ev of flowEvents) {
+      if (/entry/i.test(ev.stepName)) entryTimes.push(ev.time);
+    }
+  }
+  const sessionBreakdown = entryTimes.length
+    ? buildSessionBreakdownFromTimes(entryTimes)
+    : emptySessionBreakdown();
+  const sessionHint = suggestScheduleFromBreakdown(
+    sessionBreakdown,
+    options?.tradingSchedule,
+  );
+
   return {
     flowEvents,
     tradeChains,
@@ -227,6 +260,8 @@ export function parseTesterLogForTradeAudit(log: string): TradeAuditReport {
     equitySnapshots,
     hasAuditMarkers,
     dominantBlock: gateBlocks[0]?.reason,
+    sessionBreakdown,
+    sessionHint,
   };
 }
 
@@ -252,6 +287,8 @@ export function summarizeTradeAudit(
           tradeChains: parsed.tradeChains.length,
           topBlocks: parsed.gateBlocks.slice(0, 5),
           dominantBlock: parsed.dominantBlock ?? null,
+          sessionBreakdown: parsed.sessionBreakdown,
+          sessionHint: parsed.sessionHint ?? null,
         }
       : null,
   };

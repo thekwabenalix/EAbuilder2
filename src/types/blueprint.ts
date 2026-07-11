@@ -3,8 +3,10 @@
 
 import type { StrategyDirection, StrategyEventType } from "../lib/strategy-events";
 import type { StrategyFamily } from "../lib/strategy-family";
+import type { TradingScheduleConfig } from "../lib/trading-schedule";
 
 export type { StrategyFamily };
+export type { TradingScheduleConfig };
 
 export type RuleType =
   // Indicator-based
@@ -461,4 +463,9 @@ export interface ManagementBrainConfig {
   /** Maximum allowed SL distance in POINTS. 0 = no limit. Trades whose SL
    *  distance exceeds this are skipped (e.g. 70 points = 7 pips on a 5-digit pair). */
   maxStopPoints?: number;
+  /**
+   * TIME_SESSION_FILTER — when enabled, new entries only inside broker-time windows.
+   * Open positions continue to be managed (Phase 1 default).
+   */
+  tradingSchedule?: TradingScheduleConfig;
 }

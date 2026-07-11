@@ -55,6 +55,15 @@ function compactStrategySnapshot(blueprint: StrategyBlueprint): string {
     `- rules: ${rules.length} total, ${(blueprint.compilableRuleIds ?? []).length} compilable, ${(blueprint.subjectiveRuleIds ?? []).length} need work`,
     `- execution: symbol=${execution?.symbol ?? "ANY"}, setupTF=${execution?.setupTimeframe ?? "?"}, entryTF=${execution?.entryTimeframe ?? "?"}, spread=${execution?.spreadFilterPoints ?? "?"} points`,
     `- risk: risk=${risk?.riskPercent ?? "?"}%, RR=${risk?.rewardRisk ?? "?"}, maxTrades=${risk?.maxOpenTrades ?? "?"}, BE=${risk?.breakevenEnabled ? "on" : "off"}`,
+    (() => {
+      const sch =
+        blueprint.fourBrain?.management?.tradingSchedule ??
+        blueprint.strategyFlow?.management?.tradingSchedule;
+      if (!sch?.enabled || sch.mode === "all") return "- trading schedule: all day (broker)";
+      if (sch.mode === "presets")
+        return `- trading schedule: presets [${(sch.sessions ?? []).join(", ") || "none"}]`;
+      return `- trading schedule: custom ${(sch.windows ?? []).length} window(s)`;
+    })(),
     blueprint.summary ? `- summary: ${blueprint.summary}` : "",
     blueprint.strategyNotes ? `- strategy notes: ${blueprint.strategyNotes}` : "",
   ]

@@ -73,6 +73,7 @@ import {
   type AssistantApplyFix,
   applyHtfLtfEmaAlignment,
   applyFixFlowWiring,
+  applySetTimeFilter,
 } from "@/lib/assistant-apply";
 import { toast } from "sonner";
 import {
@@ -135,6 +136,14 @@ import {
   smcZoneRejectionEventLabel,
 } from "@/lib/smc-zone-rejection-display";
 import type { StrategyFlowConfig } from "@/types/blueprint";
+import {
+  defaultTradingSchedule,
+  hhmmToMinutes,
+  minutesToHHMM,
+  SESSION_PRESET_LABELS,
+  type TradingScheduleConfig,
+  type TradingSessionPreset,
+} from "@/lib/trading-schedule";
 import {
   buildExpectedTradePath,
   parseTesterLogForTradeAudit,
@@ -557,14 +566,20 @@ function StrategyPage() {
       saveMut.mutate();
       return;
     }
-    if (fix.type === "fix_htf_ltf_ema_alignment" || fix.type === "fix_flow_wiring") {
+    if (
+      fix.type === "fix_htf_ltf_ema_alignment" ||
+      fix.type === "fix_flow_wiring" ||
+      fix.type === "set_time_filter"
+    ) {
       const patched =
-        fix.type === "fix_flow_wiring"
-          ? applyFixFlowWiring(blueprint)
-          : applyHtfLtfEmaAlignment(blueprint);
+        fix.type === "set_time_filter"
+          ? applySetTimeFilter(blueprint, fix)
+          : fix.type === "fix_flow_wiring"
+            ? applyFixFlowWiring(blueprint)
+            : applyHtfLtfEmaAlignment(blueprint);
       if (!patched.changed) {
         setActiveTab(isFourBrain ? "brains" : "builder");
-        toast.message(patched.notes[0] ?? "Configure wiring already looks correct");
+        toast.message(patched.notes[0] ?? "Configure already looks correct");
         return;
       }
       setBlueprint(patched.blueprint);
@@ -581,14 +596,20 @@ function StrategyPage() {
         setDirty(false);
         qc.invalidateQueries({ queryKey: ["strategies"] });
         qc.invalidateQueries({ queryKey: ["strategy", id] });
+        const label =
+          fix.type === "set_time_filter"
+            ? "Trading schedule"
+            : fix.type === "fix_flow_wiring"
+              ? "Flow wiring"
+              : "EMA alignment";
         toast.success(
-          `${fix.type === "fix_flow_wiring" ? "Flow wiring" : "EMA alignment"} applied (${patched.notes.length} change${patched.notes.length === 1 ? "" : "s"}) — compile, then backtest`,
+          `${label} applied (${patched.notes.length} change${patched.notes.length === 1 ? "" : "s"}) — compile, then backtest`,
         );
       } catch (e: unknown) {
         toast.error(
           e instanceof Error
             ? e.message
-            : "Wiring saved in Configure, but regenerate failed — click Regenerate EA",
+            : "Changes saved in Configure, but regenerate failed — click Regenerate EA",
         );
         setActiveTab(isFourBrain ? "brains" : "builder");
       }
@@ -1395,6 +1416,9 @@ function FourBrainTab({
   const [beOn, setBeOn] = useState(mgmt?.breakEvenEnabled ?? false);
   const [beAtR, setBeAtR] = useState(mgmt?.breakEvenAtR ?? 1);
   const [maxTrades, setMaxTrades] = useState(mgmt?.maxOpenTrades ?? 1);
+  const [tradingSchedule, setTradingSchedule] = useState<TradingScheduleConfig>(
+    () => mgmt?.tradingSchedule ?? defaultTradingSchedule(),
+  );
 
   const [builderMode, setBuilderMode] = useState<BuilderFlowMode>(() =>
     builderModeFromBlueprint(blueprint),
@@ -1522,6 +1546,7 @@ function FourBrainTab({
         breakEvenEnabled: beOn,
         breakEvenAtR: beAtR,
         maxOpenTrades: maxTrades,
+        tradingSchedule,
       },
     };
   }
@@ -1590,6 +1615,7 @@ function FourBrainTab({
     beOn,
     beAtR,
     maxTrades,
+    tradingSchedule,
     builderMode,
     flowConfig,
     strategyFamily,
@@ -1883,6 +1909,236 @@ function FourBrainTab({
                 className="flex-1 max-w-32"
               />
               <span className="text-xs font-mono">{beAtR}R</span>
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-border pt-4 space-y-3">
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={tradingSchedule.enabled}
+              onCheckedChange={(on) =>
+                setTradingSchedule((prev) => ({
+                  ...prev,
+                  enabled: on,
+                  mode: on
+                    ? prev.mode === "all"
+                      ? "presets"
+                      : prev.mode
+                    : "all",
+                  sessions:
+                    on && !(prev.sessions?.length)
+                      ? (["london"] as TradingSessionPreset[])
+                      : prev.sessions,
+                }))
+              }
+            />
+            <div>
+              <Label className="text-xs text-muted-foreground">Trading schedule</Label>
+              <p className="text-[10px] text-muted-foreground/70">
+                Broker server time. Outside the window: no new entries; open trades still managed.
+              </p>
+            </div>
+          </div>
+
+          {tradingSchedule.enabled && (
+            <div className="space-y-3 pl-1">
+              <Select
+                value={tradingSchedule.mode === "custom_windows" ? "custom_windows" : "presets"}
+                onValueChange={(v) =>
+                  setTradingSchedule((prev) => ({
+                    ...prev,
+                    mode: v as "presets" | "custom_windows",
+                    sessions:
+                      v === "presets" && !(prev.sessions?.length)
+                        ? (["london"] as TradingSessionPreset[])
+                        : prev.sessions,
+                    windows:
+                      v === "custom_windows" && !(prev.windows?.length)
+                        ? [{ startMin: 7 * 60, endMin: 16 * 60 }]
+                        : prev.windows,
+                  }))
+                }
+              >
+                <SelectTrigger className="h-8 text-xs max-w-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="presets">Session presets</SelectItem>
+                  <SelectItem value="custom_windows">Custom windows</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {tradingSchedule.mode !== "custom_windows" ? (
+                <div className="flex flex-wrap gap-3">
+                  {(Object.keys(SESSION_PRESET_LABELS) as TradingSessionPreset[]).map((id) => {
+                    const on = (tradingSchedule.sessions ?? []).includes(id);
+                    return (
+                      <label key={id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Checkbox
+                          checked={on}
+                          onCheckedChange={(checked) =>
+                            setTradingSchedule((prev) => {
+                              const cur = new Set(prev.sessions ?? []);
+                              if (checked) cur.add(id);
+                              else cur.delete(id);
+                              return { ...prev, sessions: [...cur] };
+                            })
+                          }
+                        />
+                        {SESSION_PRESET_LABELS[id]}
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {(tradingSchedule.windows ?? []).slice(0, 3).map((w, i) => (
+                    <div key={i} className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] text-muted-foreground w-14">Window {i + 1}</span>
+                      <Input
+                        className="h-8 w-20 text-xs font-mono"
+                        value={minutesToHHMM(w.startMin)}
+                        onChange={(e) =>
+                          setTradingSchedule((prev) => {
+                            const windows = [...(prev.windows ?? [])];
+                            windows[i] = {
+                              ...windows[i]!,
+                              startMin: hhmmToMinutes(e.target.value),
+                            };
+                            return { ...prev, windows };
+                          })
+                        }
+                      />
+                      <span className="text-xs text-muted-foreground">→</span>
+                      <Input
+                        className="h-8 w-20 text-xs font-mono"
+                        value={minutesToHHMM(w.endMin)}
+                        onChange={(e) =>
+                          setTradingSchedule((prev) => {
+                            const windows = [...(prev.windows ?? [])];
+                            windows[i] = {
+                              ...windows[i]!,
+                              endMin: hhmmToMinutes(e.target.value),
+                            };
+                            return { ...prev, windows };
+                          })
+                        }
+                      />
+                      {(tradingSchedule.windows?.length ?? 0) > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          onClick={() =>
+                            setTradingSchedule((prev) => ({
+                              ...prev,
+                              windows: (prev.windows ?? []).filter((_, j) => j !== i),
+                            }))
+                          }
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  {(tradingSchedule.windows?.length ?? 0) < 3 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() =>
+                        setTradingSchedule((prev) => ({
+                          ...prev,
+                          windows: [
+                            ...(prev.windows ?? []),
+                            { startMin: 12 * 60, endMin: 16 * 60 },
+                          ],
+                        }))
+                      }
+                    >
+                      Add window
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { d: 1, label: "Mon" },
+                  { d: 2, label: "Tue" },
+                  { d: 3, label: "Wed" },
+                  { d: 4, label: "Thu" },
+                  { d: 5, label: "Fri" },
+                  { d: 6, label: "Sat" },
+                  { d: 0, label: "Sun" },
+                ].map(({ d, label }) => {
+                  const days = tradingSchedule.allowedDays ?? [1, 2, 3, 4, 5];
+                  const on = days.includes(d);
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      className={`h-7 min-w-9 rounded border px-2 text-[10px] font-medium ${
+                        on
+                          ? "border-primary/50 bg-primary/15 text-foreground"
+                          : "border-border text-muted-foreground"
+                      }`}
+                      onClick={() =>
+                        setTradingSchedule((prev) => {
+                          const cur = new Set(prev.allowedDays ?? [1, 2, 3, 4, 5]);
+                          if (cur.has(d)) cur.delete(d);
+                          else cur.add(d);
+                          return { ...prev, allowedDays: [...cur].sort((a, b) => a - b) };
+                        })
+                      }
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Checkbox
+                  checked={tradingSchedule.outsideWindow?.cancelPendingOrders === true}
+                  onCheckedChange={(checked) =>
+                    setTradingSchedule((prev) => ({
+                      ...prev,
+                      outsideWindow: {
+                        allowNewEntries: false,
+                        manageOpenPositions: checked !== true,
+                        closeOpenPositions: prev.outsideWindow?.closeOpenPositions === true,
+                        cancelPendingOrders: checked === true,
+                      },
+                    }))
+                  }
+                />
+                Cancel pending orders outside the window
+              </label>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Checkbox
+                  checked={tradingSchedule.outsideWindow?.closeOpenPositions === true}
+                  onCheckedChange={(checked) =>
+                    setTradingSchedule((prev) => ({
+                      ...prev,
+                      outsideWindow: {
+                        allowNewEntries: false,
+                        manageOpenPositions: checked !== true,
+                        closeOpenPositions: checked === true,
+                        cancelPendingOrders: prev.outsideWindow?.cancelPendingOrders === true,
+                      },
+                    }))
+                  }
+                />
+                Close open positions at session end
+              </label>
+              <p className="text-[10px] text-muted-foreground/70">
+                Default keeps managing open trades outside the window. Closing at session end is
+                optional and uses broker server time.
+              </p>
             </div>
           )}
         </div>

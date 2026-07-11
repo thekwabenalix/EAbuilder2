@@ -867,22 +867,30 @@ export function EaChatDrawer({
         setBacktestUnlockedAfterRegen(true);
         setApplyPipeline("needs_compile");
         const title =
-          fix.type === "fix_flow_wiring"
-            ? "Applied: Strategy Flow wiring"
-            : "Applied: HTF→LTF EMA alignment";
+          fix.type === "set_time_filter"
+            ? "Applied: Trading schedule"
+            : fix.type === "fix_flow_wiring"
+              ? "Applied: Strategy Flow wiring"
+              : "Applied: HTF→LTF EMA alignment";
         const bullets =
-          fix.type === "fix_flow_wiring"
+          fix.type === "set_time_filter"
             ? [
-                "- Direction sources linked for Setup/Entry/Confirmation",
-                "- Entry waits for a **later bar** than Setup (`after`)",
-                "- Zone setups get a sensible **expiry** when missing",
-                "- LTF EMA extras (requireCross) applied when present",
+                "- Management **Trading schedule** updated (broker server time)",
+                "- New entries only inside the allowed window(s)",
+                "- Open positions keep being managed outside the window",
               ]
-            : [
-                "- **requireCross = true** on lower-TF EMA",
-                "- **direction source** → HTF Direction",
-                "- **Entry after Setup** (different bar)",
-              ];
+            : fix.type === "fix_flow_wiring"
+              ? [
+                  "- Direction sources linked for Setup/Entry/Confirmation",
+                  "- Entry waits for a **later bar** than Setup (`after`)",
+                  "- Zone setups get a sensible **expiry** when missing",
+                  "- LTF EMA extras (requireCross) applied when present",
+                ]
+              : [
+                  "- **requireCross = true** on lower-TF EMA",
+                  "- **direction source** → HTF Direction",
+                  "- **Entry after Setup** (different bar)",
+                ];
         setMessages((prev) => [
           ...prev,
           {
@@ -1375,7 +1383,8 @@ export function EaChatDrawer({
               (f) =>
                 f.type === "regen_ea" ||
                 f.type === "fix_htf_ltf_ema_alignment" ||
-                f.type === "fix_flow_wiring",
+                f.type === "fix_flow_wiring" ||
+                f.type === "set_time_filter",
             );
 
             return (

@@ -89,6 +89,13 @@ function explainBrain(
 
 function managementItems(config?: FourBrainConfig): BlueprintExplanationItem[] {
   const management = config?.management ?? {};
+  const schedule = management.tradingSchedule;
+  const scheduleValue =
+    schedule?.enabled && schedule.mode !== "all"
+      ? schedule.mode === "presets"
+        ? `presets (${(schedule.sessions ?? []).join(", ") || "none"})`
+        : `custom (${(schedule.windows ?? []).length} window(s))`
+      : "all day";
   return [
     ["Risk", management.riskPercent ?? 1, "%"],
     ["Reward : Risk", management.rewardRisk ?? 2, "R"],
@@ -97,6 +104,7 @@ function managementItems(config?: FourBrainConfig): BlueprintExplanationItem[] {
     ["Break-even", management.breakEvenEnabled ?? false, ""],
     ["Break-even at", management.breakEvenAtR ?? 1, "R"],
     ["Max open trades", management.maxOpenTrades ?? 1, ""],
+    ["Trading schedule", scheduleValue, ""],
   ].map(([label, value, suffix]) => ({
     label: String(label),
     value: `${displayValue(value)}${suffix ? ` ${suffix}` : ""}`,

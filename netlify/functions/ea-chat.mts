@@ -76,6 +76,12 @@ Available APPLY types:
   alignment extras when LTF EMA is present. Prefer for same-bar Setup/Entry or missing links.
 - [APPLY:{"type":"fix_htf_ltf_ema_alignment"}] - EMA-only HTF→LTF alignment. Use for clear
   H1/M5 EMA cross alignment bugs.
+- [APPLY:{"type":"set_time_filter","sessions":["london","newyork"]}] - sets Management Trading
+  schedule (broker server time). sessions: asia|london|newyork|london_ny_overlap.
+  Custom: {"type":"set_time_filter","windows":[{"start":"07:00","end":"16:00"}]}.
+  Disable: {"type":"set_time_filter","enabled":false}. Optional cancelPendingOrders:true /
+  closeOpenPositions:true (close at session end).
+  Use when the trader wants London/NY hours, or when gates show BLOCKED: outside session.
 - [APPLY:{"type":"save_strategy"}] - saves blueprint + code to the strategy record.
 
 Always pair APPLY with [ACTION:...] or [TOOL:...] for the follow-up step (open_backtest,

@@ -5,6 +5,7 @@ import {
   parseTesterLogForTradeAudit,
   type TradeAuditReport,
 } from "@/lib/trade-audit";
+import { SESSION_PRESET_LABELS } from "@/lib/trading-schedule";
 import {
   buildRuleAudit,
   type RuleAuditStepStatus,
@@ -68,8 +69,15 @@ export function TradeAuditPanel({
 }) {
   const expected = useMemo(() => buildExpectedTradePath(blueprint), [blueprint]);
   const parsed: TradeAuditReport | null = useMemo(
-    () => (testerLog?.trim() ? parseTesterLogForTradeAudit(testerLog) : null),
-    [testerLog],
+    () =>
+      testerLog?.trim()
+        ? parseTesterLogForTradeAudit(testerLog, {
+            tradingSchedule:
+              blueprint.fourBrain?.management?.tradingSchedule ??
+              blueprint.strategyFlow?.management?.tradingSchedule,
+          })
+        : null,
+    [testerLog, blueprint],
   );
   const ruleAudit = useMemo(
     () => buildRuleAudit({ blueprint, testerLog, parsed }),
@@ -215,6 +223,38 @@ export function TradeAuditPanel({
                 <p className="text-[11px] font-medium text-amber-300">Most common block</p>
                 <p className="text-[11px] text-muted-foreground">{parsed.dominantBlock}</p>
               </div>
+            </div>
+          )}
+
+          {parsed.tradesOpened > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                Entries by broker session (approx.)
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                {(
+                  Object.entries(parsed.sessionBreakdown) as Array<
+                    [keyof typeof parsed.sessionBreakdown, number]
+                  >
+                )
+                  .filter(([, n]) => n > 0)
+                  .map(([key, n]) => (
+                    <div
+                      key={key}
+                      className="rounded border border-border/70 bg-background/40 px-2.5 py-1.5 flex items-center justify-between gap-2"
+                    >
+                      <span className="text-[10px] text-muted-foreground truncate">
+                        {key === "other"
+                          ? "Other / unknown"
+                          : SESSION_PRESET_LABELS[key as keyof typeof SESSION_PRESET_LABELS]}
+                      </span>
+                      <span className="text-xs font-mono font-semibold shrink-0">{n}</span>
+                    </div>
+                  ))}
+              </div>
+              {parsed.sessionHint && (
+                <p className="text-[10px] text-sky-300/90 leading-relaxed">{parsed.sessionHint}</p>
+              )}
             </div>
           )}
 

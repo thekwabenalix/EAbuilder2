@@ -61,6 +61,7 @@ assertEq(parsed.tradeChains.length, 1, "one trade chain parsed");
 assertEq(parsed.tradesOpened, 1, "one trade opened");
 assertEq(parsed.gateBlocks[0]?.reason, "No execution signal", "dominant block normalized");
 assertEq(parsed.equitySnapshots, 1, "equity snapshot parsed");
+assertOk(parsed.sessionBreakdown.london_ny_overlap >= 1 || parsed.sessionBreakdown.london >= 1, "session breakdown from entry time");
 
 const summary = summarizeTradeAudit(expected, parsed);
 assertEq((summary.observed as { tradesOpened: number }).tradesOpened, 1, "summary includes trades");

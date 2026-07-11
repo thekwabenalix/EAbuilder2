@@ -221,6 +221,20 @@ export function buildAssistantRepairPlan(input: {
       const riskLike = /spread|max open|stop loss|lot size|invalid stop|too close/i.test(
         parsed.dominantBlock,
       );
+      const sessionLike = /outside session|session filter|trading time/i.test(
+        parsed.dominantBlock,
+      );
+      if (sessionLike) {
+        return {
+          layer: "risk_filter",
+          title: "Session filter blocked new entries",
+          reasons: parsed.gateBlocks.slice(0, 4).map((b) => `${b.reason}: ${b.count}x`),
+          action: "open_brains",
+          apply: { type: "set_time_filter", enabled: false },
+          verify:
+            "Widen or disable Trading Schedule under Management, Apply, compile, then retest the same period.",
+        };
+      }
       return {
         layer: riskLike ? "risk_filter" : "strategy_flow",
         title: `Entry gate blocked trades: ${parsed.dominantBlock}`,

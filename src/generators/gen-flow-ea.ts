@@ -4,6 +4,9 @@
  * State machines are embedded via sm-embed-registry.ts (shared with gen-ea.ts).
  */
 
+import {
+  emitTradingScheduleMql5,
+} from "@/lib/trading-schedule";
 import type {
   StrategyFlowConfig,
   StrategyStepConfig,
@@ -564,6 +567,7 @@ function emitGate(
   step: StrategyStepConfig,
   steps: StrategyStepConfig[],
   filterRefs?: BuiltinFilterRef[],
+  sessionEntryGate = "",
 ): string {
   const dependsOn = step.dependsOn ?? [];
   const andDeps = dependsOn.filter((dep) => !dep.orGroup);
@@ -623,6 +627,7 @@ ${andChecks}
 ${orChecks}
 ${expiry}
 ${filterChecks}
+${sessionEntryGate}
    if(OpenPositions() >= InpMaxOpenTrades) return;
    if(OpenTrade(${entryIdx}, dir))
    {
@@ -653,6 +658,8 @@ export function generateFlowEA(
   const maxStop = mgmt?.maxStopPoints ?? 0;
   const maxOpen = mgmt?.maxOpenTrades ?? 1;
   const stopBuffer = mgmt?.stopBuffer ?? 0;
+  const schedule = mgmt?.tradingSchedule;
+  const sessionMql = emitTradingScheduleMql5(schedule);
   const entryIdxs = steps.map((s, i) => (isTradeEntry(s.role) ? i : -1)).filter((i) => i >= 0);
   const setupStep = steps.find((s) => s.role === "setup" || s.role === "filter");
   const expiryBars = defaultSetupExpiryBars(setupStep);
@@ -689,7 +696,9 @@ export function generateFlowEA(
     .map((s, i) => `   gStepName[${i}] = "${(s.name || s.role).replace(/"/g, "")}";`)
     .join("\n");
   const detections = steps.map((s, i) => emitDetection(s, i, steps)).join("\n\n");
-  const gates = entryIdxs.map((i) => emitGate(i, steps[i], steps, filterRefs)).join("\n\n");
+  const gates = entryIdxs
+    .map((i) => emitGate(i, steps[i], steps, filterRefs, sessionMql.entryGate))
+    .join("\n\n");
 
   // OnTick: per TF bar -> tick SMs on that TF, run detections on that TF, then entry gates
   const tfGroups = new Map<string, number[]>();
@@ -758,6 +767,7 @@ input int    InpStopBufferPts  = ${stopBuffer};
 input int    InpMaxOpenTrades  = ${maxOpen};
 input int    InpSetupExpiryBars = ${expiryBars};
 input bool   InpAudit         = true;
+${sessionMql.inputs}
 
 string InpSymbol;
 
@@ -777,7 +787,7 @@ string          gLastGate = "idle";
 int             gTradeCount = 0;
 
 string DirTxt(int d) { return d == 1 ? "BULL" : d == -1 ? "BEAR" : "-"; }
-
+${sessionMql.helpers}
 void RegisterEvent(int step, int dir, datetime t, double price, double sl)
 {
    gFired[step] = true; gDir[step] = dir; gTime[step] = t; gSL[step] = sl;
@@ -926,6 +936,7 @@ void UpdatePanel()
 {
    string s = "${eaName} (flow over verified SMs)\\n";
 ${panelLines}
+${sessionMql.panelLine}
    s += "Last gate: " + gLastGate + "\\n";
    s += "Trades opened: " + IntegerToString(gTradeCount) + "\\n";
    s += "Risk " + DoubleToString(InpRiskPct,1) + "%  R:R " + DoubleToString(InpRewardRisk,1) + "x";
@@ -967,6 +978,7 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
 void OnTick()
 {
 ${onTickBody}
+${sessionMql.onTickHook}
    UpdatePanel();
 }
 `;

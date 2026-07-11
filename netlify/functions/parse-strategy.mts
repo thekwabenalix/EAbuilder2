@@ -5,6 +5,12 @@ import { collectBuiltinFilterRefs } from "../../src/lib/builtin-filter-contracts
 import { enrichBlueprintWithStrategyFlow } from "../../src/lib/blueprint-flow-enrich.js";
 import { inferStrategyFamilyFromModules } from "../../src/lib/strategy-family.js";
 import { repairZoneScopedRejectionConfig } from "../../src/lib/zone-scoped-rejection-repair.js";
+import {
+  extractTradingScheduleFromText,
+  mergeTradingSchedule,
+  sanitizeTradingSchedule,
+  tradingScheduleFromSessionFilter,
+} from "../../src/lib/trading-schedule.js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -218,7 +224,14 @@ Match this exact TypeScript interface:
       "breakEvenEnabled": boolean,
       "breakEvenAtR": number,
       "maxOpenTrades": number,
-      "maxStopPoints": number
+      "maxStopPoints": number,
+      "tradingSchedule": null | {
+        "enabled": boolean,
+        "mode": "all" | "presets" | "custom_windows",
+        "sessions": string[],
+        "windows": Array<{ "startMin": number, "endMin": number }>,
+        "allowedDays": number[]
+      }
     }
   }
 }
@@ -233,6 +246,10 @@ Match this exact TypeScript interface:
 - Pure classic/gap SNR wick rejection (no FVG/OB/Unicorn zone) may use setup=gap_snr or snr with execution=rejection.
 - If timeframes are specified, use them exactly. If missing, default to D1 direction, H4 setup, M15 execution.
 - Put any cross-brain notes in strategyNotes, not in invented modules.
+- If the trader names sessions (London, New York, Asia, overlap) or trading hours (e.g. 07:00-16:00),
+  set fourBrain.management.tradingSchedule.enabled=true with mode presets/custom_windows.
+  Do NOT invent a session filter when the trader did not mention hours/sessions.
+  Default remains no filter (trade all day).
 
 Rule type taxonomy (use the closest match, or "custom" if none fit):
 ema_cross, ema_touch, ema_alignment, ema_band,
@@ -1607,6 +1624,23 @@ export function normalizeBlueprint(
     corpus,
   );
 
+  const execSessionFilter = Array.isArray(
+    (blueprint.execution as { sessionFilter?: unknown } | undefined)?.sessionFilter,
+  )
+    ? ((blueprint.execution as { sessionFilter: string[] }).sessionFilter)
+    : [];
+  const rawSchedule = sanitizeTradingSchedule(
+    rawMgmt.tradingSchedule && typeof rawMgmt.tradingSchedule === "object"
+      ? (rawMgmt.tradingSchedule as Parameters<typeof sanitizeTradingSchedule>[0])
+      : undefined,
+  );
+  const tradingSchedule = mergeTradingSchedule(
+    mergeTradingSchedule(rawSchedule, tradingScheduleFromSessionFilter(execSessionFilter)),
+    extractTradingScheduleFromText(
+      `${corpus}\n${typeof blueprint.strategyNotes === "string" ? blueprint.strategyNotes : ""}`,
+    ),
+  );
+
   blueprint.fourBrain = {
     direction: zoneRepairedConfig.direction,
     setup: zoneRepairedConfig.setup,
@@ -1621,6 +1655,7 @@ export function normalizeBlueprint(
       breakEvenAtR: breakEvenAtRFromText ?? num(rawMgmt.breakEvenAtR, 1),
       maxOpenTrades: num(rawMgmt.maxOpenTrades, num(risk.maxOpenTrades, 1)),
       maxStopPoints: maxStopPointsFromText ?? num(rawMgmt.maxStopPoints, 0),
+      ...(tradingSchedule ? { tradingSchedule } : {}),
     },
   };
 
