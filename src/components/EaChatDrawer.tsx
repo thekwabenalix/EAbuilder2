@@ -358,7 +358,7 @@ interface EaChatDrawerProps {
    */
   onRegenTemplate?: () => void | Promise<void | RegenEaResult>;
   /** Apply structured fixes the assistant recommends (regen EA, backtest period, save). */
-  onApplyAssistantFix?: (fix: AssistantApplyFix) => void;
+  onApplyAssistantFix?: (fix: AssistantApplyFix) => void | Promise<void>;
 }
 
 const DRAWER_WIDTH_KEY = "ea-assistant-drawer-width";
@@ -843,6 +843,45 @@ export function EaChatDrawer({
   };
 
   const handleApplyAssistantFix = async (fix: AssistantApplyFix) => {
+    if (fix.type === "fix_htf_ltf_ema_alignment") {
+      if (!onApplyAssistantFix) {
+        toast.error("Alignment fix is not available for this strategy");
+        return;
+      }
+      setRegenLoading(true);
+      try {
+        await onApplyAssistantFix(fix);
+        setBacktestUnlockedAfterRegen(true);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: [
+              "## Applied: HTF→LTF EMA alignment",
+              "",
+              "Configure was updated so lower-TF EMA Setup/Entry:",
+              "- **requireCross = true** (must actually cross on M5)",
+              "- **direction source** points at the HTF Direction step",
+              "- **Entry waits for a later bar** than Setup (`after`)",
+              "",
+              "EA was regenerated and saved from that wiring.",
+              "",
+              "### Next (required)",
+              "1. **Compile EA** (new `.ex5`)",
+              "2. Backtest with **InpAudit=true**",
+              "3. Sells should wait until M5 has crossed bearish when H1 is BEAR (and the reverse for bull)",
+              "",
+              '[TOOL:{"action":"open_backtest","reason":"Compile the alignment-fixed EA, then run report backtest with InpAudit=true."}]',
+            ].join("\n"),
+          },
+        ]);
+      } catch (e: unknown) {
+        toast.error(e instanceof Error ? e.message : "Alignment fix failed");
+      } finally {
+        setRegenLoading(false);
+      }
+      return;
+    }
     if (fix.type === "regen_ea") {
       if (!onRegenTemplate) {
         toast.error("Regenerate is not available for this strategy");
@@ -870,7 +909,7 @@ export function EaChatDrawer({
           ? "Direction-alignment gate is present in the new EA (`entry not aligned` / direction mismatch blocks)."
           : codeHasDirectionAlignGate(code)
             ? "Alignment checks were already in the previous code — recompile so MT5 picks up the saved file."
-            : "If trades still ignore HTF bias after recompile, open Configure and confirm Setup/Entry `directionSource` points at the Direction step.";
+            : "If trades still ignore HTF bias after recompile, use **Fix H1→M5 EMA alignment** (not another plain regen).";
 
         setMessages((prev) => [
           ...prev,
@@ -880,7 +919,7 @@ export function EaChatDrawer({
               "## Applied: EA regenerated from blueprint",
               "",
               result?.changed === false
-                ? "- Code was **already** up to date with the blueprint (nothing new to write)."
+                ? "- Code was **already** up to date with the blueprint (nothing new to write). Plain regen will not fix H1↔M5 behaviour — use **Fix H1→M5 EMA alignment** if sells still fire while M5 has not crossed with H1."
                 : "- MQL5 was rewritten from your Strategy Flow / 4-Brain blueprint.",
               result?.saved
                 ? "- Strategy was **saved** automatically."
@@ -893,7 +932,9 @@ export function EaChatDrawer({
               "2. Run a report backtest with **InpAudit=true**.",
               "3. Opposite-direction M5 crosses should show `[GATE] BLOCKED: entry not aligned…`, not trades.",
               "",
-              '[TOOL:{"action":"open_backtest","reason":"Compile the saved EA, then run a report backtest with InpAudit=true."}]',
+              result?.changed === false
+                ? '[APPLY:{"type":"fix_htf_ltf_ema_alignment"}]\n[TOOL:{"action":"open_brains","reason":"Plain regen changed nothing — open Configure and apply HTF→LTF EMA alignment wiring."}]'
+                : '[TOOL:{"action":"open_backtest","reason":"Compile the saved EA, then run a report backtest with InpAudit=true."}]',
             ]
               .filter(Boolean)
               .join("\n"),
@@ -907,7 +948,7 @@ export function EaChatDrawer({
       return;
     }
     if (onApplyAssistantFix) {
-      onApplyAssistantFix(fix);
+      await onApplyAssistantFix(fix);
       return;
     }
     toast.error("This fix cannot be applied from the assistant yet");
@@ -927,7 +968,8 @@ export function EaChatDrawer({
         disabled={loading || applyLoading || regenLoading}
         className="h-7 bg-emerald-700 hover:bg-emerald-600 text-white border-0 text-[11px]"
       >
-        {regenLoading && fix.type === "regen_ea" ? (
+        {regenLoading &&
+        (fix.type === "regen_ea" || fix.type === "fix_htf_ltf_ema_alignment") ? (
           <>
             <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
             Regenerating…
@@ -1235,7 +1277,9 @@ export function EaChatDrawer({
               m.role === "assistant" && !isStreaming ? extractToolMarkers(m.content) : [];
             const applyFixes =
               m.role === "assistant" && !isStreaming ? extractApplyMarkers(m.content) : [];
-            const requiresRegenBeforeBacktest = applyFixes.some((f) => f.type === "regen_ea");
+            const requiresRegenBeforeBacktest = applyFixes.some(
+              (f) => f.type === "regen_ea" || f.type === "fix_htf_ltf_ema_alignment",
+            );
 
             return (
               <div

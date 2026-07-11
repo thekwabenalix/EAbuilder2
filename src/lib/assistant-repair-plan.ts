@@ -7,7 +7,7 @@
  */
 
 import type { StrategyBlueprint } from "@/types/blueprint";
-import { resolveFlowBacktestPeriod, type AssistantApplyFix } from "@/lib/assistant-apply";
+import { resolveFlowBacktestPeriod, type AssistantApplyFix, looksLikeHtfLtfMisalignment } from "@/lib/assistant-apply";
 import { buildExpectedTradePath, parseTesterLogForTradeAudit } from "@/lib/trade-audit";
 import { buildModuleRepairPlan, MODULE_ADMISSION } from "@/lib/module-admission";
 import { previewEaGeneration } from "@/lib/generate-ea-router";
@@ -76,11 +76,15 @@ export function buildAssistantRepairPlan(input: {
   compileLog?: string | null;
   testerLog?: string | null;
   backtestSummary?: Record<string, unknown> | null;
+  userMessage?: string | null;
 }): AssistantRepairPlan {
-  const { blueprint, code, compileLog, testerLog, backtestSummary } = input;
+  const { blueprint, code, compileLog, testerLog, backtestSummary, userMessage } = input;
   const expectedPeriod = resolveFlowBacktestPeriod(blueprint).toUpperCase();
   const moduleIds = selectedModuleIds(blueprint);
   const moduleRepair = buildModuleRepairPlan(moduleIds);
+  const alignmentComplaint =
+    looksLikeHtfLtfMisalignment(userMessage ?? "") ||
+    looksLikeHtfLtfMisalignment(testerLog ?? "");
 
   if (moduleRepair.blocked.length) {
     return {
@@ -165,6 +169,24 @@ export function buildAssistantRepairPlan(input: {
       typeof backtestSummary?.totalTrades === "number"
         ? backtestSummary.totalTrades
         : parsed.tradesOpened;
+
+    if (alignmentComplaint || /not before entry/i.test(testerLog ?? "")) {
+      return {
+        layer: "strategy_flow",
+        title: "HTF↔LTF EMA alignment is not enforced the way the trader expects",
+        reasons: [
+          totalTrades > 0
+            ? `Trades opened (${totalTrades}) while alignment/cross timing looks wrong.`
+            : "Trader reports M5 entries without waiting for an M5 cross in the H1 direction.",
+          "Plain regen_ea is not enough when Configure wiring already matches the last generated code.",
+        ],
+        apply: { type: "fix_htf_ltf_ema_alignment" },
+        action: "open_brains",
+        verify:
+          "Apply HTF→LTF EMA alignment, compile, backtest with InpAudit=true, confirm M5 only arms after a same-direction cross.",
+      };
+    }
+
     if (totalTrades > 0) {
       return {
         layer: "working",

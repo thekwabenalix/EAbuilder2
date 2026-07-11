@@ -161,6 +161,8 @@ export interface AssistantChatContextInput {
   testerLog: string | null;
   backtestSummary: unknown;
   diagnosticContext: unknown;
+  /** Latest trader message — used for alignment / wrong-entry repair classification. */
+  userMessage?: string | null;
   /** Smaller cap when chart screenshots are attached (vision + context must fit). */
   maxChars?: number;
 }
@@ -177,6 +179,7 @@ export function buildAssistantChatContext(input: AssistantChatContextInput): str
       input.backtestSummary && typeof input.backtestSummary === "object"
         ? (input.backtestSummary as Record<string, unknown>)
         : null,
+    userMessage: input.userMessage,
   });
   const ruleAudit = buildRuleAudit({
     blueprint: input.blueprint,

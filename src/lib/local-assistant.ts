@@ -13,7 +13,7 @@ import {
 } from "@/lib/trade-audit";
 import { generationPathLabel, previewEaGeneration } from "@/lib/generate-ea-router";
 import { formatBrainChain } from "@/lib/brain-modules";
-import { resolveFlowBacktestPeriod, codeHasDirectionAlignGate } from "@/lib/assistant-apply";
+import { resolveFlowBacktestPeriod, codeHasDirectionAlignGate, looksLikeHtfLtfMisalignment } from "@/lib/assistant-apply";
 import {
   buildAssistantRepairPlan,
   repairPlanToMarkdown,
@@ -115,39 +115,48 @@ function wiringVerdict(blueprint: StrategyBlueprint, code?: string): string[] {
     );
     lines.push(
       "",
-      "**Do now:** Fix the link in Configure, then Apply regenerate, **Compile**, and backtest with **InpAudit=true**.",
+      "**Do now:** Apply **Fix H1→M5 EMA alignment** (wires direction source + requireCross), then **Compile**, and backtest with **InpAudit=true**.",
     );
-    lines.push('[APPLY:{"type":"regen_ea"}]', "[ACTION:open_brains]", "[ACTION:open_backtest]");
+    lines.push(
+      '[APPLY:{"type":"fix_htf_ltf_ema_alignment"}]',
+      "[ACTION:open_brains]",
+      "[ACTION:open_backtest]",
+    );
     return lines;
   }
 
   if (hasGate) {
     lines.push(
       "",
-      "**Generated EA already includes the direction-alignment gate** (`entry not aligned` / direction mismatch).",
+      "**Generated EA already includes a direction-alignment gate** in EvaluateEntry.",
     );
     lines.push(
-      "If you still see opposite-direction trades, you are likely running an **old compiled `.ex5`**. Apply does not help until you **Compile** again and re-backtest.",
+      "If the chart still shows sells while M5 EMAs are opposite H1 bias, plain **regen will not change anything** — the Strategy Flow wiring needs the HTF→LTF EMA alignment fix (requireCross + direction source + entry after setup).",
     );
     lines.push(
       "",
-      "**Do now:** Compile EA → backtest with **InpAudit=true** → look for `[GATE] BLOCKED: entry not aligned…`.",
+      "**Do now:** Apply **Fix H1→M5 EMA alignment**, then **Compile**, then backtest with **InpAudit=true**.",
     );
     lines.push(
-      '[TOOL:{"action":"open_backtest","reason":"Compile the current EA and backtest with InpAudit=true — alignment gate is already in code."}]',
+      '[APPLY:{"type":"fix_htf_ltf_ema_alignment"}]',
+      '[TOOL:{"action":"open_backtest","reason":"After Apply, compile and backtest with InpAudit=true."}]',
     );
     return lines;
   }
 
   lines.push(
     "",
-    "**Blueprint already links lower TF → Direction**, but this MQL5 copy is missing the alignment gate text.",
+    "**Blueprint links look incomplete for HTF→LTF EMA alignment**, or the MQL5 copy is missing the gate text.",
   );
   lines.push(
     "",
-    "**Do now:** Apply regenerate (saves new MQL5), then **Compile**, then backtest with **InpAudit=true**.",
+    "**Do now:** Apply **Fix H1→M5 EMA alignment** (patches Configure + regenerates). Then **Compile** and backtest with **InpAudit=true**.",
   );
-  lines.push('[APPLY:{"type":"regen_ea"}]', "[ACTION:open_brains]", "[ACTION:open_backtest]");
+  lines.push(
+    '[APPLY:{"type":"fix_htf_ltf_ema_alignment"}]',
+    "[ACTION:open_brains]",
+    "[ACTION:open_backtest]",
+  );
   return lines;
 }
 
@@ -393,6 +402,7 @@ export function answerLocalAssistant(input: LocalAssistantInput): string {
     compileLog: input.compileLog,
     testerLog: input.testerLog,
     backtestSummary: input.backtestSummary,
+    userMessage: input.userMessage,
   });
   const ruleAudit = buildRuleAudit({
     blueprint: input.blueprint,

@@ -68,7 +68,7 @@ import {
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EaChatDrawer, type EaAssistantAction } from "@/components/EaChatDrawer";
-import { resolveFlowBacktestPeriod, type AssistantApplyFix } from "@/lib/assistant-apply";
+import { resolveFlowBacktestPeriod, type AssistantApplyFix, applyHtfLtfEmaAlignment } from "@/lib/assistant-apply";
 import { toast } from "sonner";
 import {
   buildExportFilename,
@@ -541,7 +541,7 @@ function StrategyPage() {
     setActiveTab(nextTab);
   };
 
-  const handleApplyAssistantFix = (fix: AssistantApplyFix) => {
+  const handleApplyAssistantFix = async (fix: AssistantApplyFix) => {
     if (fix.type === "set_backtest_period") {
       setBacktestPeriodPatch(fix.period);
       setActiveTab("backtest");
@@ -550,6 +550,40 @@ function StrategyPage() {
     }
     if (fix.type === "save_strategy") {
       saveMut.mutate();
+      return;
+    }
+    if (fix.type === "fix_htf_ltf_ema_alignment") {
+      const patched = applyHtfLtfEmaAlignment(blueprint);
+      if (!patched.changed) {
+        setActiveTab(isFourBrain ? "brains" : "builder");
+        toast.message(patched.notes[0] ?? "Configure already has HTF→LTF EMA alignment wiring");
+        return;
+      }
+      setBlueprint(patched.blueprint);
+      setDirty(true);
+      try {
+        const result = generateEaFromBlueprint(patched.blueprint);
+        setGeneratedCode(result.code);
+        setActiveTab("code");
+        await updateStrategy(id, {
+          name: name || "Untitled Strategy",
+          blueprint: patched.blueprint,
+          generatedCode: result.code,
+        });
+        setDirty(false);
+        qc.invalidateQueries({ queryKey: ["strategies"] });
+        qc.invalidateQueries({ queryKey: ["strategy", id] });
+        toast.success(
+          `HTF→LTF EMA alignment applied (${patched.notes.length} change${patched.notes.length === 1 ? "" : "s"}) — compile, then backtest`,
+        );
+      } catch (e: unknown) {
+        toast.error(
+          e instanceof Error
+            ? e.message
+            : "Alignment wiring saved in Configure, but regenerate failed — click Regenerate EA",
+        );
+        setActiveTab(isFourBrain ? "brains" : "builder");
+      }
       return;
     }
     if (fix.type === "regen_ea") {

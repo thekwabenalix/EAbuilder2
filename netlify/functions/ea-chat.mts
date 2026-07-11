@@ -70,7 +70,12 @@ Available APPLY types:
 - [APPLY:{"type":"set_backtest_period","period":"M30"}] - sets MT5 tester period (use when
   backtest ran on wrong TF vs strategy flow, e.g. M5 tester but M30 flow).
 - [APPLY:{"type":"regen_ea"}] - regenerates MQL5 from the current blueprint/flow (wiring fixes,
-  direction alignment gates, confluence, module params already on the blueprint).
+  confluence, module params already on the blueprint). Do NOT emit this again if the last
+  Apply already said "code was already up to date".
+- [APPLY:{"type":"fix_htf_ltf_ema_alignment"}] - patches Configure so LTF EMA Setup/Entry
+  require a real cross, take direction from the HTF Direction step, and entry waits for a
+  later bar than setup — then regenerates. USE THIS when H1 bias / M5 entry alignment is wrong
+  (chart shows sells while M5 EMAs are still bullish under H1 BEAR, or the reverse).
 - [APPLY:{"type":"save_strategy"}] - saves blueprint + code to the strategy record.
 
 Always pair APPLY with [ACTION:...] or [TOOL:...] for the follow-up step (open_backtest,
@@ -80,18 +85,20 @@ regen_template, open_brains). Example for tester TF mismatch:
 [TOOL:{"action":"open_backtest","reason":"Period set to M30 - recompile and run backtest."}]
 
 DIRECTION / CONFLUENCE MISALIGNMENT (H1 bias vs M5 cross/entry, gDir mismatch, "trades fire
-when LTF is opposite HTF"):
-1. Explain the rule in plain English (HTF direction must agree with LTF entry).
-2. FIRST inspect the CODE attachment. If it already contains "entry not aligned" or
-   "BLOCKED: direction mismatch" / DIR_MISMATCH, the gate is ALREADY generated —
-   do NOT claim EvaluateEntry skips the check, and do NOT emit regen_ea again.
-   Tell the trader to **Compile** the saved EA and backtest with InpAudit=true
-   (old .ex5 is the usual reason the bug "still" appears after Apply).
-3. Only if the gate text is missing: emit [APPLY:{"type":"regen_ea"}] so the verified
-   Strategy Flow generator rebuilds + saves the EA with the direction-alignment gate.
+when LTF is opposite HTF", chart panel shows Direction BEAR while M5 EMAs still bullish):
+1. Explain the rule in plain English (HTF direction must agree with LTF entry; M5 must cross
+   in that direction before entry).
+2. If the trader already Applied plain regen_ea and code was unchanged, or the chart still
+   shows the same bug after compile: emit
+   [APPLY:{"type":"fix_htf_ltf_ema_alignment"}]
+   — NOT another regen_ea.
+3. Only if the gate text is missing AND Configure was never alignment-patched: you may emit
+   fix_htf_ltf_ema_alignment (preferred) or regen_ea.
 4. Emit [TOOL:{"action":"open_backtest","reason":"Compile the EA and backtest with InpAudit=true."}]
 5. NEVER tell the user to manually patch EvaluateEntry(), add if(gDir[2]!=gDir[0]), or edit
    line numbers in the .mq5. That is unsafe and bypasses verified generators.
+6. NEVER invent requireCross toggles as chat-only advice without an APPLY button when
+   fix_htf_ltf_ema_alignment can do it.
 
 Do not tell the user to manually change settings or MQL5 when APPLY can do it.
 If the DETERMINISTIC REPAIR PLAN already includes an APPLY, emit that same APPLY (do not invent
@@ -391,6 +398,7 @@ export default async (req: Request): Promise<Response> => {
 
   // Inject budgeted context - smaller when screenshots are attached (vision token budget)
   const hasImages = images.length > 0;
+  const lastUserMessage = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
   const contextBlock = buildAssistantChatContext({
     blueprint: asBlueprint(blueprint),
     prompt,
@@ -399,6 +407,7 @@ export default async (req: Request): Promise<Response> => {
     testerLog,
     backtestSummary,
     diagnosticContext,
+    userMessage: lastUserMessage,
     maxChars: hasImages ? 48_000 : 120_000,
   });
 

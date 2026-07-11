@@ -4,13 +4,24 @@
 
 import type { StrategyBlueprint } from "@/types/blueprint";
 import { resolveStrategyFlow } from "@/lib/blueprint-generation-gate";
+import {
+  applyHtfLtfEmaAlignment,
+  looksLikeHtfLtfMisalignment,
+} from "@/lib/assistant-htf-ltf-fix";
 
 export type AssistantApplyFix =
   | { type: "regen_ea" }
   | { type: "set_backtest_period"; period: string }
-  | { type: "save_strategy" };
+  | { type: "save_strategy" }
+  /** Patch Strategy Flow so LTF EMA waits for HTF Direction alignment, then regen. */
+  | { type: "fix_htf_ltf_ema_alignment" };
 
-const APPLY_TYPES = new Set(["regen_ea", "set_backtest_period", "save_strategy"]);
+const APPLY_TYPES = new Set([
+  "regen_ea",
+  "set_backtest_period",
+  "save_strategy",
+  "fix_htf_ltf_ema_alignment",
+]);
 
 export function extractApplyMarkers(text: string): AssistantApplyFix[] {
   const fixes: AssistantApplyFix[] = [];
@@ -34,6 +45,12 @@ export function extractApplyMarkers(text: string): AssistantApplyFix[] {
       }
       if (type === "save_strategy" && !fixes.some((f) => f.type === "save_strategy")) {
         fixes.push({ type: "save_strategy" });
+      }
+      if (
+        type === "fix_htf_ltf_ema_alignment" &&
+        !fixes.some((f) => f.type === "fix_htf_ltf_ema_alignment")
+      ) {
+        fixes.push({ type: "fix_htf_ltf_ema_alignment" });
       }
     } catch {
       // ignore malformed APPLY JSON
@@ -69,6 +86,8 @@ export function applyFixLabel(fix: AssistantApplyFix): string {
       return `Set backtest period to ${fix.period}`;
     case "save_strategy":
       return "Save strategy";
+    case "fix_htf_ltf_ema_alignment":
+      return "Fix H1→M5 EMA alignment in Configure";
   }
 }
 
@@ -92,3 +111,4 @@ export type RegenEaResult = {
   error?: string;
 };
 
+export { applyHtfLtfEmaAlignment, looksLikeHtfLtfMisalignment };

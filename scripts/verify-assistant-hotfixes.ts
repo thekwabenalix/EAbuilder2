@@ -185,7 +185,7 @@ const alignAsk = answerLocalAssistant({
 });
 assertOk(alignAsk.includes("Intended rule"), "alignment ask explains H1→M5 rule");
 assertOk(!alignAsk.includes("Tester log is missing"), "alignment ask does not dump missing-log repair");
-assertOk(alignAsk.includes("regen_ea"), "alignment ask offers regen apply");
+assertOk(alignAsk.includes("fix_htf_ltf_ema_alignment"), "alignment ask offers HTF→LTF fix apply");
 console.log("[OK  ] offline assistant answers H1/M5 alignment asks");
 
 // Phase 4 — credit policy
