@@ -22,6 +22,9 @@ verify-output*.txt
 .env.*
 !.env.example
 
+# Local reference clones (not part of the product)
+_ref_vibe_trading/
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars

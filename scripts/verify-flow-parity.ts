@@ -259,6 +259,11 @@ assertOk(
   /if\(!gFired\[0\]\) return/.test(emaCrossTfCode),
   "M5 setup waits for H1 direction to fire",
 );
+assertOk(
+  emaCrossTfCode.includes("entry not aligned with") ||
+    emaCrossTfCode.includes("BLOCKED: entry not aligned"),
+  "entry gate hard-requires H1 direction alignment",
+);
 console.log("[OK  ] H1 direction feeds M5 EMA tick + bias guard");
 assertOk(
   emaSameTfCode.includes("InpSetupExpiryBars > 0 &&"),

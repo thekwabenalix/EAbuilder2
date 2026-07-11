@@ -544,6 +544,21 @@ function emitDepCheck(
    if(gDir[${stepIdx}] != dir) { gLastGate = "BLOCKED: direction mismatch"; return; }`;
 }
 
+/** Always require entry dir to match every Direction step (e.g. H1 bias vs M5 cross). */
+function emitDirectionAlignmentCheck(steps: StrategyStepConfig[]): string {
+  const dirIdxs = steps
+    .map((s, i) => (s.enabled !== false && s.role === "direction" ? i : -1))
+    .filter((i) => i >= 0);
+  if (!dirIdxs.length) return "";
+  return dirIdxs
+    .map((i) => {
+      const nm = (steps[i]!.name || `direction${i}`).replace(/[^A-Za-z0-9 ]/g, "");
+      return `   if(!gFired[${i}]) { gLastGate = "BLOCKED: ${nm} not set"; return; }
+   if(gDir[${i}] != dir) { gLastGate = "BLOCKED: entry not aligned with ${nm}"; PrintFormat("[GATE] BLOCKED: entry dir %d != ${nm} dir %d", dir, gDir[${i}]); return; }`;
+    })
+    .join("\n");
+}
+
 function emitGate(
   entryIdx: number,
   step: StrategyStepConfig,
@@ -595,6 +610,7 @@ function emitGate(
     .map((d) => `         gFired[${d}] = false; gPrevA[${d}] = false; gPrevB[${d}] = false;`)
     .join("\n");
   const filterChecks = buildFlowEntryFilterChecks(filterRefs);
+  const directionAlign = emitDirectionAlignmentCheck(steps);
 
   return `void EvaluateEntry_${entryIdx}()
 {
@@ -602,6 +618,7 @@ function emitGate(
    if(gTime[${entryIdx}] != iTime(InpSymbol, gTF[${entryIdx}], 1)) return;
    if(gLastTraded[${entryIdx}] == gTime[${entryIdx}]) return;
    int dir = gDir[${entryIdx}];
+${directionAlign}
 ${andChecks}
 ${orChecks}
 ${expiry}
