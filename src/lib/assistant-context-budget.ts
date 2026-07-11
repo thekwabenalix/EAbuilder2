@@ -1,9 +1,11 @@
-/**
+﻿/**
  * Keep ea-chat prompts under model limits by trimming bulky attachments.
  */
 
 import type { StrategyBlueprint } from "@/types/blueprint";
 import { buildAssistantPlatformContext } from "@/lib/assistant-platform-context";
+import { buildAssistantRepairPlan, repairPlanToContext } from "@/lib/assistant-repair-plan";
+import { buildRuleAudit, ruleAuditToContext } from "@/lib/rule-audit";
 import { getModuleContract } from "@/lib/module-contracts";
 import {
   buildExpectedTradePath,
@@ -111,7 +113,7 @@ function contractsForSelectedModules(moduleIds: string[]): string {
     lines.push(`[${c.id}] ${c.label} - roles: ${c.supportedRoles.join(", ")}`);
     for (const ev of c.semanticEvents.slice(0, 6)) {
       lines.push(
-        `  ${ev.id} (${ev.roles.join("/")}) → ${ev.queryFunctions.slice(0, 3).join(", ")}`,
+        `  ${ev.id} (${ev.roles.join("/")}) -> ${ev.queryFunctions.slice(0, 3).join(", ")}`,
       );
     }
     lines.push("");
@@ -131,11 +133,26 @@ function buildTesterSection(blueprint: StrategyBlueprint, testerLog: string | nu
     "=== TRADE AUDIT SUMMARY (parsed from tester log) ===",
     JSON.stringify(summary, null, 2),
     "",
-    `=== TESTER LOG EXCERPT (${testerLog.length.toLocaleString()} chars in file → audit lines below) ===`,
+    `=== TESTER LOG EXCERPT (${testerLog.length.toLocaleString()} chars in file -> audit lines below) ===`,
     excerpt,
   ].join("\n");
 }
 
+function countLines(text: string | null | undefined): number {
+  if (!text) return 0;
+  return text.split(/\r?\n/).length;
+}
+
+function buildArtifactStatus(input: AssistantChatContextInput): string {
+  return [
+    "=== ASSISTANT TOOL ACCESS / CURRENT ARTIFACTS ===",
+    `- generated code: ${input.code ? "present" : "missing"} (${input.code.length.toLocaleString()} chars, ${countLines(input.code).toLocaleString()} lines)`,
+    `- compile log: ${input.compileLog?.trim() ? "present" : "missing"} (${(input.compileLog?.length ?? 0).toLocaleString()} chars)`,
+    `- tester log: ${input.testerLog?.trim() ? "present" : "missing"} (${(input.testerLog?.length ?? 0).toLocaleString()} chars)`,
+    `- backtest summary: ${input.backtestSummary ? "present" : "missing"}`,
+    `- runner diagnostics: ${input.diagnosticContext ? "present" : "missing"}`,
+  ].join("\n");
+}
 export interface AssistantChatContextInput {
   blueprint: StrategyBlueprint;
   prompt: string;
@@ -151,8 +168,25 @@ export interface AssistantChatContextInput {
 /** Budgeted context block injected into ea-chat (avoids 200k token limit). */
 export function buildAssistantChatContext(input: AssistantChatContextInput): string {
   const moduleIds = selectedModuleIds(input.blueprint);
+  const repairPlan = buildAssistantRepairPlan({
+    blueprint: input.blueprint,
+    code: input.code,
+    compileLog: input.compileLog,
+    testerLog: input.testerLog,
+    backtestSummary:
+      input.backtestSummary && typeof input.backtestSummary === "object"
+        ? (input.backtestSummary as Record<string, unknown>)
+        : null,
+  });
+  const ruleAudit = buildRuleAudit({
+    blueprint: input.blueprint,
+    testerLog: input.testerLog,
+  });
   const parts = [
     buildAssistantPlatformContext(input.blueprint),
+    buildArtifactStatus(input),
+    repairPlanToContext(repairPlan),
+    ruleAuditToContext(ruleAudit),
     moduleIds.length ? contractsForSelectedModules(moduleIds) : "",
     "",
     "=== ORIGINAL STRATEGY PROMPT ===",
@@ -191,3 +225,5 @@ export function trimChatMessages<T extends { role: string; content: string }>(
   if (messages.length <= maxMessages) return messages;
   return messages.slice(-maxMessages);
 }
+
+

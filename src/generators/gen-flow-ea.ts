@@ -113,16 +113,17 @@ function biasIndex(step: StrategyStepConfig, steps: StrategyStepConfig[]): numbe
 }
 
 function emaDirectionBiasIndex(steps: StrategyStepConfig[], tf: string): number {
+  const tfU = tf.toUpperCase();
   const emaDirIdx = steps.findIndex(
     (s) =>
       s.module === "ema" &&
       s.role === "direction" &&
-      s.timeframe.toUpperCase() === tf.toUpperCase(),
+      s.timeframe.toUpperCase() === tfU,
   );
   if (emaDirIdx >= 0) return emaDirIdx;
 
   const emaStep = steps.find(
-    (s) => s.module === "ema" && s.timeframe.toUpperCase() === tf.toUpperCase(),
+    (s) => s.module === "ema" && s.timeframe.toUpperCase() === tfU,
   );
   if (emaStep) {
     const fromDep = biasIndex(emaStep, steps);
@@ -130,13 +131,32 @@ function emaDirectionBiasIndex(steps: StrategyStepConfig[], tf: string): number 
   }
 
   return steps.findIndex(
-    (s) => s.role === "direction" && s.timeframe.toUpperCase() === tf.toUpperCase(),
+    (s) => s.role === "direction" && s.timeframe.toUpperCase() === tfU,
   );
 }
 
+/**
+ * Bias passed into EMASM_{tf}_Tick().
+ * Prefer explicit from_step / dependsOn→direction on this TF's EMA steps, then
+ * same-TF direction, then any HTF direction (H1 bias → M5 cross/setup).
+ */
 function emaFlowTickBias(steps: StrategyStepConfig[], tf: string): string {
-  const dirIdx = emaDirectionBiasIndex(steps, tf);
-  return dirIdx >= 0 ? `gDir[${dirIdx}]` : "0";
+  const tfU = tf.toUpperCase();
+  const emaOnTf = steps.filter(
+    (s) => s.module === "ema" && s.timeframe.toUpperCase() === tfU,
+  );
+  for (const emaStep of emaOnTf) {
+    const fromDep = biasIndex(emaStep, steps);
+    if (fromDep >= 0) return `gDir[${fromDep}]`;
+  }
+
+  const sameTf = emaDirectionBiasIndex(steps, tf);
+  if (sameTf >= 0) return `gDir[${sameTf}]`;
+
+  const anyDir = steps.findIndex((s) => s.role === "direction");
+  if (anyDir >= 0) return `gDir[${anyDir}]`;
+
+  return "0";
 }
 
 function downstreamDependentIndices(fromIdx: number, steps: StrategyStepConfig[]): number[] {
@@ -346,18 +366,23 @@ function emitDetection(step: StrategyStepConfig, i: number, steps: StrategyStepC
     }
     if (prof.family === "ema") {
       const clearDown = emitClearDownstream(i, steps);
+      const dirMatch =
+        biasIdx >= 0
+          ? ` && (_bias == 0 || _sd == _bias)`
+          : "";
       return wrap(
-        `   bool _sa = ${P}_SetupActive();
+        `${biasGuard}   bool _sa = ${P}_SetupActive();
    bool _rt = ${P}_RetestActive();
    int _sd = ${P}_ActiveDir();
-   if(_rt && !gPrevB[${i}] && _sd != 0) {
+   int _bias = ${biasExpr};
+   if(_rt && !gPrevB[${i}] && _sd != 0${dirMatch}) {
       RegisterEvent(${i}, _sd, ${T1}, ${C1}, 0.0);
 ${clearDown}
       gPrevB[${i}] = true;
    } else if(!_rt) {
       gPrevB[${i}] = false;
    }
-   if(_sa && !gPrevA[${i}] && _sd != 0) {
+   if(_sa && !gPrevA[${i}] && _sd != 0${dirMatch}) {
       RegisterEvent(${i}, _sd, ${T1}, ${C1}, 0.0);
 ${clearDown}
    }
@@ -411,7 +436,11 @@ ${clearDown}
     }
     if (prof.family === "ema") {
       return wrap(
-        `   if(${P}_JustConfirmed()) { int _d = ${P}_ConfirmDir(); RegisterEvent(${i}, _d, ${T1}, ${C1}, ${P}_ConfirmSL()); }`,
+        `${biasGuard}   if(${P}_JustConfirmed()) {
+      int _d = ${P}_ConfirmDir();
+      int _bias = ${biasExpr};
+      if(_d != 0 && (_bias == 0 || _d == _bias)) RegisterEvent(${i}, _d, ${T1}, ${C1}, ${P}_ConfirmSL());
+   }`,
       );
     }
     return `void DetectStep_${i}() { /* ${m}/confirmation not supported */ }`;
@@ -447,7 +476,11 @@ ${clearDown}
         );
       }
       return wrap(
-        `   if(${P}_JustConfirmed()) { int _d = ${P}_ConfirmDir(); RegisterEvent(${i}, _d, ${T1}, ${C1}, ${P}_ConfirmSL()); }`,
+        `${biasGuard}   if(${P}_JustConfirmed()) {
+      int _d = ${P}_ConfirmDir();
+      int _bias = ${biasExpr};
+      if(_d != 0 && (_bias == 0 || _d == _bias)) RegisterEvent(${i}, _d, ${T1}, ${C1}, ${P}_ConfirmSL());
+   }`,
       );
     }
     if (prof.family === "zone" && m === "fvg_inversion" && step.event === "IFVG_FORMED") {

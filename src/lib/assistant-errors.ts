@@ -46,6 +46,9 @@ export function formatAssistantError(raw: unknown): string {
   if (/502|503|504|bad gateway|temporarily busy|ETIMEDOUT|ECONNRESET/i.test(combined)) {
     return PROVIDER_BUSY_MSG;
   }
+  if (/404|Server error 404|Failed to fetch|NetworkError/i.test(combined)) {
+    return "Cloud assistant API is not reachable (404). Offline diagnosis still works — or run Netlify Dev so `/api/ea-chat` is available.";
+  }
   if (/^\d{3}\s*\{/.test(text.trim()) || /"type"\s*:\s*"error"/.test(text)) {
     return "The cloud assistant could not respond. See the offline summary below.";
   }
@@ -70,7 +73,8 @@ export function isAssistantProviderUnavailable(raw: unknown): boolean {
     /cloud AI is unavailable|offline summary below|assistant is not configured on the server/i.test(
       combined,
     ) ||
-    /ANTHROPIC_API_KEY missing|502|503|504|bad gateway|temporarily busy/i.test(combined) ||
+    /Cloud assistant API is not reachable/i.test(combined) ||
+    /ANTHROPIC_API_KEY missing|502|503|504|bad gateway|temporarily busy|404/i.test(combined) ||
     /^\d{3}\s*\{/.test(text.trim()) ||
     /"type"\s*:\s*"error"/.test(text)
   );

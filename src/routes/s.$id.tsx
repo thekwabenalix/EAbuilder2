@@ -862,7 +862,14 @@ function BrainModuleChips({
 
   return (
     <div className="space-y-2">
-      <BuiltinIndicatorEntryButton onClick={() => setIndicatorOpen(true)} compact />
+      <BuiltinIndicatorEntryButton
+        onClick={() => setIndicatorOpen(true)}
+        compact
+        emphasize
+      />
+      <p className="text-[10px] text-muted-foreground leading-snug">
+        Checklist = verified strategy modules. Use the button above for the full MT5 built-in list.
+      </p>
 
       {/* Selected chips */}
       <div className="flex flex-wrap gap-1.5">
@@ -1597,6 +1604,12 @@ function FourBrainTab({
 
       {builderMode === "advanced" ? (
         <>
+          <ActiveConfluenceFilters
+            filterRefs={filterRefs}
+            indicatorRefs={indicatorRefs}
+            onRemoveFilter={removeFilter}
+            onRemoveIndicator={removeIndicator}
+          />
           <div className="flex justify-end">
             <Button
               type="button"
@@ -1621,6 +1634,7 @@ function FourBrainTab({
             flow={flowConfig}
             onChange={(next) => setFlowConfig(next)}
             strategyFamily={strategyFamily}
+            onIndicatorApply={handleIndicatorSideEffect}
           />
         </>
       ) : (

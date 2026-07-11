@@ -207,6 +207,59 @@ assertOk(
   emaSameTfCode.includes("InpSetupExpiryBars = 0"),
   "EMA flow disables setup expiry by default",
 );
+
+const emaCrossTfFlow = {
+  version: 1 as const,
+  mode: "advanced_instances" as const,
+  source: "user" as const,
+  management: { riskPercent: 1, rewardRisk: 2, maxOpenTrades: 1 },
+  steps: [
+    {
+      id: "dir_h1",
+      name: "Direction EMA H1",
+      role: "direction" as const,
+      module: "ema",
+      timeframe: "H1",
+      event: "EMA_BIAS",
+      params: { fastPeriod: 12, slowPeriod: 48 },
+      enabled: true,
+    },
+    {
+      id: "setup_m5",
+      name: "Setup EMA M5",
+      role: "setup" as const,
+      module: "ema",
+      timeframe: "M5",
+      event: "EMA_CROSS",
+      params: { fastPeriod: 12, slowPeriod: 48 },
+      dependsOn: [{ stepId: "dir_h1", relation: "after" as const }],
+      directionSource: { mode: "from_step" as const, stepId: "dir_h1" },
+      enabled: true,
+    },
+    {
+      id: "entry_m5",
+      name: "Entry EMA M5",
+      role: "entry" as const,
+      module: "ema",
+      timeframe: "M5",
+      event: "EMA_CLOSE_CONFIRMED",
+      params: { fastPeriod: 12, slowPeriod: 48 },
+      dependsOn: [{ stepId: "setup_m5", relation: "same_or_after" as const }],
+      directionSource: { mode: "from_step" as const, stepId: "dir_h1" },
+      enabled: true,
+    },
+  ],
+};
+const emaCrossTfCode = generateFlowEA(emaCrossTfFlow, "EmaH1M5AlignTest");
+assertOk(
+  emaCrossTfCode.includes("EMASM_M5_Tick(gDir[0])"),
+  "M5 EMA SM ticks with H1 direction gDir",
+);
+assertOk(
+  /if\(!gFired\[0\]\) return/.test(emaCrossTfCode),
+  "M5 setup waits for H1 direction to fire",
+);
+console.log("[OK  ] H1 direction feeds M5 EMA tick + bias guard");
 assertOk(
   emaSameTfCode.includes("InpSetupExpiryBars > 0 &&"),
   "setup expiry gate skipped when expiry bars is 0",

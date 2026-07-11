@@ -1,5 +1,5 @@
 /**
- * Phase 8 - trade audit parser and expected-path checks.
+ * Phase 8 + Phase 3 - trade audit parser, expected-path, and rule-audit checks.
  */
 import { generateFlowEA } from "../src/generators/gen-flow-ea";
 import { fourBrainToStrategyFlow } from "../src/lib/fourbrain-flow-adapter";
@@ -8,6 +8,7 @@ import {
   parseTesterLogForTradeAudit,
   summarizeTradeAudit,
 } from "../src/lib/trade-audit";
+import { buildRuleAudit } from "../src/lib/rule-audit";
 import { DEFAULT_BLUEPRINT } from "../src/types/blueprint";
 import type { StrategyBlueprint } from "../src/types/blueprint";
 
@@ -69,4 +70,40 @@ const code = generateFlowEA(flow, "Audit_Test");
 assertOk(code.includes("===== TRADE AUDIT ====="), "generated flow EA emits trade audit");
 assertOk(code.includes("InpAudit"), "generated flow EA has InpAudit input");
 
-console.log("\n11 trade audit check(s) passed.\n");
+// ── Phase 3 rule audit ──────────────────────────────────────────────────────
+const passAudit = buildRuleAudit({ blueprint: bp, testerLog: sampleLog, parsed });
+assertOk(
+  passAudit.steps.some((s) => s.role === "direction" && s.status === "passed"),
+  "rule audit marks direction passed",
+);
+assertOk(
+  passAudit.steps.some((s) => s.role === "setup" && s.status === "passed"),
+  "rule audit marks setup passed",
+);
+assertOk(
+  passAudit.steps.some((s) => s.isEntry && s.status === "missing"),
+  "rule audit marks entry missing when only direction/setup events logged",
+);
+assertEq(passAudit.verdict, "fail", "incomplete chain fails rule audit");
+
+const outOfOrderLog = `
+2024.03.01 10:00:00   [EVENT] Entry BOS M5 | dir=1 | 2024.03.01 09:00 | sl=1.08000
+2024.03.01 11:00:00   [EVENT] Setup FVG H1 | dir=1 | 2024.03.01 10:00 | sl=1.08500
+2024.03.01 12:00:00   [EVENT] Direction BOS H1 | dir=1 | 2024.03.01 11:00 | sl=0.00000
+`;
+const orderAudit = buildRuleAudit({ blueprint: bp, testerLog: outOfOrderLog });
+assertOk(orderAudit.orderingIssues.length > 0, "rule audit detects out-of-order events");
+assertEq(orderAudit.verdict, "fail", "out-of-order audit fails");
+
+const conflictLog = `
+2024.03.01 10:00:00   [EVENT] Direction BOS H1 | dir=1 | 2024.03.01 09:00 | sl=0.00000
+2024.03.01 11:00:00   [EVENT] Setup FVG H1 | dir=-1 | 2024.03.01 10:00 | sl=1.08500
+2024.03.01 12:00:00   [EVENT] Entry BOS M5 | dir=-1 | 2024.03.01 11:00 | sl=1.08200
+`;
+const dirAudit = buildRuleAudit({ blueprint: bp, testerLog: conflictLog });
+assertOk(dirAudit.directionIssues.length > 0, "rule audit detects direction conflicts");
+
+const noLogAudit = buildRuleAudit({ blueprint: bp, testerLog: null });
+assertEq(noLogAudit.verdict, "no_evidence", "missing tester log is no_evidence");
+
+console.log("\n17 trade audit check(s) passed.\n");

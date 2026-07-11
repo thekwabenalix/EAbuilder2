@@ -14,6 +14,11 @@ import {
 import { generationPathLabel, previewEaGeneration } from "@/lib/generate-ea-router";
 import { formatBrainChain } from "@/lib/brain-modules";
 import { resolveFlowBacktestPeriod } from "@/lib/assistant-apply";
+import {
+  buildAssistantRepairPlan,
+  repairPlanToMarkdown,
+} from "@/lib/assistant-repair-plan";
+import { buildRuleAudit, ruleAuditToMarkdown } from "@/lib/rule-audit";
 
 export interface LocalAssistantInput {
   userMessage: string;
@@ -51,6 +56,75 @@ function wantsStrategyOverview(msg: string): boolean {
   return /strategy overview|show (my )?strategy|what is my strategy|explain (my )?flow|full details|more detail/i.test(
     msg,
   );
+}
+
+function wantsWiringHelp(msg: string): boolean {
+  return /align|alignment|same direction|in direction of|waiting.*(cross|bias)|higher.?tf|lower.?tf|\bh1\b.*\bm5\b|\bm5\b.*\bh1\b|direction.*(cross|entry|execute)|cross.*(direction|bias|align)|should also|must also|does not wait|not waiting/i.test(
+    msg,
+  );
+}
+
+function wiringVerdict(blueprint: StrategyBlueprint): string[] {
+  const flow = resolveStrategyFlow(blueprint);
+  const steps = flow?.steps ?? [];
+  const dir = steps.find((s) => s.enabled !== false && s.role === "direction");
+  const ltf = steps.filter(
+    (s) =>
+      s.enabled !== false &&
+      (s.role === "setup" || s.role === "entry" || s.role === "confirmation") &&
+      (!dir || s.timeframe.toUpperCase() !== dir.timeframe.toUpperCase()),
+  );
+  const lines: string[] = ["", "## Verdict", ""];
+
+  if (!dir) {
+    lines.push(
+      "**No Direction step found.** Add an HTF Direction step (e.g. EMA Bias on H1), then point Setup/Entry `directionSource` at it.",
+    );
+    lines.push("[APPLY:{\"type\":\"regen_ea\"}]", "[ACTION:open_brains]");
+    return lines;
+  }
+
+  const missingLink = ltf.filter((s) => {
+    const fromStep =
+      s.directionSource?.mode === "from_step" && s.directionSource.stepId === dir.id;
+    const depDir = (s.dependsOn ?? []).some((d) => d.stepId === dir.id);
+    return !fromStep && !depDir;
+  });
+
+  lines.push(
+    `**Intended rule:** ${dir.timeframe} ${dir.module.toUpperCase()} Direction (${dir.event}) sets bias. Lower-TF crosses/entries must fire **only in that same direction**.`,
+  );
+  lines.push("");
+  lines.push(
+    `- Direction: **${dir.name || dir.id}** (${dir.timeframe} · ${dir.event})`,
+  );
+  if (ltf.length) {
+    lines.push(
+      `- Lower TF steps: ${ltf.map((s) => `${s.name || s.id} (${s.timeframe} · ${s.event})`).join("; ")}`,
+    );
+  }
+
+  if (missingLink.length) {
+    lines.push(
+      "",
+      `**Gap:** ${missingLink.map((s) => s.name || s.id).join(", ")} are not linked to the Direction step via \`directionSource\` / dependsOn.`,
+    );
+    lines.push(
+      "In Advanced Flow, set each Setup/Entry **direction source** to the H1 Direction step (or Regenerate so the adapter wires `from_step`).",
+    );
+  } else {
+    lines.push(
+      "",
+      "**Blueprint already links lower TF → Direction.** Regenerated flow EAs tick the LTF EMA SM with `gDir[direction]` so M5 crosses opposite to H1 bias are ignored, and entry gates reject direction mismatches.",
+    );
+  }
+
+  lines.push(
+    "",
+    "**Do now:** Regenerate the EA, recompile, backtest with **InpAudit=true**. Opposite-direction M5 crosses should show gate blocks, not trades.",
+  );
+  lines.push('[APPLY:{"type":"regen_ea"}]', "[ACTION:open_brains]", "[ACTION:open_backtest]");
+  return lines;
 }
 
 function stepEventCounts(
@@ -119,82 +193,6 @@ function strategyOverview(blueprint: StrategyBlueprint, prompt?: string): string
     }
   } catch {
     lines.push("", "**Compiler path:** blocked - fix validation errors in Configure first.");
-  }
-
-  return lines;
-}
-
-function detectTesterPeriodMismatch(
-  blueprint: StrategyBlueprint,
-  testerLog?: string | null,
-): string | null {
-  const flowPeriod = resolveFlowBacktestPeriod(blueprint);
-  if (!testerLog?.trim()) return null;
-  const m = testerLog.match(/"period"\s*:\s*"(M\d+|H\d+|D\d+|W\d+)"/i);
-  const ranOn = m?.[1]?.toUpperCase();
-  if (ranOn && ranOn !== flowPeriod) return flowPeriod;
-  if (/tester.*\bM5\b/i.test(testerLog) && flowPeriod === "M30") return "M30";
-  return null;
-}
-
-function offlineApplyFixes(
-  blueprint: StrategyBlueprint,
-  parsed: ReturnType<typeof parseTesterLogForTradeAudit> | null,
-  testerLog?: string | null,
-): string[] {
-  const lines: string[] = ["", "## Apply now", ""];
-  const flowPeriod = resolveFlowBacktestPeriod(blueprint);
-  const periodFix = detectTesterPeriodMismatch(blueprint, testerLog);
-  let hasApply = false;
-
-  if (periodFix) {
-    hasApply = true;
-    lines.push(
-      `- Set tester period to **${periodFix}** (flow TF mismatch).`,
-      `[APPLY:{"type":"set_backtest_period","period":"${periodFix}"}]`,
-      `[ACTION:open_backtest]`,
-      "",
-    );
-  } else if (!testerLog?.trim() && flowPeriod) {
-    hasApply = true;
-    lines.push(
-      `- Set tester period to **${flowPeriod}**.`,
-      `[APPLY:{"type":"set_backtest_period","period":"${flowPeriod}"}]`,
-      `[ACTION:open_backtest]`,
-      "",
-    );
-  }
-
-  const expected = buildExpectedTradePath(blueprint);
-  const byStep = stepEventCounts(expected, parsed);
-  const missingEntry =
-    expected.some((s) => s.isEntry) &&
-    !expected.some((s) => s.isEntry && (byStep.get(s.name) ?? 0) > 0);
-  const directionOnly =
-    byStep.size > 0 &&
-    expected.some((s) => s.role === "direction" && (byStep.get(s.name) ?? 0) > 0) &&
-    expected
-      .filter((s) => !s.isEntry && s.role !== "direction")
-      .every((s) => (byStep.get(s.name) ?? 0) === 0);
-
-  if (
-    missingEntry ||
-    directionOnly ||
-    (parsed && parsed.tradesOpened === 0 && parsed.hasAuditMarkers) ||
-    !testerLog?.trim() ||
-    !parsed
-  ) {
-    hasApply = true;
-    lines.push(
-      "- **Regenerate EA** from current blueprint.",
-      `[APPLY:{"type":"regen_ea"}]`,
-      `[ACTION:open_backtest]`,
-      "",
-    );
-  }
-
-  if (!hasApply) {
-    lines.push("- Re-run backtest with **InpAudit=true**.", `[ACTION:open_backtest]`, "");
   }
 
   return lines;
@@ -361,35 +359,21 @@ function compileVerdict(compileLog?: string | null): { verdict: string[]; eviden
   return { verdict, evidence };
 }
 
-function generationVerdict(
-  blueprint: StrategyBlueprint,
-  testerLog?: string | null,
-  backtestSummary?: Record<string, unknown> | null,
-): { verdict: string[]; evidence: string[]; actions: string[] } {
-  const { verdict, evidence } = buildTradeVerdict(blueprint, testerLog, backtestSummary);
-  const actions: string[] = [];
-  if (!testerLog?.trim()) {
-    actions.push("[ACTION:open_backtest]");
-    return { verdict, evidence, actions };
-  }
-  const parsed = parseTesterLogForTradeAudit(testerLog);
-  if (!parsed.hasAuditMarkers) {
-    actions.push("[ACTION:regen_template]");
-  } else if (parsed.gateBlocks.length > 0 && parsed.tradesOpened === 0) {
-    actions.push("[ACTION:open_brains]");
-  } else if (parsed.tradesOpened > 0) {
-    actions.push("[ACTION:open_backtest]");
-  } else {
-    actions.push("[ACTION:regen_template]");
-  }
-  return { verdict, evidence, actions };
-}
-
 /** Deterministic reply when cloud ea-chat is unavailable. */
 export function answerLocalAssistant(input: LocalAssistantInput): string {
   const msg = input.userMessage.trim();
   const compact = input.compact !== false;
-  const parsed = input.testerLog?.trim() ? parseTesterLogForTradeAudit(input.testerLog) : null;
+  const repairPlan = buildAssistantRepairPlan({
+    blueprint: input.blueprint,
+    code: input.code,
+    compileLog: input.compileLog,
+    testerLog: input.testerLog,
+    backtestSummary: input.backtestSummary,
+  });
+  const ruleAudit = buildRuleAudit({
+    blueprint: input.blueprint,
+    testerLog: input.testerLog,
+  });
 
   const lines: string[] = [
     compact
@@ -399,23 +383,14 @@ export function answerLocalAssistant(input: LocalAssistantInput): string {
 
   if (wantsCloudOfflineHelp(msg)) {
     lines.push(...cloudOfflineVerdict());
+    lines.push(...repairPlanToMarkdown(repairPlan));
+  } else if (wantsWiringHelp(msg)) {
+    lines.push(...wiringVerdict(input.blueprint));
+    lines.push(...ruleAuditToMarkdown(ruleAudit));
   } else if (wantsCompileHelp(msg)) {
     const { verdict, evidence } = compileVerdict(input.compileLog);
-    lines.push(
-      ...verdict,
-      ...offlineApplyFixes(input.blueprint, parsed, input.testerLog),
-      ...evidence,
-    );
-  } else if (wantsGenerationVerdict(msg)) {
-    const { verdict, evidence, actions } = generationVerdict(
-      input.blueprint,
-      input.testerLog,
-      input.backtestSummary,
-    );
-    lines.push(...verdict, ...offlineApplyFixes(input.blueprint, parsed, input.testerLog));
-    for (const a of actions) lines.push(a);
-    lines.push(...evidence);
-  } else if (wantsNoTradesHelp(msg) || input.testerLog?.trim()) {
+    lines.push(...verdict, ...repairPlanToMarkdown(repairPlan), ...evidence);
+  } else if (wantsGenerationVerdict(msg) || wantsNoTradesHelp(msg) || input.testerLog?.trim()) {
     const { verdict, evidence } = buildTradeVerdict(
       input.blueprint,
       input.testerLog,
@@ -423,7 +398,8 @@ export function answerLocalAssistant(input: LocalAssistantInput): string {
     );
     lines.push(
       ...verdict,
-      ...offlineApplyFixes(input.blueprint, parsed, input.testerLog),
+      ...ruleAuditToMarkdown(ruleAudit),
+      ...repairPlanToMarkdown(repairPlan),
       ...evidence,
     );
   } else {
@@ -431,12 +407,12 @@ export function answerLocalAssistant(input: LocalAssistantInput): string {
       "",
       "## Verdict",
       "",
-      "Ask about **no trades**, **compile errors**, or **cloud offline** - or run a backtest with **InpAudit=true**.",
+      "Ask about **H1↔M5 alignment**, **no trades**, **compile errors**, or **cloud offline** — or run a backtest with **InpAudit=true**.",
     );
-    lines.push(...offlineApplyFixes(input.blueprint, parsed, input.testerLog));
+    lines.push(...ruleAuditToMarkdown(ruleAudit));
   }
 
-  if (!input.code?.trim()) {
+  if (!input.code?.trim() && repairPlan.layer !== "generation") {
     lines.push("", "- **Generate EA** first.", `[ACTION:regen_template]`);
   }
 

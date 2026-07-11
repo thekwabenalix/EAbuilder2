@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   BrainModuleType,
   StrategyFlowConfig,
@@ -32,6 +32,11 @@ import {
 import { getModuleAdmission, MODULE_ADMISSION_STATUS_META } from "@/lib/module-admission";
 import { EmaPeriodEditor } from "@/components/EmaPeriodEditor";
 import { emaParamsForBlueprint } from "@/lib/ema-params";
+import {
+  BuiltinIndicatorPicker,
+  type IndicatorPickerResult,
+} from "@/components/BuiltinIndicatorPicker";
+import { BuiltinIndicatorEntryButton } from "@/components/BuiltinIndicatorEntryButton";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
@@ -130,6 +135,12 @@ function TfPicker({ value, onChange }: { value: string; onChange: (tf: string) =
   );
 }
 
+function brainRoleFromStep(role: StrategyStepRole): "direction" | "setup" | "execution" {
+  if (role === "direction") return "direction";
+  if (role === "setup") return "setup";
+  return "execution";
+}
+
 function StepCard({
   step,
   index,
@@ -140,6 +151,7 @@ function StepCard({
   onMoveUp,
   onMoveDown,
   onRemove,
+  onIndicatorApply,
 }: {
   step: StrategyStepConfig;
   index: number;
@@ -150,7 +162,9 @@ function StepCard({
   onMoveUp: () => void;
   onMoveDown: () => void;
   onRemove: () => void;
+  onIndicatorApply?: (result: IndicatorPickerResult) => void;
 }) {
+  const [indicatorOpen, setIndicatorOpen] = useState(false);
   const moduleDef = ALL_BRAIN_MODULES.find((m) => m.id === step.module);
   const moduleGroups = useMemo(() => flowModulesByTaxonomy(strategyFamily), [strategyFamily]);
   const eventGroups = useMemo(
@@ -162,6 +176,8 @@ function StepCard({
   const flowSupported = flowSupportsModuleRole(step.module, step.role);
   const admission = getModuleAdmission(step.module);
   const admissionMeta = admission ? MODULE_ADMISSION_STATUS_META[admission.status] : null;
+  const showIndicatorPicker =
+    strategyFamily === "indicators" || strategyFamily === "hybrid" || !strategyFamily;
 
   function withSyncedName(next: StrategyStepConfig): StrategyStepConfig {
     return { ...next, name: formatStepDisplayName(next.module, next.timeframe, next.role) };
@@ -194,6 +210,13 @@ function StepCard({
       firstEventForRole(step.module, "entry") ??
       step.event;
     onChange(withSyncedName({ ...step, role, event }));
+  }
+
+  function applyIndicator(result: IndicatorPickerResult) {
+    if (result.brainModule) {
+      setModule(result.brainModule);
+    }
+    onIndicatorApply?.(result);
   }
 
   return (
@@ -293,6 +316,25 @@ function StepCard({
         </div>
       </div>
 
+      {showIndicatorPicker && (
+        <div className="space-y-1.5">
+          <BuiltinIndicatorEntryButton compact emphasize onClick={() => setIndicatorOpen(true)} />
+          {strategyFamily === "indicators" && (
+            <p className="text-[10px] text-muted-foreground leading-snug">
+              Module list = EMA / Bollinger / RSI HD. Open Built-in indicator for MACD, Stochastic,
+              ADX, DEMA, SAR, and the rest of MT5.
+            </p>
+          )}
+          <BuiltinIndicatorPicker
+            open={indicatorOpen}
+            onOpenChange={setIndicatorOpen}
+            timeframe={step.timeframe}
+            brainRole={brainRoleFromStep(step.role)}
+            onApply={applyIndicator}
+          />
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2 text-[10px]">
         {moduleDef && (
           <span className="text-muted-foreground">
@@ -379,10 +421,12 @@ export function StrategyFlowBuilder({
   flow,
   onChange,
   strategyFamily,
+  onIndicatorApply,
 }: {
   flow: StrategyFlowConfig;
   onChange: (flow: StrategyFlowConfig) => void;
   strategyFamily?: StrategyFamily | null;
+  onIndicatorApply?: (result: IndicatorPickerResult) => void;
 }) {
   const steps = flow.steps ?? [];
   const validation = useMemo(() => validateFlowForBuilder(flow), [flow]);
@@ -424,6 +468,13 @@ export function StrategyFlowBuilder({
           active, <strong>Confirmation</strong> for <strong>SMC zone rejection</strong> (wick into
           OB/FVG/Unicorn, close outside), then <strong>Entry</strong> or next-bar events. SNR
           Rejection is only for horizontal S/R levels in the S/R &amp; SnD family.
+          {strategyFamily === "indicators" && (
+            <>
+              {" "}
+              For Indicators, use <strong>Built-in indicator</strong> on each step for the full MT5
+              catalog (MACD, RSI, ATR, …) — candle patterns like Engulfing are under SMC / S/R.
+            </>
+          )}
         </p>
       </div>
 
@@ -476,6 +527,7 @@ export function StrategyFlowBuilder({
             onMoveUp={() => updateSteps(reorderSteps(steps, index, index - 1))}
             onMoveDown={() => updateSteps(reorderSteps(steps, index, index + 1))}
             onRemove={() => updateSteps(removeStepAt(steps, index))}
+            onIndicatorApply={onIndicatorApply}
           />
         ))}
       </div>

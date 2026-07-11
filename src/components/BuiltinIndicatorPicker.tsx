@@ -109,7 +109,7 @@ export function BuiltinIndicatorPicker({
         kind: "catalog",
         indicatorRef: catalog ?? undefined,
         catalogNote: catalog?.name ?? selected.name,
-        message: `${selected.name} saved as reference - not compiled yet. Use RSI/MACD/EMA wired options for live EAs.`,
+        message: `${selected.name} saved as reference - not compiled yet. Use native MT5 built-ins for live EAs.`,
       });
       close();
     }
@@ -119,10 +119,10 @@ export function BuiltinIndicatorPicker({
     <Dialog open={open} onOpenChange={(v) => (v ? onOpenChange(true) : close())}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-base">Built-in indicator</DialogTitle>
+          <DialogTitle className="text-base">MT5 built-in indicators</DialogTitle>
           <DialogDescription className="text-xs leading-relaxed">
-            Pick trend or oscillator - the builder wires verified filters or modules into your EA.
-            No need to describe MACD/RSI in notes unless you want custom thresholds.
+            Same native indicators as Insert → Indicators in MetaTrader. Brain modules run as
+            strategy steps; other builtins compile as confluence filters (iX + buffer gate).
           </DialogDescription>
         </DialogHeader>
 

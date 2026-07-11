@@ -53,6 +53,15 @@ import {
   stripApplyMarkers,
   type AssistantApplyFix,
 } from "@/lib/assistant-apply";
+import {
+  canAffordAssistantCredits,
+  CREDIT_COSTS,
+  creditCostForChat,
+  creditPolicySummary,
+  readAssistantCredits,
+  spendAssistantCredits,
+  type AssistantCreditWallet,
+} from "@/lib/assistant-credits";
 import type { EaChatMessage } from "@/lib/api-client";
 import type { StrategyBlueprint } from "@/types/blueprint";
 
@@ -385,6 +394,9 @@ export function EaChatDrawer({
   const [fixReady, setFixReady] = useState(false);
   /** True while /api/apply-fix is running - shows spinner in banner. */
   const [applyLoading, setApplyLoading] = useState(false);
+  const [credits, setCredits] = useState<AssistantCreditWallet>(() =>
+    typeof window !== "undefined" ? readAssistantCredits() : readAssistantCredits(),
+  );
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const [drawerWidth, setDrawerWidth] = useState(readDrawerWidth);
@@ -488,6 +500,39 @@ export function EaChatDrawer({
     }
   };
 
+  useEffect(() => {
+    if (open) setCredits(readAssistantCredits());
+  }, [open]);
+
+  const runFreeDiagnosis = (textArg: string) => {
+    const text = textArg.trim();
+    if (!text || loading) return;
+    spendAssistantCredits("free_diagnosis");
+    setCredits(readAssistantCredits());
+    setInput("");
+    const offlineReply = answerLocalAssistant({
+      userMessage: text,
+      blueprint,
+      prompt,
+      code,
+      compileLog,
+      testerLog,
+      backtestSummary:
+        backtestSummary && typeof backtestSummary === "object"
+          ? (backtestSummary as Record<string, unknown>)
+          : null,
+    });
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: text },
+      {
+        role: "assistant",
+        content: `*Free diagnosis (0 credits) — rule audit + repair plan. Cloud AI not used.*\n\n${offlineReply}`,
+      },
+    ]);
+    toast.success("Free diagnosis ready — Apply now buttons still work");
+  };
+
   /** Send a message. Pass `textArg` to bypass the input field (used for auto-send). */
   const send = async (textArg?: string) => {
     const text = (textArg ?? input).trim();
@@ -495,6 +540,20 @@ export function EaChatDrawer({
 
     const rawImages = collectChatImages(pendingImages, messages);
     const imgs = await prepareChatImages(rawImages);
+    const cost = creditCostForChat(imgs.length > 0);
+    const wallet = readAssistantCredits();
+
+    if (!canAffordAssistantCredits(cost, wallet)) {
+      toast.info(
+        wallet.balance <= 0
+          ? "No AI credits left — running free diagnosis instead"
+          : `Need ${cost} credits (have ${wallet.balance}) — running free diagnosis`,
+      );
+      runFreeDiagnosis(text || "Why no trades?");
+      setInput("");
+      setPendingImages([]);
+      return;
+    }
 
     const userMsg: ChatMsg = {
       role: "user",
@@ -537,6 +596,7 @@ export function EaChatDrawer({
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buf = "";
+      let gotContent = false;
 
       const processChunk = (chunk: string) => {
         buf += chunk;
@@ -545,7 +605,9 @@ export function EaChatDrawer({
         for (const part of parts) {
           if (!part.startsWith("data: ")) continue;
           try {
-            processEvent(JSON.parse(part.slice(6)));
+            const evt = JSON.parse(part.slice(6));
+            if (evt?.type === "text" || evt?.delta || evt?.content) gotContent = true;
+            processEvent(evt);
           } catch (e) {
             if (e instanceof Error && e.message !== "AbortError") throw e;
           }
@@ -558,7 +620,9 @@ export function EaChatDrawer({
           processChunk(decoder.decode());
           if (buf.trim().startsWith("data: ")) {
             try {
-              processEvent(JSON.parse(buf.trim().slice(6)));
+              const evt = JSON.parse(buf.trim().slice(6));
+              if (evt?.type === "text" || evt?.delta || evt?.content) gotContent = true;
+              processEvent(evt);
             } catch {
               // Ignore a trailing partial SSE frame; the accumulated stream is authoritative.
             }
@@ -570,6 +634,9 @@ export function EaChatDrawer({
 
       setMessages((prev) => {
         const last = prev[prev.length - 1];
+        if (last?.role === "assistant" && last.content.trim()) {
+          gotContent = true;
+        }
         if (last?.role === "assistant" && !last.content.trim()) {
           handleChatFailure("No response from cloud assistant", true, text, textArg, {
             blueprint,
@@ -581,9 +648,22 @@ export function EaChatDrawer({
             setMessages,
             setInput,
           });
+          return prev;
         }
         return prev;
       });
+
+      if (gotContent) {
+        const spent = spendAssistantCredits(
+          imgs.length > 0 ? "cloud_chat_with_images" : "cloud_chat",
+        );
+        setCredits(readAssistantCredits());
+        if (spent.ok && spent.cost > 0) {
+          toast.message(`Used ${spent.cost} AI credit${spent.cost === 1 ? "" : "s"}`, {
+            description: `${spent.balance} remaining this period`,
+          });
+        }
+      }
     } catch (e: unknown) {
       if (e instanceof Error && e.name === "AbortError") return;
 
@@ -616,8 +696,12 @@ export function EaChatDrawer({
     }
   };
 
-  const sendDiagnosisMode = (promptText: string) => {
+  const sendDiagnosisMode = (promptText: string, preferFree = false) => {
     if (loading || applyLoading) return;
+    if (preferFree || /Why no trades|Diagnosis mode: Why no trades/i.test(promptText)) {
+      runFreeDiagnosis(promptText);
+      return;
+    }
     send(promptText);
   };
 
@@ -803,13 +887,27 @@ export function EaChatDrawer({
       return;
     }
 
+    const afford = canAffordAssistantCredits(CREDIT_COSTS.ai_surgical_fix);
+    if (!afford) {
+      toast.error(
+        `AI surgical fix needs ${CREDIT_COSTS.ai_surgical_fix} credits (have ${readAssistantCredits().balance}). Use free Apply now / Regen instead.`,
+      );
+      return;
+    }
+
     setApplyLoading(true);
     try {
       const result = await applyFix(messages, blueprint, code, compileLog, backtestSummary);
+      const spent = spendAssistantCredits("ai_surgical_fix");
+      setCredits(readAssistantCredits());
       onApplyCode(result.code);
       setFixReady(false);
       onOpenChange(false);
-      toast.success("Fix applied - remember to save and recompile");
+      toast.success(
+        spent.ok
+          ? `Fix applied (−${spent.cost} credits). Recompile before backtesting.`
+          : "Fix applied - remember to save and recompile",
+      );
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Fix failed - please try again");
     } finally {
@@ -846,12 +944,21 @@ export function EaChatDrawer({
         />
         {/* Header */}
         <SheetHeader className="px-4 py-3 border-b border-border shrink-0 space-y-0">
-          <SheetTitle className="text-sm flex items-center gap-2">
-            <Bot className="h-4 w-4 text-primary" />
-            EA Assistant
-          </SheetTitle>
+          <div className="flex items-start justify-between gap-2">
+            <SheetTitle className="text-sm flex items-center gap-2">
+              <Bot className="h-4 w-4 text-primary" />
+              EA Assistant
+            </SheetTitle>
+            <a
+              href="/pricing"
+              title={creditPolicySummary(credits)}
+              className="shrink-0 text-[10px] px-2 py-1 rounded-md border border-border bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
+            >
+              {credits.balance} AI credits
+            </a>
+          </div>
           <p className="text-[11px] text-muted-foreground mt-1">
-            Debug backtests, adjust your strategy, and explain tester logs.
+            Free: rule audit + Apply now. Cloud chat uses AI credits.
           </p>
 
           {messages.length === 0 && !loading && (
@@ -860,7 +967,9 @@ export function EaChatDrawer({
                 <button
                   key={prompt}
                   type="button"
-                  onClick={() => sendDiagnosisMode(prompt)}
+                  onClick={() =>
+                    sendDiagnosisMode(prompt, /zero trades|no trades/i.test(prompt))
+                  }
                   disabled={loading || applyLoading}
                   className="text-left text-[11px] px-2.5 py-1.5 rounded-full border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
                 >
@@ -883,18 +992,22 @@ export function EaChatDrawer({
                 <div className="grid grid-cols-2 gap-1.5">
                   {DIAGNOSIS_MODES.map((mode) => {
                     const Icon = mode.icon;
+                    const preferFree = mode.id === "no_trades";
                     return (
                       <Button
                         key={mode.id}
                         size="sm"
                         variant="outline"
-                        onClick={() => sendDiagnosisMode(mode.prompt)}
+                        onClick={() => sendDiagnosisMode(mode.prompt, preferFree)}
                         disabled={loading || applyLoading}
                         className="h-8 justify-start px-2 text-[11px]"
-                        title={mode.label}
+                        title={preferFree ? `${mode.label} (free)` : mode.label}
                       >
                         <Icon className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                        <span className="truncate">{mode.label}</span>
+                        <span className="truncate">
+                          {mode.label}
+                          {preferFree ? " · free" : ""}
+                        </span>
                       </Button>
                     );
                   })}
@@ -1064,6 +1177,26 @@ export function EaChatDrawer({
 
         {/* Input */}
         <div className="px-4 py-3 border-t border-border shrink-0 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={loading || applyLoading}
+              onClick={() =>
+                runFreeDiagnosis(input.trim() || "Why no trades? Diagnose from logs and blueprint.")
+              }
+              className="h-7 px-2 text-[11px]"
+              title="Rule audit + repair plan · 0 credits"
+            >
+              <ClipboardList className="h-3.5 w-3.5 mr-1.5" />
+              Free diagnosis
+            </Button>
+            <span className="text-[10px] text-muted-foreground">
+              Cloud send: {creditCostForChat(pendingImages.length > 0)} credit
+              {creditCostForChat(pendingImages.length > 0) === 1 ? "" : "s"}
+            </span>
+          </div>
           {/* Attached screenshot thumbnails */}
           {pendingImages.length > 0 && (
             <div className="flex flex-wrap gap-2">

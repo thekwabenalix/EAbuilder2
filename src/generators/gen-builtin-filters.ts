@@ -3,6 +3,11 @@
  */
 
 import type { BuiltinFilterRef } from "@/lib/builtin-filter-contracts";
+import {
+  emitMt5BufferFilterCondition,
+  emitMt5BufferFilterDecls,
+  isMt5BufferFilter,
+} from "@/lib/mt5-buffer-filter";
 import { tfConst } from "./sm-embed-registry";
 
 export function filterPlacement(filter: BuiltinFilterRef): "setup" | "execution" {
@@ -20,14 +25,24 @@ function filterStr(params: Record<string, unknown>, key: string, fallback: strin
 }
 
 function filterSuffix(filter: BuiltinFilterRef, index: number): string {
-  return `${filter.id}_${filter.timeframe}_${index}`.replace(/[^A-Za-z0-9_]/g, "_");
+  const registry =
+    typeof filter.params?.registryId === "string" ? filter.params.registryId : filter.indicatorId;
+  return `${filter.id}_${registry}_${filter.timeframe}_${index}`.replace(/[^A-Za-z0-9_]/g, "_");
 }
 
-function filterCondition(filter: BuiltinFilterRef, suffix: string, dirExpr: string): string {
+function filterCondition(
+  filter: BuiltinFilterRef,
+  suffix: string,
+  dirExpr: string,
+  tf: string,
+): string {
+  if (isMt5BufferFilter(filter)) {
+    return emitMt5BufferFilterCondition(filter, suffix, dirExpr, tf);
+  }
+
   const params = filter.params ?? {};
 
   if (filter.id === "rsi_level_filter") {
-    const period = filterNum(params, "period", 14);
     const level = filterNum(params, "level", 50);
     const operator = filterStr(params, "operator", "directional");
     if (operator === "above") return `rsi_${suffix} > ${level}`;
@@ -57,6 +72,10 @@ function filterCondition(filter: BuiltinFilterRef, suffix: string, dirExpr: stri
 }
 
 function filterDecls(filter: BuiltinFilterRef, suffix: string, tf: string): string {
+  if (isMt5BufferFilter(filter)) {
+    return emitMt5BufferFilterDecls(filter, suffix, tf);
+  }
+
   const params = filter.params ?? {};
 
   if (filter.id === "rsi_level_filter") {
@@ -91,9 +110,9 @@ export function emitAssemblerFilterSnippet(filter: BuiltinFilterRef, index: numb
   const placement = filterPlacement(filter);
   const target = placement === "setup" ? "gSetupActive" : "gExecSignal";
   const direction = placement === "setup" ? "gSetupDir" : "gExecDir";
-  const condition = filterCondition(filter, suffix, direction);
   const decls = filterDecls(filter, suffix, tf);
   if (!decls) return "";
+  const condition = filterCondition(filter, suffix, direction, tf);
 
   return `
    // Verified built-in ${placement} filter: ${filter.label}
@@ -120,9 +139,9 @@ export function emitFlowEntryFilterCheck(filter: BuiltinFilterRef, index: number
   const tf = tfConst(filter.timeframe || "M5");
   const suffix = filterSuffix(filter, index);
   const placement = filterPlacement(filter);
-  const condition = filterCondition(filter, suffix, "dir");
   const decls = filterDecls(filter, suffix, tf);
   if (!decls) return "";
+  const condition = filterCondition(filter, suffix, "dir", tf);
 
   return `
    // Flow ${placement} filter: ${filter.label}

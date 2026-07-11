@@ -93,7 +93,7 @@ export function buildExpectedTradePath(blueprint: StrategyBlueprint): ExpectedTr
     module: step.module,
     timeframe: step.timeframe,
     event: step.event,
-    isEntry: step.role === "entry" || step.role === "confirmation",
+    isEntry: step.role === "entry",
   }));
 }
 
@@ -161,16 +161,17 @@ export function parseTesterLogForTradeAudit(log: string): TradeAuditReport {
       return;
     }
 
-    const eventMatch = trimmed.match(
-      /\[EVENT\]\s*(.+?)\s*\|\s*dir=(-?\d+)\s*\|\s*(.+?)(?:\s*\|\s*sl=([\d.]+))?/i,
-    );
+    const eventMatch = trimmed.match(/\[EVENT\]\s*(.+?)\s*\|\s*dir=(-?\d+)\s*\|\s*(.+)$/i);
     if (eventMatch) {
       hasAuditMarkers = true;
+      const rest = eventMatch[3]!.trim();
+      const slMatch = rest.match(/^(.*?)\s*\|\s*sl=([\d.]+)\s*$/i);
+      const time = (slMatch ? slMatch[1]! : rest).trim();
       flowEvents.push({
         stepName: eventMatch[1]!.trim(),
         direction: parseDirection(eventMatch[2]!),
-        time: eventMatch[3]!.trim(),
-        sl: eventMatch[4] ? parseFloat(eventMatch[4]) : undefined,
+        time,
+        sl: slMatch ? parseFloat(slMatch[2]!) : undefined,
         line: lineNo,
       });
       return;

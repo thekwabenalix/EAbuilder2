@@ -167,6 +167,7 @@ const PRESETS: Preset[] = [
     rr: 2,
     risk: 1,
     be: true,
+    family: "smc_ict",
   },
   {
     name: "Sweep & Fill",
@@ -178,6 +179,7 @@ const PRESETS: Preset[] = [
     rr: 3,
     risk: 1,
     be: true,
+    family: "smc_ict",
   },
   {
     name: "Trend Rider",
@@ -189,6 +191,7 @@ const PRESETS: Preset[] = [
     rr: 3,
     risk: 0.5,
     be: true,
+    family: "smc_ict",
   },
   {
     name: "Execution Only",
@@ -200,6 +203,7 @@ const PRESETS: Preset[] = [
     rr: 2,
     risk: 1,
     be: false,
+    family: "smc_ict",
   },
 ];
 
@@ -262,6 +266,7 @@ function ModuleMultiSelect({
   brainTimeframe,
   onIndicatorSideEffect,
   modules,
+  emphasizeMt5,
 }: {
   role: BrainRole;
   selected: BrainModuleType[];
@@ -269,6 +274,8 @@ function ModuleMultiSelect({
   brainTimeframe: string;
   onIndicatorSideEffect?: (result: IndicatorPickerResult) => void;
   modules: BrainModuleDef[];
+  /** Indicators family: push the full MT5 catalog as the primary entry. */
+  emphasizeMt5?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [indicatorOpen, setIndicatorOpen] = useState(false);
@@ -291,7 +298,17 @@ function ModuleMultiSelect({
 
   return (
     <div className="space-y-2">
-      <BuiltinIndicatorEntryButton onClick={() => setIndicatorOpen(true)} />
+      <BuiltinIndicatorEntryButton
+        emphasize={emphasizeMt5}
+        onClick={() => setIndicatorOpen(true)}
+      />
+      {emphasizeMt5 && (
+        <p className="text-[10px] text-muted-foreground leading-snug">
+          The checklist below is only the 3 verified strategy modules (EMA, Bollinger, RSI HD).
+          Open the button above for the full MetaTrader built-in list (MACD, Stochastic, ADX,
+          DEMA, SAR, …) — those compile as confluence filters.
+        </p>
+      )}
 
       <div className="relative">
         <button
@@ -300,7 +317,9 @@ function ModuleMultiSelect({
         >
           <div className="flex items-center gap-2 flex-1 min-w-0">
             {selectedDefs.length === 0 ? (
-              <span className="text-xs text-muted-foreground">Select modules…</span>
+              <span className="text-xs text-muted-foreground">
+                {emphasizeMt5 ? "Verified strategy modules…" : "Select modules…"}
+              </span>
             ) : (
               <div className="flex items-center gap-1.5 flex-wrap">
                 {selectedDefs.map((def) => (
@@ -574,6 +593,7 @@ function BrainCard({
   onIndicatorSideEffect,
   familyModules,
   setupModule,
+  emphasizeMt5,
 }: {
   role: BrainRole;
   icon: LucideIcon;
@@ -588,6 +608,7 @@ function BrainCard({
   onIndicatorSideEffect?: (result: IndicatorPickerResult) => void;
   familyModules: BrainModuleDef[];
   setupModule?: BrainModuleType;
+  emphasizeMt5?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const modules = familyModules;
@@ -689,6 +710,7 @@ function BrainCard({
               selected={state?.modules ?? []}
               brainTimeframe={state?.timeframe ?? "H1"}
               modules={familyModules}
+              emphasizeMt5={emphasizeMt5}
               onIndicatorSideEffect={onIndicatorSideEffect}
               onChange={(mods) =>
                 onChange({
@@ -1342,13 +1364,14 @@ function FourBrainBuilderPage() {
             strategyFamily ? "" : "opacity-40 pointer-events-none select-none",
           ].join(" ")}
         >
-          {/* ── Presets ── */}
+          {/* ── Presets (SMC/ICT only — hidden for S/R, indicators, hybrid) ── */}
+          {visiblePresets.length > 0 && (
           <div>
             <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">
               Quick start - presets
             </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {PRESETS.map((p) => (
+              {visiblePresets.map((p) => (
                 <button
                   key={p.name}
                   onClick={() => applyPreset(p)}
@@ -1379,6 +1402,7 @@ function FourBrainBuilderPage() {
               ))}
             </div>
           </div>
+          )}
 
           {/* ── Builder mode ── */}
           <div className="space-y-2">
@@ -1420,6 +1444,12 @@ function FourBrainBuilderPage() {
 
           {builderMode === "advanced" ? (
             <div className="space-y-4 max-w-2xl">
+              <ActiveConfluenceFilters
+                filterRefs={filterRefs}
+                indicatorRefs={indicatorRefs}
+                onRemoveFilter={removeFilter}
+                onRemoveIndicator={removeIndicator}
+              />
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <GitBranch className="h-4 w-4 text-sky-400" />
@@ -1441,6 +1471,7 @@ function FourBrainBuilderPage() {
                 flow={flowConfig}
                 onChange={setFlowConfig}
                 strategyFamily={strategyFamily}
+                onIndicatorApply={handleIndicatorSideEffect}
               />
             </div>
           ) : (
@@ -1470,6 +1501,7 @@ function FourBrainBuilderPage() {
                     recommendBelow={setup?.timeframe ?? execution?.timeframe}
                     onIndicatorSideEffect={handleIndicatorSideEffect}
                     familyModules={brainPickerModules("direction")}
+                    emphasizeMt5={strategyFamily === "indicators"}
                   />
                   <Arrow active={Boolean(direction?.modules?.[0])} />
                   <BrainCard
@@ -1485,6 +1517,7 @@ function FourBrainBuilderPage() {
                     recommendBelow={execution?.timeframe}
                     onIndicatorSideEffect={handleIndicatorSideEffect}
                     familyModules={brainPickerModules("setup")}
+                    emphasizeMt5={strategyFamily === "indicators"}
                   />
                   <Arrow active={Boolean(setup?.modules?.[0])} />
                   <BrainCard
@@ -1500,6 +1533,7 @@ function FourBrainBuilderPage() {
                     setupModule={setupModuleId}
                     recommendAbove={setup?.timeframe ?? direction?.timeframe}
                     onIndicatorSideEffect={handleIndicatorSideEffect}
+                    emphasizeMt5={strategyFamily === "indicators"}
                   />
                 </div>
               </div>

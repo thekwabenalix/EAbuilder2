@@ -5,15 +5,56 @@ import {
   parseTesterLogForTradeAudit,
   type TradeAuditReport,
 } from "@/lib/trade-audit";
+import {
+  buildRuleAudit,
+  type RuleAuditStepStatus,
+  type RuleAuditReport,
+} from "@/lib/rule-audit";
 import { resolveStrategyFlow } from "@/lib/blueprint-generation-gate";
-import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardList, Shield } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  ClipboardList,
+  Shield,
+  XCircle,
+  CircleDashed,
+} from "lucide-react";
 
 function roleTone(role: string): string {
   if (role === "direction") return "text-blue-400 border-blue-500/30 bg-blue-500/10";
   if (role === "setup") return "text-orange-300 border-orange-500/30 bg-orange-500/10";
-  if (role === "entry" || role === "confirmation")
-    return "text-emerald-400 border-emerald-500/30 bg-emerald-500/10";
+  if (role === "confirmation") return "text-violet-300 border-violet-500/30 bg-violet-500/10";
+  if (role === "entry") return "text-emerald-400 border-emerald-500/30 bg-emerald-500/10";
   return "text-muted-foreground border-border bg-muted/20";
+}
+
+function statusTone(status: RuleAuditStepStatus): string {
+  if (status === "passed") return "text-emerald-400";
+  if (status === "missing") return "text-rose-400";
+  if (status === "out_of_order" || status === "direction_mismatch") return "text-amber-400";
+  return "text-muted-foreground";
+}
+
+function StatusIcon({ status }: { status: RuleAuditStepStatus }) {
+  if (status === "passed") return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />;
+  if (status === "missing") return <XCircle className="h-3.5 w-3.5 text-rose-400 shrink-0" />;
+  if (status === "out_of_order" || status === "direction_mismatch")
+    return <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />;
+  return <CircleDashed className="h-3.5 w-3.5 text-muted-foreground shrink-0" />;
+}
+
+function verdictBanner(audit: RuleAuditReport) {
+  if (audit.verdict === "pass") {
+    return "border-emerald-500/30 bg-emerald-500/5 text-emerald-300";
+  }
+  if (audit.verdict === "fail") {
+    return "border-rose-500/30 bg-rose-500/5 text-rose-300";
+  }
+  if (audit.verdict === "incomplete") {
+    return "border-amber-500/30 bg-amber-500/5 text-amber-300";
+  }
+  return "border-border bg-muted/20 text-muted-foreground";
 }
 
 export function TradeAuditPanel({
@@ -29,6 +70,10 @@ export function TradeAuditPanel({
   const parsed: TradeAuditReport | null = useMemo(
     () => (testerLog?.trim() ? parseTesterLogForTradeAudit(testerLog) : null),
     [testerLog],
+  );
+  const ruleAudit = useMemo(
+    () => buildRuleAudit({ blueprint, testerLog, parsed }),
+    [blueprint, testerLog, parsed],
   );
   const flow = resolveStrategyFlow(blueprint);
 
@@ -92,6 +137,53 @@ export function TradeAuditPanel({
           <span className="text-[10px] font-medium text-emerald-400">Trade</span>
         </div>
       </div>
+
+      {(testerLog || ruleAudit.verdict !== "no_evidence") && (
+        <div className={`rounded-md border px-3 py-2 text-[11px] ${verdictBanner(ruleAudit)}`}>
+          <p className="font-medium">Rule audit: {ruleAudit.title}</p>
+        </div>
+      )}
+
+      {(testerLog || parsed) && (
+        <div className="space-y-2">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            Backtest evidence
+          </p>
+          <div className="space-y-1.5">
+            {ruleAudit.steps.map((step) => (
+              <div
+                key={step.id}
+                className="flex items-start gap-2 rounded border border-border/60 bg-background/30 px-2.5 py-1.5"
+              >
+                <StatusIcon status={step.status} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-medium truncate">{step.name}</p>
+                    <span className={`text-[10px] uppercase tracking-wide ${statusTone(step.status)}`}>
+                      {step.status.replace(/_/g, " ")}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{step.detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          {(ruleAudit.orderingIssues.length > 0 || ruleAudit.directionIssues.length > 0) &&
+            !compact && (
+              <div className="space-y-1 pt-1">
+                {[...ruleAudit.orderingIssues, ...ruleAudit.directionIssues].map((issue) => (
+                  <div
+                    key={issue}
+                    className="flex items-start gap-2 text-[11px] text-amber-300"
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    {issue}
+                  </div>
+                ))}
+              </div>
+            )}
+        </div>
+      )}
 
       {parsed && (
         <div className="space-y-3 pt-1 border-t border-border/60">

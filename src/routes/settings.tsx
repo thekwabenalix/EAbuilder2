@@ -28,6 +28,14 @@ import {
   Monitor,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import {
+  PLAN_MONTHLY_CREDITS,
+  creditPolicySummary,
+  readAssistantCredits,
+  setAssistantCreditPlan,
+  type AssistantCreditPlan,
+  type AssistantCreditWallet,
+} from "@/lib/assistant-credits";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/settings")({
@@ -167,6 +175,7 @@ function SettingsPage() {
   const qc = useQueryClient();
   const [runnerToken, setRunnerToken] = useState("");
   const [manualTerminalPath, setManualTerminalPath] = useState("");
+  const [credits, setCredits] = useState<AssistantCreditWallet>(() => readAssistantCredits());
 
   const health = useQuery({
     queryKey: ["local-runner-health"],
@@ -427,6 +436,36 @@ function SettingsPage() {
 
         {/* ── RIGHT: Account ── */}
         <div className="space-y-6">
+          <section className="rounded-md border border-border bg-card p-4">
+            <h2 className="text-xs uppercase tracking-wide text-muted-foreground">
+              Assistant credits
+            </h2>
+            <p className="mt-2 text-xs text-muted-foreground whitespace-pre-line">
+              {creditPolicySummary(credits)}
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {(["starter", "builder", "studio"] as AssistantCreditPlan[]).map((plan) => (
+                <Button
+                  key={plan}
+                  size="sm"
+                  variant={credits.plan === plan ? "default" : "outline"}
+                  onClick={() => {
+                    const next = setAssistantCreditPlan(plan);
+                    setCredits(next);
+                    toast.success(
+                      `Plan set to ${plan} (${PLAN_MONTHLY_CREDITS[plan]} credits this period)`,
+                    );
+                  }}
+                >
+                  {plan}
+                </Button>
+              ))}
+            </div>
+            <Link to="/pricing" className="inline-block mt-3 text-xs text-primary hover:underline">
+              View pricing details
+            </Link>
+          </section>
+
           <section className="rounded-md border border-border bg-card p-4">
             <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Appearance</h2>
             <p className="mt-2 text-xs text-muted-foreground">

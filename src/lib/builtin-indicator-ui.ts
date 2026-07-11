@@ -2,6 +2,7 @@
  * Built-in indicator picker - maps trader-friendly choices to compile-time wiring.
  *
  * Trend / oscillator categories → verified filterRefs or brain modules (never raw iX() guesses).
+ * Native MT5 builtins (via=builtin) compile as generic buffer confluence filters.
  */
 
 import type { BrainModuleType } from "@/types/blueprint";
@@ -10,6 +11,7 @@ import type { StrategyBlueprint } from "@/types/blueprint";
 import type { BuiltinIndicatorRef } from "@/lib/indicator-boundary";
 import { explainBuiltinIndicator } from "@/lib/indicator-boundary";
 import { INDICATOR_REGISTRY } from "@/lib/indicator-registry";
+import { createMt5BufferFilterRef, MT5_BUFFER_FILTER_ID } from "@/lib/mt5-buffer-filter";
 
 export type IndicatorPickerCategory =
   | "trend"
@@ -30,27 +32,27 @@ export const INDICATOR_PICKER_CATEGORIES: IndicatorPickerCategoryDef[] = [
   {
     id: "trend",
     label: "Trend",
-    hint: "Moving averages, Bollinger Bands, envelopes",
+    hint: "MA, Bollinger, Envelopes, Ichimoku, SAR, ADX…",
   },
   {
     id: "oscillator",
     label: "Oscillator",
-    hint: "RSI, MACD, momentum filters",
+    hint: "RSI, MACD, Stochastic, CCI, Momentum…",
   },
   {
     id: "volume",
     label: "Volume",
-    hint: "Volume-based filters (ATR volatility uses price range)",
+    hint: "Volumes, MFI, OBV, Accumulation/Distribution",
   },
   {
     id: "bill_williams",
     label: "Bill Williams",
-    hint: "Bill Williams indicators from MT5",
+    hint: "AO, AC, Alligator, Fractals, Gator…",
   },
   {
     id: "custom_included",
     label: "MT5 Examples",
-    hint: "Indicators shipped in MetaTrader's Examples folder",
+    hint: "Indicators in MetaTrader Examples (reference until iCustom wired)",
   },
 ];
 
@@ -68,7 +70,7 @@ export interface IndicatorPickerOption {
   defaultFilterParams?: Record<string, unknown>;
 }
 
-/** Indicators the compiler can actually wire today. */
+/** Hand-tuned options (richer semantics than the generic buffer gate). */
 const VERIFIED_INDICATOR_PICKER_OPTIONS: IndicatorPickerOption[] = [
   {
     id: "ema_module",
@@ -135,45 +137,49 @@ const VERIFIED_INDICATOR_PICKER_OPTIONS: IndicatorPickerOption[] = [
     defaultFilterParams: { period: 14, minAtrPoints: 0, maxAtrPoints: 0, operator: "above" },
     description: "Skip entries when volatility is too low or too high.",
   },
-  {
-    id: "stochastic_catalog",
-    name: "Stochastic",
-    category: "oscillator",
-    wiring: "catalog",
-    wiringLabel: "Reference only",
-    catalogIndicatorId: "stochastic",
-    description:
-      "Recognized in your blueprint - full wiring not available yet. Use RSI/MACD filters or describe in notes.",
-  },
-  {
-    id: "ichimoku_catalog",
-    name: "Ichimoku",
-    category: "trend",
-    wiring: "catalog",
-    wiringLabel: "Reference only",
-    catalogIndicatorId: "ichimoku",
-    description: "Catalog reference only - not compiled into EAs yet.",
-  },
 ];
 
 const VERIFIED_CATALOG_IDS = new Set(
   VERIFIED_INDICATOR_PICKER_OPTIONS.map((option) => option.catalogIndicatorId).filter(Boolean),
 );
+const VERIFIED_BRAIN_BY_CATALOG: Record<string, true> = {
+  ma: true,
+  bands: true,
+};
 
+/** Every native MT5 iX() from the registry — compiles as a buffer confluence filter. */
+const MT5_BUILTIN_FILTER_OPTIONS: IndicatorPickerOption[] = INDICATOR_REGISTRY.filter(
+  (indicator) =>
+    indicator.via === "builtin" &&
+    !VERIFIED_CATALOG_IDS.has(indicator.id) &&
+    !VERIFIED_BRAIN_BY_CATALOG[indicator.id],
+).map((indicator) => ({
+  id: `mt5_${indicator.id}`,
+  name: indicator.name,
+  category: indicator.category,
+  wiring: "filter" as const,
+  wiringLabel: "MT5 built-in",
+  filterContractId: MT5_BUFFER_FILTER_ID,
+  catalogIndicatorId: indicator.id,
+  description: `${indicator.mql5} — compiles as a confluence gate (buffer vs level/price). ${indicator.description}`,
+}));
+
+/** Examples folder — reference until dedicated iCustom wiring lands. */
 const REGISTRY_CATALOG_OPTIONS: IndicatorPickerOption[] = INDICATOR_REGISTRY.filter(
-  (indicator) => !VERIFIED_CATALOG_IDS.has(indicator.id),
+  (indicator) => indicator.via === "icustom",
 ).map((indicator) => ({
   id: `catalog_${indicator.id}`,
   name: indicator.name,
   category: indicator.category,
-  wiring: "catalog",
-  wiringLabel: indicator.via === "builtin" ? "MT5 built-in" : "MT5 example",
+  wiring: "catalog" as const,
+  wiringLabel: "MT5 example",
   catalogIndicatorId: indicator.id,
-  description: `${indicator.mql5} - ${indicator.description}`,
+  description: `${indicator.mql5} — saved as reference (Examples folder). Prefer native builtins for live EAs.`,
 }));
 
 export const INDICATOR_PICKER_OPTIONS: IndicatorPickerOption[] = [
   ...VERIFIED_INDICATOR_PICKER_OPTIONS,
+  ...MT5_BUILTIN_FILTER_OPTIONS,
   ...REGISTRY_CATALOG_OPTIONS,
 ];
 
@@ -195,7 +201,15 @@ export function createFilterRefFromPicker(
   appliesTo: "setup" | "execution",
 ): BuiltinFilterRef | null {
   if (option.wiring !== "filter" || !option.filterContractId) return null;
+
+  if (option.filterContractId === MT5_BUFFER_FILTER_ID && option.catalogIndicatorId) {
+    const fromRegistry = INDICATOR_REGISTRY.find((i) => i.id === option.catalogIndicatorId);
+    if (fromRegistry) return createMt5BufferFilterRef(fromRegistry, timeframe, appliesTo);
+    return null;
+  }
+
   const contract = BUILTIN_FILTER_CONTRACTS[option.filterContractId];
+  if (!contract) return null;
   return {
     id: contract.id,
     label: contract.label,
@@ -221,7 +235,13 @@ export function mergeFilterRef(
   next: BuiltinFilterRef,
 ): NonNullable<StrategyBlueprint["filterRefs"]> {
   const list = [...(existing ?? [])];
-  const idx = list.findIndex((f) => f.id === next.id && f.appliesTo === next.appliesTo);
+  const idx = list.findIndex(
+    (f) =>
+      f.id === next.id &&
+      f.appliesTo === next.appliesTo &&
+      f.indicatorId === next.indicatorId &&
+      String(f.params?.registryId ?? "") === String(next.params?.registryId ?? ""),
+  );
   if (idx >= 0) list[idx] = next;
   else list.push(next);
   return list;

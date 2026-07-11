@@ -1,48 +1,80 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CircleCheck } from "lucide-react";
+import {
+  CREDIT_COSTS,
+  PLAN_MONTHLY_CREDITS,
+  type AssistantCreditPlan,
+} from "@/lib/assistant-credits";
 
 export const Route = createFileRoute("/pricing")({
   component: PricingRoute,
 });
 
-const plans = [
+const plans: Array<{
+  id: AssistantCreditPlan;
+  name: string;
+  price: string;
+  note: string;
+  features: string[];
+  featured: boolean;
+}> = [
   {
+    id: "starter",
     name: "Starter",
     price: "$0",
     note: "Explore the builder",
-    features: ["Create strategy drafts", "Preview module mapping", "Download sample indicators"],
+    features: [
+      `${PLAN_MONTHLY_CREDITS.starter} AI assistant credits / month`,
+      "Free rule audit + repair plan",
+      "Free Apply now (regen / set period)",
+      "Create strategy drafts & preview modules",
+    ],
     featured: false,
   },
   {
+    id: "builder",
     name: "Builder",
     price: "$29",
     note: "For active EA builders",
     features: [
-      "AI strategy interviews",
-      "Generate MT5 EAs",
+      `${PLAN_MONTHLY_CREDITS.builder} AI assistant credits / month`,
+      "AI strategy interviews + generate MT5 EAs",
       "Compile and backtest with local runner",
+      `Cloud chat ${CREDIT_COSTS.cloud_chat}–${CREDIT_COSTS.cloud_chat_with_images} credits · surgical fix ${CREDIT_COSTS.ai_surgical_fix}`,
     ],
     featured: true,
   },
   {
+    id: "studio",
     name: "Studio",
     price: "$79",
     note: "For teams and power users",
-    features: ["Strategy library", "Advanced repair assistant", "Priority module requests"],
+    features: [
+      `${PLAN_MONTHLY_CREDITS.studio} AI assistant credits / month`,
+      "Strategy library + advanced repair assistant",
+      "Priority module requests",
+      "Same free diagnosis / Apply now as all plans",
+    ],
     featured: false,
   },
-] as const;
+];
 
 function PricingRoute() {
   return (
     <div>
       <PageHeader
         title="Pricing"
-        subtitle="Choose the workflow that fits your EA building volume."
+        subtitle="Deterministic diagnosis stays free. Cloud AI uses monthly credits."
       />
+      <div className="mx-auto max-w-3xl px-6 pb-2 text-sm text-muted-foreground">
+        <p>
+          Free on every plan: rule audit, repair plan, Apply now, compile/download via the local
+          runner. Paid: cloud assistant chat and AI surgical code rewrite.
+        </p>
+      </div>
       <div className="grid gap-4 p-6 lg:grid-cols-3">
         {plans.map((plan) => (
           <Card
@@ -71,15 +103,20 @@ function PricingRoute() {
                 <span className="text-4xl font-semibold tracking-tight">{plan.price}</span>
                 <span className="pb-1 text-sm text-muted-foreground">/ month</span>
               </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {PLAN_MONTHLY_CREDITS[plan.id]} AI credits included
+              </p>
               <div className="mt-6 space-y-3">
                 {plan.features.map((feature) => (
                   <div key={feature} className="flex items-center gap-2 text-sm">
-                    <CircleCheck className="h-4 w-4 text-primary" />
+                    <CircleCheck className="h-4 w-4 shrink-0 text-primary" />
                     <span>{feature}</span>
                   </div>
                 ))}
               </div>
-              <Button className="mt-6 w-full">Current workspace</Button>
+              <Button className="mt-6 w-full" asChild>
+                <Link to="/settings">Manage credits in Settings</Link>
+              </Button>
             </CardContent>
           </Card>
         ))}

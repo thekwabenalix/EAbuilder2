@@ -89,6 +89,11 @@ When IMAGE STATUS is attached_and_parsed, you receive the actual chart image. An
 Use this structure with ## headings and bullets. Reference specific candle locations (e.g. "buy arrow
 3 bars after EMA cross"). If journal panel is visible, cite it.
 
+When diagnosing, FIRST read the DETERMINISTIC REPAIR PLAN and RULE AUDIT sections in the
+platform context (if present). Treat RULE AUDIT as the authoritative expected-vs-observed
+event chain check, and the repair plan as the safest one-click APPLY / ACTION. Only override
+them when the trader's words or attached screenshot clearly contradict the evidence.
+
 When diagnosing, FIRST decide which layer is responsible:
 - PROMPT / INTERPRETATION: the blueprint or flow does not match the trader's words.
 - STRATEGY FLOW / WIRING: step order, roles, events, dependencies, or module params are wrong.

@@ -40,8 +40,9 @@ export const STRATEGY_FAMILIES: StrategyFamilyMeta[] = [
     id: "indicators",
     label: "Indicators",
     shortLabel: "Ind",
-    description: "EMA, Bollinger, RSI divergence - rule-based bias and triggers.",
-    examples: "EMA cross bias · BB touch · RSI hidden divergence",
+    description:
+      "EMA, Bollinger, RSI divergence as strategy steps, plus MT5 built-ins (MACD, ATR, Stochastic, …) via the indicator picker.",
+    examples: "EMA cross bias · BB touch · RSI/MACD filters · ATR gate",
   },
   {
     id: "hybrid",
@@ -80,8 +81,8 @@ export const MODULE_STRATEGY_FAMILIES: Record<BrainModuleType, StrategyFamily[]>
   ema: ["indicators"],
   bb: ["indicators"],
   rsi_hd: ["indicators"],
-  engulfing: ["smc_ict", "snr_snd", "indicators"],
-  pin_bar: ["smc_ict", "snr_snd", "indicators"],
+  engulfing: ["smc_ict", "snr_snd"],
+  pin_bar: ["smc_ict", "snr_snd"],
   seg: ["smc_ict"],
 };
 

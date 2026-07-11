@@ -117,7 +117,13 @@ export function createDefaultStep(
 ): StrategyStepConfig {
   const pickerRole = role === "direction" ? "direction" : role === "setup" ? "setup" : "execution";
   const familyModules = family ? pickerModulesForBrain(family, pickerRole) : [];
-  const moduleId = familyModules[0]?.id ?? "bos";
+  const preferred =
+    family === "indicators"
+      ? familyModules.find((m) => m.id === "ema") ??
+        familyModules.find((m) => m.id === "bb") ??
+        familyModules[0]
+      : familyModules[0];
+  const moduleId = preferred?.id ?? "bos";
   const timeframe = steps[steps.length - 1]?.timeframe ?? "M5";
   const prior = steps[steps.length - 1];
   const id = newStepId(steps, role);

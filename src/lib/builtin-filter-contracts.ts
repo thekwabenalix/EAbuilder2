@@ -134,6 +134,40 @@ export const BUILTIN_FILTER_CONTRACTS: Record<string, BuiltinFilterContract> = {
     notes:
       "Use only as a momentum confluence filter. Do not put macd or macd_histogram_filter in sm_configs.",
   },
+  mt5_buffer_filter: {
+    id: "mt5_buffer_filter",
+    label: "MT5 Built-in Buffer Filter",
+    indicatorId: "ma",
+    roles: ["setup", "execution"],
+    params: [
+      {
+        name: "registryId",
+        type: "string",
+        default: "ma",
+        description: "INDICATOR_REGISTRY id (rsi, macd, sar, adx, …).",
+      },
+      { name: "buffer", type: "int", default: 0, description: "CopyBuffer index." },
+      {
+        name: "compareTo",
+        type: "string",
+        default: "level",
+        description: "level | price | zero — what the buffer is compared against.",
+      },
+      { name: "level", type: "double", default: 0, description: "Threshold when compareTo=level." },
+      {
+        name: "operator",
+        type: "string",
+        default: "directional",
+        description: "above, below, or directional (buy side of threshold / price).",
+      },
+    ],
+    aliases: ["mt5 indicator", "builtin indicator filter", "ix filter"],
+    allowedHelpers: ["B4_Buf"],
+    semantics:
+      "Creates a native MT5 indicator handle from INDICATOR_REGISTRY (iRSI, iMACD, iSAR, …), reads one buffer with B4_Buf, then gates setup/execution. It must not invent custom indicator logic or replace verified brain modules.",
+    notes:
+      "Compilable confluence filter for any via=builtin registry entry. Prefer dedicated RSI/MACD/ATR contracts when available; this is the general Import-from-MT5 path.",
+  },
 };
 
 export function getBuiltinFilterContract(id: string): BuiltinFilterContract | undefined {
