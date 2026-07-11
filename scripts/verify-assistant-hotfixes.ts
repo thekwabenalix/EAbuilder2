@@ -15,6 +15,11 @@ import {
   PLAN_MONTHLY_CREDITS,
   spendAssistantCredits,
 } from "../src/lib/assistant-credits";
+import {
+  clearAssistantChatHistory,
+  readAssistantChatHistory,
+  writeAssistantChatHistory,
+} from "../src/lib/assistant-chat-history";
 import { DEFAULT_BLUEPRINT } from "../src/types/blueprint";
 
 function assertOk(condition: unknown, message: string): asserts condition {
@@ -205,4 +210,36 @@ const freeSpend = spendAssistantCredits("free_diagnosis", broke);
 assertOk(freeSpend.ok && freeSpend.cost === 0 && freeSpend.balance === 0, "free diagnosis at zero balance");
 console.log("[OK  ] assistant credit policy");
 
-console.log("\n11 assistant checks passed.\n");
+// Conversation persistence (localStorage)
+{
+  const store = new Map<string, string>();
+  (globalThis as { localStorage?: Storage }).localStorage = {
+    getItem: (k) => store.get(k) ?? null,
+    setItem: (k, v) => {
+      store.set(k, String(v));
+    },
+    removeItem: (k) => {
+      store.delete(k);
+    },
+    clear: () => store.clear(),
+    key: () => null,
+    get length() {
+      return store.size;
+    },
+  } as Storage;
+
+  writeAssistantChatHistory("strat-1", [
+    { role: "user", content: "why no trades?" },
+    { role: "assistant", content: "Gate blocked." },
+    { role: "assistant", content: "" },
+  ]);
+  const loaded = readAssistantChatHistory("strat-1");
+  assertOk(loaded.length === 2, "persists non-empty messages only");
+  assertOk(loaded[0]?.content === "why no trades?", "restores user turn");
+  clearAssistantChatHistory("strat-1");
+  assertOk(readAssistantChatHistory("strat-1").length === 0, "clear removes thread");
+  console.log("[OK  ] assistant chat history persistence");
+}
+
+console.log("\n12 assistant checks passed.\n");
+

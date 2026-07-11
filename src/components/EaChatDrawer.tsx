@@ -62,6 +62,11 @@ import {
   spendAssistantCredits,
   type AssistantCreditWallet,
 } from "@/lib/assistant-credits";
+import {
+  clearAssistantChatHistory,
+  readAssistantChatHistory,
+  writeAssistantChatHistory,
+} from "@/lib/assistant-chat-history";
 import type { EaChatMessage } from "@/lib/api-client";
 import type { StrategyBlueprint } from "@/types/blueprint";
 
@@ -331,6 +336,8 @@ const REPAIR_FLOWS = [
 interface EaChatDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Strategy id — persists / restores this conversation in localStorage. */
+  strategyId?: string;
   /** When set, the drawer sends this message automatically the moment it opens. */
   autoMessage?: string;
   prompt?: string;
@@ -368,6 +375,7 @@ function readDrawerWidth(): number {
 export function EaChatDrawer({
   open,
   onOpenChange,
+  strategyId,
   autoMessage,
   prompt,
   blueprint,
@@ -384,7 +392,9 @@ export function EaChatDrawer({
   // Local message type carries attached screenshots so they stay visible in the
   // conversation (and prove they were captured). Stripped before hitting the API.
   type ChatMsg = EaChatMessage & { images?: string[] };
-  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [messages, setMessages] = useState<ChatMsg[]>(() =>
+    strategyId ? readAssistantChatHistory(strategyId) : [],
+  );
   const [input, setInput] = useState("");
   /** Attached chart screenshots (base64 data URLs) sent with the next message. */
   const [pendingImages, setPendingImages] = useState<string[]>([]);
@@ -401,6 +411,22 @@ export function EaChatDrawer({
   const abortRef = useRef<AbortController | null>(null);
   const [drawerWidth, setDrawerWidth] = useState(readDrawerWidth);
   const resizeRef = useRef<{ startX: number; startW: number } | null>(null);
+  const hydratedStrategyRef = useRef<string | undefined>(strategyId);
+
+  // Restore when switching strategies (same drawer instance across navigations).
+  useEffect(() => {
+    if (!strategyId || strategyId === hydratedStrategyRef.current) return;
+    hydratedStrategyRef.current = strategyId;
+    setMessages(readAssistantChatHistory(strategyId));
+    setFixReady(false);
+    setPendingImages([]);
+  }, [strategyId]);
+
+  // Persist after each turn (skip while streaming an empty assistant bubble).
+  useEffect(() => {
+    if (!strategyId || loading) return;
+    writeAssistantChatHistory(strategyId, messages);
+  }, [strategyId, messages, loading]);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -503,6 +529,17 @@ export function EaChatDrawer({
   useEffect(() => {
     if (open) setCredits(readAssistantCredits());
   }, [open]);
+
+  const clearConversation = () => {
+    if (loading || applyLoading) return;
+    abortRef.current?.abort();
+    setMessages([]);
+    setFixReady(false);
+    setPendingImages([]);
+    setInput("");
+    if (strategyId) clearAssistantChatHistory(strategyId);
+    toast.success("Conversation cleared");
+  };
 
   const runFreeDiagnosis = (textArg: string) => {
     const text = textArg.trim();
@@ -949,16 +986,33 @@ export function EaChatDrawer({
               <Bot className="h-4 w-4 text-primary" />
               EA Assistant
             </SheetTitle>
-            <a
-              href="/pricing"
-              title={creditPolicySummary(credits)}
-              className="shrink-0 text-[10px] px-2 py-1 rounded-md border border-border bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
-            >
-              {credits.balance} AI credits
-            </a>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {messages.length > 0 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+                  onClick={clearConversation}
+                  disabled={loading || applyLoading}
+                  title="Clear saved conversation"
+                >
+                  <RotateCcw className="h-3 w-3 mr-1" />
+                  Clear
+                </Button>
+              )}
+              <a
+                href="/pricing"
+                title={creditPolicySummary(credits)}
+                className="text-[10px] px-2 py-1 rounded-md border border-border bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
+              >
+                {credits.balance} AI credits
+              </a>
+            </div>
           </div>
           <p className="text-[11px] text-muted-foreground mt-1">
             Free: rule audit + Apply now. Cloud chat uses AI credits.
+            {strategyId ? " Conversation is saved for this strategy." : ""}
           </p>
 
           {messages.length === 0 && !loading && (

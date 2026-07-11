@@ -803,6 +803,7 @@ function StrategyPage() {
           setChatOpen(open);
           if (!open) setChatAutoMessage(null);
         }}
+        strategyId={id}
         autoMessage={chatAutoMessage ?? undefined}
         prompt={data.prompt}
         blueprint={blueprint}

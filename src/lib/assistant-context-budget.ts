@@ -220,7 +220,7 @@ export function buildAssistantChatContext(input: AssistantChatContextInput): str
 /** Trim chat history so follow-up turns stay within budget. */
 export function trimChatMessages<T extends { role: string; content: string }>(
   messages: T[],
-  maxMessages = 10,
+  maxMessages = 24,
 ): T[] {
   if (messages.length <= maxMessages) return messages;
   return messages.slice(-maxMessages);
