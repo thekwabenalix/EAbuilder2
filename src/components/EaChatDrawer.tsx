@@ -412,6 +412,8 @@ export function EaChatDrawer({
   const [drawerWidth, setDrawerWidth] = useState(readDrawerWidth);
   const resizeRef = useRef<{ startX: number; startW: number } | null>(null);
   const hydratedStrategyRef = useRef<string | undefined>(strategyId);
+  /** Unlock Open Backtest "Run" only after the user applies regen_ea. */
+  const [backtestUnlockedAfterRegen, setBacktestUnlockedAfterRegen] = useState(false);
 
   // Restore when switching strategies (same drawer instance across navigations).
   useEffect(() => {
@@ -420,6 +422,7 @@ export function EaChatDrawer({
     setMessages(readAssistantChatHistory(strategyId));
     setFixReady(false);
     setPendingImages([]);
+    setBacktestUnlockedAfterRegen(false);
   }, [strategyId]);
 
   // Persist after each turn (skip while streaming an empty assistant bubble).
@@ -537,6 +540,7 @@ export function EaChatDrawer({
     setFixReady(false);
     setPendingImages([]);
     setInput("");
+    setBacktestUnlockedAfterRegen(false);
     if (strategyId) clearAssistantChatHistory(strategyId);
     toast.success("Conversation cleared");
   };
@@ -833,7 +837,8 @@ export function EaChatDrawer({
     if (fix.type === "regen_ea") {
       if (onRegenTemplate) {
         onRegenTemplate();
-        toast.success("EA regenerated from blueprint");
+        setBacktestUnlockedAfterRegen(true);
+        toast.success("EA regenerated from blueprint — you can run Backtest now");
       } else {
         toast.error("Regenerate is not available for this strategy");
       }
@@ -849,22 +854,33 @@ export function EaChatDrawer({
   const renderApplyFixCard = (fix: AssistantApplyFix, index: number) => (
     <div
       key={`${fix.type}-${index}`}
-      className="mt-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2.5"
+      className="mt-2 rounded-md border border-emerald-600/50 bg-emerald-500/10 p-2.5"
     >
-      <p className="text-[11px] font-medium text-emerald-200 mb-2">{applyFixLabel(fix)}</p>
+      <p className="text-[11px] font-semibold text-emerald-950 dark:text-emerald-50 mb-2">
+        {applyFixLabel(fix)}
+      </p>
       <Button
         size="sm"
         onClick={() => handleApplyAssistantFix(fix)}
         disabled={loading || applyLoading}
-        className="h-7 bg-emerald-600 hover:bg-emerald-500 text-white border-0 text-[11px]"
+        className="h-7 bg-emerald-700 hover:bg-emerald-600 text-white border-0 text-[11px]"
       >
         Apply now
       </Button>
     </div>
   );
-  const renderToolIntent = (tool: EaAssistantToolIntent, index: number) => {
+  const renderToolIntent = (
+    tool: EaAssistantToolIntent,
+    index: number,
+    opts?: { requireRegenFirst?: boolean },
+  ) => {
     const config = ACTION_CONFIG[tool.action];
     const Icon = config.icon;
+    const gateBacktestRun =
+      tool.action === "open_backtest" &&
+      Boolean(opts?.requireRegenFirst) &&
+      !backtestUnlockedAfterRegen;
+
     return (
       <div
         key={`${tool.action}-${index}`}
@@ -884,17 +900,24 @@ export function EaChatDrawer({
                 {tool.reason}
               </div>
             )}
+            {gateBacktestRun && (
+              <div className="mt-1.5 text-[11px] font-medium text-amber-800 dark:text-amber-200">
+                Apply “Regenerate EA” above first — then Run appears here.
+              </div>
+            )}
           </div>
-          <Button
-            size="sm"
-            onClick={() => handleSafeAction(tool.action)}
-            disabled={
-              loading || applyLoading || (tool.action === "regen_template" && !onRegenTemplate)
-            }
-            className="h-7 px-2 text-[11px] shrink-0"
-          >
-            Run
-          </Button>
+          {!gateBacktestRun && (
+            <Button
+              size="sm"
+              onClick={() => handleSafeAction(tool.action)}
+              disabled={
+                loading || applyLoading || (tool.action === "regen_template" && !onRegenTemplate)
+              }
+              className="h-7 px-2 text-[11px] shrink-0"
+            >
+              Run
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -916,6 +939,7 @@ export function EaChatDrawer({
     if (isRegenPreferred && onRegenTemplate && !compileLog?.toLowerCase().includes("error")) {
       try {
         onRegenTemplate();
+        setBacktestUnlockedAfterRegen(true);
         setFixReady(false);
         onOpenChange(false);
       } catch (e: unknown) {
@@ -1136,6 +1160,7 @@ export function EaChatDrawer({
               m.role === "assistant" && !isStreaming ? extractToolMarkers(m.content) : [];
             const applyFixes =
               m.role === "assistant" && !isStreaming ? extractApplyMarkers(m.content) : [];
+            const requiresRegenBeforeBacktest = applyFixes.some((f) => f.type === "regen_ea");
 
             return (
               <div
@@ -1180,10 +1205,15 @@ export function EaChatDrawer({
                       {actions.map((action) => renderActionButton(action, true))}
                     </div>
                   )}
-                  {toolIntents.length > 0 &&
-                    toolIntents.map((tool, toolIndex) => renderToolIntent(tool, toolIndex))}
+                  {/* Apply (regen) first — then gated tool cards like Open Backtest */}
                   {applyFixes.length > 0 &&
                     applyFixes.map((fix, fixIndex) => renderApplyFixCard(fix, fixIndex))}
+                  {toolIntents.length > 0 &&
+                    toolIntents.map((tool, toolIndex) =>
+                      renderToolIntent(tool, toolIndex, {
+                        requireRegenFirst: requiresRegenBeforeBacktest,
+                      }),
+                    )}
                   {isStreaming && m.content.length > 0 && (
                     <span className="inline-block w-1.5 h-3 bg-current ml-0.5 animate-pulse align-middle" />
                   )}
