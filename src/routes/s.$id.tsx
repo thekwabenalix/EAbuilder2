@@ -443,11 +443,58 @@ function StrategyPage() {
     setDirty(true);
   };
 
-  const regenFromTemplate = () => {
-    const fixed = generateMql5FromBlueprint(blueprint);
-    setGeneratedCode(fixed);
-    setDirty(true);
-    toast.success("Regenerated from blueprint - save and recompile");
+  const regenFromTemplate = async (): Promise<import("@/lib/assistant-apply").RegenEaResult> => {
+    try {
+      const result = generateEaFromBlueprint(blueprint);
+      const changed = result.code !== generatedCode;
+      setGeneratedCode(result.code);
+      setDirty(true);
+      setActiveTab("code");
+
+      let saved = false;
+      try {
+        await updateStrategy(id, {
+          name: name || "Untitled Strategy",
+          blueprint,
+          generatedCode: result.code,
+        });
+        saved = true;
+        setDirty(false);
+        qc.invalidateQueries({ queryKey: ["strategies"] });
+        qc.invalidateQueries({ queryKey: ["strategy", id] });
+      } catch {
+        // Code is updated in memory; user can still Save manually.
+      }
+
+      const hasAlignGate =
+        /entry not aligned with/i.test(result.code) ||
+        /BLOCKED:\s*direction mismatch/i.test(result.code) ||
+        /DIR_MISMATCH/i.test(result.code);
+
+      const pathLabel = generationPathLabel(result.path);
+      toast.success(
+        saved
+          ? changed
+            ? `EA regenerated & saved (${pathLabel}). Recompile, then backtest.`
+            : `EA already matched blueprint (${pathLabel}) — saved. Recompile, then backtest.`
+          : changed
+            ? `EA regenerated (${pathLabel}) but save failed — click Save, then recompile.`
+            : `Code unchanged (${pathLabel}). Click Save if needed, then recompile.`,
+      );
+
+      return { ok: true, changed, saved, pathLabel, hasAlignGate };
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e.message : "Regenerate failed";
+      toast.error(error);
+      return {
+        ok: false,
+        changed: false,
+        saved: false,
+        pathLabel: "",
+        hasAlignGate: false,
+        error,
+      };
+    }
   };
 
   const handleAssistantAction = (action: EaAssistantAction) => {
@@ -506,7 +553,7 @@ function StrategyPage() {
       return;
     }
     if (fix.type === "regen_ea") {
-      regenFromTemplate();
+      void regenFromTemplate();
     }
   };
 

@@ -82,10 +82,15 @@ regen_template, open_brains). Example for tester TF mismatch:
 DIRECTION / CONFLUENCE MISALIGNMENT (H1 bias vs M5 cross/entry, gDir mismatch, "trades fire
 when LTF is opposite HTF"):
 1. Explain the rule in plain English (HTF direction must agree with LTF entry).
-2. Emit [APPLY:{"type":"regen_ea"}] so the verified Strategy Flow generator rebuilds the EA
-   with the direction-alignment gate.
-3. Emit [TOOL:{"action":"open_backtest","reason":"Recompile the new EA and backtest with InpAudit=true."}]
-4. NEVER tell the user to manually patch EvaluateEntry(), add if(gDir[2]!=gDir[0]), or edit
+2. FIRST inspect the CODE attachment. If it already contains "entry not aligned" or
+   "BLOCKED: direction mismatch" / DIR_MISMATCH, the gate is ALREADY generated —
+   do NOT claim EvaluateEntry skips the check, and do NOT emit regen_ea again.
+   Tell the trader to **Compile** the saved EA and backtest with InpAudit=true
+   (old .ex5 is the usual reason the bug "still" appears after Apply).
+3. Only if the gate text is missing: emit [APPLY:{"type":"regen_ea"}] so the verified
+   Strategy Flow generator rebuilds + saves the EA with the direction-alignment gate.
+4. Emit [TOOL:{"action":"open_backtest","reason":"Compile the EA and backtest with InpAudit=true."}]
+5. NEVER tell the user to manually patch EvaluateEntry(), add if(gDir[2]!=gDir[0]), or edit
    line numbers in the .mq5. That is unsafe and bypasses verified generators.
 
 Do not tell the user to manually change settings or MQL5 when APPLY can do it.

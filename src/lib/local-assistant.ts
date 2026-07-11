@@ -13,7 +13,7 @@ import {
 } from "@/lib/trade-audit";
 import { generationPathLabel, previewEaGeneration } from "@/lib/generate-ea-router";
 import { formatBrainChain } from "@/lib/brain-modules";
-import { resolveFlowBacktestPeriod } from "@/lib/assistant-apply";
+import { resolveFlowBacktestPeriod, codeHasDirectionAlignGate } from "@/lib/assistant-apply";
 import {
   buildAssistantRepairPlan,
   repairPlanToMarkdown,
@@ -64,7 +64,7 @@ function wantsWiringHelp(msg: string): boolean {
   );
 }
 
-function wiringVerdict(blueprint: StrategyBlueprint): string[] {
+function wiringVerdict(blueprint: StrategyBlueprint, code?: string): string[] {
   const flow = resolveStrategyFlow(blueprint);
   const steps = flow?.steps ?? [];
   const dir = steps.find((s) => s.enabled !== false && s.role === "direction");
@@ -75,6 +75,7 @@ function wiringVerdict(blueprint: StrategyBlueprint): string[] {
       (!dir || s.timeframe.toUpperCase() !== dir.timeframe.toUpperCase()),
   );
   const lines: string[] = ["", "## Verdict", ""];
+  const hasGate = codeHasDirectionAlignGate(code);
 
   if (!dir) {
     lines.push(
@@ -112,16 +113,39 @@ function wiringVerdict(blueprint: StrategyBlueprint): string[] {
     lines.push(
       "In Advanced Flow, set each Setup/Entry **direction source** to the H1 Direction step (or Regenerate so the adapter wires `from_step`).",
     );
-  } else {
     lines.push(
       "",
-      "**Blueprint already links lower TF → Direction.** Regenerated flow EAs tick the LTF EMA SM with `gDir[direction]` so M5 crosses opposite to H1 bias are ignored, and entry gates reject direction mismatches.",
+      "**Do now:** Fix the link in Configure, then Apply regenerate, **Compile**, and backtest with **InpAudit=true**.",
     );
+    lines.push('[APPLY:{"type":"regen_ea"}]', "[ACTION:open_brains]", "[ACTION:open_backtest]");
+    return lines;
+  }
+
+  if (hasGate) {
+    lines.push(
+      "",
+      "**Generated EA already includes the direction-alignment gate** (`entry not aligned` / direction mismatch).",
+    );
+    lines.push(
+      "If you still see opposite-direction trades, you are likely running an **old compiled `.ex5`**. Apply does not help until you **Compile** again and re-backtest.",
+    );
+    lines.push(
+      "",
+      "**Do now:** Compile EA → backtest with **InpAudit=true** → look for `[GATE] BLOCKED: entry not aligned…`.",
+    );
+    lines.push(
+      '[TOOL:{"action":"open_backtest","reason":"Compile the current EA and backtest with InpAudit=true — alignment gate is already in code."}]',
+    );
+    return lines;
   }
 
   lines.push(
     "",
-    "**Do now:** Regenerate the EA, recompile, backtest with **InpAudit=true**. Opposite-direction M5 crosses should show gate blocks, not trades.",
+    "**Blueprint already links lower TF → Direction**, but this MQL5 copy is missing the alignment gate text.",
+  );
+  lines.push(
+    "",
+    "**Do now:** Apply regenerate (saves new MQL5), then **Compile**, then backtest with **InpAudit=true**.",
   );
   lines.push('[APPLY:{"type":"regen_ea"}]', "[ACTION:open_brains]", "[ACTION:open_backtest]");
   return lines;
@@ -385,7 +409,7 @@ export function answerLocalAssistant(input: LocalAssistantInput): string {
     lines.push(...cloudOfflineVerdict());
     lines.push(...repairPlanToMarkdown(repairPlan));
   } else if (wantsWiringHelp(msg)) {
-    lines.push(...wiringVerdict(input.blueprint));
+    lines.push(...wiringVerdict(input.blueprint, input.code));
     lines.push(...ruleAuditToMarkdown(ruleAudit));
   } else if (wantsCompileHelp(msg)) {
     const { verdict, evidence } = compileVerdict(input.compileLog);

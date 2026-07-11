@@ -49,9 +49,11 @@ import { collectChatImages, compressChatImage, prepareChatImages } from "@/lib/c
 import { AssistantMarkdown } from "@/components/AssistantMarkdown";
 import {
   applyFixLabel,
+  codeHasDirectionAlignGate,
   extractApplyMarkers,
   stripApplyMarkers,
   type AssistantApplyFix,
+  type RegenEaResult,
 } from "@/lib/assistant-apply";
 import {
   canAffordAssistantCredits,
@@ -352,9 +354,9 @@ interface EaChatDrawerProps {
   /**
    * When provided AND the current code is template-generated, "Apply fix" becomes
    * "Regen from Template" - a deterministic regeneration instead of AI rewrite.
-   * Pass a callback that calls generateMql5FromBlueprint and updates state.
+   * Should generate from blueprint, save, and return what changed.
    */
-  onRegenTemplate?: () => void;
+  onRegenTemplate?: () => void | Promise<void | RegenEaResult>;
   /** Apply structured fixes the assistant recommends (regen EA, backtest period, save). */
   onApplyAssistantFix?: (fix: AssistantApplyFix) => void;
 }
@@ -404,6 +406,8 @@ export function EaChatDrawer({
   const [fixReady, setFixReady] = useState(false);
   /** True while /api/apply-fix is running - shows spinner in banner. */
   const [applyLoading, setApplyLoading] = useState(false);
+  /** True while Apply now → regen_ea is generating + saving. */
+  const [regenLoading, setRegenLoading] = useState(false);
   const [credits, setCredits] = useState<AssistantCreditWallet>(() =>
     typeof window !== "undefined" ? readAssistantCredits() : readAssistantCredits(),
   );
@@ -823,7 +827,12 @@ export function EaChatDrawer({
         size="sm"
         variant="outline"
         onClick={() => handleSafeAction(action)}
-        disabled={loading || applyLoading || (action === "regen_template" && !onRegenTemplate)}
+        disabled={
+          loading ||
+          applyLoading ||
+          regenLoading ||
+          (action === "regen_template" && !onRegenTemplate)
+        }
         className={compact ? "h-7 px-2 text-[11px]" : "h-8 justify-start px-2 text-[11px]"}
         title={config.label}
       >
@@ -833,14 +842,67 @@ export function EaChatDrawer({
     );
   };
 
-  const handleApplyAssistantFix = (fix: AssistantApplyFix) => {
+  const handleApplyAssistantFix = async (fix: AssistantApplyFix) => {
     if (fix.type === "regen_ea") {
-      if (onRegenTemplate) {
-        onRegenTemplate();
-        setBacktestUnlockedAfterRegen(true);
-        toast.success("EA regenerated from blueprint — you can run Backtest now");
-      } else {
+      if (!onRegenTemplate) {
         toast.error("Regenerate is not available for this strategy");
+        return;
+      }
+      setRegenLoading(true);
+      try {
+        const raw = await onRegenTemplate();
+        const result =
+          raw && typeof raw === "object" && "ok" in raw ? (raw as RegenEaResult) : null;
+
+        if (result && !result.ok) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: `## Regenerate failed\n\n${result.error || "Could not regenerate from blueprint."}\n\nOpen **Configure**, fix the flow, then try Apply again.`,
+            },
+          ]);
+          return;
+        }
+
+        setBacktestUnlockedAfterRegen(true);
+        const gateNote = result?.hasAlignGate
+          ? "Direction-alignment gate is present in the new EA (`entry not aligned` / direction mismatch blocks)."
+          : codeHasDirectionAlignGate(code)
+            ? "Alignment checks were already in the previous code — recompile so MT5 picks up the saved file."
+            : "If trades still ignore HTF bias after recompile, open Configure and confirm Setup/Entry `directionSource` points at the Direction step.";
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: [
+              "## Applied: EA regenerated from blueprint",
+              "",
+              result?.changed === false
+                ? "- Code was **already** up to date with the blueprint (nothing new to write)."
+                : "- MQL5 was rewritten from your Strategy Flow / 4-Brain blueprint.",
+              result?.saved
+                ? "- Strategy was **saved** automatically."
+                : "- Save failed or was skipped — click **Save** in the header before compiling.",
+              result?.pathLabel ? `- Generator: **${result.pathLabel}**` : "",
+              `- ${gateNote}`,
+              "",
+              "### Next (required)",
+              "1. Open **Code** / **Backtest** → **Compile EA** (so MT5 gets the new `.ex5`).",
+              "2. Run a report backtest with **InpAudit=true**.",
+              "3. Opposite-direction M5 crosses should show `[GATE] BLOCKED: entry not aligned…`, not trades.",
+              "",
+              '[TOOL:{"action":"open_backtest","reason":"Compile the saved EA, then run a report backtest with InpAudit=true."}]',
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          },
+        ]);
+      } catch (e: unknown) {
+        toast.error(e instanceof Error ? e.message : "Regenerate failed");
+      } finally {
+        setRegenLoading(false);
       }
       return;
     }
@@ -861,11 +923,18 @@ export function EaChatDrawer({
       </p>
       <Button
         size="sm"
-        onClick={() => handleApplyAssistantFix(fix)}
-        disabled={loading || applyLoading}
+        onClick={() => void handleApplyAssistantFix(fix)}
+        disabled={loading || applyLoading || regenLoading}
         className="h-7 bg-emerald-700 hover:bg-emerald-600 text-white border-0 text-[11px]"
       >
-        Apply now
+        {regenLoading && fix.type === "regen_ea" ? (
+          <>
+            <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            Regenerating…
+          </>
+        ) : (
+          "Apply now"
+        )}
       </Button>
     </div>
   );
@@ -910,9 +979,12 @@ export function EaChatDrawer({
             <Button
               size="sm"
               onClick={() => handleSafeAction(tool.action)}
-              disabled={
-                loading || applyLoading || (tool.action === "regen_template" && !onRegenTemplate)
-              }
+            disabled={
+              loading ||
+              applyLoading ||
+              regenLoading ||
+              (tool.action === "regen_template" && !onRegenTemplate)
+            }
               className="h-7 px-2 text-[11px] shrink-0"
             >
               Run
@@ -938,12 +1010,15 @@ export function EaChatDrawer({
     // Assembler EA without compile errors: regenerate from blueprint instead of AI rewrite
     if (isRegenPreferred && onRegenTemplate && !compileLog?.toLowerCase().includes("error")) {
       try {
-        onRegenTemplate();
+        setRegenLoading(true);
+        await onRegenTemplate();
         setBacktestUnlockedAfterRegen(true);
         setFixReady(false);
         onOpenChange(false);
       } catch (e: unknown) {
         toast.error(e instanceof Error ? e.message : "Blueprint regeneration failed");
+      } finally {
+        setRegenLoading(false);
       }
       return;
     }

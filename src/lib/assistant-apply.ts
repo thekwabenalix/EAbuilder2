@@ -71,3 +71,24 @@ export function applyFixLabel(fix: AssistantApplyFix): string {
       return "Save strategy";
   }
 }
+
+/** True when generated MQL5 already includes HTF↔LTF direction alignment gates. */
+export function codeHasDirectionAlignGate(code: string | null | undefined): boolean {
+  if (!code) return false;
+  return (
+    /entry not aligned with/i.test(code) ||
+    /BLOCKED:\s*direction mismatch/i.test(code) ||
+    /DIR_MISMATCH/i.test(code)
+  );
+}
+
+/** Result returned when the assistant applies regen_ea. */
+export type RegenEaResult = {
+  ok: boolean;
+  changed: boolean;
+  saved: boolean;
+  pathLabel: string;
+  hasAlignGate: boolean;
+  error?: string;
+};
+
