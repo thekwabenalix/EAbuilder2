@@ -131,20 +131,36 @@ export function generateEaFromBlueprint(bp: StrategyBlueprint): GenerateEaFromBl
   const eaName = eaNameFromBlueprint(bp);
 
   if (flowEaSupportsAllSteps(flow)) {
+    const code = generateFlowEA(flow, eaName, bp.filterRefs);
+    const path: EaGenerationPath = "flow_engine";
     return {
-      code: generateFlowEA(flow, eaName, bp.filterRefs),
-      path: "flow_engine",
+      code,
+      path,
       flow,
-      validationWarnings: gate.warnings,
+      validationWarnings: assertGeneratedExecutionParity({
+        blueprint: bp,
+        flow,
+        code,
+        path,
+        warnings: gate.warnings,
+      }),
     };
   }
 
   const resolved = resolveGenerationPath(flow, bp.fourBrain, gate.warnings);
+  const code = generateBlueprintAssemblerEa(bp);
+  const path = resolved.path!;
   return {
-    code: generateBlueprintAssemblerEa(bp),
-    path: resolved.path!,
+    code,
+    path,
     flow,
-    validationWarnings: resolved.validationWarnings,
+    validationWarnings: assertGeneratedExecutionParity({
+      blueprint: bp,
+      flow,
+      code,
+      path,
+      warnings: resolved.validationWarnings,
+    }),
   };
 }
 

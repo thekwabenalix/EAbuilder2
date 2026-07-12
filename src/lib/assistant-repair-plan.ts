@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Deterministic repair planner for the in-app assistant.
  *
  * This does not edit strategy code. It classifies the current evidence into a
@@ -16,7 +16,8 @@ import {
 } from "@/lib/assistant-apply";
 import { buildExpectedTradePath, parseTesterLogForTradeAudit } from "@/lib/trade-audit";
 import { buildModuleRepairPlan, MODULE_ADMISSION } from "@/lib/module-admission";
-import { previewEaGeneration } from "@/lib/generate-ea-router";
+import { previewEaGeneration, resolveStrategyFlow } from "@/lib/generate-ea-router";
+import { validateGeneratedExecutionParity } from "@/lib/semantic-execution-validator";
 
 export type AssistantRepairLayer =
   | "missing_evidence"
@@ -127,6 +128,38 @@ export function buildAssistantRepairPlan(input: {
       apply: { type: "regen_ea" },
       action: "regen_template",
       verify: "After regeneration, compile and run a report backtest.",
+    };
+  }
+
+  try {
+    const preview = previewEaGeneration(blueprint);
+    const flow = resolveStrategyFlow(blueprint);
+    if (preview.path && flow) {
+      const parity = validateGeneratedExecutionParity({
+        blueprint,
+        flow,
+        code,
+        path: preview.path,
+      });
+      if (!parity.ok) {
+        return {
+          layer: "generation",
+          title: "The saved EA does not match the configured strategy",
+          reasons: parity.errors,
+          apply: { type: "regen_ea" },
+          action: "regen_template",
+          verify:
+            "Regenerate from the blueprint, compile, then confirm each configured event appears in the audit log.",
+        };
+      }
+    }
+  } catch (error) {
+    return {
+      layer: "generation",
+      title: "The saved EA could not be checked against the blueprint",
+      reasons: [error instanceof Error ? error.message : "Semantic validation failed."],
+      action: "open_code",
+      verify: "Regenerate from the blueprint and compile before running another backtest.",
     };
   }
 
