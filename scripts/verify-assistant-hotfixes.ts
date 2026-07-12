@@ -22,6 +22,7 @@ import {
 } from "../src/lib/assistant-chat-history";
 import {
   applyFixFlowWiring,
+  applyFixSilentZoneSetup,
   applyFixLabel,
   extractApplyMarkers,
 } from "../src/lib/assistant-apply";
@@ -320,5 +321,84 @@ console.log("[OK  ] assistant credit policy");
   console.log("[OK  ] assistant flow wiring apply");
 }
 
-console.log("\n13 assistant checks passed.\n");
+{
+  const bp = {
+    ...flowBlueprint,
+    strategyFlow: {
+      version: 1 as const,
+      mode: "advanced_instances" as const,
+      source: "user" as const,
+      steps: [
+        {
+          id: "s1",
+          name: "Setup Order Block H1",
+          role: "setup" as const,
+          module: "order_block",
+          timeframe: "H1",
+          event: "OB_RETESTED",
+          params: { dispMult: 1.5, expiryBars: 20 },
+          enabled: true,
+        },
+        {
+          id: "c1",
+          name: "Confirmation Order Block H1",
+          role: "confirmation" as const,
+          module: "order_block",
+          timeframe: "H1",
+          event: "OB_RETESTED",
+          dependsOn: [{ stepId: "s1", relation: "after" as const }],
+          enabled: true,
+        },
+        {
+          id: "e1",
+          name: "Entry BOS M5",
+          role: "entry" as const,
+          module: "bos",
+          timeframe: "M5",
+          event: "BOS_CONFIRMED",
+          dependsOn: [{ stepId: "c1", relation: "after" as const }],
+          enabled: true,
+        },
+      ],
+    },
+  };
+
+  const testerLog = Array.from({ length: 20 }, () =>
+    "[EVENT] Entry BOS M5 | dir=1 | 2024.01.01 10:00 | sl=1.1",
+  ).join("\n");
+
+  const plan = buildAssistantRepairPlan({
+    blueprint: bp,
+    code: "// smoke",
+    testerLog,
+    backtestSummary: { totalTrades: 0 },
+  });
+  assertOk(plan.apply?.type === "fix_silent_zone_setup", "silent OB setup offers silent-zone apply");
+  assertOk(!/regen/i.test(plan.title), "silent OB setup does not title as regenerate");
+
+  const patched = applyFixSilentZoneSetup(bp);
+  assertOk(patched.changed, "silent zone patch changes blueprint");
+  const setup = patched.blueprint.strategyFlow?.steps?.find((s) => s.id === "s1");
+  const conf = patched.blueprint.strategyFlow?.steps?.find((s) => s.id === "c1");
+  const entry = patched.blueprint.strategyFlow?.steps?.find((s) => s.id === "e1");
+  assertOk(setup?.event === "OB_CREATED", "setup remapped to OB_CREATED");
+  assertOk(conf?.enabled === false, "duplicate OB confirmation disabled");
+  assertOk(
+    entry?.dependsOn?.some((d) => d.stepId === "s1"),
+    "entry rewired to setup",
+  );
+
+  const offline = answerLocalAssistant({
+    userMessage: "Why no trades?",
+    blueprint: bp,
+    code: "// smoke",
+    testerLog,
+    backtestSummary: { totalTrades: 0 },
+  });
+  assertOk(offline.includes("fix_silent_zone_setup"), "offline diagnosis offers silent-zone apply");
+  assertOk(/Setup never armed|orphaned/i.test(offline), "offline explains orphaned entry");
+  console.log("[OK  ] silent zone setup repair");
+}
+
+console.log("\n14 assistant checks passed.\n");
 

@@ -292,9 +292,26 @@ function buildTradeVerdict(
     return { verdict, evidence };
   }
 
+  const silentZones = expected.filter(
+    (s) =>
+      !s.isEntry &&
+      (s.role === "setup" || s.role === "filter" || s.role === "confirmation") &&
+      /order_block|fvg|unicorn|breaker|liqsweep|snr|zone/i.test(s.module) &&
+      (byStep.get(s.name) ?? 0) === 0,
+  );
+  if (silentZones.length && entryCount > 0) {
+    verdict.push(
+      `**Setup never armed** (${silentZones.map((s) => s.name).join(", ")} = 0 events) while Entry fired **${entryCount}x**.`,
+      "Those Entry signals are orphaned — the confluence gate never opens without Setup. Regenerating the EA will not invent Order Block retests.",
+      "Safest next click: **Apply → Fix silent Setup** (arm on zone formation, remove duplicate OB Confirmation, loosen displacement).",
+    );
+    evidence.push(...buildTradeEvidence(expected, parsed, summary));
+    return { verdict, evidence };
+  }
+
   if (setupCount === 0 && dirCount > 0) {
     verdict.push(
-      "**Direction logged, but setup never fired.** Check bias wiring, step order, or regenerate after flow changes.",
+      "**Direction logged, but setup never fired.** Do not plain-regen — open Configure / apply **Fix silent Setup** or wiring fix.",
     );
     evidence.push(...buildTradeEvidence(expected, parsed, summary));
     return { verdict, evidence };

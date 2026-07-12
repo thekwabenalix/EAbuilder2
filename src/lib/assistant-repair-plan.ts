@@ -13,11 +13,14 @@ import {
   looksLikeHtfLtfMisalignment,
   looksLikeSameBarCollision,
   looksLikeSetupExpiryIssue,
+  looksLikeSilentZoneSetup,
 } from "@/lib/assistant-apply";
 import {
   buildExpectedTradePath,
   parseTesterLogForTradeAudit,
   validateTradeSequences,
+  type ExpectedTradeStep,
+  type TradeAuditReport,
 } from "@/lib/trade-audit";
 import { buildModuleRepairPlan, MODULE_ADMISSION } from "@/lib/module-admission";
 import { previewEaGeneration, resolveStrategyFlow } from "@/lib/generate-ea-router";
@@ -81,6 +84,56 @@ function detectTesterPeriodMismatch(
   return null;
 }
 
+const ZONE_MODULES = new Set([
+  "fvg",
+  "order_block",
+  "ob_fvg",
+  "liqsweep",
+  "breaker_block",
+  "unicorn",
+  "snr",
+  "gap_snr",
+  "rejection",
+  "zone_liq",
+  "fvg_inversion",
+]);
+
+function stepEventCounts(
+  expected: ExpectedTradeStep[],
+  parsed: TradeAuditReport,
+): Map<string, number> {
+  const byStep = new Map<string, number>();
+  for (const ev of parsed.flowEvents) {
+    byStep.set(ev.stepName, (byStep.get(ev.stepName) ?? 0) + 1);
+  }
+  for (const step of expected) {
+    if (!byStep.has(step.name)) byStep.set(step.name, 0);
+  }
+  return byStep;
+}
+
+/** Setup/confirmation silent while entry (or other) still logs — regen cannot invent zone hits. */
+function detectSilentZoneUpstream(
+  expected: ExpectedTradeStep[],
+  parsed: TradeAuditReport,
+): { silent: ExpectedTradeStep[]; entryCount: number } | null {
+  if (!expected.length) return null;
+  const byStep = stepEventCounts(expected, parsed);
+  const silent = expected.filter(
+    (s) =>
+      !s.isEntry &&
+      (s.role === "setup" || s.role === "filter" || s.role === "confirmation") &&
+      ZONE_MODULES.has(s.module) &&
+      (byStep.get(s.name) ?? 0) === 0,
+  );
+  if (!silent.length) return null;
+  const entry = expected.find((s) => s.isEntry);
+  const entryCount = entry ? (byStep.get(entry.name) ?? 0) : 0;
+  const anyHot = [...byStep.values()].some((n) => n > 0);
+  if (entryCount === 0 && !anyHot) return null;
+  return { silent, entryCount };
+}
+
 export function buildAssistantRepairPlan(input: {
   blueprint: StrategyBlueprint;
   code?: string | null;
@@ -100,6 +153,9 @@ export function buildAssistantRepairPlan(input: {
     looksLikeSameBarCollision(userMessage ?? "") || looksLikeSameBarCollision(testerLog ?? "");
   const expiryComplaint =
     looksLikeSetupExpiryIssue(userMessage ?? "") || looksLikeSetupExpiryIssue(testerLog ?? "");
+  const silentZoneComplaint = looksLikeSilentZoneSetup(
+    `${userMessage ?? ""}\n${testerLog ?? ""}`,
+  );
 
   if (moduleRepair.blocked.length) {
     return {
@@ -227,6 +283,29 @@ export function buildAssistantRepairPlan(input: {
       };
     }
 
+    const expected = buildExpectedTradePath(blueprint);
+    const silentZone = detectSilentZoneUpstream(expected, parsed);
+    if (silentZone || silentZoneComplaint) {
+      const names =
+        silentZone?.silent.map((s) => `${s.name} (${s.event})`).join(", ") ??
+        "Setup/Confirmation zone step(s)";
+      return {
+        layer: "strategy_flow",
+        title: "Setup never armed — Entry signals are orphaned",
+        reasons: [
+          `${names} logged 0 events in the tester log.`,
+          silentZone && silentZone.entryCount > 0
+            ? `Entry still fired ${silentZone.entryCount}x, so the robot is alive — regenerating will not create Order Block retests that are not in the price data.`
+            : "Regenerating the EA alone cannot invent zone retests.",
+          "Likely causes: Setup waits on OB_RETESTED (rare), two Order Block gates on the same TF, or displacement params too strict.",
+        ],
+        apply: { type: "fix_silent_zone_setup" },
+        action: "open_brains",
+        verify:
+          "Apply the silent-Setup fix (arm on OB_CREATED, drop duplicate Confirmation, loosen dispMult), compile, retest with InpAudit=true, confirm Setup events appear before Entry.",
+      };
+    }
+
     const totalTrades =
       typeof backtestSummary?.totalTrades === "number"
         ? backtestSummary.totalTrades
@@ -291,15 +370,14 @@ export function buildAssistantRepairPlan(input: {
         layer: riskLike ? "risk_filter" : "strategy_flow",
         title: `Entry gate blocked trades: ${parsed.dominantBlock}`,
         reasons: parsed.gateBlocks.slice(0, 4).map((b) => `${b.reason}: ${b.count}x`),
-        action: riskLike ? "open_brains" : "regen_template",
-        apply: riskLike ? undefined : { type: "regen_ea" },
+        action: riskLike ? "open_brains" : "open_brains",
+        apply: riskLike ? undefined : { type: "fix_flow_wiring" },
         verify: riskLike
           ? "Adjust risk/spread/max stop settings, then rerun the same backtest."
-          : "Regenerate from the current flow, compile, and verify the expected event chain fires in order.",
+          : "Apply the wiring fix (not a plain regen), compile, and verify the expected event chain fires in order.",
       };
     }
 
-    const expected = buildExpectedTradePath(blueprint);
     const entry = expected.find((s) => s.isEntry);
     if (entry && parsed.flowEvents.every((e) => e.stepName !== entry.name)) {
       return {
@@ -308,9 +386,9 @@ export function buildAssistantRepairPlan(input: {
         reasons: [
           `Expected entry step '${entry.name}' with event '${entry.event}', but it did not appear in the tester events.`,
         ],
-        apply: { type: "regen_ea" },
-        action: "regen_template",
-        verify: "Rerun backtest and confirm the entry step appears before any order is expected.",
+        apply: { type: "fix_flow_wiring" },
+        action: "open_brains",
+        verify: "Apply flow wiring, rebuild, and confirm the entry step appears before any order is expected.",
       };
     }
 
@@ -320,10 +398,10 @@ export function buildAssistantRepairPlan(input: {
       reasons: [
         `Audit events found: ${parsed.flowEvents.length}; trades opened: ${parsed.tradesOpened}.`,
       ],
-      apply: { type: "regen_ea" },
-      action: "regen_template",
+      apply: { type: "fix_flow_wiring" },
+      action: "open_brains",
       verify:
-        "Regenerate and rerun with InpAudit=true, then compare the event chain with the strategy rules.",
+        "Apply Strategy Flow wiring (or the silent-Setup fix if Setup is at 0), compile, retest with InpAudit=true.",
     };
   }
 

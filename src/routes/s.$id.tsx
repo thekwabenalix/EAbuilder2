@@ -77,6 +77,7 @@ import {
   type AssistantApplyFix,
   applyHtfLtfEmaAlignment,
   applyFixFlowWiring,
+  applyFixSilentZoneSetup,
   applySetTimeFilter,
 } from "@/lib/assistant-apply";
 import { toast } from "sonner";
@@ -589,14 +590,17 @@ function StrategyPage() {
     if (
       fix.type === "fix_htf_ltf_ema_alignment" ||
       fix.type === "fix_flow_wiring" ||
+      fix.type === "fix_silent_zone_setup" ||
       fix.type === "set_time_filter"
     ) {
       const patched =
         fix.type === "set_time_filter"
           ? applySetTimeFilter(blueprint, fix)
-          : fix.type === "fix_flow_wiring"
-            ? applyFixFlowWiring(blueprint)
-            : applyHtfLtfEmaAlignment(blueprint);
+          : fix.type === "fix_silent_zone_setup"
+            ? applyFixSilentZoneSetup(blueprint)
+            : fix.type === "fix_flow_wiring"
+              ? applyFixFlowWiring(blueprint)
+              : applyHtfLtfEmaAlignment(blueprint);
       if (!patched.changed) {
         setActiveTab(isFourBrain ? "brains" : "spec");
         toast.message(patched.notes[0] ?? "Configure already looks correct");
@@ -619,9 +623,11 @@ function StrategyPage() {
         const label =
           fix.type === "set_time_filter"
             ? "Trading schedule"
-            : fix.type === "fix_flow_wiring"
-              ? "Flow wiring"
-              : "EMA alignment";
+            : fix.type === "fix_silent_zone_setup"
+              ? "Silent Setup fix"
+              : fix.type === "fix_flow_wiring"
+                ? "Flow wiring"
+                : "EMA alignment";
         toast.success(`${label} applied — starting history test…`);
         requestAutoHistoryTest();
       } catch (e: unknown) {
@@ -641,86 +647,141 @@ function StrategyPage() {
 
   return (
     <div className="pb-8">
-      <PageHeader
-        title={
-          <input
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              setDirty(true);
-            }}
-            className="bg-transparent outline-none border-b border-transparent focus:border-border w-full max-w-lg text-lg font-semibold"
-            aria-label="Strategy name"
-          />
-        }
-        subtitle={subtitle}
-        below={
-          isFourBrain ? (
-            <WorkflowStepper
-              steps={[
-                { id: "brains", label: "Configure", shortLabel: "Configure", icon: Settings2 },
-                { id: "backtest", label: "Test on history", shortLabel: "Test", icon: BarChart2 },
-                { id: "export", label: "Export", shortLabel: "Export", icon: Download },
-                { id: "code", label: "Advanced", shortLabel: "Code", icon: FileCode2 },
-              ]}
-              currentId={activeTab}
-              onStepClick={setActiveTab}
-            />
-          ) : undefined
-        }
-        actions={
-          <>
-            <Button size="sm" onClick={() => setChatOpen(true)}>
-              <Bot className="h-4 w-4 mr-1.5" /> Assistant
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setActiveTab("backtest")}
-              className="hidden sm:inline-flex"
-            >
-              <Play className="h-4 w-4 mr-1.5" /> Test on history
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => saveMut.mutate()}
-              disabled={saveMut.isPending || !dirty}
-              variant={dirty ? "default" : "outline"}
-            >
-              {saveMut.isPending ? (
-                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-              ) : dirty ? (
-                <Save className="h-4 w-4 mr-1.5" />
-              ) : (
-                <Check className="h-4 w-4 mr-1.5" />
-              )}
-              {dirty ? "Save" : "Saved"}
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="outline" className="px-2">
-                  <MoreHorizontal className="h-4 w-4" />
-                  <span className="sr-only">More actions</span>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <div className="sticky top-12 z-20 md:top-0 border-b border-border/70 bg-card/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
+          <PageHeader
+            className="border-b-0 shadow-none bg-transparent"
+            title={
+              <input
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setDirty(true);
+                }}
+                className="bg-transparent outline-none border-b border-transparent focus:border-border w-full max-w-lg text-lg font-semibold"
+                aria-label="Strategy name"
+              />
+            }
+            subtitle={subtitle}
+            below={
+              isFourBrain ? (
+                <WorkflowStepper
+                  steps={[
+                    { id: "brains", label: "Configure", shortLabel: "Configure", icon: Settings2 },
+                    {
+                      id: "backtest",
+                      label: "Test on history",
+                      shortLabel: "Test",
+                      icon: BarChart2,
+                    },
+                    { id: "export", label: "Export", shortLabel: "Export", icon: Download },
+                    { id: "code", label: "Advanced", shortLabel: "Code", icon: FileCode2 },
+                  ]}
+                  currentId={activeTab}
+                  onStepClick={setActiveTab}
+                />
+              ) : undefined
+            }
+            actions={
+              <>
+                <Button size="sm" onClick={() => setChatOpen(true)}>
+                  <Bot className="h-4 w-4 mr-1.5" /> Assistant
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => dupMut.mutate()} disabled={dupMut.isPending}>
-                  <Copy className="h-4 w-4 mr-2" /> Duplicate strategy
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onClick={() => {
-                    if (confirm(`Delete "${name}"?`)) delMut.mutate();
-                  }}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setActiveTab("backtest")}
+                  className="hidden sm:inline-flex"
                 >
-                  <Trash2 className="h-4 w-4 mr-2" /> Delete strategy
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </>
-        }
-      />
+                  <Play className="h-4 w-4 mr-1.5" /> Test on history
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => saveMut.mutate()}
+                  disabled={saveMut.isPending || !dirty}
+                  variant={dirty ? "default" : "outline"}
+                >
+                  {saveMut.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                  ) : dirty ? (
+                    <Save className="h-4 w-4 mr-1.5" />
+                  ) : (
+                    <Check className="h-4 w-4 mr-1.5" />
+                  )}
+                  {dirty ? "Save" : "Saved"}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="outline" className="px-2">
+                      <MoreHorizontal className="h-4 w-4" />
+                      <span className="sr-only">More actions</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => dupMut.mutate()} disabled={dupMut.isPending}>
+                      <Copy className="h-4 w-4 mr-2" /> Duplicate strategy
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => {
+                        if (confirm(`Delete "${name}"?`)) delMut.mutate();
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" /> Delete strategy
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            }
+          />
+
+          <div className="border-t border-border/50 bg-muted/10 px-4 pt-3 sm:px-6">
+            {isFourBrain ? (
+              <ScrollableTabsList>
+                <TabsList className="w-max min-w-full sm:min-w-0">
+                  <TabsTrigger value="brains">
+                    <Brain className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                    Configure
+                  </TabsTrigger>
+                  <TabsTrigger value="backtest">
+                    <BarChart2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                    Test on history
+                  </TabsTrigger>
+                  <TabsTrigger value="export">
+                    <Download className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                    Export
+                  </TabsTrigger>
+                  <TabsTrigger value="code" className="text-muted-foreground">
+                    <FileCode2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                    Advanced
+                  </TabsTrigger>
+                </TabsList>
+              </ScrollableTabsList>
+            ) : (
+              <ScrollableTabsList>
+                <TabsList className="w-max min-w-full sm:min-w-0">
+                  <TabsTrigger value="spec">
+                    <Settings2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                    Configure
+                  </TabsTrigger>
+                  <TabsTrigger value="backtest">
+                    <BarChart2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                    Test on history
+                  </TabsTrigger>
+                  <TabsTrigger value="export">
+                    <Download className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                    Export
+                  </TabsTrigger>
+                  <TabsTrigger value="code" className="text-muted-foreground">
+                    <FileCode2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                    Advanced
+                  </TabsTrigger>
+                </TabsList>
+              </ScrollableTabsList>
+            )}
+          </div>
+        </div>
 
       {!isFourBrain && isLegacyFlatRulesBlueprint(blueprint) && (
         <div className="mx-6 mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
@@ -735,28 +796,7 @@ function StrategyPage() {
 
       {isFourBrain ? (
         /* ── 4-Brain strategy tabs ─────────────────────────────────────────── */
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="px-4 sm:px-6 pt-4">
-          <ScrollableTabsList>
-            <TabsList className="w-max min-w-full sm:min-w-0">
-              <TabsTrigger value="brains">
-                <Brain className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                Configure
-              </TabsTrigger>
-              <TabsTrigger value="backtest">
-                <BarChart2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                Test on history
-              </TabsTrigger>
-              <TabsTrigger value="export">
-                <Download className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                Export
-              </TabsTrigger>
-              <TabsTrigger value="code" className="text-muted-foreground">
-                <FileCode2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                Advanced
-              </TabsTrigger>
-            </TabsList>
-          </ScrollableTabsList>
-
+        <div className="px-4 sm:px-6">
           <TabsContent value="brains" className="pt-6 pb-10">
             <FourBrainTab
               blueprint={blueprint}
@@ -867,31 +907,10 @@ function StrategyPage() {
           <TabsContent value="export" className="pt-6 pb-10">
             <ExportTab blueprint={blueprint} prompt={data.prompt} code={generatedCode} />
           </TabsContent>
-        </Tabs>
+        </div>
       ) : (
         /* ── Legacy / flat-rules strategies — same golden path tabs ── */
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="px-4 sm:px-6 pt-4">
-          <ScrollableTabsList>
-            <TabsList className="w-max min-w-full sm:min-w-0">
-              <TabsTrigger value="spec">
-                <Settings2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                Configure
-              </TabsTrigger>
-              <TabsTrigger value="backtest">
-                <BarChart2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                Test on history
-              </TabsTrigger>
-              <TabsTrigger value="export">
-                <Download className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                Export
-              </TabsTrigger>
-              <TabsTrigger value="code" className="text-muted-foreground">
-                <FileCode2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                Advanced
-              </TabsTrigger>
-            </TabsList>
-          </ScrollableTabsList>
-
+        <div className="px-4 sm:px-6">
           <TabsContent value="spec" className="pt-6 pb-10 space-y-4">
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 max-w-2xl">
               <strong className="font-medium">Older strategy format.</strong> You can still edit
@@ -962,8 +981,9 @@ function StrategyPage() {
           <TabsContent value="export" className="pt-6 pb-10">
             <ExportTab blueprint={blueprint} prompt={data.prompt} code={generatedCode} />
           </TabsContent>
-        </Tabs>
+        </div>
       )}
+      </Tabs>
 
       <EaChatDrawer
         open={chatOpen}

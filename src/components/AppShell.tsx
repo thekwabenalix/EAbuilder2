@@ -86,7 +86,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Main */}
       <main className="app-page-in flex-1 min-w-0 flex flex-col md:ml-56">
-        <div className="app-panel md:hidden flex items-center gap-2 px-4 h-12 border-b border-border/70 bg-card/90">
+        <div className="app-panel md:hidden sticky top-0 z-30 flex items-center gap-2 px-4 h-12 border-b border-border/70 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
           <TerminalSquare className="h-4 w-4 text-primary shrink-0" />
           <span className="text-sm font-semibold truncate flex-1">MT5 AI Builder</span>
           <ThemeToggleIcon />

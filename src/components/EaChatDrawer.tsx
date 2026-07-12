@@ -274,7 +274,7 @@ const DIAGNOSIS_MODES = [
     label: "Why No Trades",
     icon: Search,
     prompt:
-      'Diagnosis mode: Why no trades? Use the original prompt, blueprint, module contracts, generated code, tester log, compile log, and backtest summary. Tell me the exact layer that blocked trades. If tester period mismatches strategy flow TF, emit [APPLY:{"type":"set_backtest_period","period":"<TF>"}]. If wiring/regen needed, emit [APPLY:{"type":"regen_ea"}]. End with [TOOL:...] or [ACTION:...].',
+      'Diagnosis mode: Why no trades? Use the original prompt, blueprint, module contracts, generated code, tester log, compile log, and backtest summary. Tell me the exact layer that blocked trades. If Setup/Confirmation logged 0 events while Entry fired many times, do NOT suggest regen_ea — regenerating cannot invent zone retests; emit [APPLY:{"type":"fix_silent_zone_setup"}]. If tester period mismatches strategy flow TF, emit [APPLY:{"type":"set_backtest_period","period":"<TF>"}]. If HTF→LTF wiring is wrong, emit [APPLY:{"type":"fix_flow_wiring"}] or fix_htf_ltf_ema_alignment. Only emit regen_ea when code is missing or fails semantic parity. End with [TOOL:...] or [ACTION:...].',
   },
   {
     id: "wrong_entry",
@@ -872,9 +872,11 @@ export function EaChatDrawer({
         const title =
           fix.type === "set_time_filter"
             ? "Applied: Trading schedule"
-            : fix.type === "fix_flow_wiring"
-              ? "Applied: Strategy Flow wiring"
-              : "Applied: HTF→LTF EMA alignment";
+            : fix.type === "fix_silent_zone_setup"
+              ? "Applied: Silent Setup fix"
+              : fix.type === "fix_flow_wiring"
+                ? "Applied: Strategy Flow wiring"
+                : "Applied: HTF→LTF EMA alignment";
         const bullets =
           fix.type === "set_time_filter"
             ? [
@@ -882,18 +884,24 @@ export function EaChatDrawer({
                 "- New entries only inside the allowed window(s)",
                 "- Open positions keep being managed outside the window",
               ]
-            : fix.type === "fix_flow_wiring"
+            : fix.type === "fix_silent_zone_setup"
               ? [
-                  "- Direction sources linked for Setup/Entry/Confirmation",
-                  "- Entry waits for a **later bar** than Setup (`after`)",
-                  "- Zone setups get a sensible **expiry** when missing",
-                  "- LTF EMA extras (requireCross) applied when present",
+                  "- Setup arms on **zone formation** (e.g. OB_CREATED) instead of rare retests",
+                  "- Duplicate same-TF Order Block Confirmation disabled",
+                  "- Displacement / expiry loosened so zones can form in the test window",
                 ]
-              : [
-                  "- **requireCross = true** on lower-TF EMA",
-                  "- **direction source** → HTF Direction",
-                  "- **Entry after Setup** (different bar)",
-                ];
+              : fix.type === "fix_flow_wiring"
+                ? [
+                    "- Direction sources linked for Setup/Entry/Confirmation",
+                    "- Entry waits for a **later bar** than Setup (`after`)",
+                    "- Zone setups get a sensible **expiry** when missing",
+                    "- LTF EMA extras (requireCross) applied when present",
+                  ]
+                : [
+                    "- **requireCross = true** on lower-TF EMA",
+                    "- **direction source** → HTF Direction",
+                    "- **Entry after Setup** (different bar)",
+                  ];
         setMessages((prev) => [
           ...prev,
           {
@@ -1381,6 +1389,7 @@ export function EaChatDrawer({
                 f.type === "regen_ea" ||
                 f.type === "fix_htf_ltf_ema_alignment" ||
                 f.type === "fix_flow_wiring" ||
+                f.type === "fix_silent_zone_setup" ||
                 f.type === "set_time_filter",
             );
 

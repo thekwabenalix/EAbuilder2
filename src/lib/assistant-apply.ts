@@ -10,8 +10,10 @@ import {
 } from "@/lib/assistant-htf-ltf-fix";
 import {
   applyFixFlowWiring,
+  applyFixSilentZoneSetup,
   looksLikeSameBarCollision,
   looksLikeSetupExpiryIssue,
+  looksLikeSilentZoneSetup,
 } from "@/lib/assistant-flow-fixes";
 import {
   applySetTimeFilter,
@@ -27,6 +29,8 @@ export type AssistantApplyFix =
   | { type: "fix_htf_ltf_ema_alignment" }
   /** Universal flow wiring: direction sources, entry-after-setup, zone expiry (+ EMA extras). */
   | { type: "fix_flow_wiring" }
+  /** Setup logged 0 events while Entry fired — arm on zone formation, drop duplicate OB gates. */
+  | { type: "fix_silent_zone_setup" }
   /** Set Management trading schedule (TIME_SESSION_FILTER), then regen. */
   | ({ type: "set_time_filter" } & SetTimeFilterPatch);
 
@@ -36,6 +40,7 @@ const APPLY_TYPES = new Set([
   "save_strategy",
   "fix_htf_ltf_ema_alignment",
   "fix_flow_wiring",
+  "fix_silent_zone_setup",
   "set_time_filter",
 ]);
 
@@ -114,6 +119,12 @@ export function extractApplyMarkers(text: string): AssistantApplyFix[] {
       if (type === "fix_flow_wiring" && !fixes.some((f) => f.type === "fix_flow_wiring")) {
         fixes.push({ type: "fix_flow_wiring" });
       }
+      if (
+        type === "fix_silent_zone_setup" &&
+        !fixes.some((f) => f.type === "fix_silent_zone_setup")
+      ) {
+        fixes.push({ type: "fix_silent_zone_setup" });
+      }
       if (type === "set_time_filter" && !fixes.some((f) => f.type === "set_time_filter")) {
         const fix = parseSetTimeFilter(obj);
         if (fix) fixes.push(fix);
@@ -156,6 +167,8 @@ export function applyFixLabel(fix: AssistantApplyFix): string {
       return "Fix H1→M5 EMA alignment in Configure";
     case "fix_flow_wiring":
       return "Fix Strategy Flow wiring (any modules)";
+    case "fix_silent_zone_setup":
+      return "Fix silent Setup (arm on zone form, drop duplicate OB gate)";
     case "set_time_filter":
       if (fix.enabled === false) return "Disable trading schedule (all day)";
       if (fix.sessions?.length) return `Set trading schedule: ${fix.sessions.join(", ")}`;
@@ -169,6 +182,7 @@ export function isBlueprintPatchApply(fix: AssistantApplyFix): boolean {
   return (
     fix.type === "fix_htf_ltf_ema_alignment" ||
     fix.type === "fix_flow_wiring" ||
+    fix.type === "fix_silent_zone_setup" ||
     fix.type === "set_time_filter"
   );
 }
@@ -197,7 +211,9 @@ export {
   applyHtfLtfEmaAlignment,
   looksLikeHtfLtfMisalignment,
   applyFixFlowWiring,
+  applyFixSilentZoneSetup,
   looksLikeSameBarCollision,
   looksLikeSetupExpiryIssue,
+  looksLikeSilentZoneSetup,
   applySetTimeFilter,
 };
