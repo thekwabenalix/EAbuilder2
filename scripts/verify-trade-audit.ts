@@ -7,8 +7,10 @@ import {
   buildExpectedTradePath,
   parseTesterLogForTradeAudit,
   summarizeTradeAudit,
+  validateTradeSequences,
 } from "../src/lib/trade-audit";
 import { buildRuleAudit } from "../src/lib/rule-audit";
+import { buildAssistantRepairPlan } from "../src/lib/assistant-repair-plan";
 import { DEFAULT_BLUEPRINT } from "../src/types/blueprint";
 import type { StrategyBlueprint } from "../src/types/blueprint";
 
@@ -63,11 +65,138 @@ assertEq(parsed.gateBlocks[0]?.reason, "No execution signal", "dominant block no
 assertEq(parsed.equitySnapshots, 1, "equity snapshot parsed");
 assertOk(parsed.sessionBreakdown.london_ny_overlap >= 1 || parsed.sessionBreakdown.london >= 1, "session breakdown from entry time");
 
-const summary = summarizeTradeAudit(expected, parsed);
-assertEq((summary.observed as { tradesOpened: number }).tradesOpened, 1, "summary includes trades");
-
 const flow = fourBrainToStrategyFlow(bp.fourBrain!);
 const code = generateFlowEA(flow, "Audit_Test");
+const summary = summarizeTradeAudit(expected, parsed);
+assertEq((summary.observed as { tradesOpened: number }).tradesOpened, 1, "summary includes trades");
+const validSequence = validateTradeSequences(bp, parsed);
+assertEq(validSequence.verdict, "pass", "completed trade follows blueprint sequence");
+assertEq(validSequence.validTrades, 1, "one trade sequence verified");
+
+const invalidTradeLog = `
+2024.03.01 13:00:00   ===== TRADE AUDIT =====
+  Direction BOS H1 : BULL @ 2024.03.01 11:00
+  Setup FVG H1 : BEAR @ 2024.03.01 10:00
+  Entry BOS M5 : BULL @ 2024.03.01 12:00
+  ENTRY SELL lots=0.10 SL=1.08200 TP=1.08800
+=======================
+`;
+const invalidParsed = parseTesterLogForTradeAudit(invalidTradeLog);
+const invalidSequence = validateTradeSequences(bp, invalidParsed);
+assertEq(invalidSequence.verdict, "fail", "invalid trade sequence fails");
+assertOk(
+  invalidSequence.violations.some((violation) => violation.code === "time_relation"),
+  "per-trade proof detects entry timing violations",
+);
+assertOk(
+  invalidSequence.violations.some((violation) => violation.code === "direction_mismatch"),
+  "per-trade proof detects direction violations",
+);
+assertOk(
+  invalidSequence.violations.some((violation) => violation.code === "entry_side_mismatch"),
+  "per-trade proof detects wrong order side",
+);
+const repairPlan = buildAssistantRepairPlan({
+  blueprint: bp,
+  code,
+  testerLog: invalidTradeLog,
+});
+assertOk(
+  repairPlan.apply?.type === "fix_flow_wiring",
+  "assistant offers flow repair for proven sequence violations",
+);
+
+const missingDependencyLog = `
+2024.03.01 13:00:00   ===== TRADE AUDIT =====
+  Direction BOS H1 : BULL @ 2024.03.01 09:00
+  Entry BOS M5 : BULL @ 2024.03.01 13:00
+  ENTRY BUY lots=0.10 SL=1.08200 TP=1.08800
+=======================
+`;
+const missingDependencyProof = validateTradeSequences(
+  bp,
+  parseTesterLogForTradeAudit(missingDependencyLog),
+);
+assertOk(
+  missingDependencyProof.violations.some(
+    (violation) => violation.code === "missing_dependency",
+  ),
+  "per-trade proof detects a skipped required setup",
+);
+
+const orBlueprint: StrategyBlueprint = {
+  ...bp,
+  strategyFlow: {
+    version: 1,
+    mode: "advanced_instances",
+    source: "user",
+    management: bp.fourBrain!.management,
+    steps: [
+      {
+        id: "direction",
+        name: "Direction BOS H1",
+        role: "direction",
+        module: "bos",
+        timeframe: "H1",
+        event: "BOS_BIAS",
+      },
+      {
+        id: "setup_fvg",
+        name: "Setup FVG H1",
+        role: "setup",
+        module: "fvg",
+        timeframe: "H1",
+        event: "ZONE_ACTIVE",
+        dependsOn: [{ stepId: "direction", relation: "same_or_after", required: true }],
+      },
+      {
+        id: "setup_ob",
+        name: "Setup Order Block H1",
+        role: "setup",
+        module: "order_block",
+        timeframe: "H1",
+        event: "ZONE_ACTIVE",
+        dependsOn: [{ stepId: "direction", relation: "same_or_after", required: true }],
+      },
+      {
+        id: "entry",
+        name: "Entry BOS M5",
+        role: "entry",
+        module: "bos",
+        timeframe: "M5",
+        event: "BOS_CONFIRMED",
+        dependsOn: [
+          {
+            stepId: "setup_fvg",
+            relation: "after",
+            required: true,
+            orGroup: "setup_choice",
+          },
+          {
+            stepId: "setup_ob",
+            relation: "after",
+            required: true,
+            orGroup: "setup_choice",
+          },
+        ],
+      },
+    ],
+  },
+};
+const oneBranchLog = `
+2024.03.01 13:00:00   ===== TRADE AUDIT =====
+  Direction BOS H1 : BULL @ 2024.03.01 09:00
+  Setup FVG H1 : BULL @ 2024.03.01 10:00
+  Entry BOS M5 : BULL @ 2024.03.01 13:00
+  ENTRY BUY lots=0.10 SL=1.08200 TP=1.08800
+=======================
+`;
+assertEq(
+  validateTradeSequences(orBlueprint, parseTesterLogForTradeAudit(oneBranchLog)).verdict,
+  "pass",
+  "one valid OR setup branch satisfies the trade sequence",
+);
+
 assertOk(code.includes("===== TRADE AUDIT ====="), "generated flow EA emits trade audit");
 assertOk(code.includes("InpAudit"), "generated flow EA has InpAudit input");
 
@@ -107,4 +236,4 @@ assertOk(dirAudit.directionIssues.length > 0, "rule audit detects direction conf
 const noLogAudit = buildRuleAudit({ blueprint: bp, testerLog: null });
 assertEq(noLogAudit.verdict, "no_evidence", "missing tester log is no_evidence");
 
-console.log("\n17 trade audit check(s) passed.\n");
+console.log("\nBacktest sequence proof checks passed.\n");

@@ -11,6 +11,7 @@ import {
   buildExpectedTradePath,
   parseTesterLogForTradeAudit,
   summarizeTradeAudit,
+  validateTradeSequences,
 } from "@/lib/trade-audit";
 
 /** Rough chars-per-token for English + JSON (conservative). */
@@ -126,7 +127,8 @@ function buildTesterSection(blueprint: StrategyBlueprint, testerLog: string | nu
 
   const expected = buildExpectedTradePath(blueprint);
   const parsed = parseTesterLogForTradeAudit(testerLog);
-  const summary = summarizeTradeAudit(expected, parsed);
+  const sequenceProof = validateTradeSequences(blueprint, parsed);
+  const summary = summarizeTradeAudit(expected, parsed, sequenceProof);
   const excerpt = trimTesterLogForAssistant(testerLog);
 
   return [
@@ -228,5 +230,4 @@ export function trimChatMessages<T extends { role: string; content: string }>(
   if (messages.length <= maxMessages) return messages;
   return messages.slice(-maxMessages);
 }
-
 

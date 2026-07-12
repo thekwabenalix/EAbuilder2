@@ -5,7 +5,12 @@
  * Blueprint assembler EAs emit [GATE] BLOCKED and SIGNAL_BLOCKED lines.
  */
 
-import type { StrategyBlueprint, StrategyStepConfig } from "@/types/blueprint";
+import type {
+  StrategyBlueprint,
+  StrategyStepConfig,
+  StrategyStepDependency,
+  StrategyStepDirectionSource,
+} from "@/types/blueprint";
 import { resolveStrategyFlow } from "@/lib/blueprint-generation-gate";
 import {
   buildSessionBreakdownFromTimes,
@@ -24,6 +29,8 @@ export interface ExpectedTradeStep {
   timeframe: string;
   event: string;
   isEntry: boolean;
+  dependsOn?: StrategyStepDependency[];
+  directionSource?: StrategyStepDirectionSource;
 }
 
 export interface ParsedFlowEvent {
@@ -58,6 +65,39 @@ export interface TradeAuditReport {
   sessionBreakdown: SessionBreakdownCounts;
   /** Optional UX hint when entries cluster in one session. */
   sessionHint?: string | null;
+}
+
+export type TradeSequenceViolationCode =
+  | "missing_entry"
+  | "missing_dependency"
+  | "time_relation"
+  | "direction_mismatch"
+  | "entry_side_mismatch";
+
+export interface TradeSequenceViolation {
+  tradeIndex: number;
+  code: TradeSequenceViolationCode;
+  message: string;
+  stepName?: string;
+  dependencyName?: string;
+  line: number;
+}
+
+export interface ValidatedTradeChain {
+  tradeIndex: number;
+  valid: boolean;
+  side?: "BUY" | "SELL";
+  line: number;
+  violations: TradeSequenceViolation[];
+}
+
+export interface TradeSequenceProof {
+  verdict: "pass" | "fail" | "no_trades" | "no_audit";
+  tradesChecked: number;
+  validTrades: number;
+  invalidTrades: number;
+  violations: TradeSequenceViolation[];
+  chains: ValidatedTradeChain[];
 }
 
 function normalizeBlockReason(raw: string): string {
@@ -106,7 +146,253 @@ export function buildExpectedTradePath(blueprint: StrategyBlueprint): ExpectedTr
     timeframe: step.timeframe,
     event: step.event,
     isEntry: step.role === "entry",
+    dependsOn: step.dependsOn,
+    directionSource: step.directionSource,
   }));
+}
+
+function normalizedStepName(value: string): string {
+  return value
+    .trim()
+    .replace(/inversion fair value gap/gi, "ifvg")
+    .replace(/fair value gap/gi, "fvg")
+    .replace(/break of structure/gi, "bos")
+    .replace(/change of character/gi, "choch")
+    .replace(/order block/gi, "ob")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function auditTimeValue(value: string): number | null {
+  const match = value
+    .trim()
+    .match(/(\d{4})[.\/-](\d{2})[.\/-](\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!match) return null;
+  return Date.UTC(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+    Number(match[4]),
+    Number(match[5]),
+    Number(match[6] ?? 0),
+  );
+}
+
+function dependencyRelationPasses(
+  dependencyTime: string,
+  stepTime: string,
+  relation: StrategyStepDependency["relation"],
+): boolean | null {
+  const dependency = auditTimeValue(dependencyTime);
+  const step = auditTimeValue(stepTime);
+  if (dependency == null || step == null) return null;
+  if (relation === "after") return step > dependency;
+  if (relation === "same_or_after") return step >= dependency;
+  return step < dependency;
+}
+
+/** Validate each completed trade against the blueprint dependency graph. */
+export function validateTradeSequences(
+  blueprint: StrategyBlueprint,
+  parsed: TradeAuditReport,
+): TradeSequenceProof {
+  if (!parsed.hasAuditMarkers) {
+    return {
+      verdict: "no_audit",
+      tradesChecked: 0,
+      validTrades: 0,
+      invalidTrades: 0,
+      violations: [],
+      chains: [],
+    };
+  }
+  if (!parsed.tradeChains.length) {
+    return {
+      verdict: "no_trades",
+      tradesChecked: 0,
+      validTrades: 0,
+      invalidTrades: 0,
+      violations: [],
+      chains: [],
+    };
+  }
+
+  const expected = buildExpectedTradePath(blueprint);
+  const expectedById = new Map(expected.map((step) => [step.id, step]));
+  const expectedByName = new Map(expected.map((step) => [normalizedStepName(step.name), step]));
+  const chains = parsed.tradeChains.map((chain, chainIndex): ValidatedTradeChain => {
+    const tradeIndex = chainIndex + 1;
+    const violations: TradeSequenceViolation[] = [];
+    const observedByName = new Map(
+      chain.steps.map((step) => [normalizedStepName(step.name), step]),
+    );
+    const observedExpected = chain.steps
+      .map((step) => ({
+        observed: step,
+        expected: expectedByName.get(normalizedStepName(step.name)),
+      }))
+      .filter(
+        (item): item is {
+          observed: ParsedTradeChain["steps"][number];
+          expected: ExpectedTradeStep;
+        } => Boolean(item.expected),
+      );
+
+    const addViolation = (
+      code: TradeSequenceViolationCode,
+      message: string,
+      stepName?: string,
+      dependencyName?: string,
+    ) => {
+      violations.push({
+        tradeIndex,
+        code,
+        message,
+        stepName,
+        dependencyName,
+        line: chain.line,
+      });
+    };
+
+    if (!chain.entry) {
+      addViolation("missing_entry", "Trade audit chain has no BUY/SELL execution record.");
+    }
+
+    for (const { observed, expected: step } of observedExpected) {
+      const dependencies = (step.dependsOn ?? []).filter((dep) => dep.required !== false);
+      const direct = dependencies.filter((dep) => !dep.orGroup);
+      const grouped = new Map<string, StrategyStepDependency[]>();
+      for (const dependency of dependencies.filter((dep) => dep.orGroup)) {
+        const group = grouped.get(dependency.orGroup!) ?? [];
+        group.push(dependency);
+        grouped.set(dependency.orGroup!, group);
+      }
+
+      const validateDependency = (dependency: StrategyStepDependency): boolean => {
+        const expectedDependency = expectedById.get(dependency.stepId);
+        if (!expectedDependency) return false;
+        const observedDependency = observedByName.get(normalizedStepName(expectedDependency.name));
+        if (!observedDependency) return false;
+        const relationPasses = dependencyRelationPasses(
+          observedDependency.time,
+          observed.time,
+          dependency.relation,
+        );
+        if (relationPasses === false) {
+          addViolation(
+            "time_relation",
+            `${step.name} occurred at ${observed.time}, but must be ${dependency.relation.replace(/_/g, " ")} ${expectedDependency.name} at ${observedDependency.time}.`,
+            step.name,
+            expectedDependency.name,
+          );
+        }
+        if (
+          observed.direction !== "-" &&
+          observedDependency.direction !== "-" &&
+          observed.direction !== observedDependency.direction
+        ) {
+          addViolation(
+            "direction_mismatch",
+            `${step.name} is ${observed.direction}, but ${expectedDependency.name} is ${observedDependency.direction}.`,
+            step.name,
+            expectedDependency.name,
+          );
+        }
+        return relationPasses !== false;
+      };
+
+      for (const dependency of direct) {
+        const expectedDependency = expectedById.get(dependency.stepId);
+        if (
+          !expectedDependency ||
+          !observedByName.has(normalizedStepName(expectedDependency.name))
+        ) {
+          addViolation(
+            "missing_dependency",
+            `${step.name} fired without required step ${expectedDependency?.name ?? dependency.stepId}.`,
+            step.name,
+            expectedDependency?.name,
+          );
+          continue;
+        }
+        validateDependency(dependency);
+      }
+
+      for (const group of grouped.values()) {
+        const present = group.filter((dependency) => {
+          const dependencyStep = expectedById.get(dependency.stepId);
+          return dependencyStep
+            ? observedByName.has(normalizedStepName(dependencyStep.name))
+            : false;
+        });
+        if (!present.length) {
+          const alternatives = group
+            .map((dependency) => expectedById.get(dependency.stepId)?.name ?? dependency.stepId)
+            .join(" or ");
+          addViolation(
+            "missing_dependency",
+            `${step.name} fired without any required alternative: ${alternatives}.`,
+            step.name,
+            alternatives,
+          );
+        } else {
+          present.forEach(validateDependency);
+        }
+      }
+
+      if (step.directionSource?.mode === "from_step" && step.directionSource.stepId) {
+        const source = expectedById.get(step.directionSource.stepId);
+        const observedSource = source
+          ? observedByName.get(normalizedStepName(source.name))
+          : undefined;
+        if (
+          observedSource &&
+          observed.direction !== "-" &&
+          observedSource.direction !== "-" &&
+          observed.direction !== observedSource.direction
+        ) {
+          addViolation(
+            "direction_mismatch",
+            `${step.name} direction ${observed.direction} disagrees with its source ${source!.name} (${observedSource.direction}).`,
+            step.name,
+            source!.name,
+          );
+        }
+      }
+    }
+
+    const entryStep = observedExpected.find((item) => item.expected.isEntry)?.observed;
+    if (chain.entry && entryStep) {
+      const expectedSide =
+        entryStep.direction === "BULL" ? "BUY" : entryStep.direction === "BEAR" ? "SELL" : null;
+      if (expectedSide && chain.entry.side !== expectedSide) {
+        addViolation(
+          "entry_side_mismatch",
+          `Entry event is ${entryStep.direction}, but the order opened ${chain.entry.side}.`,
+          entryStep.name,
+        );
+      }
+    }
+
+    return {
+      tradeIndex,
+      valid: violations.length === 0,
+      side: chain.entry?.side,
+      line: chain.line,
+      violations,
+    };
+  });
+
+  const violations = chains.flatMap((chain) => chain.violations);
+  const validTrades = chains.filter((chain) => chain.valid).length;
+  return {
+    verdict: violations.length ? "fail" : "pass",
+    tradesChecked: chains.length,
+    validTrades,
+    invalidTrades: chains.length - validTrades,
+    violations,
+    chains,
+  };
 }
 
 /** Parse tester / journal log lines into structured trade audit data. */
@@ -269,6 +555,7 @@ export function parseTesterLogForTradeAudit(
 export function summarizeTradeAudit(
   expected: ExpectedTradeStep[],
   parsed: TradeAuditReport | null,
+  sequenceProof?: TradeSequenceProof | null,
 ): Record<string, unknown> {
   return {
     expectedSteps: expected.map((s) => ({
@@ -289,6 +576,15 @@ export function summarizeTradeAudit(
           dominantBlock: parsed.dominantBlock ?? null,
           sessionBreakdown: parsed.sessionBreakdown,
           sessionHint: parsed.sessionHint ?? null,
+          sequenceProof: sequenceProof
+            ? {
+                verdict: sequenceProof.verdict,
+                tradesChecked: sequenceProof.tradesChecked,
+                validTrades: sequenceProof.validTrades,
+                invalidTrades: sequenceProof.invalidTrades,
+                violations: sequenceProof.violations.slice(0, 20),
+              }
+            : null,
         }
       : null,
   };

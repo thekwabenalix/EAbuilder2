@@ -14,7 +14,11 @@ import {
   looksLikeSameBarCollision,
   looksLikeSetupExpiryIssue,
 } from "@/lib/assistant-apply";
-import { buildExpectedTradePath, parseTesterLogForTradeAudit } from "@/lib/trade-audit";
+import {
+  buildExpectedTradePath,
+  parseTesterLogForTradeAudit,
+  validateTradeSequences,
+} from "@/lib/trade-audit";
 import { buildModuleRepairPlan, MODULE_ADMISSION } from "@/lib/module-admission";
 import { previewEaGeneration, resolveStrategyFlow } from "@/lib/generate-ea-router";
 import { validateGeneratedExecutionParity } from "@/lib/semantic-execution-validator";
@@ -205,6 +209,21 @@ export function buildAssistantRepairPlan(input: {
         action: "regen_template",
         verify:
           "Regenerate, compile, and rerun with InpAudit=true so the assistant can read the gate decisions.",
+      };
+    }
+
+    const sequenceProof = validateTradeSequences(blueprint, parsed);
+    if (sequenceProof.verdict === "fail") {
+      return {
+        layer: "strategy_flow",
+        title: "Backtest trades violated the configured event sequence",
+        reasons: sequenceProof.violations
+          .slice(0, 6)
+          .map((violation) => `Trade ${violation.tradeIndex}: ${violation.message}`),
+        apply: { type: "fix_flow_wiring" },
+        action: "open_backtest",
+        verify:
+          "Apply the flow repair, regenerate, compile, and rerun until every audited trade passes.",
       };
     }
 

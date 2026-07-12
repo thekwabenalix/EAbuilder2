@@ -3,6 +3,7 @@ import type { StrategyBlueprint } from "@/types/blueprint";
 import {
   buildExpectedTradePath,
   parseTesterLogForTradeAudit,
+  validateTradeSequences,
   type TradeAuditReport,
 } from "@/lib/trade-audit";
 import { SESSION_PRESET_LABELS } from "@/lib/trading-schedule";
@@ -82,6 +83,10 @@ export function TradeAuditPanel({
   const ruleAudit = useMemo(
     () => buildRuleAudit({ blueprint, testerLog, parsed }),
     [blueprint, testerLog, parsed],
+  );
+  const sequenceProof = useMemo(
+    () => (parsed ? validateTradeSequences(blueprint, parsed) : null),
+    [blueprint, parsed],
   );
   const flow = resolveStrategyFlow(blueprint);
 
@@ -216,6 +221,48 @@ export function TradeAuditPanel({
             </div>
           </div>
 
+          {sequenceProof && sequenceProof.tradesChecked > 0 && (
+            <div
+              className={
+                "rounded-md border px-3 py-2 " +
+                (sequenceProof.verdict === "pass"
+                  ? "border-emerald-500/30 bg-emerald-500/5"
+                  : "border-rose-500/30 bg-rose-500/5")
+              }
+            >
+              <div className="flex items-start gap-2">
+                {sequenceProof.verdict === "pass" ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+                ) : (
+                  <XCircle className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" />
+                )}
+                <div>
+                  <p
+                    className={
+                      "text-[11px] font-semibold " +
+                      (sequenceProof.verdict === "pass" ? "text-emerald-300" : "text-rose-300")
+                    }
+                  >
+                    {sequenceProof.verdict === "pass"
+                      ? sequenceProof.validTrades + " trades followed the configured sequence"
+                      : sequenceProof.invalidTrades +
+                        " of " +
+                        sequenceProof.tradesChecked +
+                        " trades violated the configured sequence"}
+                  </p>
+                  {sequenceProof.violations.slice(0, compact ? 1 : 5).map((violation, index) => (
+                    <p
+                      key={violation.tradeIndex + "-" + violation.code + "-" + index}
+                      className="text-[10px] text-muted-foreground mt-1"
+                    >
+                      Trade {violation.tradeIndex}: {violation.message}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {parsed.dominantBlock && (
             <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2">
               <Shield className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
@@ -282,17 +329,33 @@ export function TradeAuditPanel({
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
                 Recent trade chains (from log)
               </p>
-              {parsed.tradeChains
+              {sequenceProof?.chains
                 .slice(-3)
                 .reverse()
-                .map((chain, idx) => (
+                .map((proof, idx) => {
+                  const chain = parsed.tradeChains[proof.tradeIndex - 1]!;
+                  return (
                   <div
-                    key={`${chain.line}-${idx}`}
-                    className="rounded border border-emerald-500/20 bg-emerald-500/5 p-2.5 space-y-1"
+                    key={chain.line + "-" + idx}
+                    className={
+                      "rounded border p-2.5 space-y-1 " +
+                      (proof.valid
+                        ? "border-emerald-500/20 bg-emerald-500/5"
+                        : "border-rose-500/20 bg-rose-500/5")
+                    }
                   >
-                    <div className="flex items-center gap-1.5 text-[11px] text-emerald-300">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      Trade opened - step chain satisfied
+                    <div
+                      className={
+                        "flex items-center gap-1.5 text-[11px] " +
+                        (proof.valid ? "text-emerald-300" : "text-rose-300")
+                      }
+                    >
+                      {proof.valid ? (
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                      ) : (
+                        <XCircle className="h-3.5 w-3.5" />
+                      )}
+                      Trade {proof.tradeIndex} - {proof.valid ? "sequence verified" : "sequence failed"}
                     </div>
                     {chain.steps.map((step) => (
                       <p
@@ -308,8 +371,17 @@ export function TradeAuditPanel({
                         {chain.entry.tp}
                       </p>
                     )}
+                    {proof.violations.map((violation, violationIndex) => (
+                      <p
+                        key={violation.code + "-" + violationIndex}
+                        className="text-[10px] text-rose-300 pl-5"
+                      >
+                        {violation.message}
+                      </p>
+                    ))}
                   </div>
-                ))}
+                  );
+                })}
             </div>
           )}
 
