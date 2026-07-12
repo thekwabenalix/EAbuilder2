@@ -142,8 +142,8 @@ function directionModuleSignal(
    }`;
   }
   if (mod === "engulfing") {
-    return `if(EGSM_${t}_BullJustConfirmed()) ${varName} = 1;
-   else if(EGSM_${t}_BearJustConfirmed()) ${varName} = -1;`;
+    return `if(EGSM_${t}_HasActiveBull() && !EGSM_${t}_HasActiveBear()) ${varName} = 1;
+   else if(EGSM_${t}_HasActiveBear() && !EGSM_${t}_HasActiveBull()) ${varName} = -1;`;
   }
   const meta = SM_MODULE_META[mod];
   if (!meta) return `// ${mod}: no verified SM wiring`;

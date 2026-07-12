@@ -34,6 +34,9 @@ import { StrategyFlowBuilder } from "@/components/StrategyFlowBuilder";
 import { StrategyFamilyPicker } from "@/components/StrategyFamilyPicker";
 import { EmaPeriodEditor } from "@/components/EmaPeriodEditor";
 import { TradeAuditPanel } from "@/components/TradeAuditPanel";
+import { CompanionSetupWizard } from "@/components/CompanionSetupWizard";
+import { HistoryTestResultsCard } from "@/components/HistoryTestResultsCard";
+import { WhenToTradeCard } from "@/components/WhenToTradeCard";
 import {
   BuiltinIndicatorPicker,
   type IndicatorPickerResult,
@@ -90,6 +93,8 @@ import {
   isLegacyFlatRulesBlueprint,
 } from "@/lib/mql5-template-generator";
 import { EaGenerationError } from "@/lib/generate-ea-router";
+import { toastEaGenerationSuccess } from "@/lib/ea-generation-toast";
+import { consumePreferredStrategyTab } from "@/lib/preferred-strategy-tab";
 import { blueprintReadyForGeneration } from "@/lib/ea-generation-policy";
 import {
   assertBlueprintGeneratable,
@@ -138,11 +143,7 @@ import {
 import type { StrategyFlowConfig } from "@/types/blueprint";
 import {
   defaultTradingSchedule,
-  hhmmToMinutes,
-  minutesToHHMM,
-  SESSION_PRESET_LABELS,
   type TradingScheduleConfig,
-  type TradingSessionPreset,
 } from "@/lib/trading-schedule";
 import {
   buildExpectedTradePath,
@@ -338,7 +339,13 @@ function StrategyPage() {
   const [testerLog, setTesterLog] = useState<string | null>(null);
   const [backtestPeriodPatch, setBacktestPeriodPatch] = useState<string | null>(null);
   const [diagnosticContext, setDiagnosticContext] = useState<unknown>(null);
+  const [autoTestToken, setAutoTestToken] = useState(0);
   const [activeTab, setActiveTab] = useState("brains");
+
+  const requestAutoHistoryTest = () => {
+    setActiveTab("backtest");
+    setAutoTestToken((t) => t + 1);
+  };
   const autoSavedCodeRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -354,7 +361,8 @@ function StrategyPage() {
       try {
         const result = generateEaFromBlueprint(data.spec_json);
         setGeneratedCode(result.code);
-        setActiveTab("code");
+        const preferred = consumePreferredStrategyTab();
+        setActiveTab(preferred === "backtest" ? "backtest" : preferred === "code" ? "code" : "backtest");
 
         if (autoSavedCodeRef.current !== data.id) {
           autoSavedCodeRef.current = data.id;
@@ -366,7 +374,7 @@ function StrategyPage() {
             .then(() => {
               qc.invalidateQueries({ queryKey: ["strategy", data.id] });
               qc.invalidateQueries({ queryKey: ["strategies"] });
-              toast.success(`Blueprint EA generated - ${generationPathLabel(result.path)}`);
+              toastEaGenerationSuccess(result, "Robot built");
             })
             .catch((e: unknown) => {
               autoSavedCodeRef.current = null;
@@ -378,7 +386,17 @@ function StrategyPage() {
       }
     } else {
       setGeneratedCode(savedCode);
-      setActiveTab(data.spec_json?.fourBrain ? "brains" : savedCode ? "spec" : "code");
+      const preferred = consumePreferredStrategyTab();
+      let nextTab =
+        preferred === "backtest" || preferred === "code" || preferred === "brains"
+          ? preferred
+          : data.spec_json?.fourBrain
+            ? "brains"
+            : savedCode
+              ? "spec"
+              : "backtest";
+      if (nextTab === "builder" || nextTab === "validation") nextTab = "spec";
+      setActiveTab(nextTab);
     }
 
     setDirty(false);
@@ -463,7 +481,7 @@ function StrategyPage() {
       const changed = result.code !== generatedCode;
       setGeneratedCode(result.code);
       setDirty(true);
-      setActiveTab("code");
+      setActiveTab("backtest");
 
       let saved = false;
       try {
@@ -489,11 +507,11 @@ function StrategyPage() {
       toast.success(
         saved
           ? changed
-            ? `EA regenerated & saved (${pathLabel}). Recompile, then backtest.`
-            : `EA already matched blueprint (${pathLabel}) — saved. Recompile, then backtest.`
+            ? "Robot rebuilt and saved. Next: prepare for test, then test on history."
+            : "Robot already matched your settings — saved. Next: prepare for test."
           : changed
-            ? `EA regenerated (${pathLabel}) but save failed — click Save, then recompile.`
-            : `Code unchanged (${pathLabel}). Click Save if needed, then recompile.`,
+            ? "Robot rebuilt but save failed — click Save, then prepare for test."
+            : "No code changes. Click Save if needed, then prepare for test.",
       );
 
       return { ok: true, changed, saved, pathLabel, hasAlignGate };
@@ -540,7 +558,7 @@ function StrategyPage() {
       action === "open_brains"
         ? isFourBrain
           ? "brains"
-          : "builder"
+          : "spec"
         : action === "open_code"
           ? "code"
           : action === "open_backtest"
@@ -550,7 +568,7 @@ function StrategyPage() {
               : action === "open_validation"
                 ? isFourBrain
                   ? "brains"
-                  : "validation"
+                  : "spec"
                 : activeTab;
     setActiveTab(nextTab);
   };
@@ -558,8 +576,8 @@ function StrategyPage() {
   const handleApplyAssistantFix = async (fix: AssistantApplyFix) => {
     if (fix.type === "set_backtest_period") {
       setBacktestPeriodPatch(fix.period);
-      setActiveTab("backtest");
-      toast.success(`Backtest period set to ${fix.period} - re-run backtest`);
+      toast.success(`Test timeframe set to ${fix.period} — starting history test…`);
+      requestAutoHistoryTest();
       return;
     }
     if (fix.type === "save_strategy") {
@@ -578,7 +596,7 @@ function StrategyPage() {
             ? applyFixFlowWiring(blueprint)
             : applyHtfLtfEmaAlignment(blueprint);
       if (!patched.changed) {
-        setActiveTab(isFourBrain ? "brains" : "builder");
+        setActiveTab(isFourBrain ? "brains" : "spec");
         toast.message(patched.notes[0] ?? "Configure already looks correct");
         return;
       }
@@ -587,7 +605,7 @@ function StrategyPage() {
       try {
         const result = generateEaFromBlueprint(patched.blueprint);
         setGeneratedCode(result.code);
-        setActiveTab("code");
+        setActiveTab("backtest");
         await updateStrategy(id, {
           name: name || "Untitled Strategy",
           blueprint: patched.blueprint,
@@ -602,16 +620,15 @@ function StrategyPage() {
             : fix.type === "fix_flow_wiring"
               ? "Flow wiring"
               : "EMA alignment";
-        toast.success(
-          `${label} applied (${patched.notes.length} change${patched.notes.length === 1 ? "" : "s"}) — compile, then backtest`,
-        );
+        toast.success(`${label} applied — starting history test…`);
+        requestAutoHistoryTest();
       } catch (e: unknown) {
         toast.error(
           e instanceof Error
             ? e.message
             : "Changes saved in Configure, but regenerate failed — click Regenerate EA",
         );
-        setActiveTab(isFourBrain ? "brains" : "builder");
+        setActiveTab(isFourBrain ? "brains" : "spec");
       }
       return;
     }
@@ -640,9 +657,9 @@ function StrategyPage() {
             <WorkflowStepper
               steps={[
                 { id: "brains", label: "Configure", shortLabel: "Configure", icon: Settings2 },
-                { id: "code", label: "Generated code", shortLabel: "Code", icon: FileCode2 },
-                { id: "backtest", label: "Backtest", shortLabel: "Test", icon: BarChart2 },
+                { id: "backtest", label: "Test on history", shortLabel: "Test", icon: BarChart2 },
                 { id: "export", label: "Export", shortLabel: "Export", icon: Download },
+                { id: "code", label: "Advanced", shortLabel: "Code", icon: FileCode2 },
               ]}
               currentId={activeTab}
               onStepClick={setActiveTab}
@@ -660,7 +677,7 @@ function StrategyPage() {
               onClick={() => setActiveTab("backtest")}
               className="hidden sm:inline-flex"
             >
-              <Play className="h-4 w-4 mr-1.5" /> Backtest
+              <Play className="h-4 w-4 mr-1.5" /> Test on history
             </Button>
             <Button
               size="sm"
@@ -705,12 +722,12 @@ function StrategyPage() {
 
       {!isFourBrain && isLegacyFlatRulesBlueprint(blueprint) && (
         <div className="mx-6 mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-          <strong className="font-medium">Legacy flat-rules strategy.</strong> This EA uses the
-          deprecated single-timeframe template path. Create a new strategy via{" "}
-          <Link to="/build" className="underline text-amber-100">
-            Visual Builder
+          <strong className="font-medium">Older strategy format.</strong> Prefer creating a new one
+          via{" "}
+          <Link to="/new" className="underline text-amber-100">
+            New strategy
           </Link>{" "}
-          or refine your prompt so intake produces a 4-Brain configuration.
+          so you get layers + Test on history.
         </div>
       )}
 
@@ -723,17 +740,17 @@ function StrategyPage() {
                 <Brain className="h-3.5 w-3.5 mr-1.5 shrink-0" />
                 Configure
               </TabsTrigger>
-              <TabsTrigger value="code">
-                <FileCode2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                Code
-              </TabsTrigger>
               <TabsTrigger value="backtest">
                 <BarChart2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                Backtest
+                Test on history
               </TabsTrigger>
               <TabsTrigger value="export">
                 <Download className="h-3.5 w-3.5 mr-1.5 shrink-0" />
                 Export
+              </TabsTrigger>
+              <TabsTrigger value="code" className="text-muted-foreground">
+                <FileCode2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                Advanced
               </TabsTrigger>
             </TabsList>
           </ScrollableTabsList>
@@ -748,7 +765,7 @@ function StrategyPage() {
                 if (aiCode) {
                   setGeneratedCode(aiCode);
                   setDirty(true);
-                  setActiveTab("code");
+                  setActiveTab("backtest");
                   return;
                 }
                 try {
@@ -756,22 +773,24 @@ function StrategyPage() {
                   setBlueprint(next);
                   setGeneratedCode(result.code);
                   setDirty(true);
-                  setActiveTab("code");
+                  setActiveTab("backtest");
                   const scheduleOn = Boolean(
                     next.fourBrain?.management?.tradingSchedule?.enabled ||
                       next.strategyFlow?.management?.tradingSchedule?.enabled,
                   );
                   const hasSession =
                     /InpUseSessionFilter|IsTradingTime\s*\(/.test(result.code);
-                  toast.success(
-                    `EA regenerated - ${generationPathLabel(result.path)}${
-                      scheduleOn
-                        ? hasSession
-                          ? " · session filter embedded"
-                          : " · WARNING: schedule not in code"
-                        : ""
-                    }`,
+                  toastEaGenerationSuccess(
+                    result,
+                    scheduleOn
+                      ? hasSession
+                        ? "Robot built with your trading hours"
+                        : "Robot built"
+                      : "Robot built",
                   );
+                  if (scheduleOn && !hasSession) {
+                    toast.warning("Trading hours were set but not embedded — try building again.");
+                  }
                   void updateStrategy(id, {
                     name: name || "Untitled Strategy",
                     blueprint: next,
@@ -839,6 +858,7 @@ function StrategyPage() {
               periodPatch={backtestPeriodPatch}
               onPeriodPatchApplied={() => setBacktestPeriodPatch(null)}
               suggestedPeriod={resolveFlowBacktestPeriod(blueprint)}
+              autoTestToken={autoTestToken}
             />
           </TabsContent>
 
@@ -847,34 +867,43 @@ function StrategyPage() {
           </TabsContent>
         </Tabs>
       ) : (
-        /* ── Rules-based strategy tabs ─────────────────────────────────────── */
+        /* ── Legacy / flat-rules strategies — same golden path tabs ── */
         <Tabs value={activeTab} onValueChange={setActiveTab} className="px-4 sm:px-6 pt-4">
           <ScrollableTabsList>
             <TabsList className="w-max min-w-full sm:min-w-0">
-              <TabsTrigger value="spec">Spec</TabsTrigger>
-              <TabsTrigger value="builder">Builder</TabsTrigger>
-              <TabsTrigger value="code">
-                <FileCode2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                Code
+              <TabsTrigger value="spec">
+                <Settings2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                Configure
               </TabsTrigger>
               <TabsTrigger value="backtest">
                 <BarChart2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                Backtest
+                Test on history
               </TabsTrigger>
-              <TabsTrigger value="validation">Validation</TabsTrigger>
               <TabsTrigger value="export">
                 <Download className="h-3.5 w-3.5 mr-1.5 shrink-0" />
                 Export
               </TabsTrigger>
+              <TabsTrigger value="code" className="text-muted-foreground">
+                <FileCode2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                Advanced
+              </TabsTrigger>
             </TabsList>
           </ScrollableTabsList>
 
-          <TabsContent value="spec" className="pt-6 pb-10">
+          <TabsContent value="spec" className="pt-6 pb-10 space-y-4">
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 max-w-2xl">
+              <strong className="font-medium">Older strategy format.</strong> You can still edit
+              rules here. For new strategies, use{" "}
+              <Link to="/new" className="underline text-amber-100">
+                New strategy
+              </Link>{" "}
+              or{" "}
+              <Link to="/build" className="underline text-amber-100">
+                Customize visually
+              </Link>
+              .
+            </div>
             <StrategySpecForm blueprint={blueprint} onChange={onBlueprintChange} />
-          </TabsContent>
-
-          <TabsContent value="builder" className="pt-6 pb-10 max-w-2xl">
-            <BuilderTab blueprint={blueprint} />
           </TabsContent>
 
           <TabsContent value="code" className="pt-6 pb-10">
@@ -924,11 +953,8 @@ function StrategyPage() {
               periodPatch={backtestPeriodPatch}
               onPeriodPatchApplied={() => setBacktestPeriodPatch(null)}
               suggestedPeriod={resolveFlowBacktestPeriod(blueprint)}
+              autoTestToken={autoTestToken}
             />
-          </TabsContent>
-
-          <TabsContent value="validation" className="pt-6 pb-10">
-            <ValidationTab blueprint={blueprint} />
           </TabsContent>
 
           <TabsContent value="export" className="pt-6 pb-10">
@@ -961,6 +987,7 @@ function StrategyPage() {
         onSafeAction={handleAssistantAction}
         onRegenTemplate={regenFromTemplate}
         onApplyAssistantFix={handleApplyAssistantFix}
+        onRequestRetest={requestAutoHistoryTest}
       />
     </div>
   );
@@ -1673,117 +1700,8 @@ function FourBrainTab({
         </div>
       )}
 
-      {/* Builder mode - Simple 4-Brain vs Advanced Strategy Flow */}
-      <div className="rounded-lg border border-border p-1 flex gap-1 bg-muted/20">
-        <button
-          type="button"
-          onClick={() => setBuilderMode("simple")}
-          className={[
-            "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-all",
-            builderMode === "simple"
-              ? "bg-background text-foreground shadow-sm border border-border"
-              : "text-muted-foreground hover:text-foreground",
-          ].join(" ")}
-        >
-          Simple - 4-Brain preset
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (builderMode !== "advanced") {
-              setFlowConfig(seedAdvancedFlow(buildUpdatedBp(), buildFourBrainConfig()));
-            }
-            setBuilderMode("advanced");
-          }}
-          className={[
-            "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-all",
-            builderMode === "advanced"
-              ? "bg-background text-foreground shadow-sm border border-border"
-              : "text-muted-foreground hover:text-foreground",
-          ].join(" ")}
-        >
-          Advanced - Strategy Flow
-        </button>
-      </div>
-      <p className="text-[11px] text-muted-foreground -mt-2">
-        {builderMode === "simple"
-          ? "Three brain slots (Direction · Setup · Execution). The compiler expands them into ordered steps automatically."
-          : "Build any number of ordered module steps. Each step must occur before the next - same compiler as AI strategy_flow output."}
-      </p>
-
-      <TradeAuditPanel blueprint={buildUpdatedBp()} compact />
-
-      {/* Strategy-level notes - cross-brain conditions, filters, invalidation rules */}
-      <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
-        <div>
-          <Label className="text-xs font-semibold text-amber-400">Strategy Rules</Label>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            Describe conditions that apply across the whole strategy - max SL distance, invalidation
-            rules, required sequences (e.g. "must retest EMA before entry"), session filters. The AI
-            assistant reads these when helping you debug or refine the strategy.
-          </p>
-        </div>
-        <textarea
-          value={strategyNotes}
-          onChange={(e) => setStrategyNotes(e.target.value)}
-          rows={4}
-          placeholder={`Examples:
-• If opposite EMA cross fires, reset direction and cancel all pending setups
-• Only enter after price retests either EMA - ignore IFVGs that form before the retest
-• Max stop loss = 7 pips (70 points) - skip trade if SL distance exceeds this
-• Breakeven at 1.5R, keep original TP active`}
-          className="w-full rounded border border-amber-500/20 bg-background px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-amber-500/60 resize-none"
-        />
-      </div>
-
-      <details className="rounded-lg border border-border bg-card/50 group">
-        <summary className="cursor-pointer list-none px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center justify-between">
-          Strategy summary
-          <span className="text-[10px] font-normal normal-case text-muted-foreground/70 group-open:hidden">
-            Show blueprint details
-          </span>
-        </summary>
-        <div className="px-4 pb-4 border-t border-border/50">
-          <BlueprintExplanationPanel blueprint={buildUpdatedBp()} />
-        </div>
-      </details>
-
-      {builderMode === "advanced" ? (
-        <>
-          <ActiveConfluenceFilters
-            filterRefs={filterRefs}
-            indicatorRefs={indicatorRefs}
-            onRemoveFilter={removeFilter}
-            onRemoveIndicator={removeIndicator}
-          />
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="text-xs"
-              onClick={() => {
-                const seeded = fourBrainToStrategyFlow(buildFourBrainConfig());
-                setFlowConfig({
-                  ...seeded,
-                  mode: "advanced_instances",
-                  source: "user",
-                  management: buildFourBrainConfig().management,
-                });
-              }}
-            >
-              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-              Import from 4-Brain preset
-            </Button>
-          </div>
-          <StrategyFlowBuilder
-            flow={flowConfig}
-            onChange={(next) => setFlowConfig(next)}
-            strategyFamily={strategyFamily}
-            onIndicatorApply={handleIndicatorSideEffect}
-          />
-        </>
-      ) : (
+      {/* Layers (simple) — advanced step order behind More control */}
+      {builderMode === "simple" ? (
         <>
           <ActiveConfluenceFilters
             filterRefs={filterRefs}
@@ -1831,8 +1749,121 @@ function FourBrainTab({
             familyModules={brainPickerModules("execution")}
             setupModule={setupModuleId}
           />
+
+          <details className="rounded-lg border border-dashed border-border bg-muted/10 px-4 py-3">
+            <summary className="cursor-pointer text-xs font-medium text-muted-foreground list-none flex items-center justify-between">
+              More control
+              <span className="text-[10px] font-normal text-muted-foreground/70">
+                Step order editor
+              </span>
+            </summary>
+            <div className="mt-3 space-y-2 border-t border-border/50 pt-3">
+              <p className="text-[11px] text-muted-foreground">
+                For unusual sequences (extra confirmations, custom step order). Most strategies
+                only need the layers above.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                onClick={() => {
+                  setFlowConfig(seedAdvancedFlow(buildUpdatedBp(), buildFourBrainConfig()));
+                  setBuilderMode("advanced");
+                }}
+              >
+                Open step-by-step editor
+              </Button>
+            </div>
+          </details>
+        </>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              Step-by-step order — each step waits for the previous one.
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="text-xs"
+              onClick={() => setBuilderMode("simple")}
+            >
+              Back to simple layers
+            </Button>
+          </div>
+          <ActiveConfluenceFilters
+            filterRefs={filterRefs}
+            indicatorRefs={indicatorRefs}
+            onRemoveFilter={removeFilter}
+            onRemoveIndicator={removeIndicator}
+          />
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={() => {
+                const seeded = fourBrainToStrategyFlow(buildFourBrainConfig());
+                setFlowConfig({
+                  ...seeded,
+                  mode: "advanced_instances",
+                  source: "user",
+                  management: buildFourBrainConfig().management,
+                });
+              }}
+            >
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+              Import from simple layers
+            </Button>
+          </div>
+          <StrategyFlowBuilder
+            flow={flowConfig}
+            onChange={(next) => setFlowConfig(next)}
+            strategyFamily={strategyFamily}
+            onIndicatorApply={handleIndicatorSideEffect}
+          />
         </>
       )}
+
+      <TradeAuditPanel blueprint={buildUpdatedBp()} compact />
+
+      <WhenToTradeCard value={tradingSchedule} onChange={setTradingSchedule} />
+
+      {/* Strategy-level notes */}
+      <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
+        <div>
+          <Label className="text-xs font-semibold text-amber-400">Strategy notes</Label>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Extra rules in plain English (session filters, max stop, invalidation). The Assistant
+            uses these when helping you.
+          </p>
+        </div>
+        <textarea
+          value={strategyNotes}
+          onChange={(e) => setStrategyNotes(e.target.value)}
+          rows={4}
+          placeholder={`Examples:
+• Only trade London session
+• Skip if stop would be wider than 7 pips
+• Cancel setup if opposite signal fires`}
+          className="w-full rounded border border-amber-500/20 bg-background px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-amber-500/60 resize-none"
+        />
+      </div>
+
+      <details className="rounded-lg border border-border bg-card/50 group">
+        <summary className="cursor-pointer list-none px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center justify-between">
+          Strategy summary
+          <span className="text-[10px] font-normal normal-case text-muted-foreground/70 group-open:hidden">
+            Show details
+          </span>
+        </summary>
+        <div className="px-4 pb-4 border-t border-border/50">
+          <BlueprintExplanationPanel blueprint={buildUpdatedBp()} />
+        </div>
+      </details>
 
       {/* Management */}
       <div className="rounded-lg border border-border p-4 space-y-4">
@@ -1942,236 +1973,6 @@ function FourBrainTab({
             </div>
           )}
         </div>
-
-        <div className="border-t border-border pt-4 space-y-3">
-          <div className="flex items-center gap-3">
-            <Switch
-              checked={tradingSchedule.enabled}
-              onCheckedChange={(on) =>
-                setTradingSchedule((prev) => ({
-                  ...prev,
-                  enabled: on,
-                  mode: on
-                    ? prev.mode === "all"
-                      ? "presets"
-                      : prev.mode
-                    : "all",
-                  sessions:
-                    on && !(prev.sessions?.length)
-                      ? (["london"] as TradingSessionPreset[])
-                      : prev.sessions,
-                }))
-              }
-            />
-            <div>
-              <Label className="text-xs text-muted-foreground">Trading schedule</Label>
-              <p className="text-[10px] text-muted-foreground/70">
-                Broker server time. Outside the window: no new entries; open trades still managed.
-              </p>
-            </div>
-          </div>
-
-          {tradingSchedule.enabled && (
-            <div className="space-y-3 pl-1">
-              <Select
-                value={tradingSchedule.mode === "custom_windows" ? "custom_windows" : "presets"}
-                onValueChange={(v) =>
-                  setTradingSchedule((prev) => ({
-                    ...prev,
-                    mode: v as "presets" | "custom_windows",
-                    sessions:
-                      v === "presets" && !(prev.sessions?.length)
-                        ? (["london"] as TradingSessionPreset[])
-                        : prev.sessions,
-                    windows:
-                      v === "custom_windows" && !(prev.windows?.length)
-                        ? [{ startMin: 7 * 60, endMin: 16 * 60 }]
-                        : prev.windows,
-                  }))
-                }
-              >
-                <SelectTrigger className="h-8 text-xs max-w-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="presets">Session presets</SelectItem>
-                  <SelectItem value="custom_windows">Custom windows</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {tradingSchedule.mode !== "custom_windows" ? (
-                <div className="flex flex-wrap gap-3">
-                  {(Object.keys(SESSION_PRESET_LABELS) as TradingSessionPreset[]).map((id) => {
-                    const on = (tradingSchedule.sessions ?? []).includes(id);
-                    return (
-                      <label key={id} className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Checkbox
-                          checked={on}
-                          onCheckedChange={(checked) =>
-                            setTradingSchedule((prev) => {
-                              const cur = new Set(prev.sessions ?? []);
-                              if (checked) cur.add(id);
-                              else cur.delete(id);
-                              return { ...prev, sessions: [...cur] };
-                            })
-                          }
-                        />
-                        {SESSION_PRESET_LABELS[id]}
-                      </label>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {(tradingSchedule.windows ?? []).slice(0, 3).map((w, i) => (
-                    <div key={i} className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[10px] text-muted-foreground w-14">Window {i + 1}</span>
-                      <Input
-                        className="h-8 w-20 text-xs font-mono"
-                        value={minutesToHHMM(w.startMin)}
-                        onChange={(e) =>
-                          setTradingSchedule((prev) => {
-                            const windows = [...(prev.windows ?? [])];
-                            windows[i] = {
-                              ...windows[i]!,
-                              startMin: hhmmToMinutes(e.target.value),
-                            };
-                            return { ...prev, windows };
-                          })
-                        }
-                      />
-                      <span className="text-xs text-muted-foreground">→</span>
-                      <Input
-                        className="h-8 w-20 text-xs font-mono"
-                        value={minutesToHHMM(w.endMin)}
-                        onChange={(e) =>
-                          setTradingSchedule((prev) => {
-                            const windows = [...(prev.windows ?? [])];
-                            windows[i] = {
-                              ...windows[i]!,
-                              endMin: hhmmToMinutes(e.target.value),
-                            };
-                            return { ...prev, windows };
-                          })
-                        }
-                      />
-                      {(tradingSchedule.windows?.length ?? 0) > 1 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2 text-xs"
-                          onClick={() =>
-                            setTradingSchedule((prev) => ({
-                              ...prev,
-                              windows: (prev.windows ?? []).filter((_, j) => j !== i),
-                            }))
-                          }
-                        >
-                          Remove
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  {(tradingSchedule.windows?.length ?? 0) < 3 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={() =>
-                        setTradingSchedule((prev) => ({
-                          ...prev,
-                          windows: [
-                            ...(prev.windows ?? []),
-                            { startMin: 12 * 60, endMin: 16 * 60 },
-                          ],
-                        }))
-                      }
-                    >
-                      Add window
-                    </Button>
-                  )}
-                </div>
-              )}
-
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { d: 1, label: "Mon" },
-                  { d: 2, label: "Tue" },
-                  { d: 3, label: "Wed" },
-                  { d: 4, label: "Thu" },
-                  { d: 5, label: "Fri" },
-                  { d: 6, label: "Sat" },
-                  { d: 0, label: "Sun" },
-                ].map(({ d, label }) => {
-                  const days = tradingSchedule.allowedDays ?? [1, 2, 3, 4, 5];
-                  const on = days.includes(d);
-                  return (
-                    <button
-                      key={d}
-                      type="button"
-                      className={`h-7 min-w-9 rounded border px-2 text-[10px] font-medium ${
-                        on
-                          ? "border-primary/50 bg-primary/15 text-foreground"
-                          : "border-border text-muted-foreground"
-                      }`}
-                      onClick={() =>
-                        setTradingSchedule((prev) => {
-                          const cur = new Set(prev.allowedDays ?? [1, 2, 3, 4, 5]);
-                          if (cur.has(d)) cur.delete(d);
-                          else cur.add(d);
-                          return { ...prev, allowedDays: [...cur].sort((a, b) => a - b) };
-                        })
-                      }
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Checkbox
-                  checked={tradingSchedule.outsideWindow?.cancelPendingOrders === true}
-                  onCheckedChange={(checked) =>
-                    setTradingSchedule((prev) => ({
-                      ...prev,
-                      outsideWindow: {
-                        allowNewEntries: false,
-                        manageOpenPositions: checked !== true,
-                        closeOpenPositions: prev.outsideWindow?.closeOpenPositions === true,
-                        cancelPendingOrders: checked === true,
-                      },
-                    }))
-                  }
-                />
-                Cancel pending orders outside the window
-              </label>
-              <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Checkbox
-                  checked={tradingSchedule.outsideWindow?.closeOpenPositions === true}
-                  onCheckedChange={(checked) =>
-                    setTradingSchedule((prev) => ({
-                      ...prev,
-                      outsideWindow: {
-                        allowNewEntries: false,
-                        manageOpenPositions: checked !== true,
-                        closeOpenPositions: checked === true,
-                        cancelPendingOrders: prev.outsideWindow?.cancelPendingOrders === true,
-                      },
-                    }))
-                  }
-                />
-                Close open positions at session end
-              </label>
-              <p className="text-[10px] text-muted-foreground/70">
-                Default keeps managing open trades outside the window. Closing at session end is
-                optional and uses broker server time.
-              </p>
-            </div>
-          )}
-        </div>
       </div>
 
       <AiWiringInsight wiring={aiWiring} />
@@ -2180,8 +1981,8 @@ function FourBrainTab({
       <div className="fixed bottom-0 left-0 right-0 md:left-56 z-20 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 sm:px-6 py-3">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 sm:flex-row sm:items-center">
           <p className="text-[11px] text-muted-foreground flex-1 hidden sm:block">
-            Compiles verified modules into a self-contained EA. Use the Assistant to debug
-            backtests.
+            Builds a self-contained trading robot from your settings. Use the Assistant if a test
+            looks wrong.
           </p>
           <Button
             size="lg"
@@ -2202,7 +2003,7 @@ function FourBrainTab({
             }}
           >
             <Hammer className="h-4 w-4 mr-1.5" />
-            Generate EA
+            Build my robot
           </Button>
         </div>
       </div>
@@ -2299,10 +2100,10 @@ function CodeTab({
       const result = generateEaFromBlueprint(blueprint);
       if (onAutoSave) {
         await onAutoSave(result.code);
-        toast.success(`EA generated & saved - ${generationPathLabel(result.path)}`);
+        toastEaGenerationSuccess(result, "Robot built and saved");
       } else {
         onCodeChange(result.code);
-        toast.success(`EA generated - ${generationPathLabel(result.path)}`);
+        toastEaGenerationSuccess(result, "Robot built");
       }
     } catch (e: unknown) {
       toast.error(e instanceof EaGenerationError ? e.message : "Template generation failed");
@@ -2486,9 +2287,9 @@ function CodeTab({
         <div className="flex items-start gap-3">
           <FileCode2 className="h-8 w-8 text-muted-foreground/40 shrink-0 mt-1" />
           <div>
-            <p className="font-semibold text-base">Generate MQL5 Expert Advisor</p>
+            <p className="font-semibold text-base">Build your trading robot</p>
             <p className="text-sm text-muted-foreground mt-0.5">
-              The blueprint assembler maps your strategy to verified state-machine code.
+              Turns your strategy settings into a self-contained MT5 Expert Advisor.
             </p>
           </div>
         </div>
@@ -2561,14 +2362,14 @@ function CodeTab({
             ) : (
               <>
                 <Hammer className="h-4 w-4 mr-1.5" />
-                Generate EA
+                Build my robot
               </>
             )}
           </Button>
           <p className="text-[11px] text-center text-muted-foreground">
             {generationError
-              ? `Generation blocked: ${generationError}`
-              : "Compiles your blueprint via the Strategy Flow engine (verified modules). Use the AI Assistant to debug or refine the strategy."}
+              ? `Build blocked: ${generationError}`
+              : "Builds your robot from verified building blocks. Use the Assistant to refine or debug."}
           </p>
 
           {!build.buildable && (
@@ -2635,7 +2436,7 @@ function CodeTab({
             ) : (
               <Hammer className="h-4 w-4 mr-1.5" />
             )}
-            Regenerate EA
+            Regenerate
           </Button>
         </div>
       </div>
@@ -2715,6 +2516,9 @@ function BacktestTab({
   periodPatch,
   onPeriodPatchApplied,
   suggestedPeriod,
+  autoStartTest = false,
+  onAutoStartConsumed,
+  autoTestToken = 0,
 }: {
   strategyId: string;
   strategyName: string;
@@ -2729,6 +2533,11 @@ function BacktestTab({
   periodPatch?: string | null;
   onPeriodPatchApplied?: () => void;
   suggestedPeriod?: string;
+  /** @deprecated use autoTestToken */
+  autoStartTest?: boolean;
+  onAutoStartConsumed?: () => void;
+  /** Increment to trigger prepare + history test once. */
+  autoTestToken?: number;
 }) {
   const companion = useQuery({
     queryKey: ["local-runner-health"],
@@ -2749,6 +2558,10 @@ function BacktestTab({
   const mt5Configured = Boolean(mt5Status.data?.configuredTerminalPath);
 
   const [localApproval, setLocalApproval] = useState(false);
+  /** After prepare succeeds, automatically start the history test. */
+  const [pendingBacktestAfterPrepare, setPendingBacktestAfterPrepare] = useState(false);
+  const lastAutoTestTokenRef = useRef(0);
+  const periodOverrideRef = useRef<string | null>(null);
   const [config, setConfig] = useState<
     Omit<TesterConfig, "expertName" | "reportName" | "visualMode" | "optimization">
   >({
@@ -2784,6 +2597,16 @@ function BacktestTab({
   const [downloadingReport, setDownloadingReport] = useState(false);
   const [downloadingTesterLog, setDownloadingTesterLog] = useState(false);
   const processedJobIds = useRef(new Set<string>());
+  const codeSnapshotRef = useRef(code);
+
+  // New robot source → must prepare again before testing.
+  useEffect(() => {
+    if (codeSnapshotRef.current === code) return;
+    codeSnapshotRef.current = code;
+    setCompileResult(null);
+    setCompileJobId(null);
+    setCompilePolling(false);
+  }, [code]);
 
   const compileMut = useMutation({
     mutationFn: async () => {
@@ -2823,12 +2646,15 @@ function BacktestTab({
       setCompileResult(result);
       onCompileLog?.(result.log ?? null);
       if (status === "succeeded" && result.success) {
-        toast.success(`Compiled - ${result.errors ?? 0}E ${result.warnings ?? 0}W`);
+        toast.success(
+          pendingBacktestAfterPrepare ? "Prepared — starting history test…" : "Ready for test",
+        );
       } else {
-        toast.error(`Compile failed - ${result.errors ?? "?"}E. See compile log.`);
+        setPendingBacktestAfterPrepare(false);
+        toast.error(`Prepare failed - ${result.errors ?? "?"} error(s). See log below.`);
       }
     }
-  }, [compileJobQuery.data, onCompileLog]);
+  }, [compileJobQuery.data, onCompileLog, pendingBacktestAfterPrepare]);
 
   const compileSucceeded = compileResult?.success === true;
   const backtestBlockedByRunningTerminal =
@@ -2863,9 +2689,9 @@ function BacktestTab({
       onBacktestSummary?.(result.summary ?? null);
       onBacktestLog?.(result.log ?? null);
       if (status === "succeeded") {
-        toast.success("Backtest report ready");
+        toast.success("History test ready");
       } else {
-        toast.error("Backtest failed - " + (data.job.message || "see tester log"));
+        toast.error("History test failed - " + (data.job.message || "see tester log"));
       }
     }
   }, [backtestJobQuery.data, onBacktestLog, onBacktestSummary]);
@@ -2889,8 +2715,11 @@ function BacktestTab({
     mutationFn: async () => {
       const filename = buildExportFilename(blueprint, "mq5");
       const approval = await buildRunnerApproval(code, "backtest");
+      const period = periodOverrideRef.current ?? config.period;
+      periodOverrideRef.current = null;
       const testerConfig: TesterConfig = {
         ...config,
+        period,
         expertName: filename.replace(/\.mq5$/i, ""),
         reportName: `${strategyId}-report`,
         visualMode: false,
@@ -2913,6 +2742,68 @@ function BacktestTab({
     onError: (e: unknown) =>
       toast.error(e instanceof Error ? e.message : "Failed to start backtest"),
   });
+
+  // Unified Test on history: after prepare succeeds, auto-run the report.
+  useEffect(() => {
+    if (!pendingBacktestAfterPrepare) return;
+    if (!compileSucceeded) return;
+    if (compileMut.isPending || compilePolling) return;
+    setPendingBacktestAfterPrepare(false);
+    backtestMut.mutate();
+  }, [
+    pendingBacktestAfterPrepare,
+    compileSucceeded,
+    compileMut.isPending,
+    compilePolling,
+    backtestMut,
+  ]);
+
+  const startUnifiedHistoryTest = () => {
+    if (!companionOnline) {
+      toast.error("Start the MT5 helper first (download & run from Settings).");
+      return;
+    }
+    if (!mt5Configured) {
+      toast.error("Connect MetaTrader in Settings, then try again.");
+      return;
+    }
+    if (!localApproval) setLocalApproval(true);
+    if (compileSucceeded) {
+      backtestMut.mutate();
+      return;
+    }
+    setPendingBacktestAfterPrepare(true);
+    compileMut.mutate();
+  };
+
+  useEffect(() => {
+    const token = autoTestToken > 0 ? autoTestToken : autoStartTest ? 1 : 0;
+    if (!token) return;
+    if (lastAutoTestTokenRef.current === token) return;
+    if (companion.isLoading) return;
+    lastAutoTestTokenRef.current = token;
+    onAutoStartConsumed?.();
+    if (!companionOnline) {
+      toast.message("Start the MT5 helper, then tap Test on history.");
+      return;
+    }
+    if (!mt5Configured) {
+      toast.message("Connect MetaTrader in Settings, then tap Test on history.");
+      return;
+    }
+    setLocalApproval(true);
+    setCompileResult(null);
+    setPendingBacktestAfterPrepare(true);
+    compileMut.mutate();
+  }, [
+    autoTestToken,
+    autoStartTest,
+    companion.isLoading,
+    companionOnline,
+    mt5Configured,
+    onAutoStartConsumed,
+    compileMut,
+  ]);
 
   const visualMut = useMutation({
     mutationFn: async () => {
@@ -3014,18 +2905,22 @@ function BacktestTab({
       <div className="flex flex-col items-center justify-center py-20 gap-3 text-center max-w-sm mx-auto">
         <BarChart2 className="h-10 w-10 text-muted-foreground/30" />
         <p className="font-medium">No code yet</p>
-        <p className="text-sm text-muted-foreground">Generate MQL5 code on the Code tab first.</p>
+        <p className="text-sm text-muted-foreground">
+          Build your robot from Configure first, then come back here to test on history.
+        </p>
       </div>
     );
   }
-  if (!companionOnline) {
+  if (!companionOnline || !mt5Configured) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3 text-center max-w-sm mx-auto">
-        <WifiOff className="h-10 w-10 text-muted-foreground/30" />
-        <p className="font-medium">Companion offline</p>
-        <p className="text-sm text-muted-foreground">
-          Start the desktop companion and configure MT5 in Settings.
-        </p>
+      <div className="py-8 px-2 space-y-4">
+        <div className="text-center space-y-1 max-w-md mx-auto">
+          <p className="font-medium">Almost ready to test</p>
+          <p className="text-sm text-muted-foreground">
+            Finish this quick helper setup, then you can run Test on history in one click.
+          </p>
+        </div>
+        <CompanionSetupWizard />
       </div>
     );
   }
@@ -3273,7 +3168,7 @@ function BacktestTab({
           </div>
         )}
 
-        {/* Approval */}
+        {/* Approval + primary Test flow */}
         <div className="flex items-start gap-2 pt-1">
           <Checkbox
             id="local-approval"
@@ -3285,85 +3180,99 @@ function BacktestTab({
             htmlFor="local-approval"
             className="text-xs text-muted-foreground leading-relaxed cursor-pointer select-none"
           >
-            I approve this generated EA source for local compile &amp; testing on this computer
-            only. I understand it does not perform live trading.
+            I approve this robot for local prepare &amp; testing on this computer only. It does not
+            place live trades.
           </label>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-2 pt-1 flex-wrap">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
           <Button
-            variant="outline"
-            size="sm"
-            onClick={() => compileMut.mutate()}
-            disabled={anyRunning || !localApproval || !mt5Configured}
-            className="min-w-[120px]"
-            title={!mt5Configured ? "Configure MT5 in Settings first" : undefined}
-          >
-            {compileRunning ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Compiling…
-              </>
-            ) : (
-              <>
-                <Hammer className="h-4 w-4 mr-1.5" /> Compile EA
-              </>
-            )}
-          </Button>
-
-          <div className="h-5 w-px bg-border mx-1 hidden sm:block" />
-
-          <Button
-            size="sm"
-            onClick={() => backtestMut.mutate()}
-            disabled={anyRunning || !compileSucceeded || !localApproval || !mt5Configured}
-            className="min-w-[160px]"
+            size="lg"
+            onClick={startUnifiedHistoryTest}
+            disabled={anyRunning || !mt5Configured}
+            className="sm:min-w-[220px]"
             title={
               !mt5Configured
-                ? "Configure MT5 in Settings first"
-                : !compileSucceeded
-                  ? "Compile EA first"
-                  : undefined
+                ? "Connect MetaTrader in Settings first"
+                : !localApproval
+                  ? "Will also tick approval when you start"
+                  : "Prepare (if needed) then test on history"
             }
           >
-            {backtestRunning ? (
+            {compileRunning || pendingBacktestAfterPrepare ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Preparing…
+              </>
+            ) : backtestRunning ? (
               <>
                 <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                {backtestJobStatus === "running" ? "Tester running…" : "Launching…"}
+                {backtestJobStatus === "running" ? "Testing…" : "Starting test…"}
               </>
             ) : (
               <>
-                <BarChart2 className="h-4 w-4 mr-1.5" /> Run Report Backtest
+                <BarChart2 className="h-4 w-4 mr-1.5" /> Test on history
               </>
             )}
           </Button>
-
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => visualMut.mutate()}
-            disabled={anyRunning || !compileSucceeded || !localApproval || !mt5Configured}
-            className="min-w-[140px]"
-            title={
-              !mt5Configured
-                ? "Configure MT5 in Settings first"
-                : !compileSucceeded
-                  ? "Compile EA first"
-                  : undefined
-            }
-          >
-            {visualRunning ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                {visualJobStatus === "running" ? "Visual running…" : "Launching…"}
-              </>
-            ) : (
-              <>
-                <Play className="h-4 w-4 mr-1.5" /> Run Visual Test
-              </>
-            )}
-          </Button>
+          <p className="text-[11px] text-muted-foreground sm:flex-1">
+            One step: prepare the robot (if needed), then run it on past price data.
+          </p>
         </div>
+
+        <details className="pt-1">
+          <summary className="text-[11px] text-muted-foreground cursor-pointer select-none">
+            More options
+          </summary>
+          <div className="flex items-center gap-2 pt-3 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (!localApproval) setLocalApproval(true);
+                compileMut.mutate();
+              }}
+              disabled={anyRunning || !mt5Configured}
+              className="min-w-[120px]"
+              title={!mt5Configured ? "Configure MT5 in Settings first" : undefined}
+            >
+              {compileRunning ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Preparing…
+                </>
+              ) : (
+                <>
+                  <Hammer className="h-4 w-4 mr-1.5" /> Prepare only
+                </>
+              )}
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => visualMut.mutate()}
+              disabled={anyRunning || !compileSucceeded || !localApproval || !mt5Configured}
+              className="min-w-[140px]"
+              title={
+                !mt5Configured
+                  ? "Configure MT5 in Settings first"
+                  : !compileSucceeded
+                    ? "Prepare for test first"
+                    : undefined
+              }
+            >
+              {visualRunning ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                  {visualJobStatus === "running" ? "Visual running…" : "Launching…"}
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4 mr-1.5" /> Visual chart test
+                </>
+              )}
+            </Button>
+          </div>
+        </details>
 
         {backtestBlockedByRunningTerminal && (
           <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 flex items-start gap-3">
@@ -3478,9 +3387,9 @@ function BacktestTab({
           })()}
 
         {/* Never compiled hint */}
-        {!compileResult && !compileRunning && localApproval && (
+        {!compileResult && !compileRunning && !pendingBacktestAfterPrepare && (
           <p className="text-xs text-muted-foreground">
-            Compile the EA first, then choose a backtest mode.
+            Tap <strong>Test on history</strong> — we’ll prepare the robot if needed, then run it.
           </p>
         )}
 
@@ -3492,7 +3401,7 @@ function BacktestTab({
         )}
         {backtestRunning && (
           <p className="text-xs text-muted-foreground">
-            MT5 Strategy Tester running in background - report will appear below when complete.
+            Testing on history… results appear below when ready.
           </p>
         )}
       </div>
@@ -3510,19 +3419,26 @@ function BacktestTab({
       {/* Report results */}
       {backtestResult && (
         <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            {backtestResult.success ? (
-              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-            ) : (
-              <AlertTriangle className="h-4 w-4 text-destructive" />
-            )}
-            <p className="text-sm font-medium">
-              {backtestResult.success ? "Report backtest completed" : "Backtest failed"}
-            </p>
-            <span className="text-xs text-muted-foreground">
-              {config.symbol} · {config.period} · {config.fromDate} → {config.toDate}
-            </span>
-          </div>
+          <HistoryTestResultsCard
+            blueprint={blueprint}
+            success={backtestResult.success}
+            summary={summary}
+            testerLog={backtestResult.log}
+            symbol={config.symbol}
+            period={config.period}
+            fromDate={config.fromDate}
+            toDate={config.toDate}
+            suggestedPeriod={suggestedPeriod}
+            onAskAssistant={onOpenChat}
+            onRetest={() => {
+              if (suggestedPeriod && suggestedPeriod !== config.period) {
+                set("period", suggestedPeriod);
+                periodOverrideRef.current = suggestedPeriod;
+                toast.message(`Retesting on ${suggestedPeriod}…`);
+              }
+              startUnifiedHistoryTest();
+            }}
+          />
 
           <div className="flex items-center gap-2 flex-wrap">
             <Button
@@ -3536,7 +3452,7 @@ function BacktestTab({
               ) : (
                 <Download className="h-3.5 w-3.5 mr-1.5" />
               )}
-              Report
+              Download report
             </Button>
             <Button
               size="sm"
@@ -3549,69 +3465,41 @@ function BacktestTab({
               ) : (
                 <FileText className="h-3.5 w-3.5 mr-1.5" />
               )}
-              Tester log
+              Download log
             </Button>
-            {!backtestResult.success && onOpenChat && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  onOpenChat(
-                    "Diagnosis mode: Backtest failed. Use the compile log, tester log, runner status, generated code, blueprint, and module contracts. Tell me whether this is an EA logic problem, MT5 runner/tester problem, symbol/data issue, or risk/filter issue. End with the safest next action.",
-                  )
-                }
-              >
-                <Bot className="h-3.5 w-3.5 mr-1.5" />
-                Ask AI
-              </Button>
-            )}
-            {backtestResult.success && summary?.totalTrades === 0 && onOpenChat && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  onOpenChat(
-                    "Diagnosis mode: Why no trades? The backtest completed with zero trades. Use the original prompt, blueprint, module contracts, generated code, tester log, and backtest summary. Identify the exact gate that prevented entries: direction, setup, execution, management/risk, spread, max stop, max trades, date/data, or tester config. End with the safest next app action.",
-                  )
-                }
-              >
-                <Bot className="h-3.5 w-3.5 mr-1.5" />
-                Why no trades?
-              </Button>
-            )}
           </div>
 
           {summary && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <MetricCard
-                label="Net Profit"
+                label="Net profit"
                 value={`${summary.currency ?? ""}${fmt(summary.netProfit)}`}
                 positive={summary.netProfit !== null ? summary.netProfit >= 0 : undefined}
               />
               <MetricCard
-                label="Profit Factor"
-                value={fmt(summary.profitFactor)}
-                positive={summary.profitFactor !== null ? summary.profitFactor >= 1 : undefined}
+                label="Win rate"
+                value={summary.winRate !== null ? `${fmt(summary.winRate)}%` : "-"}
+                positive={summary.winRate !== null ? summary.winRate >= 50 : undefined}
               />
+              <MetricCard label="Trades" value={fmt(summary.totalTrades, 0)} />
               <MetricCard
-                label="Max Drawdown"
+                label="Max drawdown"
                 value={`${fmt(summary.maximalDrawdown)}%`}
                 positive={
                   summary.maximalDrawdown !== null ? summary.maximalDrawdown < 20 : undefined
                 }
               />
               <MetricCard
-                label="Win Rate"
-                value={summary.winRate !== null ? `${fmt(summary.winRate)}%` : "-"}
-                positive={summary.winRate !== null ? summary.winRate >= 50 : undefined}
+                label="Profit factor"
+                value={fmt(summary.profitFactor)}
+                positive={summary.profitFactor !== null ? summary.profitFactor >= 1 : undefined}
               />
-              <MetricCard label="Total Trades" value={fmt(summary.totalTrades, 0)} />
               <MetricCard
-                label="Initial Deposit"
+                label="Starting balance"
                 value={`${summary.currency ?? ""}${fmt(summary.initialDeposit, 0)}`}
               />
               <MetricCard
-                label="Final Balance"
+                label="Ending balance"
                 value={`${summary.currency ?? ""}${fmt(summary.finalBalance, 0)}`}
                 positive={
                   summary.finalBalance !== null && summary.initialDeposit !== null
@@ -3620,23 +3508,32 @@ function BacktestTab({
                 }
               />
               <MetricCard
-                label="Expected Payoff"
+                label="Avg per trade"
                 value={fmt(summary.expectedPayoff)}
                 positive={summary.expectedPayoff !== null ? summary.expectedPayoff > 0 : undefined}
               />
             </div>
           )}
 
-          <TradeAuditPanel blueprint={blueprint} testerLog={backtestResult.log} />
-
-          {backtestResult.log && (
-            <div className="space-y-1">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Tester log</p>
-              <pre className="rounded-md border border-border bg-card p-3 text-xs font-mono whitespace-pre-wrap max-h-64 overflow-auto">
-                {backtestResult.log}
-              </pre>
+          <details className="rounded-lg border border-border bg-card/30">
+            <summary className="cursor-pointer list-none px-4 py-3 text-xs font-medium text-muted-foreground flex items-center justify-between">
+              Technical details
+              <span className="text-[10px] font-normal text-muted-foreground/70">
+                Trade chain · blocks · log
+              </span>
+            </summary>
+            <div className="px-4 pb-4 space-y-4 border-t border-border/50 pt-3">
+              <TradeAuditPanel blueprint={blueprint} testerLog={backtestResult.log} />
+              {backtestResult.log && (
+                <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Tester log</p>
+                  <pre className="rounded-md border border-border bg-card p-3 text-xs font-mono whitespace-pre-wrap max-h-64 overflow-auto">
+                    {backtestResult.log}
+                  </pre>
+                </div>
+              )}
             </div>
-          )}
+          </details>
         </div>
       )}
     </div>

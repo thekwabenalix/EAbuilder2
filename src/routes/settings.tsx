@@ -13,11 +13,9 @@ import {
   getLocalRunnerHealth,
   getMt5Status,
   getRunnerToken,
-  saveRunnerToken,
 } from "@/lib/local-runner";
 import {
   CheckCircle2,
-  Download,
   ExternalLink,
   KeyRound,
   LogOut,
@@ -25,7 +23,6 @@ import {
   Server,
   ShieldCheck,
   XCircle,
-  Monitor,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
@@ -37,6 +34,7 @@ import {
   type AssistantCreditWallet,
 } from "@/lib/assistant-credits";
 import { toast } from "sonner";
+import { CompanionSetupWizard } from "@/components/CompanionSetupWizard";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -58,66 +56,6 @@ function StatusTile({
       <div className={ok ? "text-emerald-400" : "text-muted-foreground"}>{icon}</div>
       <div className="mt-2 text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-1 text-sm font-medium">{value}</div>
-    </div>
-  );
-}
-
-const COMPANION_FILENAME = "mt5-local-runner.exe";
-const COMPANION_DOWNLOAD_URL = `/downloads/${COMPANION_FILENAME}`;
-
-function RunnerStartCard({ onRefresh }: { onRefresh: () => void }) {
-  return (
-    <div className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/5 p-4 space-y-4">
-      <div className="flex items-start gap-2">
-        <Monitor className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
-        <div>
-          <p className="text-sm font-medium text-amber-300">Start the Desktop Companion</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            A small Windows app that compiles your generated MQL5 code using MetaEditor on this PC.
-            No install required - just download and run.
-          </p>
-        </div>
-      </div>
-
-      <a href={COMPANION_DOWNLOAD_URL} download={COMPANION_FILENAME}>
-        <Button size="sm" className="w-full sm:w-auto">
-          <Download className="h-3.5 w-3.5 mr-1.5" /> Download {COMPANION_FILENAME}
-        </Button>
-      </a>
-
-      <ol className="text-xs text-muted-foreground space-y-1.5 pl-4 list-decimal">
-        <li>
-          Download and double-click <span className="font-mono">{COMPANION_FILENAME}</span>
-        </li>
-        <li>
-          A terminal window opens - open{" "}
-          <a
-            href={LOCAL_RUNNER_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="underline hover:text-foreground"
-          >
-            {LOCAL_RUNNER_URL}
-          </a>{" "}
-          in your browser to see your connection token
-        </li>
-        <li>Copy the token and paste it in the field below, then click Save</li>
-        <li>Select your MT5 terminal from the detected list</li>
-      </ol>
-
-      <div className="rounded-md bg-muted/40 border border-border px-3 py-2 text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">Windows SmartScreen warning?</span> Click{" "}
-        <span className="font-mono">"More info"</span> then{" "}
-        <span className="font-mono">"Run anyway"</span>. The exe is unsigned but safe - it only
-        listens on localhost and never touches live trades.
-      </div>
-
-      <div className="flex items-center gap-2 pt-1">
-        <Button size="sm" variant="outline" onClick={onRefresh}>
-          <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Check again
-        </Button>
-        <span className="text-xs text-muted-foreground">Windows x64 · No install needed</span>
-      </div>
     </div>
   );
 }
@@ -318,47 +256,24 @@ function SettingsPage() {
               )}
             </div>
 
-            {/* Token entry or RunnerStartCard */}
-            {runnerReachable ? (
-              <div className="mt-4 rounded-md border border-border bg-background/50 p-3 space-y-2">
-                <div className="flex items-center gap-2">
-                  <KeyRound className="h-4 w-4 text-muted-foreground" />
-                  <h3 className="text-sm font-medium">Connection Token</h3>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Open{" "}
-                  <a
-                    href={LOCAL_RUNNER_URL}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline hover:text-foreground"
-                  >
-                    {LOCAL_RUNNER_URL}
-                  </a>{" "}
-                  in a browser on this PC, copy the token shown, and paste it here.
-                </p>
-                <div className="flex gap-2">
-                  <Input
-                    value={runnerToken}
-                    onChange={(e) => setRunnerToken(e.target.value)}
-                    placeholder="Paste runner token"
-                    className="font-mono text-xs"
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      saveRunnerToken(runnerToken);
-                      qc.invalidateQueries({ queryKey: ["mt5-status"] });
-                      status.refetch();
-                      toast.success("Token saved");
-                    }}
-                  >
-                    <ShieldCheck className="h-4 w-4 mr-1.5" /> Save
-                  </Button>
-                </div>
+            {/* Guided setup until companion + MT5 are ready */}
+            {!mt5Configured ? (
+              <div className="mt-4">
+                <CompanionSetupWizard
+                  compact
+                  onReady={() => {
+                    setRunnerToken(getRunnerToken());
+                    void health.refetch();
+                    void status.refetch();
+                    qc.invalidateQueries({ queryKey: ["mt5-status"] });
+                  }}
+                />
               </div>
             ) : (
-              <RunnerStartCard onRefresh={refresh} />
+              <div className="mt-4 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs text-muted-foreground">
+                Helper and MetaTrader are connected. Use the terminals list below to switch
+                installations.
+              </div>
             )}
           </section>
 

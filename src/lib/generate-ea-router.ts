@@ -21,6 +21,7 @@ import {
   resolveStrategyFlow,
 } from "@/lib/blueprint-generation-gate";
 import { BLUEPRINT_ASSEMBLER_DEPRECATION } from "@/lib/ea-generation-policy";
+import { strategyFlowToFourBrain } from "@/lib/fourbrain-flow-adapter";
 
 export type EaGenerationPath = "flow_engine" | "blueprint_assembler" | "legacy_heuristic";
 
@@ -81,7 +82,11 @@ function eaNameFromBlueprint(bp: StrategyBlueprint): string {
 }
 
 function generateBlueprintAssemblerEa(bp: StrategyBlueprint): string {
-  const config = bp.fourBrain!;
+  const flow = resolveStrategyFlow(bp);
+  const config =
+    flow?.steps?.length
+      ? strategyFlowToFourBrain(flow, bp.fourBrain)
+      : bp.fourBrain!;
   const params: MQL5CodeGenParams = {
     eaName: eaNameFromBlueprint(bp),
     config,

@@ -313,7 +313,7 @@ function emitDetection(step: StrategyStepConfig, i: number, steps: StrategyStepC
       if(_l < _swL) _swL = _l;
    }`;
 
-  // DIRECTION - persistent bias (ema / bias_break only)
+  // DIRECTION - persistent bias (ema / bias_break / zone HasActive)
   if (role === "direction") {
     if (prof.family === "ema" && step.event === "EMA_CROSS") {
       const fast = pInt(step.params, "fastPeriod", 12);
@@ -326,6 +326,15 @@ function emitDetection(step: StrategyStepConfig, i: number, steps: StrategyStepC
    int _d = 0;
    if(f2 <= s2 && f1 > s1) _d = 1;
    else if(f2 >= s2 && f1 < s1) _d = -1;
+   if(_d != 0 && (!gFired[${i}] || gDir[${i}] != _d)) RegisterEvent(${i}, _d, ${T1}, ${C1}, 0.0);`,
+      );
+    }
+    // Zone modules (engulfing, FVG, OB, …): live zone = HTF bias
+    if (prof.family === "zone" && prof.hasActive) {
+      return wrap(
+        `   int _d = 0;
+   if(${P}_HasActiveBull() && !${P}_HasActiveBear()) _d = 1;
+   else if(${P}_HasActiveBear() && !${P}_HasActiveBull()) _d = -1;
    if(_d != 0 && (!gFired[${i}] || gDir[${i}] != _d)) RegisterEvent(${i}, _d, ${T1}, ${C1}, 0.0);`,
       );
     }

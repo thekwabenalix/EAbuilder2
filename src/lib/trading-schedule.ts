@@ -1,11 +1,15 @@
 /**
- * Trading schedule (TIME_SESSION_FILTER) — Phase 1–2.
+ * Trading schedule (TIME_SESSION_FILTER) — Phase 1–3.
  * Broker/server time windows + weekday filter. Default disabled = trade all day.
+ * Phase 3: broker offset hours + optional EU/US DST approximation for London/NY presets.
  */
 
 import type { StrategyBlueprint } from "@/types/blueprint";
 
 export type TradingScheduleMode = "all" | "presets" | "custom_windows";
+
+/** Phase 3 — approximate daylight-saving shift for London / New York presets. */
+export type TradingScheduleDstMode = "off" | "eu_us_approx";
 
 export type TradingSessionPreset = "asia" | "london" | "newyork" | "london_ny_overlap";
 
@@ -24,7 +28,7 @@ export interface TradingScheduleOutsideWindow {
 
 export interface TradingScheduleConfig {
   enabled: boolean;
-  /** Phase 1–2: broker_server only. */
+  /** Phase 1–3: broker_server only (offset/DST adjust the preset tables). */
   timeReference: "broker_server";
   mode: TradingScheduleMode;
   sessions?: TradingSessionPreset[];
@@ -32,6 +36,13 @@ export interface TradingScheduleConfig {
   /** MT5 DayOfWeek: 0=Sun … 6=Sat. Default Mon–Fri. */
   allowedDays?: number[];
   outsideWindow?: TradingScheduleOutsideWindow;
+  /**
+   * Hours added to preset/custom windows so they match this broker's clock
+   * (typical IC Markets / Pepperstone style GMT+2/+3 → try +2 or +3).
+   */
+  brokerOffsetHours?: number;
+  /** When presets include London/NY, shift summer vs winter with EU/US approx rules. */
+  dstMode?: TradingScheduleDstMode;
 }
 
 /** Payload for [APPLY:{"type":"set_time_filter",...}] */
@@ -43,14 +54,27 @@ export type SetTimeFilterPatch = {
   days?: number[];
   cancelPendingOrders?: boolean;
   closeOpenPositions?: boolean;
+  brokerOffsetHours?: number;
+  dstMode?: TradingScheduleDstMode;
 };
 
-/** Broker-time approximations (not DST-aware). Documented as editable. */
+/** Winter / standard broker-hour approximations (not timezone IANA). */
 export const SESSION_PRESET_WINDOWS: Record<TradingSessionPreset, TradingTimeWindow> = {
   asia: { startMin: 0, endMin: 9 * 60 },
   london: { startMin: 7 * 60, endMin: 16 * 60 },
   newyork: { startMin: 12 * 60, endMin: 21 * 60 },
   london_ny_overlap: { startMin: 12 * 60, endMin: 16 * 60 },
+};
+
+/**
+ * Summer tables for fixed-offset brokers: when London/NY spring forward, their
+ * open appears one hour earlier on a broker that stays on winter GMT offset.
+ */
+export const SESSION_PRESET_WINDOWS_SUMMER: Record<TradingSessionPreset, TradingTimeWindow> = {
+  asia: { startMin: 0, endMin: 9 * 60 },
+  london: { startMin: 6 * 60, endMin: 15 * 60 },
+  newyork: { startMin: 11 * 60, endMin: 20 * 60 },
+  london_ny_overlap: { startMin: 11 * 60, endMin: 15 * 60 },
 };
 
 export const SESSION_PRESET_LABELS: Record<TradingSessionPreset, string> = {
@@ -78,7 +102,28 @@ export function defaultTradingSchedule(): TradingScheduleConfig {
     windows: [],
     allowedDays: [...DEFAULT_ALLOWED_DAYS],
     outsideWindow: { ...DEFAULT_OUTSIDE_WINDOW },
+    brokerOffsetHours: 0,
+    dstMode: "off",
   };
+}
+
+export function clampBrokerOffsetHours(n: unknown): number {
+  const v = typeof n === "number" ? n : Number(n);
+  if (!Number.isFinite(v)) return 0;
+  return Math.max(-12, Math.min(14, Math.round(v)));
+}
+
+export function normalizeDstMode(raw: unknown): TradingScheduleDstMode {
+  return raw === "eu_us_approx" ? "eu_us_approx" : "off";
+}
+
+/** Shift a window by whole hours (wraps into [0, 1440)). */
+export function shiftWindowHours(w: TradingTimeWindow, hours: number): TradingTimeWindow {
+  const delta = clampBrokerOffsetHours(hours) * 60;
+  return normalizeWindow({
+    startMin: w.startMin + delta,
+    endMin: w.endMin + delta,
+  });
 }
 
 export function clampMinute(n: number): number {
@@ -123,17 +168,31 @@ export function normalizeSessionPreset(raw: string): TradingSessionPreset | null
   return null;
 }
 
-/** Resolve effective windows for codegen (presets expanded). */
+/** Resolve effective windows for codegen / preview (winter presets + broker offset). */
 export function resolveTradingWindows(schedule: TradingScheduleConfig | undefined): TradingTimeWindow[] {
   if (!schedule?.enabled || schedule.mode === "all") return [];
+  const offset = clampBrokerOffsetHours(schedule.brokerOffsetHours ?? 0);
   if (schedule.mode === "presets") {
     const sessions = schedule.sessions ?? [];
     return sessions
       .map((s) => SESSION_PRESET_WINDOWS[s])
       .filter(Boolean)
-      .map(normalizeWindow);
+      .map((w) => shiftWindowHours(w, offset));
   }
-  return (schedule.windows ?? []).slice(0, 3).map(normalizeWindow);
+  return (schedule.windows ?? [])
+    .slice(0, 3)
+    .map(normalizeWindow)
+    .map((w) => shiftWindowHours(w, offset));
+}
+
+/** Whether a preset should follow EU DST (London) or US DST (New York). */
+export function presetDstRegion(
+  id: TradingSessionPreset,
+): "none" | "eu" | "us" | "both" {
+  if (id === "asia") return "none";
+  if (id === "london") return "eu";
+  if (id === "newyork") return "us";
+  return "both";
 }
 
 export function resolveAllowedDays(schedule: TradingScheduleConfig | undefined): number[] {
@@ -261,6 +320,8 @@ export function sanitizeTradingSchedule(
       windows,
       allowedDays: resolveAllowedDays(raw as TradingScheduleConfig),
       outsideWindow: { ...DEFAULT_OUTSIDE_WINDOW, ...raw.outsideWindow },
+      brokerOffsetHours: clampBrokerOffsetHours(raw.brokerOffsetHours),
+      dstMode: normalizeDstMode(raw.dstMode),
     };
   }
   if (sessions.length || raw.mode === "presets") {
@@ -271,6 +332,8 @@ export function sanitizeTradingSchedule(
       sessions: sessions.length ? sessions : ["london"],
       allowedDays: resolveAllowedDays(raw as TradingScheduleConfig),
       outsideWindow: { ...DEFAULT_OUTSIDE_WINDOW, ...raw.outsideWindow },
+      brokerOffsetHours: clampBrokerOffsetHours(raw.brokerOffsetHours),
+      dstMode: normalizeDstMode(raw.dstMode),
     };
   }
   return undefined;
@@ -332,6 +395,18 @@ export function applySetTimeFilter(
         patch.closeOpenPositions
           ? "Close open positions outside session"
           : "Keep managing open positions outside session",
+      );
+    }
+    if (patch.brokerOffsetHours !== undefined) {
+      next.brokerOffsetHours = clampBrokerOffsetHours(patch.brokerOffsetHours);
+      notes.push(`Broker offset: ${next.brokerOffsetHours}h`);
+    }
+    if (patch.dstMode !== undefined) {
+      next.dstMode = normalizeDstMode(patch.dstMode);
+      notes.push(
+        next.dstMode === "eu_us_approx"
+          ? "DST adjust on (EU/US approx)"
+          : "DST adjust off",
       );
     }
     if (patch.days?.length) {
@@ -424,6 +499,7 @@ export function applySetTimeFilter(
 /**
  * Emit MQL5 inputs + helpers for the schedule.
  * When inactive, returns empty strings (no inputs / always allow).
+ * Phase 3: broker offset + optional EU/US DST summer tables for session presets.
  */
 export function emitTradingScheduleMql5(schedule: TradingScheduleConfig | undefined): {
   inputs: string;
@@ -442,33 +518,168 @@ export function emitTradingScheduleMql5(schedule: TradingScheduleConfig | undefi
     };
   }
 
-  const windows = resolveTradingWindows(schedule).slice(0, 3);
+  const offset = clampBrokerOffsetHours(schedule!.brokerOffsetHours ?? 0);
+  const dstOn = schedule!.dstMode === "eu_us_approx" && schedule!.mode === "presets";
   const days = resolveAllowedDays(schedule);
   const dayMask = days.reduce((acc, d) => acc | (1 << d), 0);
   const cancelPending = schedule?.outsideWindow?.cancelPendingOrders === true;
   const closePositions = schedule?.outsideWindow?.closeOpenPositions === true;
 
+  type WinEmit = {
+    winter: TradingTimeWindow;
+    summer: TradingTimeWindow;
+    dstRegion: 0 | 1 | 2 | 3; // none | eu | us | both
+  };
+
+  const wins: WinEmit[] = [];
+  if (schedule!.mode === "presets") {
+    for (const id of schedule!.sessions ?? []) {
+      const winter = normalizeWindow(SESSION_PRESET_WINDOWS[id]);
+      const summer = normalizeWindow(SESSION_PRESET_WINDOWS_SUMMER[id]);
+      const region = presetDstRegion(id);
+      wins.push({
+        winter,
+        summer,
+        dstRegion: region === "none" ? 0 : region === "eu" ? 1 : region === "us" ? 2 : 3,
+      });
+    }
+  } else {
+    for (const w of (schedule!.windows ?? []).slice(0, 3).map(normalizeWindow)) {
+      wins.push({ winter: w, summer: w, dstRegion: 0 });
+    }
+  }
+  const windows = wins.slice(0, 3);
+  if (!windows.length) {
+    return {
+      inputs: "",
+      helpers: "",
+      entryGate: "",
+      panelLine: `   s += "Session: all day (broker)\\n";`,
+      onTickHook: "",
+    };
+  }
+
   const winInputs = windows
     .map((w, i) => {
       const n = i + 1;
-      const sh = Math.floor(w.startMin / 60);
-      const sm = w.startMin % 60;
-      const eh = Math.floor(w.endMin / 60);
-      const em = w.endMin % 60;
+      const wh = Math.floor(w.winter.startMin / 60);
+      const wm = w.winter.startMin % 60;
+      const eh = Math.floor(w.winter.endMin / 60);
+      const em = w.winter.endMin % 60;
+      const sh = Math.floor(w.summer.startMin / 60);
+      const sm = w.summer.startMin % 60;
+      const seh = Math.floor(w.summer.endMin / 60);
+      const sem = w.summer.endMin % 60;
+      const summerBlock = dstOn
+        ? `
+input int  InpWin${n}SumStartH = ${sh};  // Window ${n} summer start hour
+input int  InpWin${n}SumStartM = ${sm};  // Window ${n} summer start minute
+input int  InpWin${n}SumEndH   = ${seh};  // Window ${n} summer end hour
+input int  InpWin${n}SumEndM   = ${sem};  // Window ${n} summer end minute
+input int  InpWin${n}DstRegion = ${w.dstRegion};  // 0=none 1=EU 2=US 3=both`
+        : "";
       return `input bool InpWin${n}Enable = true;  // Window ${n} on
-input int  InpWin${n}StartH = ${sh};  // Window ${n} start hour (broker)
-input int  InpWin${n}StartM = ${sm};  // Window ${n} start minute
+input int  InpWin${n}StartH = ${wh};  // Window ${n} start hour (broker, winter/base)
+input int  InpWin${n}StartM = ${wm};  // Window ${n} start minute
 input int  InpWin${n}EndH   = ${eh};  // Window ${n} end hour (exclusive)
-input int  InpWin${n}EndM   = ${em};  // Window ${n} end minute`;
+input int  InpWin${n}EndM   = ${em};  // Window ${n} end minute${summerBlock}`;
     })
     .join("\n");
+
+  const dstHelpers = dstOn
+    ? `
+bool Session_IsLastSunday(int year, int month, int day)
+{
+   MqlDateTime dt;
+   dt.year = year; dt.mon = month; dt.day = day; dt.hour = 12; dt.min = 0; dt.sec = 0;
+   datetime t = StructToTime(dt);
+   TimeToStruct(t, dt);
+   if(dt.day_of_week != 0) return false;
+   MqlDateTime nxt = dt;
+   nxt.day = day + 7;
+   datetime t2 = StructToTime(nxt);
+   MqlDateTime n2; TimeToStruct(t2, n2);
+   return n2.mon != month;
+}
+
+bool Session_IsNthSunday(int year, int month, int day, int n)
+{
+   MqlDateTime dt;
+   dt.year = year; dt.mon = month; dt.day = day; dt.hour = 12; dt.min = 0; dt.sec = 0;
+   datetime t = StructToTime(dt);
+   TimeToStruct(t, dt);
+   if(dt.day_of_week != 0) return false;
+   int sundayIndex = 1 + (day - 1) / 7;
+   return sundayIndex == n;
+}
+
+bool Session_IsEuDst(datetime t)
+{
+   MqlDateTime dt; TimeToStruct(t, dt);
+   if(dt.mon > 3 && dt.mon < 10) return true;
+   if(dt.mon < 3 || dt.mon > 10) return false;
+   if(dt.mon == 3) {
+      // From last Sunday of March
+      for(int d = dt.day; d >= 1; d--) {
+         if(Session_IsLastSunday(dt.year, 3, d)) return dt.day >= d;
+      }
+      return false;
+   }
+   // October: until last Sunday
+   for(int d = 31; d >= 1; d--) {
+      if(Session_IsLastSunday(dt.year, 10, d)) return dt.day < d;
+   }
+   return false;
+}
+
+bool Session_IsUsDst(datetime t)
+{
+   MqlDateTime dt; TimeToStruct(t, dt);
+   if(dt.mon > 3 && dt.mon < 11) return true;
+   if(dt.mon < 3 || dt.mon > 11) return false;
+   if(dt.mon == 3) {
+      for(int d = 1; d <= 14; d++) {
+         if(Session_IsNthSunday(dt.year, 3, d, 2)) return dt.day >= d;
+      }
+      return false;
+   }
+   // November: until first Sunday
+   for(int d = 1; d <= 7; d++) {
+      if(Session_IsNthSunday(dt.year, 11, d, 1)) return dt.day < d;
+   }
+   return false;
+}
+
+bool Session_UseSummer(int region, datetime t)
+{
+   if(region <= 0) return false;
+   if(region == 1) return Session_IsEuDst(t);
+   if(region == 2) return Session_IsUsDst(t);
+   return Session_IsEuDst(t) || Session_IsUsDst(t);
+}
+`
+    : "";
 
   const checkWins = windows
     .map((_, i) => {
       const n = i + 1;
+      if (dstOn) {
+        return `   if(InpWin${n}Enable) {
+      bool summer = InpDstAdjust && Session_UseSummer(InpWin${n}DstRegion, TimeCurrent());
+      int s = summer ? (InpWin${n}SumStartH * 60 + InpWin${n}SumStartM)
+                     : (InpWin${n}StartH * 60 + InpWin${n}StartM);
+      int e = summer ? (InpWin${n}SumEndH * 60 + InpWin${n}SumEndM)
+                     : (InpWin${n}EndH * 60 + InpWin${n}EndM);
+      s = (s + off) % 1440; if(s < 0) s += 1440;
+      e = (e + off) % 1440; if(e < 0) e += 1440;
+      if(s == e) return true;
+      if(s < e) { if(mins >= s && mins < e) return true; }
+      else { if(mins >= s || mins < e) return true; }
+   }`;
+      }
       return `   if(InpWin${n}Enable) {
-      int s = InpWin${n}StartH * 60 + InpWin${n}StartM;
-      int e = InpWin${n}EndH * 60 + InpWin${n}EndM;
+      int s = (InpWin${n}StartH * 60 + InpWin${n}StartM + off) % 1440; if(s < 0) s += 1440;
+      int e = (InpWin${n}EndH * 60 + InpWin${n}EndM + off) % 1440; if(e < 0) e += 1440;
       if(s == e) return true;
       if(s < e) { if(mins >= s && mins < e) return true; }
       else { if(mins >= s || mins < e) return true; }
@@ -524,6 +735,8 @@ ${
       : "";
 
   const extras: string[] = [];
+  if (offset !== 0) extras.push(`offset ${offset > 0 ? "+" : ""}${offset}h`);
+  if (dstOn) extras.push("DST approx");
   if (cancelPending) extras.push("cancel pendings");
   if (closePositions) extras.push("close positions");
   const panelExtra = extras.length ? `, ${extras.join(", ")}` : "";
@@ -531,11 +744,13 @@ ${
   return {
     inputs: `input bool InpUseSessionFilter = true;  // TIME_SESSION_FILTER (broker server time)
 input int  InpAllowedDaysMask = ${dayMask};  // bit0=Sun … bit6=Sat (default Mon–Fri)
+input int  InpBrokerOffsetHours = ${offset};  // hours added to window tables (align to broker)
+input bool InpDstAdjust = ${dstOn ? "true" : "false"};  // EU/US DST summer tables for London/NY
 input bool InpCancelPendingOutside = ${cancelPending ? "true" : "false"};  // cancel pendings outside session
 input bool InpClosePositionsOutside = ${closePositions ? "true" : "false"};  // close positions outside session
 ${winInputs}`,
     helpers: `
-bool IsTradingDay()
+${dstHelpers}bool IsTradingDay()
 {
    MqlDateTime dt;
    TimeToStruct(TimeCurrent(), dt);
@@ -551,6 +766,7 @@ bool IsTradingTime()
    MqlDateTime dt;
    TimeToStruct(TimeCurrent(), dt);
    int mins = dt.hour * 60 + dt.min;
+   int off = InpBrokerOffsetHours * 60;
 ${checkWins}
    return false;
 }

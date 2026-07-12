@@ -546,8 +546,15 @@ function isEntryRole(role: string): boolean {
 export function flowSupportsModuleRole(module: string, role: string): boolean {
   const prof = getSmFlowProfile(module);
   if (!prof) return false;
-  if (role === "direction")
-    return prof.family === "ema" || prof.family === "bias_break" || prof.family === "bias_filter";
+  if (role === "direction") {
+    // Persistent bias: EMA / structure breaks / filters, plus zone HasActive (e.g. HTF engulfing).
+    return (
+      prof.family === "ema" ||
+      prof.family === "bias_break" ||
+      prof.family === "bias_filter" ||
+      (prof.family === "zone" && prof.hasActive === true)
+    );
+  }
   if (role === "setup" || role === "filter" || isEntryRole(role)) return true;
   return false;
 }

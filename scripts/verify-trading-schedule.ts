@@ -60,6 +60,21 @@ assertOk(mql.helpers.includes("IsTradingTime"), "emits IsTradingTime");
 assertOk(mql.entryGate.includes("BLOCKED: outside session"), "entry gate blocks outside session");
 console.log("[OK  ] codegen fragments");
 
+const dstLondon: TradingScheduleConfig = {
+  ...london,
+  brokerOffsetHours: 2,
+  dstMode: "eu_us_approx",
+};
+assertOk(resolveTradingWindows(dstLondon)[0]!.startMin === 9 * 60, "offset +2 shifts London start to 09:00");
+const dstMql = emitTradingScheduleMql5(dstLondon);
+assertOk(dstMql.inputs.includes("InpBrokerOffsetHours = 2"), "emits broker offset input");
+assertOk(dstMql.inputs.includes("InpDstAdjust = true"), "emits DST adjust on");
+assertOk(dstMql.helpers.includes("Session_IsEuDst"), "emits EU DST helper");
+assertOk(dstMql.helpers.includes("Session_IsUsDst"), "emits US DST helper");
+assertOk(dstMql.helpers.includes("InpWin1SumStartH"), "emits summer window inputs");
+assertOk(dstMql.panelLine.includes("DST approx"), "panel mentions DST");
+console.log("[OK  ] Phase 3 offset + DST codegen");
+
 const withClose: TradingScheduleConfig = {
   ...london,
   outsideWindow: {

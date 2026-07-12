@@ -15,7 +15,6 @@ import {
   HelpCircle,
   Edit2,
   RefreshCw,
-  Brain,
   ArrowRight,
 } from "lucide-react";
 import { EXAMPLE_PROMPT } from "@/types/strategy";
@@ -36,7 +35,14 @@ import {
 import { buildExpectedTradePath } from "@/lib/trade-audit";
 import { EaGenerationError } from "@/lib/generate-ea-router";
 import { toastEaGenerationSuccess } from "@/lib/ea-generation-toast";
+import { setPreferredStrategyTab } from "@/lib/preferred-strategy-tab";
+import { buildPlainEnglishConfirm } from "@/lib/plain-english-strategy";
 import { formatBrainChain } from "@/lib/brain-modules";
+import { WhenToTradeCard } from "@/components/WhenToTradeCard";
+import {
+  defaultTradingSchedule,
+  type TradingScheduleConfig,
+} from "@/lib/trading-schedule";
 import { BlueprintExplanationPanel } from "@/components/BlueprintExplanationPanel";
 import { GenerationPathBanner } from "@/components/GenerationPathBanner";
 import { TradeAuditPanel } from "@/components/TradeAuditPanel";
@@ -48,6 +54,32 @@ export const Route = createFileRoute("/new")({
 const REINTERVIEW_KEY = "ea-reinterview-prompt";
 
 type Stage = "idle" | "interviewing" | "reviewed" | "generating";
+
+function patchBlueprintTradingSchedule(
+  bp: StrategyBlueprint,
+  schedule: TradingScheduleConfig,
+): StrategyBlueprint {
+  const next: StrategyBlueprint = { ...bp };
+  if (next.fourBrain) {
+    next.fourBrain = {
+      ...next.fourBrain,
+      management: {
+        ...next.fourBrain.management,
+        tradingSchedule: schedule,
+      },
+    };
+  }
+  if (next.strategyFlow) {
+    next.strategyFlow = {
+      ...next.strategyFlow,
+      management: {
+        ...next.strategyFlow.management,
+        tradingSchedule: schedule,
+      },
+    };
+  }
+  return next;
+}
 
 function StrategyBuilders() {
   const { user } = useAuth();
@@ -101,7 +133,7 @@ function StrategyBuilders() {
     }
     setError(null);
     setStage("generating");
-    setStageLabel("Saving strategy and generating EA…");
+    setStageLabel("Building your robot…");
     try {
       const result = generateMql5FromBlueprintDetailed(blueprint);
       const row = await createStrategy({
@@ -111,7 +143,8 @@ function StrategyBuilders() {
         blueprint,
         generatedCode: result.code,
       });
-      toastEaGenerationSuccess(result, "Strategy created");
+      toastEaGenerationSuccess(result, "Robot built");
+      setPreferredStrategyTab("backtest");
       navigate({ to: "/s/$id", params: { id: row.id } });
     } catch (e: unknown) {
       setError(
@@ -168,93 +201,35 @@ function StrategyBuilders() {
   return (
     <div>
       <PageHeader
-        title="Strategy Builders"
-        subtitle="Two ways to create an Expert Advisor - choose the one that fits your workflow"
+        title="New strategy"
+        subtitle="Describe how you trade — we’ll turn it into a robot you can test on history"
       />
 
-      <div className="p-6 space-y-8 max-w-5xl mx-auto">
-        {/* ── Builder selection cards (shown only on idle) ── */}
+      <div className="p-6 space-y-6 max-w-5xl mx-auto">
         {stage === "idle" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* 4-Brain Visual Builder */}
-            <Link to="/build" className="group block">
-              <div className="h-full rounded-xl border border-primary/30 bg-primary/5 p-6 space-y-3 hover:border-primary/60 hover:bg-primary/10 transition-all cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-primary/15 flex items-center justify-center">
-                    <Brain className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-sm">4-Brain Visual Builder</h3>
-                    <p className="text-[11px] text-muted-foreground">Multi-timeframe confluence</p>
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Configure Direction, Setup, Execution and Management brains visually. Each brain
-                  runs on its own timeframe - any module, any combination. Instant compilable MQL5
-                  output.
-                </p>
-                <ul className="text-[11px] text-muted-foreground space-y-0.5">
-                  <li className="flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3 w-3 text-primary" /> Visual brain config editor
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3 w-3 text-primary" /> 14 modules - any brain, any TF
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3 w-3 text-primary" /> Guaranteed to compile, 0
-                    errors
-                  </li>
-                </ul>
-                <div className="flex items-center gap-1 text-xs text-primary font-medium pt-1">
-                  Open 4-Brain Builder
-                  <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
-                </div>
-              </div>
+          <div className="rounded-xl border border-border bg-card/40 px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              Prefer clicking modules yourself? Customize visually instead.
+            </p>
+            <Link
+              to="/build"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline shrink-0"
+            >
+              Customize visually
+              <ArrowRight className="h-3.5 w-3.5" />
             </Link>
-
-            {/* AI Description Builder */}
-            <div className="h-full rounded-xl border border-orange-500/20 bg-orange-500/5 p-6 space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-orange-500/15 flex items-center justify-center">
-                  <Sparkles className="h-5 w-5 text-orange-300" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-sm">AI Description Builder</h3>
-                  <p className="text-[11px] text-muted-foreground">Plain-English to EA</p>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Describe any strategy in plain English. The AI interviews it, extracts all rules,
-                and generates a compilable MQL5 Expert Advisor.
-              </p>
-              <ul className="text-[11px] text-muted-foreground space-y-0.5">
-                <li className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3 w-3 text-orange-300" /> Supports any indicator or
-                  pattern
-                </li>
-                <li className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3 w-3 text-orange-300" /> AI interview clarifies
-                  ambiguity
-                </li>
-                <li className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3 w-3 text-orange-300" /> Rules reviewed before saving
-                </li>
-              </ul>
-              <div className="flex items-center gap-1 text-xs text-orange-300 font-medium pt-1">
-                Use the form below ↓
-              </div>
-            </div>
           </div>
         )}
 
-        {/* ── Divider ── */}
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-border" />
-          <span className="text-xs text-muted-foreground uppercase tracking-wider px-2">
-            {stage === "reviewed" ? "AI Interview Result" : "AI Description Builder"}
-          </span>
-          <div className="flex-1 h-px bg-border" />
-        </div>
+        {stage === "reviewed" && (
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-muted-foreground uppercase tracking-wider px-2">
+              Review what we understood
+            </span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+        )}
 
         {/* ── AI Builder form ── */}
         <div
@@ -321,12 +296,12 @@ function StrategyBuilders() {
                   ) : (
                     <>
                       <Sparkles className="h-4 w-4 mr-1.5" />
-                      Interview Strategy
+                      Understand my strategy
                     </>
                   )}
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  The AI will analyse and show what it understood before saving.
+                  We’ll show what we understood before building the robot.
                 </p>
               </div>
             )}
@@ -355,6 +330,12 @@ function StrategyBuilders() {
               onAnswerChange={(i, val) =>
                 setClarificationAnswers((prev) => ({ ...prev, [i]: val }))
               }
+              onTradingScheduleChange={(schedule) => {
+                setBlueprint((prev) => {
+                  if (!prev) return prev;
+                  return patchBlueprintTradingSchedule(prev, schedule);
+                });
+              }}
             />
           )}
         </div>
@@ -373,6 +354,7 @@ function InterviewPanel({
   stageLabel,
   clarificationAnswers,
   onAnswerChange,
+  onTradingScheduleChange,
 }: {
   blueprint: StrategyBlueprint;
   onCreateDraft: () => void;
@@ -381,6 +363,7 @@ function InterviewPanel({
   stageLabel: string | null;
   clarificationAnswers: Record<number, string>;
   onAnswerChange: (index: number, value: string) => void;
+  onTradingScheduleChange: (schedule: TradingScheduleConfig) => void;
 }) {
   const compilableCount = blueprint.compilableRuleIds?.length ?? 0;
   const subjectiveCount = blueprint.subjectiveRuleIds?.length ?? 0;
@@ -391,6 +374,11 @@ function InterviewPanel({
   const generationError = firstBlueprintGenerationError(blueprint);
   const flow = resolveStrategyFlow(blueprint);
   const tradeChain = buildExpectedTradePath(blueprint);
+  const plain = buildPlainEnglishConfirm(blueprint);
+  const tradingSchedule =
+    blueprint.fourBrain?.management?.tradingSchedule ??
+    blueprint.strategyFlow?.management?.tradingSchedule ??
+    defaultTradingSchedule();
 
   const confidenceColor =
     confidence >= 75
@@ -401,22 +389,38 @@ function InterviewPanel({
 
   return (
     <div className="space-y-4">
-      {/* Header card */}
-      <div className="rounded-md border border-border bg-card p-4 space-y-4">
+      {/* Plain-English confirm — primary for beginners */}
+      <div className="rounded-md border border-primary/30 bg-primary/5 p-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">
-              Interview Result
-            </p>
-            <h3 className="font-semibold">{blueprint.name}</h3>
+            <p className="text-[10px] uppercase tracking-widest text-primary mb-1">Confirm</p>
+            <h3 className="font-semibold text-sm leading-snug">{plain.headline}</h3>
           </div>
           <span
-            className={`text-xs px-2 py-0.5 rounded-full border font-medium ${confidenceColor}`}
+            className={`text-xs px-2 py-0.5 rounded-full border font-medium shrink-0 ${confidenceColor}`}
           >
-            {confidence}% confidence
+            {confidence}% sure
           </span>
         </div>
-        {blueprint.summary && <p className="text-xs text-muted-foreground">{blueprint.summary}</p>}
+        {blueprint.summary && (
+          <p className="text-xs text-muted-foreground">{blueprint.summary}</p>
+        )}
+        <ol className="space-y-1.5 list-decimal list-inside">
+          {plain.steps.map((step) => (
+            <li key={step} className="text-sm text-foreground/90">
+              {step}
+            </li>
+          ))}
+        </ol>
+        <p className="text-xs text-muted-foreground">{plain.riskLine}</p>
+        {plain.scheduleLine && (
+          <p className="text-xs text-muted-foreground">{plain.scheduleLine}</p>
+        )}
+      </div>
+
+      {/* Compact meta — details stay available but not primary */}
+      <div className="rounded-md border border-border bg-card p-4 space-y-3">
+        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Details</p>
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className="rounded border border-border bg-muted/20 p-2">
             <p className="text-xl font-bold">
@@ -425,14 +429,14 @@ function InterviewPanel({
                 : totalRules}
             </p>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
-              {isFourBrain ? "Brains" : "Rules"}
+              {isFourBrain ? "Layers" : "Rules"}
             </p>
           </div>
           <div className="rounded border border-emerald-500/30 bg-emerald-500/5 p-2">
             <p className="text-xl font-bold text-emerald-400">
-              {isFourBrain ? "4B" : compilableCount}
+              {isFourBrain ? "OK" : compilableCount}
             </p>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Compilable</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Ready</p>
           </div>
           <div className="rounded border border-amber-500/30 bg-amber-500/5 p-2">
             <p className="text-xl font-bold text-amber-400">{subjectiveCount}</p>
@@ -451,43 +455,41 @@ function InterviewPanel({
             ))}
           </div>
         )}
-        {blueprint.fourBrain && (
-          <div className="rounded border border-primary/30 bg-primary/5 p-3">
-            <p className="text-[10px] uppercase tracking-wide text-primary mb-1">4-Brain Mapping</p>
-            <p className="text-xs font-mono text-primary/90">
-              {formatBrainChain(blueprint.fourBrain)}
-            </p>
-          </div>
-        )}
-        {flow?.steps?.length ? (
-          <div className="rounded border border-border bg-muted/20 p-3 space-y-1.5">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              Strategy Flow (compiler gate)
-            </p>
-            {flow.steps.map((step, i) =>
-              step.enabled === false ? null : (
-                <p key={step.id} className="text-[11px] font-mono text-foreground/90">
-                  {i + 1}. {step.name || step.id} - {step.role} · {step.module} @ {step.timeframe} ·{" "}
-                  {step.event}
-                </p>
-              ),
-            )}
-          </div>
-        ) : null}
         {tradeChain.length > 0 && (
           <div className="rounded border border-border/60 bg-background/40 p-3 space-y-1">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              Expected trade chain
+              Trade order
             </p>
             {tradeChain.map((step) => (
               <p key={step.id} className="text-[11px] text-muted-foreground">
-                {step.order}. {step.name} → {step.event}
-                {step.isEntry ? " **entry**" : ""}
+                {step.order}. {step.name}
+                {step.isEntry ? " → enter" : ""}
               </p>
             ))}
           </div>
         )}
-        <BlueprintExplanationPanel blueprint={blueprint} />
+        <details className="rounded border border-border/60 bg-muted/10 p-2">
+          <summary className="text-[11px] text-muted-foreground cursor-pointer select-none">
+            Technical mapping (optional)
+          </summary>
+          <div className="mt-2 space-y-2">
+            {blueprint.fourBrain && (
+              <p className="text-[11px] font-mono text-muted-foreground">
+                {formatBrainChain(blueprint.fourBrain)}
+              </p>
+            )}
+            {flow?.steps?.length
+              ? flow.steps.map((step, i) =>
+                  step.enabled === false ? null : (
+                    <p key={step.id} className="text-[11px] font-mono text-muted-foreground">
+                      {i + 1}. {step.name || step.id} · {step.module} @ {step.timeframe}
+                    </p>
+                  ),
+                )
+              : null}
+            <BlueprintExplanationPanel blueprint={blueprint} />
+          </div>
+        </details>
         <div className="grid grid-cols-3 gap-2 text-xs">
           <div>
             <p className="text-muted-foreground text-[10px] uppercase tracking-wide">Symbol</p>
@@ -530,6 +532,7 @@ function InterviewPanel({
 
       {blueprint.fourBrain && (
         <div className="space-y-3">
+          <WhenToTradeCard value={tradingSchedule} onChange={onTradingScheduleChange} />
           <GenerationPathBanner blueprint={blueprint} />
           <TradeAuditPanel blueprint={blueprint} compact />
         </div>
@@ -543,8 +546,8 @@ function InterviewPanel({
               Optional clarifications ({clarifications.length})
             </p>
             <p className="text-[11px] text-amber-300/70 mt-0.5">
-              Answer any you want, or <strong>skip straight to Save</strong> - the EA will use
-              sensible defaults.
+              Answer any you want, or <strong>skip straight to Build</strong> — we’ll use sensible
+              defaults.
             </p>
           </div>
           <div className="space-y-3">
@@ -589,8 +592,11 @@ function InterviewPanel({
           <p className="font-medium">Cannot generate EA yet</p>
           <p className="mt-1 opacity-90">{generationError}</p>
           <p className="mt-2 text-muted-foreground">
-            Refine the interview, answer clarifications, or use the 4-Brain Visual Builder for full
-            control.
+            Refine your description, answer clarifications, or{" "}
+            <Link to="/build" className="underline">
+              customize visually
+            </Link>
+            .
           </p>
         </div>
       )}
@@ -603,17 +609,17 @@ function InterviewPanel({
         {busy ? (
           <>
             <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-            {stageLabel ?? "Generating…"}
+            {stageLabel ?? "Building…"}
           </>
         ) : (
           <>
             <Sparkles className="h-4 w-4 mr-1.5" />
-            Save &amp; Open Strategy
+            Build my robot
           </>
         )}
       </Button>
       <p className="text-[11px] text-muted-foreground text-center">
-        Generated EAs are provided for research only. Always test on a demo account.
+        For research only. Always test on a demo account before live trading.
       </p>
     </div>
   );

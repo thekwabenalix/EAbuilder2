@@ -63,6 +63,7 @@ import {
 } from "@/lib/zone-scoped-rejection-repair";
 import { GenerationPathBanner } from "@/components/GenerationPathBanner";
 import { TradeAuditPanel } from "@/components/TradeAuditPanel";
+import { WhenToTradeCard } from "@/components/WhenToTradeCard";
 import { EmaPeriodEditor } from "@/components/EmaPeriodEditor";
 import {
   BuiltinIndicatorPicker,
@@ -80,7 +81,12 @@ import {
 } from "@/lib/strategy-flow-ui";
 import { generateMql5FromBlueprintDetailed } from "@/lib/mql5-template-generator";
 import { toastEaGenerationSuccess } from "@/lib/ea-generation-toast";
+import { setPreferredStrategyTab } from "@/lib/preferred-strategy-tab";
 import type { StrategyFlowConfig } from "@/types/blueprint";
+import {
+  defaultTradingSchedule,
+  type TradingScheduleConfig,
+} from "@/lib/trading-schedule";
 
 export const Route = createFileRoute("/build")({
   component: FourBrainBuilderPage,
@@ -882,6 +888,9 @@ function FourBrainBuilderPage() {
   const [stopBuffer, setStopBuffer] = useState(20);
   const [maxStopPts, setMaxStopPts] = useState(0); // 0 = no limit
   const [strategyNotes, setStrategyNotes] = useState("");
+  const [tradingSchedule, setTradingSchedule] = useState<TradingScheduleConfig>(() =>
+    defaultTradingSchedule(),
+  );
   const [filterRefs, setFilterRefs] = useState<NonNullable<StrategyBlueprint["filterRefs"]>>([]);
   const [indicatorRefs, setIndicatorRefs] = useState<
     NonNullable<StrategyBlueprint["indicatorRefs"]>
@@ -985,6 +994,7 @@ function FourBrainBuilderPage() {
       maxOpenTrades: maxTrades,
       stopBuffer: stopBuffer,
       maxStopPoints: maxStopPts,
+      tradingSchedule,
     };
   }
 
@@ -1183,10 +1193,8 @@ function FourBrainBuilderPage() {
         blueprint: bp,
         generatedCode: result.code,
       });
-      toastEaGenerationSuccess(
-        result,
-        builderMode === "advanced" ? "Strategy Flow EA created" : "Strategy created",
-      );
+      toastEaGenerationSuccess(result, "Robot built");
+      setPreferredStrategyTab("backtest");
       navigate({ to: "/s/$id", params: { id: row.id } });
     } catch (e: unknown) {
       toast.error(
@@ -1301,8 +1309,11 @@ function FourBrainBuilderPage() {
       risk,
       rr,
       be,
+      beAt,
       maxTrades,
       stopBuffer,
+      maxStopPts,
+      tradingSchedule,
       strategyNotes,
       filterRefs,
       indicatorRefs,
@@ -1340,8 +1351,8 @@ function FourBrainBuilderPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <PageHeader
-        title="4-Brain Strategy Builder"
-        subtitle="Visual multi-timeframe EA builder - Direction · Setup · Execution · Management"
+        title="Visual strategy builder"
+        subtitle="Pick Direction · Setup · Entry layers, then build your robot"
       />
 
       <div className="flex-1 p-6 space-y-6 max-w-7xl mx-auto w-full">
@@ -1404,46 +1415,24 @@ function FourBrainBuilderPage() {
           </div>
           )}
 
-          {/* ── Builder mode ── */}
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-              Builder mode
-            </p>
-            <div className="rounded-lg border border-border p-1 flex gap-1 bg-muted/20 max-w-xl">
-              <button
-                type="button"
-                onClick={() => setBuilderMode("simple")}
-                className={[
-                  "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-all",
-                  builderMode === "simple"
-                    ? "bg-background text-foreground shadow-sm border border-border"
-                    : "text-muted-foreground hover:text-foreground",
-                ].join(" ")}
-              >
-                Simple - 4-Brain preset
-              </button>
-              <button
-                type="button"
-                onClick={activateAdvancedMode}
-                className={[
-                  "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-all",
-                  builderMode === "advanced"
-                    ? "bg-background text-foreground shadow-sm border border-border"
-                    : "text-muted-foreground hover:text-foreground",
-                ].join(" ")}
-              >
-                Advanced - Strategy Flow
-              </button>
-            </div>
-            <p className="text-[11px] text-muted-foreground max-w-2xl">
-              {builderMode === "simple"
-                ? "Three brain slots (Direction · Setup · Execution). The compiler expands them into ordered steps automatically."
-                : "Build any number of ordered module steps from scratch - same Strategy Flow engine as AI output and the advanced editor on saved strategies."}
-            </p>
-          </div>
+          {/* Advanced step editor is behind More control (default = simple layers) */}
 
           {builderMode === "advanced" ? (
-            <div className="space-y-4 max-w-2xl">
+            <div className="space-y-4 w-full">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  Step-by-step order — each step waits for the previous one.
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs"
+                  onClick={() => setBuilderMode("simple")}
+                >
+                  Back to simple layers
+                </Button>
+              </div>
               <ActiveConfluenceFilters
                 filterRefs={filterRefs}
                 indicatorRefs={indicatorRefs}
@@ -1453,7 +1442,7 @@ function FourBrainBuilderPage() {
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <GitBranch className="h-4 w-4 text-sky-400" />
-                  Ordered event chain - add, reorder, and configure each step
+                  Ordered event chain
                 </div>
                 <Button
                   type="button"
@@ -1464,7 +1453,7 @@ function FourBrainBuilderPage() {
                   onClick={() => seedFlowFromBrains()}
                 >
                   <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                  Import from 4-Brain preset
+                  Import from simple layers
                 </Button>
               </div>
               <StrategyFlowBuilder
@@ -1486,13 +1475,13 @@ function FourBrainBuilderPage() {
               {/* ── Brain flow ── */}
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">
-                  Configure each brain
+                  Configure each layer
                 </p>
                 <div className="flex items-stretch gap-0 flex-col lg:flex-row">
                   <BrainCard
                     role="direction"
                     icon={Brain}
-                    title="Direction Brain"
+                    title="Direction"
                     color="bg-orange-500"
                     state={direction}
                     onChange={setDirection}
@@ -1507,7 +1496,7 @@ function FourBrainBuilderPage() {
                   <BrainCard
                     role="setup"
                     icon={Target}
-                    title="Setup Brain"
+                    title="Setup"
                     color="bg-amber-500"
                     state={setup}
                     onChange={setSetup}
@@ -1523,7 +1512,7 @@ function FourBrainBuilderPage() {
                   <BrainCard
                     role="execution"
                     icon={Crosshair}
-                    title="Execution Brain"
+                    title="Entry"
                     color="bg-emerald-500"
                     state={execution}
                     onChange={setExecution}
@@ -1537,16 +1526,46 @@ function FourBrainBuilderPage() {
                   />
                 </div>
               </div>
+
+              <details className="rounded-lg border border-dashed border-border bg-muted/10 px-4 py-3">
+                <summary className="cursor-pointer text-xs font-medium text-muted-foreground list-none flex items-center justify-between">
+                  More control
+                  <span className="text-[10px] font-normal text-muted-foreground/70">
+                    Step order editor
+                  </span>
+                </summary>
+                <div className="mt-3 space-y-2 border-t border-border/50 pt-3">
+                  <p className="text-[11px] text-muted-foreground">
+                    For unusual sequences (extra confirmations, custom order). Most strategies only
+                    need the three layers above.
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="text-xs"
+                    onClick={activateAdvancedMode}
+                  >
+                    Open step-by-step editor
+                  </Button>
+                </div>
+              </details>
             </>
           )}
 
-          {/* ── Management Brain ── */}
+          <WhenToTradeCard
+            value={tradingSchedule}
+            onChange={setTradingSchedule}
+            className="rounded-xl border border-border bg-card p-4 space-y-4 w-full"
+          />
+
+          {/* ── Management ── */}
           <div className="rounded-xl border border-border bg-card p-4">
             <div className="flex items-center gap-2 mb-4">
               <div className="p-1.5 rounded-lg bg-sky-500/10">
                 <Settings2 className="h-4 w-4 text-sky-400" />
               </div>
-              <span className="text-sm font-semibold">Management Brain</span>
+              <span className="text-sm font-semibold">Risk &amp; exits</span>
               <span className="text-[10px] text-muted-foreground">risk · exits · limits</span>
             </div>
 
@@ -1683,7 +1702,7 @@ function FourBrainBuilderPage() {
 
           {/* ── Compiler path + trade audit preview ── */}
           {draftBlueprint && (
-            <div className="space-y-3 max-w-2xl">
+            <div className="space-y-3 w-full">
               <GenerationPathBanner blueprint={draftBlueprint} />
               <TradeAuditPanel blueprint={draftBlueprint} compact />
             </div>
@@ -1709,7 +1728,7 @@ function FourBrainBuilderPage() {
                 </>
               ) : (
                 <>
-                  <Zap className="h-4 w-4" /> Generate EA
+                  <Zap className="h-4 w-4" /> Build my robot
                 </>
               )}
             </Button>

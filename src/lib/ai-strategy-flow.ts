@@ -17,6 +17,7 @@ import type {
 } from "@/types/blueprint";
 import { getModuleAdmission } from "@/lib/module-admission";
 import { firstEventForRole, validateStrategyFlowSchema } from "@/lib/strategy-flow";
+import { strategyFlowToFourBrain } from "@/lib/fourbrain-flow-adapter";
 import type { StrategyEventType } from "@/lib/strategy-events";
 
 export type AiOutputMode = "strategy_flow" | "brain_bodies";
@@ -240,9 +241,12 @@ export function mergeAiFlowIntoBlueprint(
   wiring: AiBrainWiring,
 ): StrategyBlueprint {
   if (!aiWiringHasStrategyFlow(wiring)) return blueprint;
+  const strategyFlow = strategyFlowFromAiWiring(wiring, blueprint.fourBrain);
   return {
     ...blueprint,
-    strategyFlow: strategyFlowFromAiWiring(wiring, blueprint.fourBrain),
+    strategyFlow,
+    // Keep fourBrain in sync so assembler fallback never drops Direction/Setup.
+    fourBrain: strategyFlowToFourBrain(strategyFlow, blueprint.fourBrain),
   };
 }
 

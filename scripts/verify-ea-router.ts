@@ -75,9 +75,30 @@ const noSetupResult = generateEaFromBlueprint(noSetupBp);
 assertEq(noSetupResult.path, "flow_engine", "BOS + engulfing uses flow without setup brain");
 console.log("[OK  ] router flow without setup brain");
 
+const mesEngulfBp: StrategyBlueprint = {
+  ...DEFAULT_BLUEPRINT,
+  name: "MES Engulfing",
+  fourBrain: {
+    direction: { modules: ["engulfing"], timeframe: "D1" },
+    setup: { modules: ["engulfing"], timeframe: "H4" },
+    execution: { modules: ["engulfing"], timeframe: "M15" },
+    management: { riskPercent: 1, rewardRisk: 2, maxOpenTrades: 1 },
+  },
+};
+const mesFlow = resolveStrategyFlow(mesEngulfBp)!;
+assertOk(flowEaSupportsAllSteps(mesFlow), "MES engulfing admitted by flow engine");
+const mesResult = generateEaFromBlueprint(mesEngulfBp);
+assertEq(mesResult.path, "flow_engine", "MES multi-engulfing uses flow engine");
+assertOk(mesResult.code.includes("EGSM_D1"), "embeds D1 engulfing SM");
+assertOk(mesResult.code.includes("EGSM_H4"), "embeds H4 engulfing SM");
+assertOk(mesResult.code.includes("EGSM_M15"), "embeds M15 engulfing SM");
+assertOk(mesResult.code.includes("EGSM_D1_HasActiveBull"), "direction uses HasActive bias");
+assertOk(!/Direction\s*:\s*NONE/i.test(mesResult.code), "direction is not NONE");
+console.log("[OK  ] MES multi-engulfing → flow_engine with all EGSM TFs");
+
 const preview = previewEaGeneration(flowBp);
 assertEq(preview.path, "flow_engine", "preview matches flow_engine");
 assertEq(preview.validationErrors.length, 0, "preview has no errors");
 console.log("[OK  ] previewEaGeneration without emitting code");
 
-console.log("\n6 ea generation router check(s) passed.\n");
+console.log("\n8 ea generation router check(s) passed.\n");

@@ -84,7 +84,7 @@ function StepParamEditor({
         />
       )}
       {scalarParams.length > 0 && (
-        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-2">
           {scalarParams.map((p) => {
             const current =
               typeof params[p.key] === "number" ? (params[p.key] as number) : p.default;
@@ -274,7 +274,7 @@ function StepCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Role</Label>
           <Select value={step.role} onValueChange={(v) => setRole(v as StrategyStepRole)}>

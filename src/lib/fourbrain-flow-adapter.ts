@@ -139,16 +139,32 @@ export function normalizeMisplacedModules(config: FourBrainConfig): FourBrainCon
   return next;
 }
 
+/** Same TF → same bar allowed; HTF→LTF → require a later bar. */
+function relationForTimeframes(
+  priorTf: string,
+  nextTf: string,
+): StrategyStepDependency["relation"] {
+  return priorTf.toUpperCase() === nextTf.toUpperCase() ? "same_or_after" : "after";
+}
+
 function buildDependsOn(
   brain: BrainKind,
-  moduleIndex: number,
-  moduleCount: number,
+  _moduleIndex: number,
+  _moduleCount: number,
   priorBrainAnchor: StrategyStepConfig[],
+  nextTimeframe: string,
 ): StrategyStepDependency[] | undefined {
   if (priorBrainAnchor.length === 0) return undefined;
 
   if (priorBrainAnchor.length === 1) {
-    return [{ stepId: priorBrainAnchor[0].id, relation: "after", required: true }];
+    const prior = priorBrainAnchor[0]!;
+    return [
+      {
+        stepId: prior.id,
+        relation: relationForTimeframes(prior.timeframe, nextTimeframe),
+        required: true,
+      },
+    ];
   }
 
   const orGroup =
@@ -156,7 +172,7 @@ function buildDependsOn(
 
   return priorBrainAnchor.map((step) => ({
     stepId: step.id,
-    relation: "after" as const,
+    relation: relationForTimeframes(step.timeframe, nextTimeframe),
     required: true,
     orGroup,
   }));
@@ -177,7 +193,7 @@ function expandBrainToSteps(
   const total = modules.length;
 
   return modules.map((moduleId, index) => {
-    const dependsOn = buildDependsOn(brain, index, total, priorBrainAnchor);
+    const dependsOn = buildDependsOn(brain, index, total, priorBrainAnchor, config.timeframe);
     const dirSource =
       role === "direction"
         ? { mode: "own_event" as const }
@@ -261,7 +277,7 @@ function tryBuildZoneScopedRejectionFlow(config: FourBrainConfig): StrategyFlowC
     dependsOn: priorAnchor.length
       ? priorAnchor.map((s) => ({
           stepId: s.id,
-          relation: "after" as const,
+          relation: relationForTimeframes(s.timeframe, zoneTf),
           required: true,
           ...(priorAnchor.length > 1 ? { orGroup: "direction_or" as const } : {}),
         }))
@@ -283,7 +299,13 @@ function tryBuildZoneScopedRejectionFlow(config: FourBrainConfig): StrategyFlowC
     event: rejectEv,
     enabled: true,
     params,
-    dependsOn: [{ stepId: setupStep.id, relation: "after", required: true }],
+    dependsOn: [
+      {
+        stepId: setupStep.id,
+        relation: relationForTimeframes(zoneTf, zoneTf),
+        required: true,
+      },
+    ],
     directionSource: directionAnchor
       ? { mode: "from_step" as const, stepId: directionAnchor.id }
       : { mode: "own_event" as const },
@@ -300,6 +322,7 @@ function tryBuildZoneScopedRejectionFlow(config: FourBrainConfig): StrategyFlowC
     event: "BAR_AFTER_CONFIRM",
     enabled: true,
     params,
+    // BAR_AFTER_CONFIRM always needs a later bar than the confirm event.
     dependsOn: [{ stepId: confirmStep.id, relation: "after", required: true }],
     directionSource: { mode: "from_step" as const, stepId: confirmStep.id },
     slSource: { mode: "event_sl" as const, bufferPoints: 0 },
@@ -380,5 +403,54 @@ export function fourBrainToStrategyFlow(config: FourBrainConfig): StrategyFlowCo
     steps,
     management: normalized.management,
     notes: adapterNotes(normalized),
+  };
+}
+
+/**
+ * Rebuild a 4-Brain preset from Strategy Flow steps.
+ * Used when AI/advanced flow is richer than `fourBrain` (assembler fallback safety net).
+ */
+export function strategyFlowToFourBrain(
+  flow: StrategyFlowConfig,
+  fallback?: FourBrainConfig | null,
+): FourBrainConfig {
+  const steps = (flow.steps ?? []).filter((s) => s.enabled !== false);
+  const management = flow.management ?? fallback?.management ?? {
+    riskPercent: 1,
+    rewardRisk: 2,
+    maxOpenTrades: 1,
+  };
+
+  const brainFrom = (
+    roleSteps: StrategyStepConfig[],
+  ): BrainConfig | undefined => {
+    if (!roleSteps.length) return undefined;
+    const tf = roleSteps[0]!.timeframe;
+    const sameTf = roleSteps.filter((s) => s.timeframe.toUpperCase() === tf.toUpperCase());
+    const modules = [
+      ...new Set(sameTf.map((s) => s.module as BrainModuleType)),
+    ];
+    return {
+      modules,
+      timeframe: tf,
+      params: (sameTf[0]?.params as Record<string, unknown> | undefined) ?? undefined,
+    };
+  };
+
+  const direction = brainFrom(steps.filter((s) => s.role === "direction"));
+  const setup = brainFrom(steps.filter((s) => s.role === "setup"));
+  const entrySteps = steps.filter((s) => s.role === "entry" || s.role === "confirmation");
+  const execution =
+    brainFrom(entrySteps) ??
+    fallback?.execution ?? {
+      modules: ["engulfing" as BrainModuleType],
+      timeframe: "M15",
+    };
+
+  return {
+    direction: direction ?? fallback?.direction,
+    setup: setup ?? fallback?.setup,
+    execution,
+    management,
   };
 }

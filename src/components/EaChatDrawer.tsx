@@ -120,7 +120,7 @@ const ACTION_CONFIG = {
   regen_template: { label: "Regenerate EA", icon: Hammer },
   open_brains: { label: "Open Configure", icon: Brain },
   open_code: { label: "Open Code", icon: Code2 },
-  open_backtest: { label: "Open Backtest", icon: BarChart3 },
+  open_backtest: { label: "Test on history", icon: BarChart3 },
   open_export: { label: "Open Export", icon: Download },
   open_validation: { label: "Open Validation", icon: ClipboardList },
   download_evidence: { label: "Evidence Pack", icon: Download },
@@ -361,6 +361,8 @@ interface EaChatDrawerProps {
   onRegenTemplate?: () => void | Promise<void | RegenEaResult>;
   /** Apply structured fixes the assistant recommends (regen EA, backtest period, save). */
   onApplyAssistantFix?: (fix: AssistantApplyFix) => void | Promise<void>;
+  /** After a successful Apply, jump to Test and auto prepare+run. */
+  onRequestRetest?: () => void;
 }
 
 const DRAWER_WIDTH_KEY = "ea-assistant-drawer-width";
@@ -392,6 +394,7 @@ export function EaChatDrawer({
   onSafeAction,
   onRegenTemplate,
   onApplyAssistantFix,
+  onRequestRetest,
 }: EaChatDrawerProps) {
   // Local message type carries attached screenshots so they stay visible in the
   // conversation (and prove they were captured). Stripped before hitting the API.
@@ -865,7 +868,7 @@ export function EaChatDrawer({
       try {
         await onApplyAssistantFix(fix);
         setBacktestUnlockedAfterRegen(true);
-        setApplyPipeline("needs_compile");
+        setApplyPipeline("idle");
         const title =
           fix.type === "set_time_filter"
             ? "Applied: Trading schedule"
@@ -900,17 +903,11 @@ export function EaChatDrawer({
               "",
               ...bullets,
               "",
-              "EA was regenerated and saved.",
-              "",
-              "### Next (required)",
-              "1. **Compile EA** (new `.ex5`)",
-              "2. Backtest with **InpAudit=true**",
-              "3. Confirm Direction → Setup → Entry timestamps and gate lines",
-              "",
-              '[TOOL:{"action":"open_backtest","reason":"Compile the fixed EA, then run report backtest with InpAudit=true."}]',
+              "Robot rebuilt and saved. Starting **Test on history** (prepare + run).",
             ].join("\n"),
           },
         ]);
+        onOpenChange(false);
       } catch (e: unknown) {
         toast.error(e instanceof Error ? e.message : "Wiring fix failed");
       } finally {
@@ -941,41 +938,40 @@ export function EaChatDrawer({
         }
 
         setBacktestUnlockedAfterRegen(true);
-        setApplyPipeline(result?.changed === false ? "idle" : "needs_compile");
+        setApplyPipeline(result?.changed === false ? "idle" : "idle");
         const gateNote = result?.hasAlignGate
           ? "Direction-alignment gate is present in the new EA."
           : codeHasDirectionAlignGate(code)
             ? "Alignment checks were already in code — recompile so MT5 picks up the saved file."
-            : "If behaviour is still wrong after compile, use **Fix Strategy Flow wiring** (not another plain regen).";
+            : "If behaviour is still wrong after the test, use **Fix Strategy Flow wiring** (not another plain regen).";
 
         setMessages((prev) => [
           ...prev,
           {
             role: "assistant",
             content: [
-              "## Applied: EA regenerated from blueprint",
+              "## Applied: robot rebuilt",
               "",
               result?.changed === false
                 ? "- Code was **already** up to date. Plain regen will not change behaviour — use a wiring Apply instead."
-                : "- MQL5 was rewritten from your Strategy Flow / 4-Brain blueprint.",
+                : "- Robot rebuilt from your strategy settings.",
               result?.saved
                 ? "- Strategy was **saved** automatically."
-                : "- Save failed or was skipped — click **Save** before compiling.",
-              result?.pathLabel ? `- Generator: **${result.pathLabel}**` : "",
+                : "- Save failed or was skipped — click **Save** before testing.",
               `- ${gateNote}`,
-              "",
-              "### Next (required)",
-              "1. **Compile EA**",
-              "2. Backtest with **InpAudit=true**",
               "",
               result?.changed === false
                 ? '[APPLY:{"type":"fix_flow_wiring"}]\n[TOOL:{"action":"open_brains","reason":"Plain regen changed nothing — apply Strategy Flow wiring fix."}]'
-                : '[TOOL:{"action":"open_backtest","reason":"Compile the saved EA, then run a report backtest with InpAudit=true."}]',
+                : "Starting **Test on history** (prepare + run).",
             ]
               .filter(Boolean)
               .join("\n"),
           },
         ]);
+        if (result?.changed !== false) {
+          onRequestRetest?.();
+          onOpenChange(false);
+        }
       } catch (e: unknown) {
         toast.error(e instanceof Error ? e.message : "Regenerate failed");
       } finally {
@@ -1238,22 +1234,23 @@ export function EaChatDrawer({
             <div className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[11px]">
               <div className="font-medium text-amber-950 dark:text-amber-100">
                 {applyPipeline === "needs_compile"
-                  ? "Applied — next: Compile EA"
-                  : "Compiled? Next: run backtest with InpAudit=true"}
+                  ? "Applied — next: Test on history"
+                  : "Almost done — finish the history test"}
               </div>
               <div className="mt-1 text-amber-900/80 dark:text-amber-200/80">
-                {applyPipeline === "needs_compile"
-                  ? "Open Backtest → Compile so MT5 loads the new .ex5, then Run."
-                  : "Re-run the report and check [EVENT] / [GATE] lines."}
+                One click prepares the robot (if needed) and runs it on past data.
               </div>
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
                 className="mt-2 h-7 text-[11px]"
-                onClick={() => handleSafeAction("open_backtest")}
+                onClick={() => {
+                  onRequestRetest?.();
+                  handleSafeAction("open_backtest");
+                }}
               >
-                Open Backtest
+                Test on history
               </Button>
             </div>
           )}

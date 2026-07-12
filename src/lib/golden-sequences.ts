@@ -395,6 +395,53 @@ export const GOLDEN_SEQUENCE_CASES: GoldenSequenceCase[] = [
     codeMarkers: ["void PINSM_M5_Tick", "PINSM_M5_BullJustConfirmed", "RegisterEvent"],
     emitFile: "GOLDEN_BOS_PIN_BAR.mq5",
   },
+  {
+    id: "mes_multi_engulfing",
+    name: "MES Multi-Engulfing (D1 → H4 → M15)",
+    description:
+      "Engulfing as direction + setup + entry across three timeframes — must stay on flow_engine with EGSM ticks.",
+    fourBrain: {
+      direction: { modules: ["engulfing"], timeframe: "D1", params: { lookback: 40, expiryBars: 80 } },
+      setup: { modules: ["engulfing"], timeframe: "H4", params: { lookback: 30, expiryBars: 60 } },
+      execution: { modules: ["engulfing"], timeframe: "M15", params: { lookback: 20, expiryBars: 40 } },
+      management: { ...mgmt, rewardRisk: 2 },
+    },
+    expectedPath: "flow_engine",
+    steps: [
+      {
+        id: "step_direction",
+        role: "direction",
+        module: "engulfing",
+        timeframe: "D1",
+        event: "ENGULFING_ZONE_ACTIVE",
+      },
+      {
+        id: "step_setup",
+        role: "setup",
+        module: "engulfing",
+        timeframe: "H4",
+        event: "ENGULFING_ZONE_ACTIVE",
+        dependsOn: ["step_direction"],
+      },
+      {
+        id: "step_entry",
+        role: "entry",
+        module: "engulfing",
+        timeframe: "M15",
+        event: "ENGULFING_CONFIRMED",
+        dependsOn: ["step_setup"],
+      },
+    ],
+    codeMarkers: [
+      "void EGSM_D1_Tick",
+      "void EGSM_H4_Tick",
+      "void EGSM_M15_Tick",
+      "EGSM_D1_HasActiveBull",
+      "RegisterEvent",
+      "EvaluateEntry_2",
+    ],
+    emitFile: "GOLDEN_MES_MULTI_ENGULFING.mq5",
+  },
 ];
 
 export function goldenSequenceBlueprint(testCase: GoldenSequenceCase): StrategyBlueprint {
