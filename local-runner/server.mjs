@@ -26,7 +26,7 @@ const jobs = new Map();
 const jsonHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "content-type, authorization",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS, DELETE",
   "Content-Type": "application/json; charset=utf-8",
 };
 
@@ -284,19 +284,36 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function runProcess(filePath, args, timeoutMs = 90000) {
+function killProcessTree(child) {
+  if (!child?.pid) return;
+  try {
+    if (process.platform === "win32") {
+      spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
+        windowsHide: true,
+        stdio: "ignore",
+      });
+    } else {
+      child.kill("SIGTERM");
+    }
+  } catch {
+    // Best-effort cancel.
+  }
+}
+
+function runProcess(filePath, args, timeoutMs = 90000, onSpawn) {
   return new Promise((resolve) => {
     const child = spawn(filePath, args, {
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
+    if (typeof onSpawn === "function") onSpawn(child);
     const stdout = [];
     const stderr = [];
     let timedOut = false;
 
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill();
+      killProcessTree(child);
     }, timeoutMs);
 
     child.stdout.on("data", (chunk) => stdout.push(chunk.toString()));
@@ -792,12 +809,19 @@ async function waitForFile(filePath, timeoutMs) {
   return false;
 }
 
-async function waitForBacktestOutput(mt5, reportPaths, testerLogOffset, timeoutMs) {
+async function waitForBacktestOutput(mt5, reportPaths, testerLogOffset, timeoutMs, isCancelled) {
   const startedAt = Date.now();
   const stable = new Map();
   const testerLogPath = resolveInside(mt5.dataPath, "Tester", "logs", currentMt5LogName());
 
   while (Date.now() - startedAt < timeoutMs) {
+    if (typeof isCancelled === "function" && isCancelled()) {
+      return {
+        reportPath: null,
+        testerLog: await readFileTextAfterLengthIfExists(testerLogPath, testerLogOffset),
+        cancelled: true,
+      };
+    }
     for (const filePath of reportPaths) {
       try {
         const info = await stat(filePath);
@@ -824,7 +848,8 @@ async function waitForBacktestOutput(mt5, reportPaths, testerLogOffset, timeoutM
     if (
       testerLog.includes("automatical testing finished") ||
       testerLog.includes("tester didn't start") ||
-      testerLog.includes("no history data, stop testing")
+      testerLog.includes("no history data, stop testing") ||
+      /unknown symbol|symbol.*not found|cannot load symbol/i.test(testerLog)
     ) {
       return { reportPath: null, testerLog };
     }
@@ -1045,6 +1070,7 @@ async function openMetaEditor(body) {
 
 async function runCompileJob(record) {
   try {
+    if (record.cancelled) throw new Error("Cancelled by user.");
     updateJob(record, { status: "running", message: "Writing EA and launching MetaEditor." });
     const hash = assertApprovedSource(record.request);
     const mt5 = await resolveConfiguredMt5();
@@ -1062,12 +1088,18 @@ async function runCompileJob(record) {
       throw new Error(`MetaEditor was not found at ${mt5.metaEditorPath}`);
     }
 
+    if (record.cancelled) throw new Error("Cancelled by user.");
     record.log.push(`Launching MetaEditor: ${mt5.metaEditorPath}`);
     const proc = await runProcess(
       mt5.metaEditorPath,
       [`/compile:${expert.expertPath}`, `/include:${path.join(mt5.dataPath, "MQL5")}`, "/log"],
       90000,
+      (child) => {
+        record.child = child;
+      },
     );
+    record.child = null;
+    if (record.cancelled) throw new Error("Cancelled by user.");
     const compileLog = (await readFileIfExists(logPath)) || proc.stdout || proc.stderr;
     const finalLog = [
       ...record.log,
@@ -1110,7 +1142,10 @@ async function runCompileJob(record) {
       logPath: null,
       executablePath: null,
     };
-    updateJob(record, { status: "failed", message });
+    updateJob(record, {
+      status: "failed",
+      message: record.cancelled ? "Cancelled by user." : message,
+    });
   }
 }
 
@@ -1147,9 +1182,20 @@ async function runBacktestJob(record) {
       windowsHide: true,
       stdio: "ignore",
     });
+    record.child = child;
     child.unref();
 
-    const output = await waitForBacktestOutput(mt5, testerIni.reportPaths, testerLogOffset, 300000);
+    const output = await waitForBacktestOutput(
+      mt5,
+      testerIni.reportPaths,
+      testerLogOffset,
+      300000,
+      () => Boolean(record.cancelled),
+    );
+    record.child = null;
+    if (output.cancelled || record.cancelled) {
+      throw new Error("Cancelled by user.");
+    }
     let completedReportPath = output.reportPath;
     let reportHtml = completedReportPath ? await readFileIfExists(completedReportPath) : null;
     const nativeReportGenerated = Boolean(completedReportPath);
@@ -1222,8 +1268,42 @@ async function runBacktestJob(record) {
       reportHtml: null,
       log: record.log.join("\n"),
     };
-    updateJob(record, { status: "failed", message });
+    updateJob(record, {
+      status: "failed",
+      message: record.cancelled ? "Cancelled by user." : message,
+    });
   }
+}
+
+function cancelRunnerJob(record) {
+  if (!record) return null;
+  if (record.job.status === "succeeded" || record.job.status === "failed") {
+    return record;
+  }
+  record.cancelled = true;
+  killProcessTree(record.child);
+  record.child = null;
+  record.log.push("Cancelled by user.");
+  if (!record.result) {
+    record.result = {
+      job: record.job,
+      success: false,
+      errors: 1,
+      warnings: 0,
+      log: record.log.join("\n"),
+      artifactPath: null,
+      logPath: null,
+      executablePath: null,
+      summary: createSummaryFromConfig(record.request?.testerConfig),
+      testerConfig: record.request?.testerConfig ?? null,
+      reportPath: null,
+      reportHtml: null,
+    };
+  } else {
+    record.result = { ...record.result, success: false, log: record.log.join("\n") };
+  }
+  updateJob(record, { status: "failed", message: "Cancelled by user." });
+  return record;
 }
 
 async function readJsonBody(req) {
@@ -1421,6 +1501,18 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       sendJson(res, 200, record.result ?? { job: record.job });
+      return;
+    }
+
+    const cancelMatch = url.pathname.match(/^\/jobs\/([^/]+)\/cancel$/);
+    if (req.method === "POST" && cancelMatch) {
+      const record = jobs.get(decodeURIComponent(cancelMatch[1]));
+      if (!record) {
+        sendJson(res, 404, { error: "Job not found" });
+        return;
+      }
+      const cancelled = cancelRunnerJob(record);
+      sendJson(res, 200, cancelled.result ?? { job: cancelled.job, success: false });
       return;
     }
 

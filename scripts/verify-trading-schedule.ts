@@ -75,6 +75,21 @@ assertOk(dstMql.helpers.includes("InpWin1SumStartH"), "emits summer window input
 assertOk(dstMql.panelLine.includes("DST approx"), "panel mentions DST");
 console.log("[OK  ] Phase 3 offset + DST codegen");
 
+const framed: TradingScheduleConfig = {
+  ...london,
+  sessionWindowOverrides: {
+    london: { startMin: 8 * 60, endMin: 17 * 60 },
+  },
+};
+assertOk(resolveTradingWindows(framed)[0]!.startMin === 8 * 60, "session frame override applied");
+const framedMql = emitTradingScheduleMql5(framed);
+assertOk(framedMql.inputs.includes("InpWin1StartH = 8"), "override emits custom start hour");
+assertOk(framedMql.inputs.includes("InpDrawSessionLines = true"), "draws session lines by default");
+assertOk(framedMql.helpers.includes("UpdateSessionChartMarks"), "emits session chart mark updater");
+assertOk(framedMql.helpers.includes("OBJ_TREND"), "session hi/lo use trend lines");
+assertOk(framedMql.onTickHook.includes("UpdateSessionChartMarks"), "onTick updates session lines");
+console.log("[OK  ] session frame overrides");
+
 const withClose: TradingScheduleConfig = {
   ...london,
   outsideWindow: {

@@ -68,6 +68,7 @@ import {
   X,
   MoreHorizontal,
   Settings2,
+  Square,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EaChatDrawer, type EaAssistantAction } from "@/components/EaChatDrawer";
@@ -160,6 +161,7 @@ import {
   getRunnerJob,
   getRunnerJobReport,
   getRunnerJobLog,
+  cancelRunnerJob,
 } from "@/lib/local-runner";
 import type { TesterConfig, BacktestResult, CompileResult, ReportSummary } from "@/types/mt5";
 
@@ -2597,6 +2599,7 @@ function BacktestTab({
   const [downloadingReport, setDownloadingReport] = useState(false);
   const [downloadingTesterLog, setDownloadingTesterLog] = useState(false);
   const processedJobIds = useRef(new Set<string>());
+  const userStoppedRef = useRef(false);
   const codeSnapshotRef = useRef(code);
 
   // New robot source → must prepare again before testing.
@@ -2621,6 +2624,10 @@ function BacktestTab({
       });
     },
     onSuccess: (result) => {
+      if (userStoppedRef.current) {
+        void cancelRunnerJob(result.job.id).catch(() => undefined);
+        return;
+      }
       setCompileResult(null);
       setCompileJobId(result.job.id);
       setCompilePolling(true);
@@ -2649,6 +2656,9 @@ function BacktestTab({
         toast.success(
           pendingBacktestAfterPrepare ? "Prepared — starting history test…" : "Ready for test",
         );
+      } else if (/cancelled by user/i.test(result.job?.message || result.log || "")) {
+        toast.message("Prepare stopped.");
+        setPendingBacktestAfterPrepare(false);
       } else {
         setPendingBacktestAfterPrepare(false);
         toast.error(`Prepare failed - ${result.errors ?? "?"} error(s). See log below.`);
@@ -2690,6 +2700,8 @@ function BacktestTab({
       onBacktestLog?.(result.log ?? null);
       if (status === "succeeded") {
         toast.success("History test ready");
+      } else if (/cancelled by user/i.test(data.job.message || "")) {
+        toast.message("History test stopped.");
       } else {
         toast.error("History test failed - " + (data.job.message || "see tester log"));
       }
@@ -2733,6 +2745,10 @@ function BacktestTab({
         approval,
         testerConfig,
       });
+      if (userStoppedRef.current) {
+        void cancelRunnerJob(res.job.id).catch(() => undefined);
+        return;
+      }
       setBacktestResult(null);
       onBacktestSummary?.(null);
       onBacktestLog?.(null);
@@ -2767,6 +2783,7 @@ function BacktestTab({
       toast.error("Connect MetaTrader in Settings, then try again.");
       return;
     }
+    userStoppedRef.current = false;
     if (!localApproval) setLocalApproval(true);
     if (compileSucceeded) {
       backtestMut.mutate();
@@ -2793,6 +2810,7 @@ function BacktestTab({
     }
     setLocalApproval(true);
     setCompileResult(null);
+    userStoppedRef.current = false;
     setPendingBacktestAfterPrepare(true);
     compileMut.mutate();
   }, [
@@ -2824,6 +2842,10 @@ function BacktestTab({
         approval,
         testerConfig,
       });
+      if (userStoppedRef.current) {
+        void cancelRunnerJob(res.job.id).catch(() => undefined);
+        return;
+      }
       setVisualJobId(res.job.id);
       setVisualPolling(true);
     },
@@ -2833,6 +2855,29 @@ function BacktestTab({
 
   const set = <K extends keyof typeof config>(k: K, v: (typeof config)[K]) =>
     setConfig((c) => ({ ...c, [k]: v }));
+
+  const stopAllWork = async () => {
+    userStoppedRef.current = true;
+    setPendingBacktestAfterPrepare(false);
+    setCompilePolling(false);
+    setBacktestPolling(false);
+    setVisualPolling(false);
+    const ids = [compileJobId, backtestJobId, visualJobId].filter(Boolean) as string[];
+    setCompileJobId(null);
+    setBacktestJobId(null);
+    setVisualJobId(null);
+    compileMut.reset();
+    backtestMut.reset();
+    visualMut.reset();
+    for (const id of ids) {
+      try {
+        await cancelRunnerJob(id);
+      } catch {
+        // UI stop still clears local polling even if runner cancel fails.
+      }
+    }
+    toast.message("Stopped — you can change the symbol and try again.");
+  };
 
   useEffect(() => {
     onDiagnosticContext?.({
@@ -3061,10 +3106,16 @@ function BacktestTab({
             <Label className="text-xs">Symbol</Label>
             <Input
               value={config.symbol}
-              onChange={(e) => set("symbol", e.target.value)}
+              onChange={(e) => set("symbol", e.target.value.trimStart())}
               className="font-mono text-sm"
               placeholder="EURUSD"
+              disabled={anyRunning}
             />
+            <p className="text-[10px] text-muted-foreground leading-snug">
+              Must match Market Watch exactly (many brokers use{" "}
+              <span className="font-mono">EURUSDm</span> /{" "}
+              <span className="font-mono">EURUSD.m</span>). Wrong symbol can hang the tester.
+            </p>
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Timeframe</Label>
@@ -3214,6 +3265,17 @@ function BacktestTab({
               </>
             )}
           </Button>
+          {anyRunning || pendingBacktestAfterPrepare ? (
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={() => void stopAllWork()}
+              className="sm:min-w-[120px]"
+              title="Stop prepare / test"
+            >
+              <Square className="h-3.5 w-3.5 mr-1.5 fill-current" /> Stop
+            </Button>
+          ) : null}
           <p className="text-[11px] text-muted-foreground sm:flex-1">
             One step: prepare the robot (if needed), then run it on past price data.
           </p>
@@ -3228,6 +3290,7 @@ function BacktestTab({
               variant="outline"
               size="sm"
               onClick={() => {
+                userStoppedRef.current = false;
                 if (!localApproval) setLocalApproval(true);
                 compileMut.mutate();
               }}
@@ -3249,7 +3312,10 @@ function BacktestTab({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => visualMut.mutate()}
+              onClick={() => {
+                userStoppedRef.current = false;
+                visualMut.mutate();
+              }}
               disabled={anyRunning || !compileSucceeded || !localApproval || !mt5Configured}
               className="min-w-[140px]"
               title={

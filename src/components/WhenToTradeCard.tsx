@@ -1,14 +1,20 @@
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { SessionTimelinePreview } from "@/components/SessionTimelinePreview";
 import {
+  SESSION_PRESET_COLORS,
   SESSION_PRESET_LABELS,
   clampBrokerOffsetHours,
+  clearSessionWindowOverride,
   defaultTradingSchedule,
-  hhmmToMinutes,
   minutesToHHMM,
+  resolvePresetBaseWindow,
+  setSessionWindowOverride,
+  tryParseHHMM,
   type TradingScheduleConfig,
   type TradingSessionPreset,
 } from "@/lib/trading-schedule";
@@ -22,6 +28,57 @@ const WEEKDAYS = [
   { d: 6, label: "Sat" },
   { d: 0, label: "Sun" },
 ] as const;
+
+/** Local draft while typing; commits only on valid HH:MM or blur. */
+function TimeHHMMInput({
+  minutes,
+  onCommit,
+  className = "h-8 w-20 text-xs font-mono",
+}: {
+  minutes: number;
+  onCommit: (nextMinutes: number) => void;
+  className?: string;
+}) {
+  const formatted = minutesToHHMM(minutes);
+  const [draft, setDraft] = useState(formatted);
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) setDraft(formatted);
+  }, [formatted, focused]);
+
+  return (
+    <Input
+      className={className}
+      value={draft}
+      placeholder="HH:MM"
+      inputMode="numeric"
+      onFocus={() => {
+        setFocused(true);
+        setDraft(formatted);
+      }}
+      onChange={(e) => {
+        const next = e.target.value;
+        setDraft(next);
+        const parsed = tryParseHHMM(next);
+        if (parsed !== null) onCommit(parsed);
+      }}
+      onBlur={() => {
+        setFocused(false);
+        const parsed = tryParseHHMM(draft);
+        if (parsed !== null) {
+          onCommit(parsed);
+          setDraft(minutesToHHMM(parsed));
+        } else {
+          setDraft(formatted);
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+    />
+  );
+}
 
 /**
  * When-to-trade / session selector — shared by Configure (/s/$id), /build, and /new.
@@ -99,33 +156,110 @@ export function WhenToTradeCard({
       </div>
 
       {schedule.enabled && schedule.mode !== "custom_windows" && (
-        <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Sessions</Label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {(Object.keys(SESSION_PRESET_LABELS) as TradingSessionPreset[]).map((id) => {
-              const on = (schedule.sessions ?? []).includes(id);
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  aria-pressed={on}
-                  className={`h-10 rounded-md border px-3 text-xs font-medium text-left transition-colors ${
-                    on
-                      ? "border-primary/50 bg-primary/15 text-foreground"
-                      : "border-border text-muted-foreground hover:text-foreground"
-                  }`}
-                  onClick={() => {
-                    const cur = new Set(schedule.sessions ?? []);
-                    if (cur.has(id)) cur.delete(id);
-                    else cur.add(id);
-                    onChange({ ...schedule, sessions: [...cur] });
-                  }}
-                >
-                  {SESSION_PRESET_LABELS[id]}
-                </button>
-              );
-            })}
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Sessions</Label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {(Object.keys(SESSION_PRESET_LABELS) as TradingSessionPreset[]).map((id) => {
+                const on = (schedule.sessions ?? []).includes(id);
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={on}
+                    className={`h-10 rounded-md border px-3 text-xs font-medium text-left transition-colors ${
+                      on
+                        ? "border-primary/50 bg-primary/15 text-foreground"
+                        : "border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                    onClick={() => {
+                      const cur = new Set(schedule.sessions ?? []);
+                      if (cur.has(id)) cur.delete(id);
+                      else cur.add(id);
+                      onChange({ ...schedule, sessions: [...cur] });
+                    }}
+                  >
+                    <span
+                      className="mr-1.5 inline-block h-2 w-2 rounded-sm align-middle"
+                      style={{ backgroundColor: SESSION_PRESET_COLORS[id] }}
+                    />
+                    {SESSION_PRESET_LABELS[id]}
+                  </button>
+                );
+              })}
+            </div>
           </div>
+
+          <SessionTimelinePreview
+            schedule={schedule}
+            sessions={(schedule.sessions ?? []) as TradingSessionPreset[]}
+          />
+
+          {(schedule.sessions ?? []).length > 0 && (
+            <div className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-3">
+              <Label className="text-xs text-muted-foreground">Session frames</Label>
+              <p className="text-[10px] text-muted-foreground/80">
+                Edit start/end (broker time, before offset). Changes update the map and the EA
+                filter.
+              </p>
+              <div className="space-y-2">
+                {(schedule.sessions ?? []).map((id) => {
+                  const win = resolvePresetBaseWindow(id, schedule, "winter");
+                  const customized = Boolean(schedule.sessionWindowOverrides?.[id]);
+                  return (
+                    <div
+                      key={id}
+                      className="flex flex-wrap items-center gap-2 text-xs"
+                    >
+                      <span
+                        className="h-2.5 w-2.5 rounded-sm shrink-0"
+                        style={{ backgroundColor: SESSION_PRESET_COLORS[id] }}
+                      />
+                      <span className="w-28 shrink-0 text-muted-foreground truncate">
+                        {SESSION_PRESET_LABELS[id]}
+                      </span>
+                      <TimeHHMMInput
+                        minutes={win.startMin}
+                        onCommit={(startMin) =>
+                          onChange(
+                            setSessionWindowOverride(schedule, id, {
+                              startMin,
+                              endMin: win.endMin,
+                            }),
+                          )
+                        }
+                      />
+                      <span className="text-muted-foreground">→</span>
+                      <TimeHHMMInput
+                        minutes={win.endMin}
+                        onCommit={(endMin) =>
+                          onChange(
+                            setSessionWindowOverride(schedule, id, {
+                              startMin: win.startMin,
+                              endMin,
+                            }),
+                          )
+                        }
+                      />
+                      {customized && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-[10px]"
+                          onClick={() =>
+                            onChange(clearSessionWindowOverride(schedule, id))
+                          }
+                        >
+                          Reset
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -135,28 +269,20 @@ export function WhenToTradeCard({
           {(schedule.windows ?? []).slice(0, 3).map((w, i) => (
             <div key={i} className="flex items-center gap-2 flex-wrap">
               <span className="text-[10px] text-muted-foreground w-14">Window {i + 1}</span>
-              <Input
-                className="h-8 w-20 text-xs font-mono"
-                value={minutesToHHMM(w.startMin)}
-                onChange={(e) => {
+              <TimeHHMMInput
+                minutes={w.startMin}
+                onCommit={(startMin) => {
                   const windows = [...(schedule.windows ?? [])];
-                  windows[i] = {
-                    ...windows[i]!,
-                    startMin: hhmmToMinutes(e.target.value),
-                  };
+                  windows[i] = { ...windows[i]!, startMin };
                   onChange({ ...schedule, windows });
                 }}
               />
               <span className="text-xs text-muted-foreground">→</span>
-              <Input
-                className="h-8 w-20 text-xs font-mono"
-                value={minutesToHHMM(w.endMin)}
-                onChange={(e) => {
+              <TimeHHMMInput
+                minutes={w.endMin}
+                onCommit={(endMin) => {
                   const windows = [...(schedule.windows ?? [])];
-                  windows[i] = {
-                    ...windows[i]!,
-                    endMin: hhmmToMinutes(e.target.value),
-                  };
+                  windows[i] = { ...windows[i]!, endMin };
                   onChange({ ...schedule, windows });
                 }}
               />
@@ -275,9 +401,21 @@ export function WhenToTradeCard({
             })}
           </div>
 
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Checkbox
-              checked={schedule.outsideWindow?.cancelPendingOrders === true}
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Checkbox
+                checked={schedule.markSessionsOnChart !== false}
+                onCheckedChange={(checked) =>
+                  onChange({
+                    ...schedule,
+                    markSessionsOnChart: checked === true,
+                  })
+                }
+              />
+              Draw session high/low lines on chart
+            </label>
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Checkbox
+                checked={schedule.outsideWindow?.cancelPendingOrders === true}
               onCheckedChange={(checked) =>
                 onChange({
                   ...schedule,

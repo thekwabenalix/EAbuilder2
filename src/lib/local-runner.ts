@@ -120,6 +120,18 @@ export async function getRunnerJob(jobId: string): Promise<RunnerJobResult> {
   return res.json();
 }
 
+export async function cancelRunnerJob(jobId: string): Promise<RunnerJobResult> {
+  const res = await fetch(`${LOCAL_RUNNER_URL}/jobs/${encodeURIComponent(jobId)}/cancel`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error ?? `Cancel returned ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function getRunnerJobReport(jobId: string): Promise<RunnerJobReport> {
   const res = await fetch(`${LOCAL_RUNNER_URL}/jobs/${encodeURIComponent(jobId)}/report`, {
     headers: authHeaders(),

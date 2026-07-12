@@ -965,7 +965,11 @@ ${smReset.join("\n")}
    return INIT_SUCCEEDED;
 }
 
-void OnDeinit(const int reason) { Comment(""); }
+void OnDeinit(const int reason)
+{
+${sessionMql.onDeinitHook}
+   Comment("");
+}
 
 void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest &request, const MqlTradeResult &result)
 {

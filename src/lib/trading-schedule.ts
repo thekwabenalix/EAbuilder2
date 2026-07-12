@@ -43,6 +43,13 @@ export interface TradingScheduleConfig {
   brokerOffsetHours?: number;
   /** When presets include London/NY, shift summer vs winter with EU/US approx rules. */
   dstMode?: TradingScheduleDstMode;
+  /**
+   * Optional per-session start/end overrides (broker-hour frames the trader edits).
+   * Used by the session timeline UI and for filter codegen.
+   */
+  sessionWindowOverrides?: Partial<Record<TradingSessionPreset, TradingTimeWindow>>;
+  /** Draw session high/low as two horizontal lines on the MT5 chart (default on). */
+  markSessionsOnChart?: boolean;
 }
 
 /** Payload for [APPLY:{"type":"set_time_filter",...}] */
@@ -78,10 +85,18 @@ export const SESSION_PRESET_WINDOWS_SUMMER: Record<TradingSessionPreset, Trading
 };
 
 export const SESSION_PRESET_LABELS: Record<TradingSessionPreset, string> = {
-  asia: "Asian",
+  asia: "Asian / Tokyo",
   london: "London",
   newyork: "New York",
   london_ny_overlap: "London–NY overlap",
+};
+
+/** Original UI colors for session bands (not third-party indicator palettes). */
+export const SESSION_PRESET_COLORS: Record<TradingSessionPreset, string> = {
+  asia: "#e91e63",
+  london: "#3b82f6",
+  newyork: "#f97316",
+  london_ny_overlap: "#a855f7",
 };
 
 export const DEFAULT_ALLOWED_DAYS = [1, 2, 3, 4, 5]; // Mon–Fri
@@ -104,6 +119,7 @@ export function defaultTradingSchedule(): TradingScheduleConfig {
     outsideWindow: { ...DEFAULT_OUTSIDE_WINDOW },
     brokerOffsetHours: 0,
     dstMode: "off",
+    markSessionsOnChart: true,
   };
 }
 
@@ -139,12 +155,18 @@ export function minutesToHHMM(mins: number): string {
   return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
-export function hhmmToMinutes(value: string): number {
+/** Parse HH:MM; returns null while the user is still typing an incomplete value. */
+export function tryParseHHMM(value: string): number | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
-  if (!m) return 0;
-  const h = Math.min(23, Math.max(0, parseInt(m[1]!, 10)));
-  const mm = Math.min(59, Math.max(0, parseInt(m[2]!, 10)));
+  if (!m) return null;
+  const h = parseInt(m[1]!, 10);
+  const mm = parseInt(m[2]!, 10);
+  if (h > 23 || mm > 59) return null;
   return h * 60 + mm;
+}
+
+export function hhmmToMinutes(value: string): number {
+  return tryParseHHMM(value) ?? 0;
 }
 
 export function normalizeWindow(w: TradingTimeWindow): TradingTimeWindow {
@@ -168,6 +190,19 @@ export function normalizeSessionPreset(raw: string): TradingSessionPreset | null
   return null;
 }
 
+/** Base window for a preset (override wins; summer table only when no override). */
+export function resolvePresetBaseWindow(
+  id: TradingSessionPreset,
+  schedule: TradingScheduleConfig | undefined,
+  which: "winter" | "summer" = "winter",
+): TradingTimeWindow {
+  const override = schedule?.sessionWindowOverrides?.[id];
+  if (override) return normalizeWindow(override);
+  return which === "summer"
+    ? normalizeWindow(SESSION_PRESET_WINDOWS_SUMMER[id])
+    : normalizeWindow(SESSION_PRESET_WINDOWS[id]);
+}
+
 /** Resolve effective windows for codegen / preview (winter presets + broker offset). */
 export function resolveTradingWindows(schedule: TradingScheduleConfig | undefined): TradingTimeWindow[] {
   if (!schedule?.enabled || schedule.mode === "all") return [];
@@ -175,14 +210,56 @@ export function resolveTradingWindows(schedule: TradingScheduleConfig | undefine
   if (schedule.mode === "presets") {
     const sessions = schedule.sessions ?? [];
     return sessions
-      .map((s) => SESSION_PRESET_WINDOWS[s])
-      .filter(Boolean)
+      .map((s) => resolvePresetBaseWindow(s, schedule, "winter"))
       .map((w) => shiftWindowHours(w, offset));
   }
   return (schedule.windows ?? [])
     .slice(0, 3)
     .map(normalizeWindow)
     .map((w) => shiftWindowHours(w, offset));
+}
+
+/** Split a possibly midnight-wrapping window into 1–2 [0,1] timeline segments. */
+export function windowToTimelineSegments(
+  w: TradingTimeWindow,
+): Array<{ leftPct: number; widthPct: number }> {
+  const s = clampMinute(w.startMin);
+  const e = clampMinute(w.endMin);
+  if (s === e) return [{ leftPct: 0, widthPct: 100 }];
+  if (s < e) {
+    return [{ leftPct: (s / 1440) * 100, widthPct: ((e - s) / 1440) * 100 }];
+  }
+  // wraps midnight: [s, 1440) + [0, e)
+  return [
+    { leftPct: (s / 1440) * 100, widthPct: ((1440 - s) / 1440) * 100 },
+    { leftPct: 0, widthPct: (e / 1440) * 100 },
+  ];
+}
+
+export function setSessionWindowOverride(
+  schedule: TradingScheduleConfig,
+  id: TradingSessionPreset,
+  window: TradingTimeWindow,
+): TradingScheduleConfig {
+  return {
+    ...schedule,
+    sessionWindowOverrides: {
+      ...schedule.sessionWindowOverrides,
+      [id]: normalizeWindow(window),
+    },
+  };
+}
+
+export function clearSessionWindowOverride(
+  schedule: TradingScheduleConfig,
+  id: TradingSessionPreset,
+): TradingScheduleConfig {
+  const next = { ...(schedule.sessionWindowOverrides ?? {}) };
+  delete next[id];
+  return {
+    ...schedule,
+    sessionWindowOverrides: Object.keys(next).length ? next : undefined,
+  };
 }
 
 /** Whether a preset should follow EU DST (London) or US DST (New York). */
@@ -312,6 +389,23 @@ export function sanitizeTradingSchedule(
     .map((w) => normalizeWindow({ startMin: Number(w.startMin), endMin: Number(w.endMin) }))
     .filter((w) => Number.isFinite(w.startMin) && Number.isFinite(w.endMin))
     .slice(0, 3);
+
+  const sessionWindowOverrides: Partial<Record<TradingSessionPreset, TradingTimeWindow>> = {};
+  if (raw.sessionWindowOverrides && typeof raw.sessionWindowOverrides === "object") {
+    for (const key of Object.keys(raw.sessionWindowOverrides) as TradingSessionPreset[]) {
+      const id = normalizeSessionPreset(key);
+      if (!id) continue;
+      const ow = raw.sessionWindowOverrides[key as TradingSessionPreset];
+      if (!ow) continue;
+      sessionWindowOverrides[id] = normalizeWindow({
+        startMin: Number(ow.startMin),
+        endMin: Number(ow.endMin),
+      });
+    }
+  }
+  const overrides =
+    Object.keys(sessionWindowOverrides).length > 0 ? sessionWindowOverrides : undefined;
+
   if (raw.mode === "custom_windows" && windows.length) {
     return {
       ...defaultTradingSchedule(),
@@ -322,6 +416,7 @@ export function sanitizeTradingSchedule(
       outsideWindow: { ...DEFAULT_OUTSIDE_WINDOW, ...raw.outsideWindow },
       brokerOffsetHours: clampBrokerOffsetHours(raw.brokerOffsetHours),
       dstMode: normalizeDstMode(raw.dstMode),
+      markSessionsOnChart: raw.markSessionsOnChart !== false,
     };
   }
   if (sessions.length || raw.mode === "presets") {
@@ -334,6 +429,8 @@ export function sanitizeTradingSchedule(
       outsideWindow: { ...DEFAULT_OUTSIDE_WINDOW, ...raw.outsideWindow },
       brokerOffsetHours: clampBrokerOffsetHours(raw.brokerOffsetHours),
       dstMode: normalizeDstMode(raw.dstMode),
+      markSessionsOnChart: raw.markSessionsOnChart !== false,
+      ...(overrides ? { sessionWindowOverrides: overrides } : {}),
     };
   }
   return undefined;
@@ -507,6 +604,7 @@ export function emitTradingScheduleMql5(schedule: TradingScheduleConfig | undefi
   entryGate: string;
   panelLine: string;
   onTickHook: string;
+  onDeinitHook: string;
 } {
   if (!isTradingScheduleActive(schedule)) {
     return {
@@ -515,6 +613,7 @@ export function emitTradingScheduleMql5(schedule: TradingScheduleConfig | undefi
       entryGate: "",
       panelLine: `   s += "Session: all day (broker)\\n";`,
       onTickHook: "",
+      onDeinitHook: "",
     };
   }
 
@@ -524,6 +623,7 @@ export function emitTradingScheduleMql5(schedule: TradingScheduleConfig | undefi
   const dayMask = days.reduce((acc, d) => acc | (1 << d), 0);
   const cancelPending = schedule?.outsideWindow?.cancelPendingOrders === true;
   const closePositions = schedule?.outsideWindow?.closeOpenPositions === true;
+  const drawLines = schedule?.markSessionsOnChart !== false;
 
   type WinEmit = {
     winter: TradingTimeWindow;
@@ -534,8 +634,8 @@ export function emitTradingScheduleMql5(schedule: TradingScheduleConfig | undefi
   const wins: WinEmit[] = [];
   if (schedule!.mode === "presets") {
     for (const id of schedule!.sessions ?? []) {
-      const winter = normalizeWindow(SESSION_PRESET_WINDOWS[id]);
-      const summer = normalizeWindow(SESSION_PRESET_WINDOWS_SUMMER[id]);
+      const winter = resolvePresetBaseWindow(id, schedule, "winter");
+      const summer = resolvePresetBaseWindow(id, schedule, "summer");
       const region = presetDstRegion(id);
       wins.push({
         winter,
@@ -556,6 +656,7 @@ export function emitTradingScheduleMql5(schedule: TradingScheduleConfig | undefi
       entryGate: "",
       panelLine: `   s += "Session: all day (broker)\\n";`,
       onTickHook: "",
+      onDeinitHook: "",
     };
   }
 
@@ -734,18 +835,134 @@ ${
 `
       : "";
 
+  const getWinMinsFn = `
+bool Session_GetWindowMins(int winIdx, datetime when, int &sOut, int &eOut)
+{
+   int off = InpBrokerOffsetHours * 60;
+${windows
+  .map((_, i) => {
+    const n = i + 1;
+    if (dstOn) {
+      return `   if(winIdx == ${i}) {
+      if(!InpWin${n}Enable) return false;
+      bool summer = InpDstAdjust && Session_UseSummer(InpWin${n}DstRegion, when);
+      int s = summer ? (InpWin${n}SumStartH * 60 + InpWin${n}SumStartM)
+                     : (InpWin${n}StartH * 60 + InpWin${n}StartM);
+      int e = summer ? (InpWin${n}SumEndH * 60 + InpWin${n}SumEndM)
+                     : (InpWin${n}EndH * 60 + InpWin${n}EndM);
+      sOut = (s + off) % 1440; if(sOut < 0) sOut += 1440;
+      eOut = (e + off) % 1440; if(eOut < 0) eOut += 1440;
+      return true;
+   }`;
+    }
+    return `   if(winIdx == ${i}) {
+      if(!InpWin${n}Enable) return false;
+      sOut = (InpWin${n}StartH * 60 + InpWin${n}StartM + off) % 1440; if(sOut < 0) sOut += 1440;
+      eOut = (InpWin${n}EndH * 60 + InpWin${n}EndM + off) % 1440; if(eOut < 0) eOut += 1440;
+      return true;
+   }`;
+  })
+  .join("\n")}
+   return false;
+}
+`;
+
+  const chartColors = ["clrDodgerBlue", "clrOrange", "clrMagenta"];
+  const drawHelpers = drawLines
+    ? `
+${getWinMinsFn}
+void Session_SetHLine(const string name, datetime t1, datetime t2, double price, color css)
+{
+   if(ObjectFind(0, name) < 0)
+      ObjectCreate(0, name, OBJ_TREND, 0, t1, price, t2, price);
+   ObjectSetInteger(0, name, OBJPROP_COLOR, css);
+   ObjectSetInteger(0, name, OBJPROP_STYLE, STYLE_DOT);
+   ObjectSetInteger(0, name, OBJPROP_WIDTH, 1);
+   ObjectSetInteger(0, name, OBJPROP_RAY_RIGHT, false);
+   ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, name, OBJPROP_BACK, true);
+   ObjectMove(0, name, 0, t1, price);
+   ObjectMove(0, name, 1, t2, price);
+}
+
+void UpdateSessionChartMarks()
+{
+   if(!InpDrawSessionLines || !InpUseSessionFilter) {
+      ObjectsDeleteAll(0, "EA_SES_");
+      return;
+   }
+   datetime now = TimeCurrent();
+   MqlDateTime dt; TimeToStruct(now, dt);
+   datetime dayStart = now - (dt.hour * 3600 + dt.min * 60 + dt.sec);
+   const color winCss[${windows.length}] = { ${windows.map((_, i) => chartColors[i] ?? "clrGray").join(", ")} };
+
+   for(int w = 0; w < ${windows.length}; w++) {
+      int sMin = 0, eMin = 0;
+      if(!Session_GetWindowMins(w, now, sMin, eMin)) {
+         ObjectDelete(0, "EA_SES_HI_" + IntegerToString(w));
+         ObjectDelete(0, "EA_SES_LO_" + IntegerToString(w));
+         continue;
+      }
+      datetime t1 = dayStart + sMin * 60;
+      datetime t2 = dayStart + eMin * 60;
+      if(sMin > eMin) {
+         // wraps midnight: show overnight leg ending today, start yesterday
+         if(dt.hour * 60 + dt.min < eMin) t1 = dayStart - (1440 - sMin) * 60;
+         else t2 = dayStart + 1440 * 60 + eMin * 60;
+      }
+      datetime tScanEnd = t2;
+      if(tScanEnd > now) tScanEnd = now;
+      if(tScanEnd <= t1) {
+         ObjectDelete(0, "EA_SES_HI_" + IntegerToString(w));
+         ObjectDelete(0, "EA_SES_LO_" + IntegerToString(w));
+         continue;
+      }
+
+      int shift1 = iBarShift(InpSymbol, PERIOD_CURRENT, t1, false);
+      int shift2 = iBarShift(InpSymbol, PERIOD_CURRENT, tScanEnd, false);
+      if(shift1 < 0 || shift2 < 0) continue;
+      int from = MathMax(shift1, shift2);
+      int to = MathMin(shift1, shift2);
+      double hi = iHigh(InpSymbol, PERIOD_CURRENT, to);
+      double lo = iLow(InpSymbol, PERIOD_CURRENT, to);
+      for(int sh = to; sh <= from; sh++) {
+         double h = iHigh(InpSymbol, PERIOD_CURRENT, sh);
+         double l = iLow(InpSymbol, PERIOD_CURRENT, sh);
+         if(h > hi) hi = h;
+         if(l < lo) lo = l;
+      }
+      datetime tRight = t2;
+      if(tRight > now + PeriodSeconds(PERIOD_CURRENT)) tRight = now;
+      Session_SetHLine("EA_SES_HI_" + IntegerToString(w), t1, tRight, hi, winCss[w]);
+      Session_SetHLine("EA_SES_LO_" + IntegerToString(w), t1, tRight, lo, winCss[w]);
+   }
+}
+
+void CleanupSessionChartMarks()
+{
+   ObjectsDeleteAll(0, "EA_SES_");
+}
+`
+    : "";
+
   const extras: string[] = [];
   if (offset !== 0) extras.push(`offset ${offset > 0 ? "+" : ""}${offset}h`);
   if (dstOn) extras.push("DST approx");
+  if (drawLines) extras.push("hi/lo lines");
   if (cancelPending) extras.push("cancel pendings");
   if (closePositions) extras.push("close positions");
   const panelExtra = extras.length ? `, ${extras.join(", ")}` : "";
+
+  const tickParts: string[] = [];
+  if (cancelPending || closePositions) tickParts.push(`   SessionOutsideMaintenance();`);
+  if (drawLines) tickParts.push(`   UpdateSessionChartMarks();`);
 
   return {
     inputs: `input bool InpUseSessionFilter = true;  // TIME_SESSION_FILTER (broker server time)
 input int  InpAllowedDaysMask = ${dayMask};  // bit0=Sun … bit6=Sat (default Mon–Fri)
 input int  InpBrokerOffsetHours = ${offset};  // hours added to window tables (align to broker)
 input bool InpDstAdjust = ${dstOn ? "true" : "false"};  // EU/US DST summer tables for London/NY
+input bool InpDrawSessionLines = ${drawLines ? "true" : "false"};  // session high/low horizontal lines
 input bool InpCancelPendingOutside = ${cancelPending ? "true" : "false"};  // cancel pendings outside session
 input bool InpClosePositionsOutside = ${closePositions ? "true" : "false"};  // close positions outside session
 ${winInputs}`,
@@ -770,7 +987,7 @@ bool IsTradingTime()
 ${checkWins}
    return false;
 }
-${maintenanceHelpers}`,
+${maintenanceHelpers}${drawHelpers}`,
     entryGate: `   if(!IsTradingTime()) {
       gLastGate = "BLOCKED: outside session";
       if(InpAudit) {
@@ -781,8 +998,8 @@ ${maintenanceHelpers}`,
       return;
    }`,
     panelLine: `   s += "Session: FILTER on (broker${panelExtra})\\n";`,
-    onTickHook:
-      cancelPending || closePositions ? `   SessionOutsideMaintenance();` : "",
+    onTickHook: tickParts.join("\n"),
+    onDeinitHook: drawLines ? `   CleanupSessionChartMarks();` : "",
   };
 }
 
