@@ -22,6 +22,7 @@ import {
 } from "@/lib/blueprint-generation-gate";
 import { BLUEPRINT_ASSEMBLER_DEPRECATION } from "@/lib/ea-generation-policy";
 import { strategyFlowToFourBrain } from "@/lib/fourbrain-flow-adapter";
+import { validateGeneratedExecutionParity } from "@/lib/semantic-execution-validator";
 
 export type EaGenerationPath = "flow_engine" | "blueprint_assembler" | "legacy_heuristic";
 
@@ -33,6 +34,29 @@ export interface GenerateEaFromBlueprintResult {
 }
 
 export { EaGenerationError, resolveStrategyFlow } from "@/lib/blueprint-generation-gate";
+function assertGeneratedExecutionParity(input: {
+  blueprint: StrategyBlueprint;
+  flow: StrategyFlowConfig;
+  code: string;
+  path: EaGenerationPath;
+  warnings: string[];
+}): string[] {
+  const parity = validateGeneratedExecutionParity({
+    blueprint: input.blueprint,
+    flow: input.flow,
+    code: input.code,
+    path: input.path,
+  });
+  if (!parity.ok) {
+    throw new EaGenerationError(
+      parity.errors.length === 1
+        ? parity.errors[0]
+        : `Generated EA failed semantic validation:\n${parity.errors.join("\n")}`,
+      parity.errors,
+    );
+  }
+  return [...input.warnings, ...parity.warnings];
+}
 
 export interface EaGenerationPreview {
   path: EaGenerationPath | null;
