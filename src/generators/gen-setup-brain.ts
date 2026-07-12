@@ -461,6 +461,25 @@ void Setup_Brain_Execute()
         break;
       }
 
+      case "tdi": {
+        parts.push(`
+   // Traders Dynamic Index: verified trend setup from TDISM_${tf}
+   if(!gSetupActive)
+   {
+      if(TDISM_${tf}_HasActiveBull() && (gBias == 0 || gBias == 1))
+      {
+         gSetupActive = true; gSetupDir = 1; gSetupSLHint = TDISM_${tf}_ActiveBullSL();
+         PrintFormat("[SETUP/${tf}] TDI BULL ACTIVE | SLhint=%.5f", gSetupSLHint);
+      }
+      else if(TDISM_${tf}_HasActiveBear() && (gBias == 0 || gBias == -1))
+      {
+         gSetupActive = true; gSetupDir = -1; gSetupSLHint = TDISM_${tf}_ActiveBearSL();
+         PrintFormat("[SETUP/${tf}] TDI BEAR ACTIVE | SLhint=%.5f", gSetupSLHint);
+      }
+   }`);
+        break;
+      }
+
       case "swing_structure": {
         const ssLookback = p(brainParams, "lookback", 50);
         parts.push(`

@@ -492,6 +492,25 @@ void Execution_Brain_Execute() { gExecSignal = false; gExecDir = 0; gExecSL = 0;
         break;
       }
 
+      case "tdi": {
+        parts.push(`
+   // Traders Dynamic Index Execution: confirmation cross from TDISM_${tf}
+   if(!gExecSignal)
+   {
+      if(TDISM_${tf}_BullJustConfirmed() && (gBias==0||gBias==1) && (gSetupDir==0||gSetupDir==1))
+      {
+         gExecSignal = true; gExecDir = 1; gExecSL = TDISM_${tf}_BullConfirmSL();
+         PrintFormat("[EXEC/${tf}] TDI BULL CONFIRMED | SL=%.5f", gExecSL);
+      }
+      else if(TDISM_${tf}_BearJustConfirmed() && (gBias==0||gBias==-1) && (gSetupDir==0||gSetupDir==-1))
+      {
+         gExecSignal = true; gExecDir = -1; gExecSL = TDISM_${tf}_BearConfirmSL();
+         PrintFormat("[EXEC/${tf}] TDI BEAR CONFIRMED | SL=%.5f", gExecSL);
+      }
+   }`);
+        break;
+      }
+
       default:
         parts.push(`
    // Module '${mod}' on ${tf}: not yet implemented for Execution Brain`);

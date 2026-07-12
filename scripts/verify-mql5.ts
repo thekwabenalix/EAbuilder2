@@ -31,6 +31,7 @@ import { generatePinBarDetector } from "../src/lib/smc-modules/pin-bar-detector"
 import { generatePinBarStateModule } from "../src/lib/smc-modules/pin-bar-state-module";
 import { generateBollingerDetector } from "../src/lib/indicator-modules/bollinger-detector";
 import { generateBollingerStateModule } from "../src/lib/indicator-modules/bollinger-state-module";
+import { generateTdiStateModule } from "../src/lib/indicator-modules/tdi-state-module";
 import { generateSwingStructureDetector } from "../src/lib/smc-modules/swing-structure-detector";
 import { generateSwingStructureStateModule } from "../src/lib/smc-modules/swing-structure-state-module";
 import { generateRsiHiddenDivergenceDetector } from "../src/lib/indicator-modules/rsi-hidden-divergence-detector";
@@ -131,6 +132,7 @@ const items: Item[] = [
   { file: "Pin_Bar_State_Module.mq5", code: generatePinBarStateModule() },
   { file: "Bollinger_Detector.mq5", code: generateBollingerDetector() },
   { file: "Bollinger_State_Module.mq5", code: generateBollingerStateModule() },
+  { file: "TDI_State_Module.mq5", code: generateTdiStateModule() },
   {
     file: "Swing_Structure_Detector.mq5",
     code: generateSwingStructureDetector(),
@@ -1048,6 +1050,74 @@ const phase3CoverageCases: Array<{
       "void BOLLSM_M15_Tick",
       "BOLLSM_M15_BullJustConfirmed()",
       "void FVGSM_H1_Tick",
+    ],
+  },
+  {
+    title: "TDI trend direction → TDI confirmation execution",
+    file: "Phase3_TDI_Confirm_Test.mq5",
+    config: {
+      direction: {
+        modules: ["tdi"],
+        timeframe: "H1",
+        params: { rsiPeriod: 13, tradeSignalPeriod: 7, marketBasePeriod: 34 },
+      },
+      setup: {
+        modules: ["tdi"],
+        timeframe: "H1",
+        params: { rsiPeriod: 13, tradeSignalPeriod: 7, marketBasePeriod: 34 },
+      },
+      execution: {
+        modules: ["tdi"],
+        timeframe: "M15",
+        params: { rsiPeriod: 13, tradeSignalPeriod: 7, marketBasePeriod: 34 },
+      },
+      management: { riskPercent: 1, rewardRisk: 2, stopBuffer: 20, maxOpenTrades: 1 },
+    },
+    aiWiring: {
+      direction_brain: `void Direction_Brain_Execute() {
+  if(TDISM_H1_IsBull()) gBias = 1;
+  else if(TDISM_H1_IsBear()) gBias = -1;
+}`,
+      setup_brain: `void Setup_Brain_Execute() {
+  if(TDISM_H1_HasActiveBull() && (gBias == 0 || gBias == 1)) {
+    gSetupActive = true; gSetupDir = 1; gSetupSLHint = TDISM_H1_ActiveBullSL();
+  } else if(TDISM_H1_HasActiveBear() && (gBias == 0 || gBias == -1)) {
+    gSetupActive = true; gSetupDir = -1; gSetupSLHint = TDISM_H1_ActiveBearSL();
+  }
+}`,
+      execution_brain: `void Execution_Brain_Execute() {
+  if(!gSetupActive) return;
+  if(gSetupDir == 1 && TDISM_M15_BullJustConfirmed()) {
+    gExecSignal = true; gExecDir = 1; gExecSL = TDISM_M15_BullConfirmSL();
+  } else if(gSetupDir == -1 && TDISM_M15_BearJustConfirmed()) {
+    gExecSignal = true; gExecDir = -1; gExecSL = TDISM_M15_BearConfirmSL();
+  }
+}`,
+      required_sms: ["TDISM_H1", "TDISM_M15"],
+      sm_configs: {
+        tdi_H1: sm("tdi", "H1", {
+          rsiPeriod: 13,
+          tradeSignalPeriod: 7,
+          marketBasePeriod: 34,
+          volatilityBandPeriod: 34,
+          volatilityBandDeviation: 1.6185,
+        }),
+        tdi_M15: sm("tdi", "M15", {
+          rsiPeriod: 13,
+          tradeSignalPeriod: 7,
+          marketBasePeriod: 34,
+          volatilityBandPeriod: 34,
+          volatilityBandDeviation: 1.6185,
+        }),
+      },
+    },
+    requiredSnippets: [
+      "void TDISM_H1_Tick",
+      "TDISM_H1_IsBull()",
+      "void TDISM_M15_Tick",
+      "TDISM_M15_BullJustConfirmed()",
+      "TDISM_M15_BullConfirmSL()",
+      "iRSI(",
     ],
   },
   {

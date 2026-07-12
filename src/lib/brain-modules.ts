@@ -156,6 +156,14 @@ export const ALL_BRAIN_MODULES: BrainModuleDef[] = [
     color: "text-rose-300",
     category: "Momentum",
   },
+  {
+    id: "tdi",
+    label: "Traders Dynamic Index",
+    desc: "RSI Price/Signal/MBL + volatility bands on RSI (TDISM)",
+    symbol: "TDI",
+    color: "text-emerald-300",
+    category: "Momentum",
+  },
   // Candle patterns
   {
     id: "engulfing",

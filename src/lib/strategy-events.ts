@@ -64,6 +64,11 @@ export type StrategyEventType =
   | "RSI_HD_CONFIRMED"
   | "BB_TOUCH"
   | "BB_BREAKOUT"
+  | "TDI_CROSS"
+  | "TDI_TREND"
+  | "TDI_CONFIRMED"
+  | "TDI_BAND_TOUCH"
+  | "TDI_BAND_STATE"
   | "ENGULFING_ZONE_ACTIVE"
   | "ENGULFING_CONFIRMED"
   | "ENGULFING_FLIP"
@@ -711,6 +716,62 @@ export const STRATEGY_EVENT_CONTRACTS: Record<StrategyEventType, StrategyEventCo
     carriesZone: false,
     carriesSlHint: true,
   },
+  TDI_CROSS: {
+    id: "TDI_CROSS",
+    label: "TDI Price/Signal Cross",
+    category: "confirmation",
+    roles: ["setup", "execution"],
+    description: "RSI Price Line crosses the Trade Signal Line on a closed candle.",
+    carriesDirection: true,
+    carriesPrice: true,
+    carriesZone: false,
+    carriesSlHint: true,
+  },
+  TDI_TREND: {
+    id: "TDI_TREND",
+    label: "TDI Trend vs Market Base",
+    category: "bias",
+    roles: ["direction", "setup"],
+    description: "RSI Price Line is above or below the Market Base Line.",
+    carriesDirection: true,
+    carriesPrice: true,
+    carriesZone: false,
+    carriesSlHint: false,
+  },
+  TDI_CONFIRMED: {
+    id: "TDI_CONFIRMED",
+    label: "TDI Confirmation Cross",
+    category: "entry",
+    roles: ["setup", "execution"],
+    description:
+      "Price/Signal cross while both lines are on the same side of the Market Base Line.",
+    carriesDirection: true,
+    carriesPrice: true,
+    carriesZone: false,
+    carriesSlHint: true,
+  },
+  TDI_BAND_TOUCH: {
+    id: "TDI_BAND_TOUCH",
+    label: "TDI Volatility Band Touch",
+    category: "zone_retest",
+    roles: ["setup", "execution"],
+    description: "RSI Price Line touches the upper or lower TDI volatility band.",
+    carriesDirection: true,
+    carriesPrice: true,
+    carriesZone: false,
+    carriesSlHint: true,
+  },
+  TDI_BAND_STATE: {
+    id: "TDI_BAND_STATE",
+    label: "TDI Band Expand/Contract",
+    category: "filter",
+    roles: ["setup"],
+    description: "TDI volatility band width is expanding or contracting vs the prior closed bar.",
+    carriesDirection: false,
+    carriesPrice: true,
+    carriesZone: false,
+    carriesSlHint: false,
+  },
   ENGULFING_ZONE_ACTIVE: {
     id: "ENGULFING_ZONE_ACTIVE",
     label: "Engulfing Zone Active",
@@ -865,6 +926,13 @@ export const MODULE_SEMANTIC_EVENT_TYPES: Record<string, Record<string, Strategy
   bb: {
     band_touch: "BB_TOUCH",
     band_breakout: "BB_BREAKOUT",
+  },
+  tdi: {
+    tdi_cross: "TDI_CROSS",
+    tdi_trend: "TDI_TREND",
+    tdi_confirmed: "TDI_CONFIRMED",
+    tdi_band_touch: "TDI_BAND_TOUCH",
+    tdi_band_state: "TDI_BAND_STATE",
   },
   engulfing: {
     eg_zone_active: "ENGULFING_ZONE_ACTIVE",

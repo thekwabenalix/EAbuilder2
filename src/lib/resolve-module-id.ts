@@ -36,6 +36,15 @@ const MODULE_ID_ALIASES: Record<string, string> = {
   "rejection candle": "pin_bar",
   bollinger: "bb",
   "bollinger bands": "bb",
+  tdi: "tdi",
+  "traders dynamic index": "tdi",
+  "trader dynamic index": "tdi",
+  "green crosses red": "tdi",
+  "green crosses above red": "tdi",
+  "green crosses below red": "tdi",
+  "tdi cross": "tdi",
+  "tdi confirmation": "tdi",
+  "market base line": "tdi",
 };
 
 export function resolveModuleId(moduleId: string): string {

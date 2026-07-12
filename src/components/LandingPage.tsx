@@ -27,12 +27,6 @@ const LandingHeroCanvas = lazy(() =>
   })),
 );
 
-const Particles = lazy(() =>
-  import("@/components/ui/particles").then((module) => ({
-    default: module.Particles,
-  })),
-);
-
 function AuthModal({
   onClose,
   initialMode,
@@ -165,114 +159,13 @@ function BrandMark() {
   return (
     <div className="flex items-center gap-3">
       <div className="relative h-8 w-8">
-        <span className="absolute left-1 top-1 h-3 w-6 rotate-[-45deg] rounded-[3px] bg-[#c3c7ce]" />
-        <span className="absolute bottom-1 left-1 h-3 w-6 rotate-[-45deg] rounded-[3px] bg-[#f0b28b]" />
-        <span className="absolute left-3 top-3 h-3 w-6 rotate-[-45deg] rounded-[3px] bg-[#df8755]" />
-        <span className="absolute left-3 top-0 h-3 w-3 rotate-45 rounded-[3px] bg-[#eee8e3]" />
+        <span className="absolute left-1 top-1 h-3 w-6 rotate-[-45deg] rounded-[3px] bg-[#2a8f86]" />
+        <span className="absolute bottom-1 left-1 h-3 w-6 rotate-[-45deg] rounded-[3px] bg-[#64d8b4]" />
+        <span className="absolute left-3 top-3 h-3 w-6 rotate-[-45deg] rounded-[3px] bg-[#51d9ad]" />
+        <span className="absolute left-3 top-0 h-3 w-3 rotate-45 rounded-[3px] bg-[#c8f46b]" />
       </div>
       <span className="text-2xl font-semibold tracking-tight text-[var(--lp-text)]">EABuilder</span>
     </div>
-  );
-}
-
-function MarketWaves({ pointer }: { pointer: PointerState }) {
-  return (
-    <div
-      className="pointer-events-none absolute inset-0 overflow-hidden opacity-[var(--lp-wave-opacity)]"
-      style={{ transform: `translate3d(${pointer.x * 8}px, ${pointer.y * 5}px, 0)` }}
-      aria-hidden
-    >
-      <svg className="lp-wave-svg" viewBox="0 0 1200 760" preserveAspectRatio="none">
-        {Array.from({ length: 18 }).map((_, i) => (
-          <path
-            key={i}
-            className="lp-wave-path"
-            style={{ animationDelay: `${i * -0.65}s` }}
-            d={`M -80 ${430 + i * 14} C 170 ${310 + i * 9}, 290 ${570 - i * 12}, 520 ${440 + i * 10} S 850 ${320 + i * 9}, 1280 ${410 + i * 13}`}
-          />
-        ))}
-      </svg>
-    </div>
-  );
-}
-
-function ChartBackdrop() {
-  const candles = [
-    [12, 44, 28, 68],
-    [48, 58, 38, 82],
-    [84, 75, 52, 97],
-    [120, 88, 72, 118],
-    [156, 70, 48, 91],
-    [192, 54, 31, 76],
-    [228, 42, 22, 61],
-    [264, 63, 44, 88],
-    [300, 81, 65, 105],
-    [336, 95, 72, 126],
-    [372, 75, 54, 98],
-    [408, 60, 38, 82],
-    [444, 46, 24, 67],
-    [480, 64, 45, 91],
-    [516, 84, 62, 108],
-    [552, 98, 76, 122],
-  ];
-
-  return (
-    <svg
-      className="pointer-events-none absolute inset-0 h-full w-full opacity-[var(--lp-chart-opacity)]"
-      viewBox="0 0 620 250"
-      preserveAspectRatio="none"
-      aria-hidden
-    >
-      <g className="stroke-[var(--lp-grid)]">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <line key={`v-${i}`} x1={i * 88} y1="0" x2={i * 88} y2="250" strokeDasharray="4 6" />
-        ))}
-        {Array.from({ length: 5 }).map((_, i) => (
-          <line
-            key={`h-${i}`}
-            x1="0"
-            y1={35 + i * 42}
-            x2="620"
-            y2={35 + i * 42}
-            strokeDasharray="4 6"
-          />
-        ))}
-      </g>
-      <path
-        d="M0 162 C120 96 176 146 260 112 S420 86 620 124"
-        fill="none"
-        stroke="var(--lp-accent)"
-        strokeOpacity="0.34"
-        strokeWidth="1"
-      />
-      <g>
-        {candles.map(([x, open, close, wick], i) => {
-          const up = close < open;
-          const top = Math.min(open, close);
-          const height = Math.max(8, Math.abs(open - close));
-          return (
-            <g key={i} transform={`translate(${x} 55)`} opacity="0.55">
-              <line
-                x1="6"
-                x2="6"
-                y1={Math.min(top, wick - 18)}
-                y2={Math.max(open, close) + 24}
-                stroke="var(--lp-candle)"
-                strokeWidth="1"
-              />
-              <rect
-                x="0"
-                y={top}
-                width="12"
-                height={height}
-                rx="1.5"
-                fill={up ? "var(--lp-candle-up)" : "var(--lp-candle)"}
-              />
-            </g>
-          );
-        })}
-      </g>
-    </svg>
   );
 }
 
@@ -319,18 +212,6 @@ export function LandingPage() {
         onPointerMove={handlePointerMove}
       >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_48%,var(--lp-radial),transparent_38%),linear-gradient(135deg,var(--lp-bg),var(--lp-bg-soft))]" />
-        <ChartBackdrop />
-        <Suspense fallback={null}>
-          <Particles
-            color="#df8755"
-            particleCount={1400}
-            particleSize={6}
-            animate={!reduced}
-            className="z-[1] opacity-[var(--lp-particles-opacity)]"
-          />
-        </Suspense>
-        {!reduced && <MarketWaves pointer={pointer} />}
-
         <header className="relative z-20 mx-auto flex h-20 w-full max-w-[1920px] items-center justify-between px-5 sm:px-8 lg:px-12 xl:px-16 2xl:px-20">
           <BrandMark />
 
@@ -378,50 +259,51 @@ export function LandingPage() {
           initial={{ opacity: 0, scale: 0.985 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, delay: 0.12, ease: [0.23, 1, 0.32, 1] }}
-          className="pointer-events-none absolute inset-y-0 right-0 z-0 w-full lg:left-[38%] lg:w-auto"
+          className="pointer-events-none absolute inset-0 z-0"
           aria-hidden
         >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_60%_42%,var(--lp-cube-glow),transparent_46%)]" />
-          <Suspense fallback={<div className="h-full w-full" />}>
-            <LandingHeroCanvas pointer={pointer} reduced={reduced} />
-          </Suspense>
+          <div className="h-full w-full opacity-25 sm:opacity-40 lg:opacity-100">
+            <Suspense fallback={<div className="h-full w-full" />}>
+              <LandingHeroCanvas pointer={pointer} reduced={reduced} />
+            </Suspense>
+          </div>
         </motion.div>
 
         <main className="relative z-10 mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-[1920px] items-center px-5 pb-8 pt-2 sm:px-8 lg:px-12 lg:pb-6 xl:px-16 2xl:px-20">
-          <div className="max-w-[820px] lg:w-[44vw] lg:min-w-[680px]">
+          <div className="max-w-[680px] lg:w-[42vw]">
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
-              className="mb-7 inline-flex items-center gap-3 rounded-full border border-[var(--lp-accent-border)] bg-[var(--lp-pill)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--lp-text)] shadow-[0_18px_60px_var(--lp-soft-shadow)]"
+              className="mb-8 inline-flex items-center gap-3 rounded-full border border-[var(--lp-accent-border)] bg-[var(--lp-pill)] px-4 py-2 text-[11px] font-semibold uppercase tracking-widest text-[var(--lp-text)] shadow-[0_18px_60px_var(--lp-soft-shadow)]"
             >
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--lp-accent)] text-white">
                 <Sparkles className="h-3.5 w-3.5" />
               </span>
-              AI powered / verified / no coding
+              MT5 Expert Advisor Builder
             </motion.div>
 
             <motion.h1
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.62, delay: 0.08, ease: [0.23, 1, 0.32, 1] }}
-              className="max-w-[820px] text-[clamp(3.4rem,5.15vw,5.85rem)] font-semibold leading-[0.96] tracking-[-0.052em] text-[var(--lp-text)]"
+              className="max-w-[680px] text-[clamp(3.25rem,4.25vw,5.05rem)] font-semibold leading-[1.03] tracking-normal text-[var(--lp-text)]"
             >
-              Build smarter
+              Build trading EAs
               <br />
-              <span className="text-[var(--lp-accent)]">trading EAs</span>
+              <span className="landing-accent-text">without writing</span>
               <br />
-              without writing MQL5.
+              MQL5<span className="text-[var(--lp-accent)]">.</span>
             </motion.h1>
 
             <motion.p
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.62, delay: 0.16, ease: [0.23, 1, 0.32, 1] }}
-              className="mt-6 max-w-[560px] text-lg leading-8 text-[var(--lp-muted)] xl:text-xl"
+              className="mt-7 max-w-[590px] text-lg leading-8 text-[var(--lp-muted)] xl:text-xl"
             >
-              Describe your strategy in plain English. We map it to verified modules and generate a
-              self-contained Expert Advisor.
+              Describe any strategy in plain English. EABuilder maps it to verified modules and
+              generates a reliable, backtest-ready Expert Advisor.
             </motion.p>
 
             <motion.div
@@ -450,7 +332,7 @@ export function LandingPage() {
                 <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--lp-accent-border)] text-[var(--lp-accent)]">
                   <Play className="h-4 w-4 fill-current" />
                 </span>
-                Watch Demo
+                See how it works
               </motion.button>
             </motion.div>
 

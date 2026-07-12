@@ -195,6 +195,15 @@ function genModuleSignal(
    }`;
     }
 
+    case "tdi": {
+      return `
+   // Traders Dynamic Index: Price Line vs Market Base (TDISM_${tf})
+   {
+      if(TDISM_${tf}_IsBull()) ${varName} = 1;
+      else if(TDISM_${tf}_IsBear()) ${varName} = -1;
+   }`;
+    }
+
     case "swing_structure": {
       return `
    // Swing Structure: close beyond 50-bar extreme

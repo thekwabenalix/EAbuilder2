@@ -57,7 +57,7 @@ function ResourcesRoute() {
       />
 
       <div className="space-y-6 p-6">
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {DOWNLOADABLE_MODULE_CATEGORIES.map((item) => (
             <button
               key={item.id}

@@ -127,6 +127,15 @@ const VERIFIED_INDICATOR_PICKER_OPTIONS: IndicatorPickerOption[] = [
     description: "Verified RSI hidden divergence state machine.",
   },
   {
+    id: "tdi_module",
+    name: "Traders Dynamic Index",
+    category: "oscillator",
+    wiring: "brain_module",
+    wiringLabel: "Brain module",
+    brainModule: "tdi",
+    description: "Verified TDI composite (RSI Price/Signal/MBL + bands on RSI).",
+  },
+  {
     id: "atr_filter",
     name: "ATR volatility",
     category: "volume",

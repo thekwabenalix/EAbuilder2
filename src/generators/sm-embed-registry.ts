@@ -34,6 +34,7 @@ import { genBollSm } from "./gen-boll-sm";
 import { genObSM } from "./gen-ob-sm";
 import { genRejectionSM } from "./gen-rejection-sm";
 import { genRsiHdSM } from "./gen-rsi-hd-sm";
+import { genTdiSm } from "./gen-tdi-sm";
 import { genSnrSM } from "./gen-snr-sm";
 import { getModuleContract } from "@/lib/module-contracts";
 
@@ -82,6 +83,7 @@ export const SM_MODULE_META: Record<string, { prefix: string; type: string; bosM
     rbr_dbd: { prefix: "RBRDBDSM", type: "rbr_dbd" },
     swing_structure: { prefix: "SWINGSM", type: "swing_structure" },
     rsi_hd: { prefix: "RSIHDSM", type: "rsi_hd" },
+    tdi: { prefix: "TDISM", type: "tdi" },
     engulfing: { prefix: "EGSM", type: "engulfing" },
     pin_bar: { prefix: "PINSM", type: "pin_bar" },
     bb: { prefix: "BOLLSM", type: "bb" },
@@ -110,6 +112,7 @@ export const SM_PREFIX_TYPE: Record<string, string> = {
   RBRDBDSM: "rbr_dbd",
   SWINGSM: "swing_structure",
   RSIHDSM: "rsi_hd",
+  TDISM: "tdi",
   OBFVGSM: "ob_fvg",
   UNISMSM: "unicorn",
   EMASM: "ema",
@@ -137,6 +140,7 @@ const FLOW_PROFILES: Record<string, SmFlowProfile> = {
   engulfing: { prefix: "EGSM", family: "zone", hasActive: true },
   pin_bar: { prefix: "PINSM", family: "zone", hasActive: true },
   bb: { prefix: "BOLLSM", family: "bias_filter", hasActive: true },
+  tdi: { prefix: "TDISM", family: "bias_filter", hasActive: true },
   snr: { prefix: "SNRSM", family: "zone", hasActive: true },
   gap_snr: { prefix: "GSNRSM", family: "zone", hasActive: true },
   breakout: { prefix: "BRKSM", family: "zone", hasActive: true },
@@ -192,6 +196,8 @@ export function smPrefixForType(type: string): string {
       return "SWINGSM";
     case "rsi_hd":
       return "RSIHDSM";
+    case "tdi":
+      return "TDISM";
     case "ob_fvg":
       return "OBFVGSM";
     case "unicorn":
@@ -461,6 +467,8 @@ export function emitStateMachine(
           | "breakout"
           | "midline",
       );
+    case "tdi":
+      return genTdiSm(id, TF, tf, params);
     default:
       return `// Unknown SM type: ${type} (id=${id})`;
   }
@@ -528,6 +536,7 @@ export function tickArgForSm(
     case "pin_bar":
       return "1";
     case "bb":
+    case "tdi":
       return "1";
     default:
       return String(pInt(params, "lookback", 20));
@@ -569,4 +578,4 @@ export function isFlowVerifiedModule(moduleId: string): boolean {
 
 /** Regex alternation of known SM prefixes (IFVGSM before FVGSM). */
 export const SM_PREFIX_REGEX =
-  "RSIHDSM|OBFVGSM|UNISMSM|EMASM|IFVGSM|FVGSM|EGSM|PINSM|BOLLSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM|ZLSM|SNRC2SM|BBSM|RSSSRRSM|MEFSM|QMMEFSM|RBRDBDSM|SWINGSM";
+  "RSIHDSM|TDISM|OBFVGSM|UNISMSM|EMASM|IFVGSM|FVGSM|EGSM|PINSM|BOLLSM|OBSM|BOSSM|LSSM|GSNRSM|SNRSM|BRKSM|REJSM|MISSSM|ZLSM|SNRC2SM|BBSM|RSSSRRSM|MEFSM|QMMEFSM|RBRDBDSM|SWINGSM";

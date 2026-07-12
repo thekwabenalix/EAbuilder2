@@ -27,8 +27,11 @@ import { generateMefDetector } from "@/lib/smc-modules/mef-detector";
 import { generateQmMefDetector } from "@/lib/smc-modules/qm-mef-detector";
 import { generateSnrc2Detector } from "@/lib/smc-modules/snrc2-detector";
 import { generateSnrc2StateModule } from "@/lib/smc-modules/snrc2-state-module";
+import { generateTdiStateModule } from "@/lib/indicator-modules/tdi-state-module";
+import { generateBollingerStateModule } from "@/lib/indicator-modules/bollinger-state-module";
+import { generateRsiHiddenDivergenceStateModule } from "@/lib/indicator-modules/rsi-hidden-divergence-state-module";
 
-export type ResourceModuleCategoryId = "smc" | "snr" | "supply-demand";
+export type ResourceModuleCategoryId = "smc" | "snr" | "supply-demand" | "indicators";
 
 export interface DownloadableModuleResource {
   id: string;
@@ -281,6 +284,41 @@ export const DOWNLOADABLE_MODULE_CATEGORIES: DownloadableModuleCategory[] = [
         description:
           "State-module version of SNRC2 for deeper MT5 inspection and strategy testing.",
         generate: generateSnrc2StateModule,
+      },
+    ],
+  },
+  {
+    id: "indicators",
+    label: "Indicators",
+    fullName: "Composite Indicators",
+    actionLabel: "Download indicator modules",
+    description:
+      "Verified composite indicators such as Traders Dynamic Index, Bollinger, and RSI hidden divergence.",
+    modules: [
+      {
+        id: "tdi-state",
+        filename: "TDI_State_Module.mq5",
+        name: "Traders Dynamic Index",
+        description:
+          "TDI composite: RSI Price Line, Trade Signal, Market Base Line, and volatility bands on RSI. " +
+          "Exposes closed-bar crosses, trend, confirmation, and band expand/contract states.",
+        generate: generateTdiStateModule,
+      },
+      {
+        id: "bollinger-state",
+        filename: "Bollinger_State_Module.mq5",
+        name: "Bollinger Bands State Module",
+        description:
+          "Verified Bollinger Bands state module for touch, breakout, and midline bias inspection.",
+        generate: generateBollingerStateModule,
+      },
+      {
+        id: "rsi-hd-state",
+        filename: "RSI_Hidden_Divergence_State_Module.mq5",
+        name: "RSI Hidden Divergence State Module",
+        description:
+          "Trend-continuation RSI hidden divergence state module with confirmation buffers.",
+        generate: generateRsiHiddenDivergenceStateModule,
       },
     ],
   },

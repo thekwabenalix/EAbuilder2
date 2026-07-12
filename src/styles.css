@@ -418,46 +418,73 @@
     --lp-bg-soft: #eee8e3;
     --lp-text: #202329;
     --lp-muted: #666b74;
-    --lp-accent: #df8755;
-    --lp-accent-strong: #c96f3f;
-    --lp-accent-border: rgb(223 135 85 / 0.34);
+    --lp-accent: #279f86;
+    --lp-accent-strong: #1f876f;
+    --lp-accent-border: rgb(39 159 134 / 0.34);
     --lp-outline: rgb(32 35 41 / 0.14);
     --lp-outline-bg: rgb(255 255 255 / 0.58);
     --lp-pill: rgb(255 255 255 / 0.58);
     --lp-soft-shadow: rgb(45 34 28 / 0.09);
-    --lp-button-shadow: rgb(223 135 85 / 0.34);
-    --lp-radial: rgb(223 135 85 / 0.18);
-    --lp-cube-glow: rgb(223 135 85 / 0.2);
+    --lp-button-shadow: rgb(39 159 134 / 0.28);
+    --lp-radial: rgb(43 212 196 / 0.14);
+    --lp-cube-glow: rgb(43 212 196 / 0.16);
     --lp-wave-opacity: 0.32;
     --lp-chart-opacity: 0.2;
     --lp-grid: rgb(32 35 41 / 0.12);
     --lp-candle: rgb(32 35 41 / 0.28);
-    --lp-candle-up: rgb(223 135 85 / 0.34);
+    --lp-candle-up: rgb(39 159 134 / 0.34);
     --lp-feature-icon: #69707a;
   }
 
   .dark .landing-premium {
-    --lp-bg: #0f1115;
-    --lp-bg-soft: #12161b;
+    --lp-bg: #071018;
+    --lp-bg-soft: #08151d;
     --lp-text: #f4f2ef;
     --lp-muted: #bfc3c9;
-    --lp-accent: #df8755;
-    --lp-accent-strong: #ef995f;
-    --lp-accent-border: rgb(223 135 85 / 0.42);
+    --lp-accent: #51d9ad;
+    --lp-accent-strong: #72e8ba;
+    --lp-accent-border: rgb(81 217 173 / 0.42);
     --lp-outline: rgb(238 232 227 / 0.16);
     --lp-outline-bg: rgb(15 17 21 / 0.42);
     --lp-pill: rgb(15 17 21 / 0.56);
     --lp-soft-shadow: rgb(0 0 0 / 0.35);
-    --lp-button-shadow: rgb(223 135 85 / 0.28);
-    --lp-radial: rgb(223 135 85 / 0.15);
-    --lp-cube-glow: rgb(223 135 85 / 0.2);
+    --lp-button-shadow: rgb(81 217 173 / 0.22);
+    --lp-radial: rgb(43 212 196 / 0.12);
+    --lp-cube-glow: rgb(43 212 196 / 0.14);
     --lp-wave-opacity: 0.34;
     --lp-particles-opacity: 0.22;
     --lp-chart-opacity: 0.18;
     --lp-grid: rgb(238 232 227 / 0.08);
     --lp-candle: rgb(238 232 227 / 0.2);
-    --lp-candle-up: rgb(223 135 85 / 0.3);
+    --lp-candle-up: rgb(81 217 173 / 0.3);
     --lp-feature-icon: #c3c7ce;
+  }
+
+  .landing-signal-art {
+    opacity: 0.94;
+    transition: transform 800ms cubic-bezier(0.23, 1, 0.32, 1), opacity 300ms ease;
+    will-change: transform;
+    mask-image: linear-gradient(90deg, transparent 0%, transparent 28%, black 49%, black 100%);
+  }
+
+  .landing-signal-art-light {
+    opacity: 0.34;
+    filter: saturate(0.82) brightness(1.42) contrast(0.72);
+    mix-blend-mode: multiply;
+  }
+
+  .landing-accent-text {
+    color: #51d9ad;
+    background-image: linear-gradient(90deg, #45d3b1 0%, #8ee8a0 60%, #c8f46b 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .landing-signal-art {
+      transition: none;
+    }
   }
 
   .lp-wave-svg {

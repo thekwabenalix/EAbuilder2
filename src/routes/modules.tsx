@@ -42,6 +42,7 @@ import { generateObFvgDetector } from "@/lib/smc-modules/ob-fvg-detector";
 import { generateUnicornDetector } from "@/lib/smc-modules/unicorn-detector";
 import { generateRsiHiddenDivergenceDetector } from "@/lib/indicator-modules/rsi-hidden-divergence-detector";
 import { generateRsiHiddenDivergenceStateModule } from "@/lib/indicator-modules/rsi-hidden-divergence-state-module";
+import { generateTdiStateModule } from "@/lib/indicator-modules/tdi-state-module";
 import { generateLiqSweepDetector } from "@/lib/smc-modules/liqsweep-detector";
 import { generateSwingStructureDetector } from "@/lib/smc-modules/swing-structure-detector";
 import { generateBosDetector } from "@/lib/smc-modules/bos-detector";
@@ -1079,6 +1080,38 @@ const TRADING_MODULES: ModuleCategory[] = [
         ],
         status: "ready",
         generate: generateRsiHiddenDivergenceStateModule,
+      },
+      {
+        id: "tdi-state",
+        filename: "TDI_State_Module.mq5",
+        name: "Traders Dynamic Index State Module",
+        description:
+          "Verified composite TDI (RSI Price Line, Trade Signal, Market Base, volatility bands on RSI). " +
+          "Exposes lines plus closed-bar cross, trend, confirmation, and band expand/contract buffers. " +
+          "No trades — brains reference TDISM query functions / buffer contract.",
+        rules: [
+          "RSI → Price Line = MA(RSI), Signal = MA(Price Line), MBL = MA(RSI)",
+          "Volatility bands = MA(RSI) ± Dev×StdDev(RSI) — never on market price",
+          "Bull cross: Price was ≤ Signal, then Price > Signal (closed bars only)",
+          "Bull confirmation: bull cross while Price > MBL and Signal > MBL",
+          "Trend: Price vs Market Base; Strong = Price & Signal same side of MBL",
+          "Band expand/contract compares width to prior closed bar",
+        ],
+        output: [
+          "Buffer 0: RSI Price Line",
+          "Buffer 1: Trade Signal Line",
+          "Buffer 2: Market Base Line",
+          "Buffer 3: Upper Volatility Band",
+          "Buffer 4: Lower Volatility Band",
+          "Buffer 5–6: Bull/Bear Cross Event",
+          "Buffer 7–8: Bull/Bear Trend State",
+          "Buffer 9–10: Upper/Lower Band Touch",
+          "Buffer 11–13: Band Width / Expand / Contract",
+          "Buffer 14–15: Bull/Bear Confirmation Event",
+          "Optional levels 32/50/68 · debug cross markers",
+        ],
+        status: "ready",
+        generate: generateTdiStateModule,
       },
       {
         id: "choch-state",

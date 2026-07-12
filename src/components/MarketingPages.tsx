@@ -400,7 +400,7 @@ export function MarketingResourcesPage() {
               Log in to download indicators. Visitors can preview what is available before creating
               an account.
             </p>
-            <div className="mt-12 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="mt-12 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {DOWNLOADABLE_MODULE_CATEGORIES.map((category) => (
                 <article
                   key={category.id}

@@ -81,6 +81,7 @@ export const MODULE_STRATEGY_FAMILIES: Record<BrainModuleType, StrategyFamily[]>
   ema: ["indicators"],
   bb: ["indicators"],
   rsi_hd: ["indicators"],
+  tdi: ["indicators"],
   engulfing: ["smc_ict", "snr_snd"],
   pin_bar: ["smc_ict", "snr_snd"],
   seg: ["smc_ict"],

@@ -327,6 +327,7 @@ export type BrainModuleType =
   | "miss" // Reactive SNR - price misses a level (liquidity)
   | "bb" // Bollinger Bands
   | "rsi_hd" // RSI hidden divergence
+  | "tdi" // Traders Dynamic Index
   | "ema" // EMA trend - direction bias
   | "engulfing" // candle pattern - execution trigger
   | "pin_bar" // candle pattern - execution trigger

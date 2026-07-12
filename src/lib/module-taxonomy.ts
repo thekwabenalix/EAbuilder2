@@ -83,6 +83,7 @@ export const MODULE_TAXONOMY: Record<BrainModuleType, ModuleTaxonomy> = {
   bb: "bias_filter",
   breakout: "other",
   rsi_hd: "bias_filter",
+  tdi: "bias_filter",
   engulfing: "confirmation",
   seg: "confirmation",
   pin_bar: "confirmation",

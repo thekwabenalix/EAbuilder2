@@ -317,6 +317,15 @@ export const MODULE_ADMISSION: Record<string, ModuleAdmissionRecord> = {
     contractRequired: true,
     notes: "Verified Bollinger Bands inline state machine (BOLLSM). Not SMC Breaker Block (BBSM).",
   },
+  tdi: {
+    id: "tdi",
+    label: "Traders Dynamic Index",
+    status: "verified_state_machine",
+    aiVocabulary: true,
+    contractRequired: true,
+    notes:
+      "Verified TDI composite state machine (TDISM) - RSI Price/Signal/MBL + bands on RSI. Not ordinary RSI crossover.",
+  },
   pin_bar: {
     id: "pin_bar",
     label: "Pin Bar",

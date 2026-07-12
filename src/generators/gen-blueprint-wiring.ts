@@ -123,6 +123,10 @@ function directionModuleSignal(
     return `if(BOLLSM_${t}_IsBull()) ${varName} = 1;
    else if(BOLLSM_${t}_IsBear()) ${varName} = -1;`;
   }
+  if (mod === "tdi") {
+    return `if(TDISM_${t}_IsBull()) ${varName} = 1;
+   else if(TDISM_${t}_IsBear()) ${varName} = -1;`;
+  }
   if (mod === "ema") {
     if (isEmaCtcParams(params)) {
       return `{
@@ -241,6 +245,13 @@ function setupModuleBlock(
       gSetupActive = true; gSetupDir = 1; gSetupSLHint = BOLLSM_${t}_ActiveBullSL();
    } else if((gBias == 0 || gBias == -1) && BOLLSM_${t}_HasActiveBear()) {
       gSetupActive = true; gSetupDir = -1; gSetupSLHint = BOLLSM_${t}_ActiveBearSL();
+   }`;
+  }
+  if (mod === "tdi") {
+    return `if((gBias == 0 || gBias == 1) && TDISM_${t}_HasActiveBull()) {
+      gSetupActive = true; gSetupDir = 1; gSetupSLHint = TDISM_${t}_ActiveBullSL();
+   } else if((gBias == 0 || gBias == -1) && TDISM_${t}_HasActiveBear()) {
+      gSetupActive = true; gSetupDir = -1; gSetupSLHint = TDISM_${t}_ActiveBearSL();
    }`;
   }
   if (mod === "liqsweep") {
@@ -519,6 +530,8 @@ function smPrefixFromType(type: string): string {
       return "PINSM";
     case "bb":
       return "BOLLSM";
+    case "tdi":
+      return "TDISM";
     case "bos":
     case "choch":
     case "bos_choch":
