@@ -1,8 +1,9 @@
 /**
  * Phase 4 — Assistant credit policy.
  *
- * Deterministic platform work stays free (rule audit, repair plan, APPLY regen,
- * compile/download via local runner). Cloud AI diagnosis/chat consumes credits.
+ * Deterministic platform work stays free (rule audit, repair plan, Apply fixes that
+ * repair Configure + rebuild, compile/download via local runner). Cloud AI diagnosis/chat
+ * consumes credits — and must emit the same targeted APPLY as the repair plan.
  *
  * Balance is stored in localStorage until a billed backend is wired. Plans map
  * to monthly allowances that soft-reset on first use after the period ends.
@@ -181,7 +182,7 @@ export function creditPolicySummary(wallet = readAssistantCredits()): string {
   return [
     `Plan: ${wallet.plan} · ${wallet.balance} AI credits left this period`,
     `Used: ${wallet.usedThisPeriod} · Allowance: ${PLAN_MONTHLY_CREDITS[wallet.plan]}/month`,
-    "Free: rule audit, repair plan, Apply now, compile/download",
-    `Paid: cloud chat (${CREDIT_COSTS.cloud_chat}–${CREDIT_COSTS.cloud_chat_with_images} credits), AI surgical fix (${CREDIT_COSTS.ai_surgical_fix})`,
+    "Free: rule audit, repair plan, Apply fixes (Setup/Entry/wiring/risk/schedule), compile/download",
+    `Paid: cloud chat (${CREDIT_COSTS.cloud_chat}–${CREDIT_COSTS.cloud_chat_with_images} credits) that Apply-solves failures, AI surgical fix (${CREDIT_COSTS.ai_surgical_fix})`,
   ].join("\n");
 }

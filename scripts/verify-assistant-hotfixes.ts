@@ -23,6 +23,8 @@ import {
 import {
   applyFixFlowWiring,
   applyFixSilentZoneSetup,
+  applyFixSilentEntry,
+  applyFixRiskGates,
   applyFixLabel,
   extractApplyMarkers,
 } from "../src/lib/assistant-apply";
@@ -374,6 +376,7 @@ console.log("[OK  ] assistant credit policy");
     backtestSummary: { totalTrades: 0 },
   });
   assertOk(plan.apply?.type === "fix_silent_zone_setup", "silent OB setup offers silent-zone apply");
+  assertOk(plan.apply?.type !== "regen_ea", "silent OB setup never primary-applies regen_ea");
   assertOk(!/regen/i.test(plan.title), "silent OB setup does not title as regenerate");
 
   const patched = applyFixSilentZoneSetup(bp);
@@ -400,5 +403,119 @@ console.log("[OK  ] assistant credit policy");
   console.log("[OK  ] silent zone setup repair");
 }
 
-console.log("\n14 assistant checks passed.\n");
+{
+  const sessionPlan = buildAssistantRepairPlan({
+    blueprint: flowBlueprint,
+    code: "// smoke",
+    testerLog:
+      "[EVENT] Direction BOS | dir=1 | 2024.01.01 10:00\n[GATE] BLOCKED: outside session\n[GATE] BLOCKED: outside session",
+    backtestSummary: { totalTrades: 0 },
+  });
+  assertOk(sessionPlan.apply?.type === "set_time_filter", "session gate offers set_time_filter");
+  assertOk(
+    sessionPlan.apply?.type === "set_time_filter" && sessionPlan.apply.enabled === false,
+    "session gate disables schedule",
+  );
+  console.log("[OK  ] session gate repair");
+}
+
+{
+  const riskPlan = buildAssistantRepairPlan({
+    blueprint: {
+      ...DEFAULT_BLUEPRINT,
+      ...flowBlueprint,
+      execution: { ...DEFAULT_BLUEPRINT.execution, spreadFilterPoints: 20 },
+      risk: { ...DEFAULT_BLUEPRINT.risk, maxOpenTrades: 1, stopBufferPoints: 20 },
+    },
+    code: "// smoke",
+    testerLog:
+      "[EVENT] Entry BOS | dir=1 | 2024.01.01 10:00\n[GATE] BLOCKED: spread too high\n[GATE] BLOCKED: spread too high",
+    backtestSummary: { totalTrades: 0 },
+  });
+  assertOk(riskPlan.apply?.type === "fix_risk_gates", "spread gate offers fix_risk_gates");
+  assertOk(riskPlan.apply?.type !== "regen_ea", "risk gate never primary-applies regen_ea");
+
+  const riskPatched = applyFixRiskGates({
+    ...DEFAULT_BLUEPRINT,
+    execution: { ...DEFAULT_BLUEPRINT.execution, spreadFilterPoints: 20 },
+    risk: { ...DEFAULT_BLUEPRINT.risk, maxOpenTrades: 1, stopBufferPoints: 20 },
+  });
+  assertOk(riskPatched.changed, "risk gates patch changes blueprint");
+  assertOk(
+    (riskPatched.blueprint.execution.spreadFilterPoints ?? 0) >= 40,
+    "spread filter loosened",
+  );
+  console.log("[OK  ] risk gate repair");
+}
+
+{
+  const silentEntryBp = {
+    ...flowBlueprint,
+    strategyFlow: {
+      version: 1 as const,
+      mode: "advanced_instances" as const,
+      source: "user" as const,
+      steps: [
+        {
+          id: "d",
+          name: "Direction BOS",
+          role: "direction" as const,
+          module: "bos",
+          timeframe: "H1",
+          event: "BOS_BIAS",
+          enabled: true,
+        },
+        {
+          id: "s",
+          name: "Setup FVG",
+          role: "setup" as const,
+          module: "fvg",
+          timeframe: "M15",
+          event: "FVG_CREATED",
+          enabled: true,
+        },
+        {
+          id: "e",
+          name: "Entry EMA",
+          role: "entry" as const,
+          module: "ema",
+          timeframe: "M5",
+          event: "EMA_CLOSE_CONFIRMED",
+          params: { lookback: 20 },
+          dependsOn: [{ stepId: "s", relation: "after" as const }],
+          enabled: true,
+        },
+      ],
+    },
+  };
+  const silentEntryPlan = buildAssistantRepairPlan({
+    blueprint: silentEntryBp,
+    code: "// smoke",
+    testerLog:
+      "[EVENT] Direction BOS | dir=1 | 2024.01.01 10:00\n[EVENT] Setup FVG | dir=1 | 2024.01.01 10:05",
+    backtestSummary: { totalTrades: 0 },
+  });
+  assertOk(
+    silentEntryPlan.apply?.type === "fix_silent_entry",
+    "silent entry offers fix_silent_entry",
+  );
+  const entryPatched = applyFixSilentEntry(silentEntryBp);
+  assertOk(entryPatched.changed, "silent entry patch changes blueprint");
+  const entryStep = entryPatched.blueprint.strategyFlow?.steps?.find((s) => s.id === "e");
+  assertOk(entryStep?.event === "EMA_CROSS", "entry event relaxed to EMA_CROSS");
+  console.log("[OK  ] silent entry repair");
+}
+
+assertOk(
+  applyFixLabel({ type: "fix_risk_gates" }).toLowerCase().includes("risk"),
+  "fix_risk_gates label",
+);
+assertOk(
+  extractApplyMarkers('[APPLY:{"type":"fix_silent_entry"}]\n').some(
+    (f) => f.type === "fix_silent_entry",
+  ),
+  "extracts fix_silent_entry",
+);
+
+console.log("\n17 assistant checks passed.\n");
 

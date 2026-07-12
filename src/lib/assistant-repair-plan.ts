@@ -1,9 +1,10 @@
 /**
  * Deterministic repair planner for the in-app assistant.
  *
- * This does not edit strategy code. It classifies the current evidence into a
- * safe platform action so the assistant stops guessing when traders report
- * broken entries, no trades, compile failures, or missing module support.
+ * Solver contract: every actionable strategy failure must include a one-click
+ * APPLY that changes Configure (or tester period) and rebuilds — never leave
+ * the trader with diagnosis-only advice. regen_ea is only for missing /
+ * out-of-parity / compile-broken code, not for silent Setup or risk gates.
  */
 
 import type { StrategyBlueprint } from "@/types/blueprint";
@@ -134,6 +135,21 @@ function detectSilentZoneUpstream(
   return { silent, entryCount };
 }
 
+/** Entry silent while Direction/Setup fired. */
+function detectSilentEntry(
+  expected: ExpectedTradeStep[],
+  parsed: TradeAuditReport,
+): { entry: ExpectedTradeStep; upstreamHits: number } | null {
+  const entry = expected.find((s) => s.isEntry);
+  if (!entry) return null;
+  const byStep = stepEventCounts(expected, parsed);
+  if ((byStep.get(entry.name) ?? 0) > 0) return null;
+  const upstream = expected.filter((s) => !s.isEntry);
+  const upstreamHits = upstream.reduce((n, s) => n + (byStep.get(s.name) ?? 0), 0);
+  if (upstreamHits === 0) return null;
+  return { entry, upstreamHits };
+}
+
 export function buildAssistantRepairPlan(input: {
   blueprint: StrategyBlueprint;
   code?: string | null;
@@ -156,6 +172,10 @@ export function buildAssistantRepairPlan(input: {
   const silentZoneComplaint = looksLikeSilentZoneSetup(
     `${userMessage ?? ""}\n${testerLog ?? ""}`,
   );
+  const wrongEntryComplaint =
+    /wrong entr|bad entr|should not (have )?(bought|sold|enter)|mis-?trad|entries? (are|look) wrong/i.test(
+      userMessage ?? "",
+    );
 
   if (moduleRepair.blocked.length) {
     return {
@@ -218,7 +238,8 @@ export function buildAssistantRepairPlan(input: {
       layer: "generation",
       title: "The saved EA could not be checked against the blueprint",
       reasons: [error instanceof Error ? error.message : "Semantic validation failed."],
-      action: "open_code",
+      apply: { type: "regen_ea" },
+      action: "regen_template",
       verify: "Regenerate from the blueprint and compile before running another backtest.",
     };
   }
@@ -260,11 +281,12 @@ export function buildAssistantRepairPlan(input: {
         title: "Backtest log has no EA audit markers",
         reasons: [
           "The log does not show [EVENT], [GATE], or trade audit lines, so internal state cannot be verified.",
+          "Rerun with InpAudit=true on the correct period — regenerating alone does not invent audit lines if the wrong log was attached.",
         ],
-        apply: { type: "regen_ea" },
-        action: "regen_template",
+        apply: { type: "set_backtest_period", period: expectedPeriod },
+        action: "open_backtest",
         verify:
-          "Regenerate, compile, and rerun with InpAudit=true so the assistant can read the gate decisions.",
+          "Set period, compile, and rerun with InpAudit=true so the assistant can read gate decisions.",
       };
     }
 
@@ -339,12 +361,23 @@ export function buildAssistantRepairPlan(input: {
     if (totalTrades > 0) {
       return {
         layer: "working",
-        title: "The EA opened trades",
+        title: wrongEntryComplaint
+          ? "Trades opened, but entries may not match the intended sequence"
+          : "The EA opened trades",
         reasons: [
-          `Trades opened: ${totalTrades}. Next repair should compare entry locations against the strategy rules.`,
+          `Trades opened: ${totalTrades}.`,
+          wrongEntryComplaint
+            ? "Apply confluence wiring so Direction → Setup → Entry is enforced on the next rebuild."
+            : "If entries look wrong on the chart, Apply flow wiring to tighten the event sequence.",
         ],
-        action: "download_tester_log",
-        verify: "Attach a chart screenshot or tester log section for wrong-entry diagnosis.",
+        apply: wrongEntryComplaint
+          ? alignmentComplaint
+            ? { type: "fix_htf_ltf_ema_alignment" }
+            : { type: "fix_flow_wiring" }
+          : { type: "fix_flow_wiring" },
+        action: "open_backtest",
+        verify:
+          "Apply, compile, retest with InpAudit=true, then compare TRADE AUDIT steps to the chart.",
       };
     }
 
@@ -352,9 +385,10 @@ export function buildAssistantRepairPlan(input: {
       const riskLike = /spread|max open|stop loss|lot size|invalid stop|too close/i.test(
         parsed.dominantBlock,
       );
-      const sessionLike = /outside session|session filter|trading time/i.test(
-        parsed.dominantBlock,
-      );
+      const sessionLike =
+        /outside.*session|session filter|trading time|trading session/i.test(
+          parsed.dominantBlock,
+        );
       if (sessionLike) {
         return {
           layer: "risk_filter",
@@ -363,18 +397,44 @@ export function buildAssistantRepairPlan(input: {
           action: "open_brains",
           apply: { type: "set_time_filter", enabled: false },
           verify:
-            "Widen or disable Trading Schedule under Management, Apply, compile, then retest the same period.",
+            "Apply (disable schedule or widen windows), compile, then retest the same period.",
+        };
+      }
+      if (riskLike) {
+        return {
+          layer: "risk_filter",
+          title: `Risk gate blocked trades: ${parsed.dominantBlock}`,
+          reasons: parsed.gateBlocks.slice(0, 4).map((b) => `${b.reason}: ${b.count}x`),
+          apply: { type: "fix_risk_gates" },
+          action: "open_brains",
+          verify:
+            "Apply risk-gate loosen (spread / max open / stop), compile, retest the same period.",
         };
       }
       return {
-        layer: riskLike ? "risk_filter" : "strategy_flow",
+        layer: "strategy_flow",
         title: `Entry gate blocked trades: ${parsed.dominantBlock}`,
         reasons: parsed.gateBlocks.slice(0, 4).map((b) => `${b.reason}: ${b.count}x`),
-        action: riskLike ? "open_brains" : "open_brains",
-        apply: riskLike ? undefined : { type: "fix_flow_wiring" },
-        verify: riskLike
-          ? "Adjust risk/spread/max stop settings, then rerun the same backtest."
-          : "Apply the wiring fix (not a plain regen), compile, and verify the expected event chain fires in order.",
+        apply: { type: "fix_flow_wiring" },
+        action: "open_brains",
+        verify:
+          "Apply the wiring fix (not a plain regen), compile, and verify the expected event chain fires in order.",
+      };
+    }
+
+    const silentEntry = detectSilentEntry(expected, parsed);
+    if (silentEntry) {
+      return {
+        layer: "strategy_flow",
+        title: "Entry step never fired",
+        reasons: [
+          `Expected entry '${silentEntry.entry.name}' (${silentEntry.entry.event}) never appeared.`,
+          `Upstream steps logged ${silentEntry.upstreamHits} event(s) — loosen Entry trigger / wiring.`,
+        ],
+        apply: { type: "fix_silent_entry" },
+        action: "open_brains",
+        verify:
+          "Apply silent-Entry fix, compile, retest with InpAudit=true, confirm Entry events appear.",
       };
     }
 
@@ -386,9 +446,9 @@ export function buildAssistantRepairPlan(input: {
         reasons: [
           `Expected entry step '${entry.name}' with event '${entry.event}', but it did not appear in the tester events.`,
         ],
-        apply: { type: "fix_flow_wiring" },
+        apply: { type: "fix_silent_entry" },
         action: "open_brains",
-        verify: "Apply flow wiring, rebuild, and confirm the entry step appears before any order is expected.",
+        verify: "Apply silent-Entry fix, rebuild, and confirm the entry step appears before any order is expected.",
       };
     }
 
@@ -401,7 +461,7 @@ export function buildAssistantRepairPlan(input: {
       apply: { type: "fix_flow_wiring" },
       action: "open_brains",
       verify:
-        "Apply Strategy Flow wiring (or the silent-Setup fix if Setup is at 0), compile, retest with InpAudit=true.",
+        "Apply Strategy Flow wiring (or silent Setup/Entry if a step is at 0), compile, retest with InpAudit=true.",
     };
   }
 
@@ -416,8 +476,9 @@ export function buildAssistantRepairPlan(input: {
         reasons: previewWarnings.length
           ? previewWarnings
           : ["No valid generation path is available."],
+        apply: { type: "fix_flow_wiring" },
         action: "open_brains",
-        verify: "Fix the Strategy Flow validation errors, then regenerate the EA.",
+        verify: "Apply wiring repair if offered, fix remaining Configure errors, then rebuild.",
       };
     }
   } catch (error) {
@@ -425,8 +486,9 @@ export function buildAssistantRepairPlan(input: {
       layer: "strategy_flow",
       title: "Blueprint validation failed",
       reasons: [error instanceof Error ? error.message : "The blueprint could not be validated."],
+      apply: { type: "fix_flow_wiring" },
       action: "open_brains",
-      verify: "Fix Configure/Strategy Flow, then regenerate and compile.",
+      verify: "Apply wiring repair, fix Configure/Strategy Flow, then regenerate and compile.",
     };
   }
 
@@ -452,6 +514,9 @@ export function repairPlanToContext(plan: AssistantRepairPlan): string {
     plan.apply ? `- one-click apply: ${JSON.stringify(plan.apply)}` : "- one-click apply: none",
     `- app action: ${plan.action}`,
     `- verify: ${plan.verify}`,
+    plan.apply
+      ? `- SOLVER RULE: You MUST emit this exact APPLY. Do NOT substitute regen_ea.`
+      : "- SOLVER RULE: No APPLY available for this layer; guide open_modules / evidence collection.",
   ].join("\n");
 }
 

@@ -4,6 +4,7 @@
  */
 
 import type { StrategyBlueprint, StrategyStepConfig } from "@/types/blueprint";
+import type { StrategyEventType } from "@/lib/strategy-events";
 import { resolveStrategyFlow } from "@/lib/blueprint-generation-gate";
 import { applyHtfLtfEmaAlignment } from "@/lib/assistant-htf-ltf-fix";
 
@@ -164,12 +165,11 @@ export function looksLikeSetupExpiryIssue(text: string): boolean {
   return /setup expir|expired|zone (gone|invalid)|never armed|setup never/i.test(text);
 }
 
-const RETEST_TO_ACTIVE: Record<string, string> = {
+const RETEST_TO_ACTIVE: Partial<Record<StrategyEventType, StrategyEventType>> = {
   OB_RETESTED: "OB_CREATED",
   FVG_RETESTED: "FVG_CREATED",
   UNICORN_RETESTED: "UNICORN_ACTIVE",
   IFVG_RETESTED: "IFVG_FORMED",
-  BB_RETESTED: "BB_ZONE_ACTIVE",
 };
 
 /**
@@ -301,3 +301,176 @@ export function looksLikeSilentZoneSetup(text: string): boolean {
     ) || /entry.*(thousands|fired|events).*(setup|confirmation).*(never|0)/i.test(text)
   );
 }
+
+const ENTRY_EVENT_RELAX: Partial<Record<StrategyEventType, StrategyEventType>> = {
+  EMA_CLOSE_CONFIRMED: "EMA_CROSS",
+  FVG_CONFIRMED: "FVG_RETESTED",
+  OB_CONFIRMED: "OB_RETESTED",
+  UNICORN_CONFIRMED: "UNICORN_RETESTED",
+  IFVG_CONFIRMED: "IFVG_RETESTED",
+};
+
+/**
+ * Entry step logged 0 events while upstream Direction/Setup fired.
+ * Loosen entry event/params and ensure wiring so Entry can fire.
+ */
+export function applyFixSilentEntry(bp: StrategyBlueprint): FlowFixResult {
+  const wired = applyFixFlowWiring(bp);
+  let nextBp = wired.changed ? wired.blueprint : bp;
+  const notes = [...wired.notes];
+  const flow = resolveStrategyFlow(nextBp);
+  if (!flow?.steps?.length) {
+    return {
+      blueprint: nextBp,
+      changed: wired.changed,
+      notes: notes.length ? notes : ["No Strategy Flow steps to patch."],
+    };
+  }
+
+  const steps = flow.steps.map(cloneStep);
+  let changed = wired.changed;
+  const entry = steps.find((s) => s.enabled !== false && s.role === "entry");
+  if (!entry) {
+    return {
+      blueprint: nextBp,
+      changed,
+      notes: [...notes, "No Entry step found to loosen."],
+    };
+  }
+
+  const relaxed = ENTRY_EVENT_RELAX[entry.event];
+  if (relaxed && relaxed !== entry.event) {
+    const prev = entry.event;
+    entry.event = relaxed;
+    changed = true;
+    notes.push(`${entry.name || entry.id}: ${prev} → ${relaxed} (easier entry trigger).`);
+  }
+
+  const params = { ...(entry.params ?? {}) };
+  const lookback = Number(params.lookback);
+  if (Number.isFinite(lookback) && lookback > 8) {
+    params.lookback = Math.max(5, Math.floor(lookback / 2));
+    changed = true;
+    notes.push(`${entry.name || entry.id}: lookback ${lookback} → ${params.lookback}.`);
+  }
+  for (const key of ["swingLen", "pivotStrength", "strength", "confirmBars"] as const) {
+    const n = Number(params[key]);
+    if (Number.isFinite(n) && n > 2) {
+      params[key] = 2;
+      changed = true;
+      notes.push(`${entry.name || entry.id}: ${key} ${n} → 2.`);
+    }
+  }
+  if (entry.module === "ema" && params.requireCross === true) {
+    // Keep requireCross — alignment matters; loosening is via event/lookback.
+  }
+  entry.params = params;
+
+  // Same-TF entry waiting "after" a silent/rare setup can starve — prefer same_or_after.
+  const deps = entry.dependsOn ?? [];
+  entry.dependsOn = deps.map((d) => {
+    if (d.relation === "after") {
+      changed = true;
+      notes.push(
+        `${entry.name || entry.id}: dependency → same_or_after (allows entry once upstream is live).`,
+      );
+      return { ...d, relation: "same_or_after" as const };
+    }
+    return d;
+  });
+
+  if (!changed) {
+    notes.push(
+      "Entry already looks loose — try a different entry module/event in Configure, or attach a longer tester log.",
+    );
+    return { blueprint: nextBp, changed: false, notes };
+  }
+
+  return {
+    blueprint: {
+      ...nextBp,
+      strategyFlow: {
+        ...flow,
+        steps,
+        source: flow.source === "user" ? "user" : flow.source,
+      },
+    },
+    changed: true,
+    notes,
+  };
+}
+
+/**
+ * Loosen Management / execution risk gates that block OpenTrade (spread, max open, stop distance).
+ */
+export function applyFixRiskGates(bp: StrategyBlueprint): FlowFixResult {
+  const notes: string[] = [];
+  let changed = false;
+
+  const risk = { ...bp.risk };
+  const execution = { ...bp.execution };
+  const prevSpread = execution.spreadFilterPoints ?? 25;
+  if (prevSpread > 0 && prevSpread < 80) {
+    execution.spreadFilterPoints = Math.max(50, prevSpread * 2);
+    changed = true;
+    notes.push(`Max spread ${prevSpread} → ${execution.spreadFilterPoints} points.`);
+  } else if (prevSpread >= 80) {
+    execution.spreadFilterPoints = 0;
+    changed = true;
+    notes.push("Max spread filter disabled (0 = off) for this test.");
+  }
+
+  const prevOpen = risk.maxOpenTrades ?? 1;
+  if (prevOpen < 3) {
+    risk.maxOpenTrades = 3;
+    changed = true;
+    notes.push(`Max open trades ${prevOpen} → 3.`);
+  }
+
+  const prevBuf = risk.stopBufferPoints ?? 20;
+  if (prevBuf < 40) {
+    risk.stopBufferPoints = 40;
+    changed = true;
+    notes.push(`Stop buffer ${prevBuf} → 40 points.`);
+  }
+
+  const flowMgmt = bp.strategyFlow?.management ?? {};
+  const fbMgmt = bp.fourBrain?.management ?? {};
+  const baseMgmt = { ...fbMgmt, ...flowMgmt };
+  let mgmt = { ...baseMgmt };
+  const maxStop = mgmt.maxStopPoints;
+  if (typeof maxStop === "number" && maxStop > 0 && maxStop < 200) {
+    mgmt = { ...mgmt, maxStopPoints: Math.max(150, maxStop * 2) };
+    changed = true;
+    notes.push(`Max stop ${maxStop} → ${mgmt.maxStopPoints} points.`);
+  } else if (typeof maxStop === "number" && maxStop > 0) {
+    mgmt = { ...mgmt, maxStopPoints: 0 };
+    changed = true;
+    notes.push("Max stop distance limit disabled (0 = no limit).");
+  }
+
+  if (!changed) {
+    notes.push("Risk gates already look loose — inspect the gate reason or widen the test period.");
+    return { blueprint: bp, changed: false, notes };
+  }
+
+  const nextFb = bp.fourBrain
+    ? { ...bp.fourBrain, management: { ...bp.fourBrain.management, ...mgmt } }
+    : bp.fourBrain;
+  const nextFlow = bp.strategyFlow
+    ? { ...bp.strategyFlow, management: { ...bp.strategyFlow.management, ...mgmt } }
+    : bp.strategyFlow;
+
+  return {
+    blueprint: {
+      ...bp,
+      risk,
+      execution,
+      fourBrain: nextFb,
+      strategyFlow: nextFlow,
+    },
+    changed: true,
+    notes,
+  };
+}
+

@@ -11,6 +11,8 @@ import {
 import {
   applyFixFlowWiring,
   applyFixSilentZoneSetup,
+  applyFixSilentEntry,
+  applyFixRiskGates,
   looksLikeSameBarCollision,
   looksLikeSetupExpiryIssue,
   looksLikeSilentZoneSetup,
@@ -31,6 +33,10 @@ export type AssistantApplyFix =
   | { type: "fix_flow_wiring" }
   /** Setup logged 0 events while Entry fired — arm on zone formation, drop duplicate OB gates. */
   | { type: "fix_silent_zone_setup" }
+  /** Entry logged 0 events while upstream fired — loosen entry event/params + wiring. */
+  | { type: "fix_silent_entry" }
+  /** Spread / max-open / stop-distance gates blocking OpenTrade. */
+  | { type: "fix_risk_gates" }
   /** Set Management trading schedule (TIME_SESSION_FILTER), then regen. */
   | ({ type: "set_time_filter" } & SetTimeFilterPatch);
 
@@ -41,6 +47,8 @@ const APPLY_TYPES = new Set([
   "fix_htf_ltf_ema_alignment",
   "fix_flow_wiring",
   "fix_silent_zone_setup",
+  "fix_silent_entry",
+  "fix_risk_gates",
   "set_time_filter",
 ]);
 
@@ -125,6 +133,12 @@ export function extractApplyMarkers(text: string): AssistantApplyFix[] {
       ) {
         fixes.push({ type: "fix_silent_zone_setup" });
       }
+      if (type === "fix_silent_entry" && !fixes.some((f) => f.type === "fix_silent_entry")) {
+        fixes.push({ type: "fix_silent_entry" });
+      }
+      if (type === "fix_risk_gates" && !fixes.some((f) => f.type === "fix_risk_gates")) {
+        fixes.push({ type: "fix_risk_gates" });
+      }
       if (type === "set_time_filter" && !fixes.some((f) => f.type === "set_time_filter")) {
         const fix = parseSetTimeFilter(obj);
         if (fix) fixes.push(fix);
@@ -169,6 +183,10 @@ export function applyFixLabel(fix: AssistantApplyFix): string {
       return "Fix Strategy Flow wiring (any modules)";
     case "fix_silent_zone_setup":
       return "Fix silent Setup (arm on zone form, drop duplicate OB gate)";
+    case "fix_silent_entry":
+      return "Fix silent Entry (loosen trigger + wiring)";
+    case "fix_risk_gates":
+      return "Loosen risk gates (spread / max open / stop)";
     case "set_time_filter":
       if (fix.enabled === false) return "Disable trading schedule (all day)";
       if (fix.sessions?.length) return `Set trading schedule: ${fix.sessions.join(", ")}`;
@@ -183,6 +201,8 @@ export function isBlueprintPatchApply(fix: AssistantApplyFix): boolean {
     fix.type === "fix_htf_ltf_ema_alignment" ||
     fix.type === "fix_flow_wiring" ||
     fix.type === "fix_silent_zone_setup" ||
+    fix.type === "fix_silent_entry" ||
+    fix.type === "fix_risk_gates" ||
     fix.type === "set_time_filter"
   );
 }
@@ -212,6 +232,8 @@ export {
   looksLikeHtfLtfMisalignment,
   applyFixFlowWiring,
   applyFixSilentZoneSetup,
+  applyFixSilentEntry,
+  applyFixRiskGates,
   looksLikeSameBarCollision,
   looksLikeSetupExpiryIssue,
   looksLikeSilentZoneSetup,

@@ -78,6 +78,8 @@ import {
   applyHtfLtfEmaAlignment,
   applyFixFlowWiring,
   applyFixSilentZoneSetup,
+  applyFixSilentEntry,
+  applyFixRiskGates,
   applySetTimeFilter,
 } from "@/lib/assistant-apply";
 import { toast } from "sonner";
@@ -591,6 +593,8 @@ function StrategyPage() {
       fix.type === "fix_htf_ltf_ema_alignment" ||
       fix.type === "fix_flow_wiring" ||
       fix.type === "fix_silent_zone_setup" ||
+      fix.type === "fix_silent_entry" ||
+      fix.type === "fix_risk_gates" ||
       fix.type === "set_time_filter"
     ) {
       const patched =
@@ -598,9 +602,13 @@ function StrategyPage() {
           ? applySetTimeFilter(blueprint, fix)
           : fix.type === "fix_silent_zone_setup"
             ? applyFixSilentZoneSetup(blueprint)
-            : fix.type === "fix_flow_wiring"
-              ? applyFixFlowWiring(blueprint)
-              : applyHtfLtfEmaAlignment(blueprint);
+            : fix.type === "fix_silent_entry"
+              ? applyFixSilentEntry(blueprint)
+              : fix.type === "fix_risk_gates"
+                ? applyFixRiskGates(blueprint)
+                : fix.type === "fix_flow_wiring"
+                  ? applyFixFlowWiring(blueprint)
+                  : applyHtfLtfEmaAlignment(blueprint);
       if (!patched.changed) {
         setActiveTab(isFourBrain ? "brains" : "spec");
         toast.message(patched.notes[0] ?? "Configure already looks correct");
@@ -625,9 +633,13 @@ function StrategyPage() {
             ? "Trading schedule"
             : fix.type === "fix_silent_zone_setup"
               ? "Silent Setup fix"
-              : fix.type === "fix_flow_wiring"
-                ? "Flow wiring"
-                : "EMA alignment";
+              : fix.type === "fix_silent_entry"
+                ? "Silent Entry fix"
+                : fix.type === "fix_risk_gates"
+                  ? "Risk gates loosened"
+                  : fix.type === "fix_flow_wiring"
+                    ? "Flow wiring"
+                    : "EMA alignment";
         toast.success(`${label} applied — starting history test…`);
         requestAutoHistoryTest();
       } catch (e: unknown) {

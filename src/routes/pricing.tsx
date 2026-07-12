@@ -28,8 +28,8 @@ const plans: Array<{
     note: "Explore the builder",
     features: [
       `${PLAN_MONTHLY_CREDITS.starter} AI assistant credits / month`,
-      "Free rule audit + repair plan",
-      "Free Apply now (regen / set period)",
+      "Free rule audit + repair plan that solves failures",
+      "Free Apply now (fix Setup/Entry/wiring/risk/schedule)",
       "Create strategy drafts & preview modules",
     ],
     featured: false,
@@ -54,9 +54,9 @@ const plans: Array<{
     note: "For teams and power users",
     features: [
       `${PLAN_MONTHLY_CREDITS.studio} AI assistant credits / month`,
-      "Strategy library + advanced repair assistant",
+      "Strategy library + advanced repair assistant that Apply-fixes failures",
       "Priority module requests",
-      "Same free diagnosis / Apply now as all plans",
+      "Same free diagnose → Apply → retest loop as all plans",
     ],
     featured: false,
   },
@@ -67,12 +67,13 @@ function PricingRoute() {
     <div>
       <PageHeader
         title="Pricing"
-        subtitle="Deterministic diagnosis stays free. Cloud AI uses monthly credits."
+        subtitle="The Assistant diagnoses and Apply-fixes strategy failures. Cloud chat uses monthly credits."
       />
       <div className="mx-auto max-w-3xl px-6 pb-2 text-sm text-muted-foreground">
         <p>
-          Free on every plan: rule audit, repair plan, Apply now, compile/download via the local
-          runner. Paid: cloud assistant chat and AI surgical code rewrite.
+          Free on every plan: rule audit, repair plan, and Apply fixes that repair Configure then
+          rebuild (silent Setup/Entry, wiring, risk gates, schedule, tester period). Paid: cloud
+          assistant chat that must trigger those same Applies, plus AI surgical rewrite when needed.
         </p>
       </div>
       <div className="grid gap-4 p-6 lg:grid-cols-3">
