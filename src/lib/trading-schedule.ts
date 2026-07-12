@@ -48,7 +48,7 @@ export interface TradingScheduleConfig {
    * Used by the session timeline UI and for filter codegen.
    */
   sessionWindowOverrides?: Partial<Record<TradingSessionPreset, TradingTimeWindow>>;
-  /** Draw session high/low as two horizontal lines on the MT5 chart (default on). */
+  /** Draw two vertical lines on the MT5 chart at session start/end (default on). */
   markSessionsOnChart?: boolean;
 }
 
@@ -871,18 +871,16 @@ ${windows
   const drawHelpers = drawLines
     ? `
 ${getWinMinsFn}
-void Session_SetHLine(const string name, datetime t1, datetime t2, double price, color css)
+void Session_SetVLine(const string name, datetime t, color css)
 {
    if(ObjectFind(0, name) < 0)
-      ObjectCreate(0, name, OBJ_TREND, 0, t1, price, t2, price);
+      ObjectCreate(0, name, OBJ_VLINE, 0, t, 0);
    ObjectSetInteger(0, name, OBJPROP_COLOR, css);
    ObjectSetInteger(0, name, OBJPROP_STYLE, STYLE_DOT);
    ObjectSetInteger(0, name, OBJPROP_WIDTH, 1);
-   ObjectSetInteger(0, name, OBJPROP_RAY_RIGHT, false);
    ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
    ObjectSetInteger(0, name, OBJPROP_BACK, true);
-   ObjectMove(0, name, 0, t1, price);
-   ObjectMove(0, name, 1, t2, price);
+   ObjectMove(0, name, 0, t, 0);
 }
 
 void UpdateSessionChartMarks()
@@ -897,44 +895,23 @@ void UpdateSessionChartMarks()
    const color winCss[${windows.length}] = { ${windows.map((_, i) => chartColors[i] ?? "clrGray").join(", ")} };
 
    for(int w = 0; w < ${windows.length}; w++) {
+      string nStart = "EA_SES_START_" + IntegerToString(w);
+      string nEnd   = "EA_SES_END_" + IntegerToString(w);
       int sMin = 0, eMin = 0;
       if(!Session_GetWindowMins(w, now, sMin, eMin)) {
-         ObjectDelete(0, "EA_SES_HI_" + IntegerToString(w));
-         ObjectDelete(0, "EA_SES_LO_" + IntegerToString(w));
+         ObjectDelete(0, nStart);
+         ObjectDelete(0, nEnd);
          continue;
       }
       datetime t1 = dayStart + sMin * 60;
       datetime t2 = dayStart + eMin * 60;
       if(sMin > eMin) {
-         // wraps midnight: show overnight leg ending today, start yesterday
+         // wraps midnight: start yesterday if still in overnight leg, else end tomorrow
          if(dt.hour * 60 + dt.min < eMin) t1 = dayStart - (1440 - sMin) * 60;
          else t2 = dayStart + 1440 * 60 + eMin * 60;
       }
-      datetime tScanEnd = t2;
-      if(tScanEnd > now) tScanEnd = now;
-      if(tScanEnd <= t1) {
-         ObjectDelete(0, "EA_SES_HI_" + IntegerToString(w));
-         ObjectDelete(0, "EA_SES_LO_" + IntegerToString(w));
-         continue;
-      }
-
-      int shift1 = iBarShift(InpSymbol, PERIOD_CURRENT, t1, false);
-      int shift2 = iBarShift(InpSymbol, PERIOD_CURRENT, tScanEnd, false);
-      if(shift1 < 0 || shift2 < 0) continue;
-      int from = MathMax(shift1, shift2);
-      int to = MathMin(shift1, shift2);
-      double hi = iHigh(InpSymbol, PERIOD_CURRENT, to);
-      double lo = iLow(InpSymbol, PERIOD_CURRENT, to);
-      for(int sh = to; sh <= from; sh++) {
-         double h = iHigh(InpSymbol, PERIOD_CURRENT, sh);
-         double l = iLow(InpSymbol, PERIOD_CURRENT, sh);
-         if(h > hi) hi = h;
-         if(l < lo) lo = l;
-      }
-      datetime tRight = t2;
-      if(tRight > now + PeriodSeconds(PERIOD_CURRENT)) tRight = now;
-      Session_SetHLine("EA_SES_HI_" + IntegerToString(w), t1, tRight, hi, winCss[w]);
-      Session_SetHLine("EA_SES_LO_" + IntegerToString(w), t1, tRight, lo, winCss[w]);
+      Session_SetVLine(nStart, t1, winCss[w]);
+      Session_SetVLine(nEnd, t2, winCss[w]);
    }
 }
 
@@ -948,7 +925,7 @@ void CleanupSessionChartMarks()
   const extras: string[] = [];
   if (offset !== 0) extras.push(`offset ${offset > 0 ? "+" : ""}${offset}h`);
   if (dstOn) extras.push("DST approx");
-  if (drawLines) extras.push("hi/lo lines");
+  if (drawLines) extras.push("window lines");
   if (cancelPending) extras.push("cancel pendings");
   if (closePositions) extras.push("close positions");
   const panelExtra = extras.length ? `, ${extras.join(", ")}` : "";
@@ -962,7 +939,7 @@ void CleanupSessionChartMarks()
 input int  InpAllowedDaysMask = ${dayMask};  // bit0=Sun … bit6=Sat (default Mon–Fri)
 input int  InpBrokerOffsetHours = ${offset};  // hours added to window tables (align to broker)
 input bool InpDstAdjust = ${dstOn ? "true" : "false"};  // EU/US DST summer tables for London/NY
-input bool InpDrawSessionLines = ${drawLines ? "true" : "false"};  // session high/low horizontal lines
+input bool InpDrawSessionLines = ${drawLines ? "true" : "false"};  // vertical lines at session start/end
 input bool InpCancelPendingOutside = ${cancelPending ? "true" : "false"};  // cancel pendings outside session
 input bool InpClosePositionsOutside = ${closePositions ? "true" : "false"};  // close positions outside session
 ${winInputs}`,

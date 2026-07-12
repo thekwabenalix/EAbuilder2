@@ -86,7 +86,9 @@ const framedMql = emitTradingScheduleMql5(framed);
 assertOk(framedMql.inputs.includes("InpWin1StartH = 8"), "override emits custom start hour");
 assertOk(framedMql.inputs.includes("InpDrawSessionLines = true"), "draws session lines by default");
 assertOk(framedMql.helpers.includes("UpdateSessionChartMarks"), "emits session chart mark updater");
-assertOk(framedMql.helpers.includes("OBJ_TREND"), "session hi/lo use trend lines");
+assertOk(framedMql.helpers.includes("OBJ_VLINE"), "session marks use vertical lines");
+assertOk(framedMql.helpers.includes("EA_SES_START_"), "session start line prefix");
+assertOk(framedMql.helpers.includes("EA_SES_END_"), "session end line prefix");
 assertOk(framedMql.onTickHook.includes("UpdateSessionChartMarks"), "onTick updates session lines");
 console.log("[OK  ] session frame overrides");
 

@@ -411,7 +411,7 @@ export function WhenToTradeCard({
                   })
                 }
               />
-              Draw session high/low lines on chart
+              Draw session start/end lines on chart
             </label>
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
               <Checkbox
