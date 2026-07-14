@@ -301,7 +301,7 @@ export const DOWNLOADABLE_MODULE_CATEGORIES: DownloadableModuleCategory[] = [
         name: "Traders Dynamic Index",
         description:
           "TDI composite: RSI Price Line, Trade Signal, Market Base Line, and volatility bands on RSI. " +
-          "Exposes closed-bar crosses, trend, confirmation, and band expand/contract states.",
+          "Price and Signal are both MAs of RSI (TradingView/LazyBear). Forming bar lines stay in range; events are closed-bar only.",
         generate: generateTdiStateModule,
       },
       {

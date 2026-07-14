@@ -67,8 +67,7 @@ export function genTdiSm(
     appliedRaw === "PRICE_WEIGHTED"
       ? appliedRaw
       : "PRICE_CLOSE";
-  const need =
-    Math.max(rsiPeriod, pricePeriod, signalPeriod, mblPeriod, vbPeriod) + signalPeriod + 5;
+  const need = Math.max(rsiPeriod, pricePeriod, signalPeriod, mblPeriod, vbPeriod) + 5;
 
   return `
 //+------------------------------------------------------------------+
@@ -179,17 +178,10 @@ bool ${P}ComputeAt(int closedShift,
    ArraySetAsSeries(rsi, true);
    if(CopyBuffer(${P}hRsi, 0, closedShift, need, rsi) != need) return false;
 
-   // Price line = MA of raw RSI
+   // Price line = MA of raw RSI (LazyBear / TradingView)
    outPrice = ${P}MaOnSeries(rsi, need, 0, ${P}pricePeriod, ${priceMethod});
-
-   // Build a short price-line series for signal MA (recompute price line at each offset)
-   int sigNeed = ${P}signalPeriod;
-   double priceSeries[];
-   ArrayResize(priceSeries, sigNeed);
-   ArraySetAsSeries(priceSeries, true);
-   for(int s = 0; s < sigNeed; s++)
-      priceSeries[s] = ${P}MaOnSeries(rsi, need, s, ${P}pricePeriod, ${priceMethod});
-   outSignal = ${P}MaOnSeries(priceSeries, sigNeed, 0, ${P}signalPeriod, ${signalMethod});
+   // Signal line = MA of raw RSI (same series) — not MA-of-MA
+   outSignal = ${P}MaOnSeries(rsi, need, 0, ${P}signalPeriod, ${signalMethod});
 
    outMbl = ${P}MaOnSeries(rsi, need, 0, ${P}mblPeriod, ${mblMethod});
    outMid = ${P}MaOnSeries(rsi, need, 0, ${P}vbPeriod, ${vbMethod});

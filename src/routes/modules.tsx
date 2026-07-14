@@ -1090,8 +1090,9 @@ const TRADING_MODULES: ModuleCategory[] = [
           "Exposes lines plus closed-bar cross, trend, confirmation, and band expand/contract buffers. " +
           "No trades — brains reference TDISM query functions / buffer contract.",
         rules: [
-          "RSI → Price Line = MA(RSI), Signal = MA(Price Line), MBL = MA(RSI)",
+          "RSI → Price Line = MA(RSI), Signal = MA(RSI), MBL = MA(RSI) [LazyBear/TV]",
           "Volatility bands = MA(RSI) ± Dev×StdDev(RSI) — never on market price",
+          "Forming bar: all five lines updated every tick (no 0.00 cliff)",
           "Bull cross: Price was ≤ Signal, then Price > Signal (closed bars only)",
           "Bull confirmation: bull cross while Price > MBL and Signal > MBL",
           "Trend: Price vs Market Base; Strong = Price & Signal same side of MBL",

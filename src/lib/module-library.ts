@@ -3327,7 +3327,7 @@ export const MODULE_LIBRARY: ModuleSpec[] = [
     concept:
       "Composite of RSI + MAs on RSI + Bollinger-style volatility bands on RSI (not on price). RSI Price Line (green), Trade Signal (red), Market Base (yellow), Upper/Lower bands (blue).",
     detectionLogic:
-      "iRSI → Price Line = MA(RSI), Signal = MA(Price Line), MBL = MA(RSI), bands = MA(RSI) ± Dev×StdDev(RSI). Closed-bar Price/Signal crosses; confirmation requires both lines on the same side of MBL.",
+      "iRSI → Price Line = MA(RSI), Signal = MA(RSI) [both on raw RSI, LazyBear/TV style], MBL = MA(RSI), bands = MA(RSI) ± Dev×StdDev(RSI). Closed-bar Price/Signal crosses; confirmation requires both lines on the same side of MBL. Forming bar is display-only.",
     roles: [
       {
         role: "direction",
