@@ -434,6 +434,10 @@
     --lp-candle: rgb(32 35 41 / 0.28);
     --lp-candle-up: rgb(39 159 134 / 0.34);
     --lp-feature-icon: #69707a;
+    --lp-header-action-bg: rgb(255 255 255 / 0.78);
+    --lp-header-action-border: rgb(32 35 41 / 0.14);
+    --lp-header-action-text: #353a43;
+    --lp-header-action-hover: rgb(32 35 41 / 0.07);
   }
 
   .dark .landing-premium {
@@ -458,6 +462,10 @@
     --lp-candle: rgb(238 232 227 / 0.2);
     --lp-candle-up: rgb(81 217 173 / 0.3);
     --lp-feature-icon: #c3c7ce;
+    --lp-header-action-bg: rgb(7 16 24 / 0.82);
+    --lp-header-action-border: rgb(244 242 239 / 0.2);
+    --lp-header-action-text: #f4f2ef;
+    --lp-header-action-hover: rgb(255 255 255 / 0.1);
   }
 
   .landing-signal-art {

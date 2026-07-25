@@ -234,14 +234,16 @@ export function LandingPage() {
           </nav>
 
           <div className="flex items-center gap-3">
-            <ThemeToggleIcon />
-            <button
-              type="button"
-              className="hidden text-sm text-[var(--lp-muted)] transition hover:text-[var(--lp-text)] sm:inline-flex"
-              onClick={() => openAuth("signin")}
-            >
-              Login
-            </button>
+            <div className="hidden h-11 items-center rounded-full border border-[var(--lp-header-action-border)] bg-[var(--lp-header-action-bg)] p-1 shadow-[0_12px_32px_var(--lp-soft-shadow)] backdrop-blur-xl sm:flex">
+              <ThemeToggleIcon className="h-9 w-9 rounded-full text-[var(--lp-header-action-text)] hover:bg-[var(--lp-header-action-hover)] hover:text-[var(--lp-text)]" />
+              <button
+                type="button"
+                className="h-9 rounded-full px-3.5 text-sm font-medium text-[var(--lp-header-action-text)] transition-colors duration-150 hover:bg-[var(--lp-header-action-hover)] hover:text-[var(--lp-text)] active:scale-[0.97]"
+                onClick={() => openAuth("signin")}
+              >
+                Login
+              </button>
+            </div>
             <motion.button
               type="button"
               whileHover={{ y: -1, scale: 1.02 }}
